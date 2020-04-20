@@ -62,6 +62,7 @@ CompilerInstance::CompilerInstance(
       Invocation(new CompilerInvocation()),
       ModuleCache(SharedModuleCache ? SharedModuleCache
                                     : new InMemoryModuleCache),
+      PredMap(nullptr),
       ThePCHContainerOperations(std::move(PCHContainerOps)) {}
 
 CompilerInstance::~CompilerInstance() {
