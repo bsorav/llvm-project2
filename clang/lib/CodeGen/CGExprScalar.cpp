@@ -4646,12 +4646,19 @@ Value *ScalarExprEmitter::VisitAtomicExpr(AtomicExpr *E) {
 
 /// Emit the computation of the specified expression of scalar type, ignoring
 /// the result.
-Value *CodeGenFunction::EmitScalarExpr(const Expr *E, bool IgnoreResultAssign) {
+Value *CodeGenFunction::EmitScalarExprHelper(const Expr *E,
+                                             bool IgnoreResultAssign) {
   assert(E && hasScalarEvaluationKind(E->getType()) &&
          "Invalid scalar expression to emit");
 
   return ScalarExprEmitter(*this, IgnoreResultAssign)
       .Visit(const_cast<Expr *>(E));
+}
+
+Value *CodeGenFunction::EmitScalarExpr(const Expr *E, bool IgnoreResultAssign) {
+  Value *val = EmitScalarExprHelper(E, IgnoreResultAssign);
+  EmitAliasCall(E);
+  return val;
 }
 
 /// Emit a conversion from the specified type to the specified destination type,
