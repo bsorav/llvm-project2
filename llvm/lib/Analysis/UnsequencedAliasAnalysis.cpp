@@ -3,6 +3,7 @@
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Intrinsics.h"
+#include "llvm/InitializePasses.h"
 
 using namespace llvm;
 
@@ -50,7 +51,7 @@ bool UnseqAAWrapperPass::runOnFunction(Function &F) {
       // check if the predicate has any non-readonly fn calls assoc with it
       // The first operand of the predicate will be the unique id
       bool keepPred = true;
-      for (int i = 3; i < CALL.getNumArgOperands(); i++) {
+      for (unsigned i = 3; i < CALL.getNumArgOperands(); i++) {
         Value *val = getValuefromMDValue(CALL.getArgOperand(i));
         if (!val) {
           // llvm::errs() << "Null function value in MDNode\n";

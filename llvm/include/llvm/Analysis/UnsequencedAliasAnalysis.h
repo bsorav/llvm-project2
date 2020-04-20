@@ -21,7 +21,7 @@ public:
   UnseqAAResult(UnseqAAResult &&Arg)
       : AAResultBase(std::move(Arg)), predicates(Arg.predicates) {}
 
-  AliasResult alias(const MemoryLocation &LocA, const MemoryLocation &LocB);
+  AliasResult alias(const MemoryLocation &LocA, const MemoryLocation &LocB, AAQueryInfo &AAQI);
 };
 
 /// Analysis pass providing a never-invalidated alias analysis result.

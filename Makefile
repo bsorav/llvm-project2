@@ -16,4 +16,4 @@ first::
 install::
 	#https://llvm.org/docs/GettingStarted.html
 	mkdir -p build
-	cd build && cmake $(DISTCC_OPTS) -G Ninja -DLLVM_ENABLE_BINDINGS=OFF -DLLVM_ENABLE_FFI=ON -DLLVM_USE_LINKER=gold -DLLVM_PARALLEL_LINK_JOBS=1 -DLLVM_ENABLE_PROJECTS="clang;clang-tools-extra" -DLLVM_TARGETS_TO_BUILD="X86" ../llvm && cd ..
+	cd build && cmake $(DISTCC_OPTS) -G Ninja -DLLVM_ENABLE_BINDINGS=OFF -DLLVM_ENABLE_FFI=ON -DLLVM_USE_LINKER=gold -DLLVM_PARALLEL_LINK_JOBS=1 -DLLVM_ENABLE_PROJECTS="clang;clang-tools-extra" -DLLVM_TARGETS_TO_BUILD="X86" -DCLANG_BUILD_EXAMPLES=1 ../llvm && cd ..
