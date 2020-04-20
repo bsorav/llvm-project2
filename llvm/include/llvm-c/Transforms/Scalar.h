@@ -161,6 +161,8 @@ void LLVMAddBasicAliasAnalysisPass(LLVMPassManagerRef PM);
 /** See llvm::createUnifyFunctionExitNodesPass function */
 void LLVMAddUnifyFunctionExitNodesPass(LLVMPassManagerRef PM);
 
+void LLVMAddRemoveAliasPredicatesPass(LLVMPassManagerRef PM);
+
 /**
  * @}
  */

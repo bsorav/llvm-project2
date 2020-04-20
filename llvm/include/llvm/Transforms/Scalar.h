@@ -523,6 +523,13 @@ Pass *createLoopSimplifyCFGPass();
 // transformations.
 //
 Pass *createWarnMissedTransformationsPass();
+
+//===----------------------------------------------------------------------===//
+//
+// RemoveAliasPredicates - Remove __not_alias calls from IR
+//
+FunctionPass *createRemoveAliasPredicatesPass();
+
 } // End llvm namespace
 
 #endif

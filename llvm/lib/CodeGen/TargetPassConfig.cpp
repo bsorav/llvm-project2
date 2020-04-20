@@ -22,6 +22,7 @@
 #include "llvm/Analysis/ScopedNoAliasAA.h"
 #include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/Analysis/TypeBasedAliasAnalysis.h"
+#include "llvm/Analysis/UnsequencedAliasAnalysis.h"
 #include "llvm/CodeGen/CSEConfigBase.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
 #include "llvm/CodeGen/MachinePassRegistry.h"
@@ -409,6 +410,7 @@ TargetPassConfig::TargetPassConfig(LLVMTargetMachine &TM, PassManagerBase &pm)
 
   // Also register alias analysis passes required by codegen passes.
   initializeBasicAAWrapperPassPass(*PassRegistry::getPassRegistry());
+  initializeUnseqAAWrapperPassPass(*PassRegistry::getPassRegistry());
   initializeAAResultsWrapperPassPass(*PassRegistry::getPassRegistry());
 
   if (StringRef(PrintMachineInstrs.getValue()).equals(""))
@@ -660,6 +662,7 @@ void TargetPassConfig::addIRPasses() {
   addPass(createTypeBasedAAWrapperPass());
   addPass(createScopedNoAliasAAWrapperPass());
   addPass(createBasicAAWrapperPass());
+  addPass(createUnseqAAWrapperPass());
 
   // Before running any passes, run the verifier to determine if the input
   // coming from the front-end and/or optimizer is valid.
