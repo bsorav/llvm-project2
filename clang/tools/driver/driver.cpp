@@ -47,6 +47,7 @@
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Support/Timer.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Support/mydebug.h"
 #include <memory>
 #include <set>
 #include <system_error>
@@ -351,6 +352,13 @@ int main(int argc_, const char **argv_) {
   if (llvm::sys::Process::FixupStandardFileDescriptors())
     return 1;
 
+  DBG(llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": argv[0] = " << argv[0] << ", argv.size() = " << argv.size() << "\n");
+  DBG(
+      for (size_t i = 0; i < argv.size(); i++) {
+        llvm::errs() << "argv[" << i << "] = " << argv[i] << "\n";
+      }
+  );
+  DBG(llvm::errs() << "\n");
   llvm::InitializeAllTargets();
   auto TargetAndMode = ToolChain::getTargetAndModeFromProgramName(argv[0]);
 

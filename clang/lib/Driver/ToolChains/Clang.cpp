@@ -41,6 +41,7 @@
 #include "llvm/Support/Process.h"
 #include "llvm/Support/TargetParser.h"
 #include "llvm/Support/YAMLParser.h"
+#include "llvm/Support/mydebug.h"
 
 #ifdef LLVM_ON_UNIX
 #include <unistd.h> // For getuid().
@@ -3939,14 +3940,25 @@ static void RenderDebugOptions(const ToolChain &TC, const Driver &D,
   RenderDebugInfoCompressionArgs(Args, CmdArgs, D, TC);
 }
 
-void Clang::ConstructJob(Compilation &C, const JobAction &JA,
-                         const InputInfo &Output, const InputInfoList &Inputs,
-                         const ArgList &Args, const char *LinkingOutput) const {
+std::unique_ptr<Command>
+Clang::ConstructCommand(Compilation & C, const JobAction &JA,
+                        const InputInfo &Output, const InputInfoList &Inputs,
+                        const ArgList &Args, const char *LinkingOutput) const {
   const auto &TC = getToolChain();
   const llvm::Triple &RawTriple = TC.getTriple();
   const llvm::Triple &Triple = TC.getEffectiveTriple();
   const std::string &TripleStr = Triple.getTriple();
-
+  DBG(llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": entry\n");
+  DBG(llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": JA.getKind() = " <<
+                        Action::getClassName(JA.getKind()) << "\n");
+  DBG(llvm::errs() << "Inputs:\n");
+  DBG(
+      for (auto const& Input : Inputs) {
+        llvm::errs() << "  " << Input.getAsString() << "\n";
+      }
+      llvm::errs() << "Output:\n";
+      llvm::errs() << "  " << Output.getAsString() << "\n";
+  );
   bool KernelOrKext =
       Args.hasArg(options::OPT_mkernel, options::OPT_fapple_kext);
   const Driver &D = TC.getDriver();
@@ -4021,6 +4033,10 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   // Add the "effective" target triple.
   CmdArgs.push_back("-triple");
   CmdArgs.push_back(Args.MakeArgString(TripleStr));
+
+  if (C.getDriver().CCCIsQCC()) { //for QCC, Clang should disable all optimizations
+    CmdArgs.push_back("-disable-O0-optnone");
+  }
 
   if (const Arg *MJ = Args.getLastArg(options::OPT_MJ)) {
     DumpCompilationDatabase(C, MJ->getValue(), TripleStr, Output, Input, Args);
@@ -4167,6 +4183,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   } else if (isa<VerifyPCHJobAction>(JA)) {
     CmdArgs.push_back("-verify-pch");
   } else {
+    DBG(llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ":\n");
     assert((isa<CompileJobAction>(JA) || isa<BackendJobAction>(JA)) &&
            "Invalid action for clang tool.");
     if (JA.getType() == types::TY_Nothing) {
@@ -4313,11 +4330,13 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
     // Optimization level for CodeGen.
     if (const Arg *A = Args.getLastArg(options::OPT_O_Group)) {
-      if (A->getOption().matches(options::OPT_O4)) {
-        CmdArgs.push_back("-O3");
-        D.Diag(diag::warn_O4_is_O3);
-      } else {
-        A->render(Args, CmdArgs);
+      if (!C.getDriver().CCCIsQCC()) { //for QCC, Clang should disable all optimizations
+        if (A->getOption().matches(options::OPT_O4)) {
+          CmdArgs.push_back("-O3");
+          D.Diag(diag::warn_O4_is_O3);
+        } else {
+          A->render(Args, CmdArgs);
+        }
       }
     }
 
@@ -4339,9 +4358,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
         II.getInputArg().renderAsInput(Args, CmdArgs);
     }
 
-    C.addCommand(std::make_unique<Command>(JA, *this, D.getClangProgramPath(),
-                                            CmdArgs, Inputs));
-    return;
+    return std::make_unique<Command>(JA, *this, D.getClangProgramPath(),
+                                            CmdArgs, Inputs);
   }
 
   if (C.getDriver().embedBitcodeMarkerOnly() && !C.getDriver().isUsingLTO())
@@ -4759,6 +4777,10 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
   RenderTargetOptions(Triple, Args, KernelOrKext, CmdArgs);
 
+  if (C.getDriver().CCCIsQCC()) { //for QCC, Clang should disable all optimizations
+    CmdArgs.push_back("-disable-O0-optnone");
+  }
+
   // These two are potentially updated by AddClangCLArgs.
   codegenoptions::DebugInfoKind DebugInfoKind = codegenoptions::NoDebugInfo;
   bool EmitCodeView = false;
@@ -4910,12 +4932,15 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   Args.ClaimAllArgs(options::OPT_D);
 
   // Manually translate -O4 to -O3; let clang reject others.
+
   if (Arg *A = Args.getLastArg(options::OPT_O_Group)) {
-    if (A->getOption().matches(options::OPT_O4)) {
-      CmdArgs.push_back("-O3");
-      D.Diag(diag::warn_O4_is_O3);
-    } else {
-      A->render(Args, CmdArgs);
+    if (!C.getDriver().CCCIsQCC()) { //for QCC, Clang should disable all optimizations
+      if (A->getOption().matches(options::OPT_O4)) {
+        CmdArgs.push_back("-O3");
+        D.Diag(diag::warn_O4_is_O3);
+      } else {
+        A->render(Args, CmdArgs);
+      }
     }
   }
 
@@ -5777,7 +5802,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   // Enable vectorization per default according to the optimization level
   // selected. For optimization levels that want vectorization we use the alias
   // option to simplify the hasFlag logic.
-  bool EnableVec = shouldEnableVectorizerAtOLevel(Args, false);
+  bool EnableVec = !C.getDriver().CCCIsQCC() && shouldEnableVectorizerAtOLevel(Args, false);
   OptSpecifier VectorizeAliasOption =
       EnableVec ? options::OPT_O_Group : options::OPT_fvectorize;
   if (Args.hasFlag(options::OPT_fvectorize, VectorizeAliasOption,
@@ -6077,7 +6102,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       bool IsOptLevelSupported = false;
 
       Arg *A = Args.getLastArg(options::OPT_O_Group);
-      if (Triple.getArch() == llvm::Triple::aarch64) {
+      if (!C.getDriver().CCCIsQCC() && Triple.getArch() == llvm::Triple::aarch64) {
         if (!A || A->getOption().matches(options::OPT_O0))
           IsOptLevelSupported = true;
       }
@@ -6192,26 +6217,26 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       Input.getInputArg().renderAsInput(Args, CmdArgs);
   }
 
+  std::unique_ptr<Command> ret;
   // Finally add the compile command to the compilation.
   if (Args.hasArg(options::OPT__SLASH_fallback) &&
       Output.getType() == types::TY_Object &&
       (InputType == types::TY_C || InputType == types::TY_CXX)) {
     auto CLCommand =
         getCLFallback()->GetCommand(C, JA, Output, Inputs, Args, LinkingOutput);
-    C.addCommand(std::make_unique<FallbackCommand>(
-        JA, *this, Exec, CmdArgs, Inputs, std::move(CLCommand)));
+    ret = std::make_unique<FallbackCommand>(
+        JA, *this, Exec, CmdArgs, Inputs, std::move(CLCommand));
   } else if (Args.hasArg(options::OPT__SLASH_fallback) &&
              isa<PrecompileJobAction>(JA)) {
     // In /fallback builds, run the main compilation even if the pch generation
     // fails, so that the main compilation's fallback to cl.exe runs.
-    C.addCommand(std::make_unique<ForceSuccessCommand>(JA, *this, Exec,
-                                                        CmdArgs, Inputs));
+    ret = std::make_unique<ForceSuccessCommand>(JA, *this, Exec,
+                                                        CmdArgs, Inputs);
   } else if (D.CC1Main && !D.CCGenDiagnostics) {
     // Invoke the CC1 directly in this process
-    C.addCommand(
-        std::make_unique<CC1Command>(JA, *this, Exec, CmdArgs, Inputs));
+    ret = std::make_unique<CC1Command>(JA, *this, Exec, CmdArgs, Inputs);
   } else {
-    C.addCommand(std::make_unique<Command>(JA, *this, Exec, CmdArgs, Inputs));
+    ret = std::make_unique<Command>(JA, *this, Exec, CmdArgs, Inputs);
   }
 
   // Make the compile command echo its inputs for /showFilenames.
@@ -6240,6 +6265,16 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
   // Disable warnings for clang -E -emit-llvm foo.c
   Args.ClaimAllArgs(options::OPT_emit_llvm);
+  return ret;
+}
+
+//JA specifies the final job action that clang must perform; e.g., if JA=backend, then Clang would do preprocess+compile+backend
+void Clang::ConstructJob(Compilation &C, const JobAction &JA,
+                         const InputInfo &Output, const InputInfoList &Inputs,
+                         const ArgList &Args, const char *LinkingOutput) const
+{
+  std::unique_ptr<Command> ret = ConstructCommand(C, JA, Output, Inputs, Args, LinkingOutput);
+  C.addCommand(std::move(ret));
 }
 
 Clang::Clang(const ToolChain &TC)
@@ -7132,3 +7167,62 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       Args.MakeArgString(getToolChain().GetProgramPath(getShortName())),
       CmdArgs, Inputs));
 }
+
+Qcc::Qcc(const ToolChain &TC)
+    : Tool("clang", "clang frontend", TC, RF_Full), m_clang(TC)
+{}
+
+Qcc::~Qcc()
+{}
+
+void
+Qcc::ConstructJob(Compilation &C, const JobAction &JA,
+                  const InputInfo &Output, const InputInfoList &Inputs,
+                  const llvm::opt::ArgList &TCArgs,
+                  const char *LinkingOutput) const
+{
+  DBG(llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": JA.getKind() = " <<
+                        Action::getClassName(JA.getKind()) << "\n");
+  const auto &TC = getToolChain();
+  const llvm::Triple &RawTriple = TC.getTriple();
+  const llvm::Triple &Triple = TC.getEffectiveTriple();
+  const std::string &TripleStr = Triple.getTriple();
+  DBG(llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": entry. TripleStr = " << TripleStr << "\n");
+  const Driver &D = TC.getDriver();
+  // Check number of inputs for sanity. We need at least one input.
+  assert(Inputs.size() >= 1 && "Must have at least one input.");
+  
+  //llvm::errs() << "TCArgs:\n";
+  //for (auto Arg : TCArgs) {
+  //  llvm::errs() << "  " << Arg->getValue() << "\n";
+  //}
+
+  llvm::errs() << "Inputs:\n";
+  for (auto const& Input : Inputs) {
+    llvm::errs() << "  " << Input.getAsString() << "\n";
+  }
+
+  llvm::errs() << "Output:\n";
+  llvm::errs() << "  " << Output.getAsString() << "\n";
+
+
+  auto *JAQCC = dyn_cast<QCCCodegenAction>(&JA);
+  assert(JAQCC);
+  JobAction JAbackend = JAQCC->getBackendAction();
+  std::unique_ptr<Command> Cmd = m_clang.ConstructCommand(C, JAbackend, Output, Inputs, TCArgs, LinkingOutput);
+
+  llvm::opt::ArgStringList CmdArgs = Cmd->getArguments();
+  if (const Arg *A = TCArgs.getLastArg(options::OPT_O_Group)) {
+    if (A->getOption().matches(options::OPT_O4)) {
+      CmdArgs.push_back("-O3");
+    } else {
+      A->render(TCArgs, CmdArgs);
+    }
+  }
+
+  C.addCommand(std::make_unique<Command>(JA, *this, TCArgs.MakeArgString(getToolChain().GetProgramPath("qcc-codegen")), CmdArgs, Inputs));
+
+  //m_clang.ConstructJob(C, JA, Output, Inputs, TCArgs, LinkingOutput);
+}
+
+

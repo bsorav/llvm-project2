@@ -109,6 +109,11 @@ public:
   bool hasIntegratedCPP() const override { return true; }
   bool canEmitIR() const override { return true; }
 
+  std::unique_ptr<Command> ConstructCommand(Compilation& C, const JobAction &JA,
+                    const InputInfo &Output, const InputInfoList &Inputs,
+                    const llvm::opt::ArgList &TCArgs,
+                    const char *LinkingOutput) const;
+
   void ConstructJob(Compilation &C, const JobAction &JA,
                     const InputInfo &Output, const InputInfoList &Inputs,
                     const llvm::opt::ArgList &TCArgs,
@@ -161,6 +166,94 @@ public:
       : Tool("offload wrapper", "clang-offload-wrapper", TC) {}
 
   bool hasIntegratedCPP() const override { return false; }
+  void ConstructJob(Compilation &C, const JobAction &JA,
+                    const InputInfo &Output, const InputInfoList &Inputs,
+                    const llvm::opt::ArgList &TCArgs,
+                    const char *LinkingOutput) const override;
+};
+
+/// Qcc tool
+class LLVM_LIBRARY_VISIBILITY Qcc : public Tool {
+private:
+  Clang m_clang;
+public:
+  //static const char *getBaseInputName(const llvm::opt::ArgList &Args,
+  //                                    const InputInfo &Input);
+  //static const char *getBaseInputStem(const llvm::opt::ArgList &Args,
+  //                                    const InputInfoList &Inputs);
+  //static const char *getDependencyFileName(const llvm::opt::ArgList &Args,
+  //                                         const InputInfoList &Inputs);
+
+private:
+  //void AddPreprocessingOptions(Compilation &C, const JobAction &JA,
+  //                             const Driver &D, const llvm::opt::ArgList &Args,
+  //                             llvm::opt::ArgStringList &CmdArgs,
+  //                             const InputInfo &Output,
+  //                             const InputInfoList &Inputs) const;
+
+  //void RenderTargetOptions(const llvm::Triple &EffectiveTriple,
+  //                         const llvm::opt::ArgList &Args, bool KernelOrKext,
+  //                         llvm::opt::ArgStringList &CmdArgs) const;
+
+  //void AddAArch64TargetArgs(const llvm::opt::ArgList &Args,
+  //                          llvm::opt::ArgStringList &CmdArgs) const;
+  //void AddARMTargetArgs(const llvm::Triple &Triple,
+  //                      const llvm::opt::ArgList &Args,
+  //                      llvm::opt::ArgStringList &CmdArgs,
+  //                      bool KernelOrKext) const;
+  //void AddARM64TargetArgs(const llvm::opt::ArgList &Args,
+  //                        llvm::opt::ArgStringList &CmdArgs) const;
+  //void AddMIPSTargetArgs(const llvm::opt::ArgList &Args,
+  //                       llvm::opt::ArgStringList &CmdArgs) const;
+  //void AddPPCTargetArgs(const llvm::opt::ArgList &Args,
+  //                      llvm::opt::ArgStringList &CmdArgs) const;
+  //void AddR600TargetArgs(const llvm::opt::ArgList &Args,
+  //                       llvm::opt::ArgStringList &CmdArgs) const;
+  //void AddRISCVTargetArgs(const llvm::opt::ArgList &Args,
+  //                        llvm::opt::ArgStringList &CmdArgs) const;
+  //void AddSparcTargetArgs(const llvm::opt::ArgList &Args,
+  //                        llvm::opt::ArgStringList &CmdArgs) const;
+  //void AddSystemZTargetArgs(const llvm::opt::ArgList &Args,
+  //                          llvm::opt::ArgStringList &CmdArgs) const;
+  //void AddX86TargetArgs(const llvm::opt::ArgList &Args,
+  //                      llvm::opt::ArgStringList &CmdArgs) const;
+  //void AddHexagonTargetArgs(const llvm::opt::ArgList &Args,
+  //                          llvm::opt::ArgStringList &CmdArgs) const;
+  //void AddLanaiTargetArgs(const llvm::opt::ArgList &Args,
+  //                        llvm::opt::ArgStringList &CmdArgs) const;
+  //void AddWebAssemblyTargetArgs(const llvm::opt::ArgList &Args,
+  //                              llvm::opt::ArgStringList &CmdArgs) const;
+
+  //enum RewriteKind { RK_None, RK_Fragile, RK_NonFragile };
+
+  //ObjCRuntime AddObjCRuntimeArgs(const llvm::opt::ArgList &args,
+  //                               llvm::opt::ArgStringList &cmdArgs,
+  //                               RewriteKind rewrite) const;
+
+  //void AddClangCLArgs(const llvm::opt::ArgList &Args, types::ID InputType,
+  //                    llvm::opt::ArgStringList &CmdArgs,
+  //                    codegenoptions::DebugInfoKind *DebugInfoKind,
+  //                    bool *EmitCodeView) const;
+
+  //visualstudio::Compiler *getCLFallback() const;
+
+  //mutable std::unique_ptr<visualstudio::Compiler> CLFallback;
+
+  //mutable std::unique_ptr<llvm::raw_fd_ostream> CompilationDatabase = nullptr;
+  //void DumpCompilationDatabase(Compilation &C, StringRef Filename,
+  //                             StringRef Target,
+  //                             const InputInfo &Output, const InputInfo &Input,
+  //                             const llvm::opt::ArgList &Args) const;
+
+public:
+  Qcc(const ToolChain &TC);
+  ~Qcc() override;
+
+  bool hasGoodDiagnostics() const override { return true; }
+  bool hasIntegratedAssembler() const override { return true; }
+  bool hasIntegratedCPP() const override { return true; }
+  bool canEmitIR() const override { return true; }
+
   void ConstructJob(Compilation &C, const JobAction &JA,
                     const InputInfo &Output, const InputInfoList &Inputs,
                     const llvm::opt::ArgList &TCArgs,

@@ -135,6 +135,7 @@ private:
   /// The list of toolchain specific path prefixes to search for programs.
   path_list ProgramPaths;
 
+  mutable std::unique_ptr<Tool> Qcc;
   mutable std::unique_ptr<Tool> Clang;
   mutable std::unique_ptr<Tool> Flang;
   mutable std::unique_ptr<Tool> Assemble;
@@ -143,6 +144,7 @@ private:
   mutable std::unique_ptr<Tool> OffloadBundler;
   mutable std::unique_ptr<Tool> OffloadWrapper;
 
+  Tool *getQcc() const;
   Tool *getClang() const;
   Tool *getFlang() const;
   Tool *getAssemble() const;

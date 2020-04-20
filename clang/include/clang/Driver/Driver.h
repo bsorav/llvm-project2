@@ -66,7 +66,8 @@ class Driver {
     GXXMode,
     CPPMode,
     CLMode,
-    FlangMode
+    FlangMode,
+    QCCMode
   } Mode;
 
   enum SaveTempsMode {
@@ -184,6 +185,9 @@ public:
   /// Whether the driver should invoke flang for fortran inputs.
   /// Other modes fall back to calling gcc which in turn calls gfortran.
   bool IsFlangMode() const { return Mode == FlangMode; }
+
+  /// Whether the driver should follow qcc like behavior.
+  bool CCCIsQCC() const { return Mode == QCCMode; }
 
   /// Only print tool bindings, don't build any jobs.
   unsigned CCCPrintBindings : 1;

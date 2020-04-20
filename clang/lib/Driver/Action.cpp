@@ -37,6 +37,7 @@ const char *Action::getClassName(ActionClass AC) {
   case DsymutilJobClass: return "dsymutil";
   case VerifyDebugInfoJobClass: return "verify-debug-info";
   case VerifyPCHJobClass: return "verify-pch";
+  case QCCCodegenClass: return "qcc-codegen";
   case OffloadBundlingJobClass:
     return "clang-offload-bundler";
   case OffloadUnbundlingJobClass:
@@ -415,3 +416,14 @@ void OffloadWrapperJobAction::anchor() {}
 OffloadWrapperJobAction::OffloadWrapperJobAction(ActionList &Inputs,
                                                  types::ID Type)
   : JobAction(OffloadWrapperJobClass, Inputs, Type) {}
+
+void QCCCodegenAction::anchor() {}
+
+BackendJobAction
+QCCCodegenAction::getBackendAction() const {
+  return BackendJobAction(mInput, types::TY_PP_Asm);
+}
+
+
+QCCCodegenAction::QCCCodegenAction(Action *Input, types::ID OutputType)
+    : JobAction(QCCCodegenClass, Input, OutputType), mInput(Input), mOutputType(OutputType) {}

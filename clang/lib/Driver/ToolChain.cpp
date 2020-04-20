@@ -40,6 +40,7 @@
 #include "llvm/Support/TargetRegistry.h"
 #include "llvm/Support/VersionTuple.h"
 #include "llvm/Support/VirtualFileSystem.h"
+#include "llvm/Support/mydebug.h"
 #include <cassert>
 #include <cstddef>
 #include <cstring>
@@ -148,6 +149,7 @@ static const DriverSuffix *FindDriverSuffix(StringRef ProgName, size_t &Pos) {
       {"clang-g++", "--driver-mode=g++"},
       {"clang-gcc", nullptr},
       {"clang-cl", "--driver-mode=cl"},
+      {"clang-qcc", "--driver-mode=qcc"},
       {"cc", nullptr},
       {"cpp", "--driver-mode=cpp"},
       {"cl", "--driver-mode=cl"},
@@ -250,6 +252,12 @@ std::string ToolChain::getInputFilename(const InputInfo &Input) const {
 
 bool ToolChain::IsUnwindTablesDefault(const ArgList &Args) const {
   return false;
+}
+
+Tool *ToolChain::getQcc() const {
+  if (!Qcc)
+    Qcc.reset(new tools::Qcc(*this));
+  return Qcc.get();
 }
 
 Tool *ToolChain::getClang() const {

@@ -80,6 +80,7 @@
 #include "llvm/Support/TargetRegistry.h"
 #include "llvm/Support/VirtualFileSystem.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Support/mydebug.h"
 #include <map>
 #include <memory>
 #include <utility>
@@ -396,6 +397,14 @@ DerivedArgList *Driver::TranslateInputArgs(const InputArgList &Args) const {
         DAL->append(MakeInputArg(*DAL, Opts, Val, false));
       continue;
     }
+
+    //if (CCCIsQCC()) {
+    //  if (   A->getOption().matches(options::OPT_O)
+    //      || A->getOption().matches(options::OPT_Ofast)
+    //      || A->getOption().matches(options::OPT_O4)) {
+    //      DAL->AddSeparateArg(A, Opts->getOption(options::OPT_O), "0");
+    //  }
+    //}
 
     DAL->append(A);
   }
@@ -1128,22 +1137,35 @@ Compilation *Driver::BuildCompilation(ArrayRef<const char *> ArgList) {
   Compilation *C = new Compilation(*this, TC, UArgs.release(), TranslatedArgs,
                                    ContainsError);
 
+  DBG(llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": checking QCC. C->getJobs().size() = " << C->getJobs().size() << "\n");
+  if (CCCIsQCC()) {
+    DBG(llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": TODO: need to add QCC handling. C->getJobs().size() = " << C->getJobs().size() << "\n");
+  }
+
   if (!HandleImmediateArgs(*C))
     return C;
+
+  DBG(llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": after call to HandleImmediateArgs, C->getJobs().size() = " << C->getJobs().size() << "\n");
 
   // Construct the list of inputs.
   InputList Inputs;
   BuildInputs(C->getDefaultToolChain(), *TranslatedArgs, Inputs);
+  DBG(llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": after call to BuildInputs, C->getJobs().size() = " << C->getJobs().size() << "\n");
 
   // Populate the tool chains for the offloading devices, if any.
   CreateOffloadingDeviceToolChains(*C, Inputs);
 
+  DBG(llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": after call to CreateOffloadingDeviceToolChains, C->getJobs().size() = " << C->getJobs().size() << "\n");
+
   // Construct the list of abstract actions to perform for this compilation. On
   // MachO targets this uses the driver-driver and universal actions.
-  if (TC.getTriple().isOSBinFormatMachO())
+  if (TC.getTriple().isOSBinFormatMachO()) {
     BuildUniversalActions(*C, C->getDefaultToolChain(), Inputs);
-  else
+    DBG(llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": after calling BuildUniversalActions, C->getJobs().size() = " << C->getJobs().size() << "\n");
+  } else {
     BuildActions(*C, C->getArgs(), Inputs, C->getActions());
+    DBG(llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": after calling BuildActions, C->getJobs().size() = " << C->getJobs().size() << "\n");
+  }
 
   if (CCCPrintPhases) {
     PrintActions(*C);
@@ -1151,6 +1173,7 @@ Compilation *Driver::BuildCompilation(ArrayRef<const char *> ArgList) {
   }
 
   BuildJobs(*C);
+  DBG(llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": after BuildJobs, C->getJobs().size() = " << C->getJobs().size() << "\n");
 
   return C;
 }
@@ -1477,7 +1500,9 @@ int Driver::ExecuteCompilation(
   for (auto &Job : C.getJobs())
     setUpResponseFiles(C, Job);
 
+  DBG(llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": calling ExecuteJobs\n");
   C.ExecuteJobs(C.getJobs(), FailingCommands);
+  DBG(llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": returned from ExecuteJobs\n");
 
   // If the command succeeded, we are done.
   if (FailingCommands.empty())
@@ -3347,10 +3372,13 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
                           const InputList &Inputs, ActionList &Actions) const {
   llvm::PrettyStackTraceString CrashInfo("Building compilation actions");
 
+  DBG(llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": entry. Actions.size() = " << Actions.size() << "\n");
+
   if (!SuppressMissingInputWarning && Inputs.empty()) {
     Diag(clang::diag::err_drv_no_input_files);
     return;
   }
+  DBG(llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": Actions.size() = " << Actions.size() << "\n");
 
   // Reject -Z* at the top level, these options should never have been exposed
   // by gcc.
@@ -3368,6 +3396,7 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
       Args.eraseArg(options::OPT__SLASH_Fo);
     }
   }
+  DBG(llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": Actions.size() = " << Actions.size() << "\n");
 
   // Diagnose misuse of /Fa.
   if (Arg *A = Args.getLastArg(options::OPT__SLASH_Fa)) {
@@ -3389,6 +3418,7 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
       Args.eraseArg(options::OPT__SLASH_o);
     }
   }
+  DBG(llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": Actions.size() = " << Actions.size() << "\n");
 
   handleArguments(C, Args, Inputs, Actions);
 
@@ -3456,12 +3486,17 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
         Current = nullptr;
         break;
       }
+      DBG(llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": Current = " << Current << "\n");
 
       // FIXME: Should we include any prior module file outputs as inputs of
       // later actions in the same command line?
 
       // Otherwise construct the appropriate action.
       Action *NewCurrent = ConstructPhaseAction(C, Args, Phase, Current);
+      DBG(llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": Current = " << Current << "\n");
+      DBG(llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": NewCurrent = " << NewCurrent << "\n");
+
+      DBG(llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": Actions.size() = " << Actions.size() << "\n");
 
       // We didn't create a new action, so we will just move to the next phase.
       if (NewCurrent == Current)
@@ -3481,9 +3516,11 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
         break;
     }
 
+    DBG(llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": Actions.size() = " << Actions.size() << "\n");
     // If we ended with something, add to the output list.
     if (Current)
       Actions.push_back(Current);
+    DBG(llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": Actions.size() = " << Actions.size() << "\n");
 
     // Add any top level actions generated for offloading.
     OffloadBuilder.appendTopLevelActions(Actions, Current, InputArg);
@@ -3497,6 +3534,8 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
     LA = OffloadBuilder.processHostLinkAction(LA);
     Actions.push_back(LA);
   }
+  DBG(llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": Actions.size() = " << Actions.size() << "\n");
+
 
   // Add an interface stubs merge action if necessary.
   if (!MergerInputs.empty())
@@ -3584,6 +3623,7 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
   // to non-CUDA compilations and should not trigger warnings there.
   Args.ClaimAllArgs(options::OPT_cuda_host_only);
   Args.ClaimAllArgs(options::OPT_cuda_compile_host_device);
+  DBG(llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": Actions.size() = " << Actions.size() << "\n");
 }
 
 Action *Driver::ConstructPhaseAction(
@@ -3669,12 +3709,15 @@ Action *Driver::ConstructPhaseAction(
     return C.MakeAction<CompileJobAction>(Input, types::TY_LLVM_BC);
   }
   case phases::Backend: {
+    if (CCCIsQCC()) {
+      return C.MakeAction<QCCCodegenAction>(Input, types::TY_PP_Asm);
+    }
     if (isUsingLTO() && TargetDeviceOffloadKind == Action::OFK_None) {
       types::ID Output =
           Args.hasArg(options::OPT_S) ? types::TY_LTO_IR : types::TY_LTO_BC;
       return C.MakeAction<BackendJobAction>(Input, Output);
     }
-    if (Args.hasArg(options::OPT_emit_llvm)) {
+    if (Args.hasArg(options::OPT_emit_llvm)/* || CCCIsQCC()*/) {
       types::ID Output =
           Args.hasArg(options::OPT_S) ? types::TY_LLVM_IR : types::TY_LLVM_BC;
       return C.MakeAction<BackendJobAction>(Input, Output);
@@ -3755,7 +3798,9 @@ void Driver::BuildJobs(Compilation &C) const {
                        /*MultipleArchs*/ ArchNames.size() > 1,
                        /*LinkingOutput*/ LinkingOutput, CachedResults,
                        /*TargetDeviceOffloadKind*/ Action::OFK_None);
+    DBG(llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": after BuildJobsForAction, C.getJobs().size() = " << C.getJobs().size() << "\n");
   }
+  DBG(llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": after BuildJobsForAction for all actions, C.getJobs().size() = " << C.getJobs().size() << "\n");
 
   // If we have more than one job, then disable integrated-cc1 for now.
   if (C.getJobs().size() > 1)
@@ -3807,6 +3852,7 @@ void Driver::BuildJobs(Compilation &C) const {
             << A->getAsString(C.getArgs());
     }
   }
+  DBG(llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": exiting, C.getJobs().size() = " << C.getJobs().size() << "\n");
 }
 
 namespace {
@@ -3923,16 +3969,21 @@ class ToolSelector final {
   combineAssembleBackendCompile(ArrayRef<JobActionInfo> ActionInfo,
                                 ActionList &Inputs,
                                 ActionList &CollapsedOffloadAction) {
+    DBG(llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": ActionInfo.size() = " << ActionInfo.size() << "\n");
     if (ActionInfo.size() < 3 || !canCollapseAssembleAction())
       return nullptr;
     auto *AJ = dyn_cast<AssembleJobAction>(ActionInfo[0].JA);
+    DBG(llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": AJ = " << AJ << "\n");
     auto *BJ = dyn_cast<BackendJobAction>(ActionInfo[1].JA);
+    DBG(llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": BJ = " << BJ << "\n");
     auto *CJ = dyn_cast<CompileJobAction>(ActionInfo[2].JA);
+    DBG(llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": CJ = " << CJ << "\n");
     if (!AJ || !BJ || !CJ)
       return nullptr;
 
     // Get compiler tool.
     const Tool *T = TC.SelectTool(*CJ);
+    DBG(llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": compiler tool T = " << T << "\n");
     if (!T)
       return nullptr;
 
@@ -3946,6 +3997,7 @@ class ToolSelector final {
 
     if (!T->hasIntegratedAssembler())
       return nullptr;
+    DBG(llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": compiler tool T = " << T << " has integrated assembler\n");
 
     Inputs = CJ->getInputs();
     AppendCollapsedOffloadAction(CollapsedOffloadAction, ActionInfo,
@@ -3973,6 +4025,7 @@ class ToolSelector final {
     Inputs = BJ->getInputs();
     AppendCollapsedOffloadAction(CollapsedOffloadAction, ActionInfo,
                                  /*NumElements=*/2);
+    DBG(llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": returning T = " << T << "\n");
     return T;
   }
   const Tool *combineBackendCompile(ArrayRef<JobActionInfo> ActionInfo,
@@ -4011,6 +4064,7 @@ class ToolSelector final {
     Inputs = CJ->getInputs();
     AppendCollapsedOffloadAction(CollapsedOffloadAction, ActionInfo,
                                  /*NumElements=*/2);
+    DBG(llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": returning T = " << T << "\n");
     return T;
   }
 
@@ -4065,8 +4119,10 @@ public:
 
     SmallVector<JobActionInfo, 5> ActionChain(1);
     ActionChain.back().JA = BaseAction;
+    DBG(llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": ActionChain.back().JA->getKind() = " << Action::getClassName(ActionChain.back().JA->getKind()) << "\n");
     while (ActionChain.back().JA) {
       const Action *CurAction = ActionChain.back().JA;
+      DBG(llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": ActionChain.back().JA->getKind() = " << Action::getClassName(ActionChain.back().JA->getKind()) << "\n");
 
       // Grow the chain by one element.
       ActionChain.resize(ActionChain.size() + 1);
@@ -4080,27 +4136,45 @@ public:
     // Pop the last action info as it could not be filled.
     ActionChain.pop_back();
 
+    DBG(llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": ActionChain.size() = " << ActionChain.size() << "\n");
+
     //
     // Attempt to combine actions. If all combining attempts failed, just return
     // the tool of the provided action. At the end we attempt to combine the
     // action with any preprocessor action it may depend on.
     //
 
-    const Tool *T = combineAssembleBackendCompile(ActionChain, Inputs,
+    const Tool *T = nullptr;
+    T = combineAssembleBackendCompile(ActionChain, Inputs,
                                                   CollapsedOffloadAction);
+    DBG(llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": T = " << T << "\n");
     if (!T)
       T = combineAssembleBackend(ActionChain, Inputs, CollapsedOffloadAction);
+    DBG(llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": T = " << T << "\n");
     if (!T)
       T = combineBackendCompile(ActionChain, Inputs, CollapsedOffloadAction);
+    DBG(llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": T = " << T << "\n");
     if (!T) {
       Inputs = BaseAction->getInputs();
       T = TC.SelectTool(*BaseAction);
     }
+    DBG(llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": T = " << T << "\n");
 
     combineWithPreprocessor(T, Inputs, CollapsedOffloadAction);
+    DBG(llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": ActionChain.back().JA->getKind() = " << Action::getClassName(ActionChain.back().JA->getKind()) << ", returning " << T << "\n");
     return T;
   }
 };
+}
+
+static SmallString<128>
+get_proof_filename_from_base_name(char const* base_name)
+{
+  StringRef BaseName(base_name);
+  std::string::size_type End = BaseName.rfind('.');
+  SmallString<128> Suffixed(BaseName.substr(0, End));
+  Suffixed.append("proof");
+  return Suffixed;
 }
 
 /// Return a string that uniquely identifies the result of a job. The bound arch
@@ -4145,10 +4219,12 @@ InputInfo Driver::BuildJobsForActionNoCache(
     std::map<std::pair<const Action *, std::string>, InputInfo> &CachedResults,
     Action::OffloadKind TargetDeviceOffloadKind) const {
   llvm::PrettyStackTraceString CrashInfo("Building compilation jobs");
+  DBG(llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": entry. C.getJobs().size() = " << C.getJobs().size() << "\n");
 
   InputInfoList OffloadDependencesInputInfo;
   bool BuildingForOffloadDevice = TargetDeviceOffloadKind != Action::OFK_None;
   if (const OffloadAction *OA = dyn_cast<OffloadAction>(A)) {
+    DBG(llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": OffloadAction. C.getJobs().size() = " << C.getJobs().size() << "\n");
     // The 'Darwin' toolchain is initialized only when its arguments are
     // computed. Get the default arguments for OFK_None to ensure that
     // initialization is performed before processing the offload action.
@@ -4188,8 +4264,10 @@ InputInfo Driver::BuildJobsForActionNoCache(
                                /*MultipleArchs*/ !!DepBoundArch, LinkingOutput,
                                CachedResults, DepA->getOffloadingDeviceKind());
       });
+      DBG(llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": OffloadAction. C.getJobs().size() = " << C.getJobs().size() << "\n");
       return DevA;
     }
+    DBG(llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": OffloadAction. C.getJobs().size() = " << C.getJobs().size() << "\n");
 
     // If 'Action 2' is host, we generate jobs for the device dependences and
     // override the current action with the host dependence. Otherwise, we
@@ -4203,11 +4281,14 @@ InputInfo Driver::BuildJobsForActionNoCache(
               /*MultipleArchs*/ !!DepBoundArch, LinkingOutput, CachedResults,
               DepA->getOffloadingDeviceKind()));
         });
+    DBG(llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": OffloadAction. C.getJobs().size() = " << C.getJobs().size() << "\n");
 
     A = BuildingForOffloadDevice
             ? OA->getSingleDeviceDependence(/*DoNotConsiderHostActions=*/true)
             : OA->getHostDependence();
+    DBG(llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": OffloadAction. C.getJobs().size() = " << C.getJobs().size() << "\n");
   }
+  DBG(llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": OffloadAction. C.getJobs().size() = " << C.getJobs().size() << "\n");
 
   if (const InputAction *IA = dyn_cast<InputAction>(A)) {
     // FIXME: It would be nice to not claim this here; maybe the old scheme of
@@ -4232,6 +4313,7 @@ InputInfo Driver::BuildJobsForActionNoCache(
     else
       TC = &C.getDefaultToolChain();
 
+    DBG(llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": BindArchAction. C.getJobs().size() = " << C.getJobs().size() << "\n");
     return BuildJobsForAction(C, *BAA->input_begin(), TC, ArchName, AtTopLevel,
                               MultipleArchs, LinkingOutput, CachedResults,
                               TargetDeviceOffloadKind);
@@ -4242,10 +4324,13 @@ InputInfo Driver::BuildJobsForActionNoCache(
 
   const JobAction *JA = cast<JobAction>(A);
   ActionList CollapsedOffloadActions;
+  DBG(llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": JA = " << Action::getClassName(JA->getKind()) << "\n");
 
   ToolSelector TS(JA, *TC, C, isSaveTempsEnabled(),
                   embedBitcodeInObject() && !isUsingLTO());
   const Tool *T = TS.getTool(Inputs, CollapsedOffloadActions);
+
+  DBG(llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": After ToolSelector. C.getJobs().size() = " << C.getJobs().size() << "\n");
 
   if (!T)
     return InputInfo();
@@ -4262,18 +4347,23 @@ InputInfo Driver::BuildJobsForActionNoCache(
               DepA->getOffloadingDeviceKind()));
         });
 
+  DBG(llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": After CollapsedOffloadActions. C.getJobs().size() = " << C.getJobs().size() << "\n");
+
   // Only use pipes when there is exactly one input.
   InputInfoList InputInfos;
   for (const Action *Input : Inputs) {
     // Treat dsymutil and verify sub-jobs as being at the top-level too, they
     // shouldn't get temporary output names.
     // FIXME: Clean this up.
+    DBG(llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": C.getJobs().size() = " << C.getJobs().size() << "\n");
     bool SubJobAtTopLevel =
         AtTopLevel && (isa<DsymutilJobAction>(A) || isa<VerifyJobAction>(A));
     InputInfos.push_back(BuildJobsForAction(
         C, Input, TC, BoundArch, SubJobAtTopLevel, MultipleArchs, LinkingOutput,
         CachedResults, A->getOffloadingDeviceKind()));
+    DBG(llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": C.getJobs().size() = " << C.getJobs().size() << "\n");
   }
+  DBG(llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": C.getJobs().size() = " << C.getJobs().size() << "\n");
 
   // Always use the first input as the base input.
   const char *BaseInput = InputInfos[0].getBaseInput();
@@ -4292,6 +4382,8 @@ InputInfo Driver::BuildJobsForActionNoCache(
     InputInfos.append(OffloadDependencesInputInfo.begin(),
                       OffloadDependencesInputInfo.end());
 
+  DBG(llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": C.getJobs().size() = " << C.getJobs().size() << "\n");
+
   // Set the effective triple of the toolchain for the duration of this job.
   llvm::Triple EffectiveTriple;
   const ToolChain &ToolTC = T->getToolChain();
@@ -4305,6 +4397,8 @@ InputInfo Driver::BuildJobsForActionNoCache(
         ToolTC.ComputeEffectiveClangTriple(Args, InputInfos[0].getType()));
   }
   RegisterEffectiveTriple TripleRAII(ToolTC, EffectiveTriple);
+
+  DBG(llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": C.getJobs().size() = " << C.getJobs().size() << "\n");
 
   // Determine the place to write output to, if any.
   InputInfo Result;
@@ -4352,6 +4446,8 @@ InputInfo Driver::BuildJobsForActionNoCache(
           CurI;
     }
 
+    DBG(llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": C.getJobs().size() = " << C.getJobs().size() << "\n");
+
     // Now that we have all the results generated, select the one that should be
     // returned for the current depending action.
     std::pair<const Action *, std::string> ActionTC = {
@@ -4379,6 +4475,17 @@ InputInfo Driver::BuildJobsForActionNoCache(
                                              AtTopLevel, MultipleArchs,
                                              OffloadingPrefix),
                        BaseInput);
+    DBG(llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": C.getJobs().size() = " << C.getJobs().size() << "\n");
+  }
+  llvm::errs() << "Result = " << Result.getAsString() << "\n";
+
+  {
+    Arg *FinalOutput = C.getArgs().getLastArg(options::OPT_o);
+    if (!FinalOutput) {
+      DBG(llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": FinalOutput = " << FinalOutput << "\n");
+    } else {
+      DBG(llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": FinalOutput = " << FinalOutput->getValue() << "\n");
+    }
   }
 
   if (CCCPrintBindings && !CCGenDiagnostics) {
@@ -4401,16 +4508,27 @@ InputInfo Driver::BuildJobsForActionNoCache(
       llvm::errs() << "] \n";
     }
   } else {
-    if (UnbundlingResults.empty())
+    if (UnbundlingResults.empty()) {
+      DBG(llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": before ConstructJob for JA->getKind() = " << Action::getClassName(JA->getKind()) << ", C.getJobs().size() = " << C.getJobs().size() << ", LinkingOutput = " << LinkingOutput << "\n");
+
+      DerivedArgList const& Args = C.getArgsForToolChain(TC, BoundArch, JA->getOffloadingDeviceKind());
+      //if (isa<QCCCodegenAction>(*JA)) {
+      //  SmallString<128> proof_filename = get_proof_filename_from_base_name(BaseInput);
+      //  assert(0);
+      //}
+
       T->ConstructJob(
           C, *JA, Result, InputInfos,
-          C.getArgsForToolChain(TC, BoundArch, JA->getOffloadingDeviceKind()),
+          Args,
           LinkingOutput);
-    else
+      DBG(llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": after ConstructJob for JA->getKind() = " << Action::getClassName(JA->getKind()) << ", C.getJobs().size() = " << C.getJobs().size() << "\n");
+    } else {
       T->ConstructJobMultipleOutputs(
           C, *JA, UnbundlingResults, InputInfos,
           C.getArgsForToolChain(TC, BoundArch, JA->getOffloadingDeviceKind()),
           LinkingOutput);
+      DBG(llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": after ConstructJobMultipleOutputs. C.getJobs().size() = " << C.getJobs().size() << "\n");
+    }
   }
   return Result;
 }
@@ -4461,8 +4579,10 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
   llvm::PrettyStackTraceString CrashInfo("Computing output path");
   // Output to a user requested destination?
   if (AtTopLevel && !isa<DsymutilJobAction>(JA) && !isa<VerifyJobAction>(JA)) {
-    if (Arg *FinalOutput = C.getArgs().getLastArg(options::OPT_o))
+    if (Arg *FinalOutput = C.getArgs().getLastArg(options::OPT_o)) {
+      DBG(llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": FinalOutput = " << FinalOutput << "\n");
       return C.addResultFile(FinalOutput->getValue(), &JA);
+    }
   }
 
   // For /P, preprocess to file named after BaseInput.
@@ -4472,15 +4592,17 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
     StringRef NameArg;
     if (Arg *A = C.getArgs().getLastArg(options::OPT__SLASH_Fi))
       NameArg = A->getValue();
+    DBG(llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ":\n");
     return C.addResultFile(
         MakeCLOutputFilename(C.getArgs(), NameArg, BaseName, types::TY_PP_C),
         &JA);
   }
 
   // Default to writing to stdout?
-  if (AtTopLevel && !CCGenDiagnostics && isa<PreprocessJobAction>(JA))
+  if (AtTopLevel && !CCGenDiagnostics && isa<PreprocessJobAction>(JA)) {
+    DBG(llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ":\n");
     return "-";
-
+  }
   // Is this the assembly listing for /FA?
   if (JA.getType() == types::TY_PP_Asm &&
       (C.getArgs().hasArg(options::OPT__SLASH_FA) ||
@@ -4488,6 +4610,7 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
     // Use /Fa and the input filename to determine the asm file name.
     StringRef BaseName = llvm::sys::path::filename(BaseInput);
     StringRef FaValue = C.getArgs().getLastArgValue(options::OPT__SLASH_Fa);
+    DBG(llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ":\n");
     return C.addResultFile(
         MakeCLOutputFilename(C.getArgs(), FaValue, BaseName, JA.getType()),
         &JA);
@@ -4512,11 +4635,13 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
           CrashDirectory + Middle + Suffix, TmpName);
       if (EC) {
         Diag(clang::diag::err_unable_to_make_temp) << EC.message();
+        DBG(llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ":\n");
         return "";
       }
     } else {
       TmpName = GetTemporaryPath(Split.first, Suffix);
     }
+    DBG(llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ":\n");
     return C.addTempFile(C.getArgs().MakeArgString(TmpName));
   }
 
@@ -4539,6 +4664,7 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
         C.getArgs()
             .getLastArg(options::OPT__SLASH_Fo, options::OPT__SLASH_o)
             ->getValue();
+    DBG(llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ":\n");
     NamedOutput =
         MakeCLOutputFilename(C.getArgs(), Val, BaseName, types::TY_Object);
   } else if (JA.getType() == types::TY_Image &&
@@ -4549,11 +4675,13 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
         C.getArgs()
             .getLastArg(options::OPT__SLASH_Fe, options::OPT__SLASH_o)
             ->getValue();
+    DBG(llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ":\n");
     NamedOutput =
         MakeCLOutputFilename(C.getArgs(), Val, BaseName, types::TY_Image);
   } else if (JA.getType() == types::TY_Image) {
     if (IsCLMode()) {
       // clang-cl uses BaseName for the executable name.
+      DBG(llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ":\n");
       NamedOutput =
           MakeCLOutputFilename(C.getArgs(), "", BaseName, types::TY_Image);
     } else {
@@ -4599,6 +4727,7 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
       Suffixed += ".tmp";
     Suffixed += '.';
     Suffixed += Suffix;
+    DBG(llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ":\n");
     NamedOutput = C.getArgs().MakeArgString(Suffixed.c_str());
   }
 
@@ -4610,9 +4739,11 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
     llvm::sys::path::remove_filename(TempPath);
     StringRef OutputFileName = llvm::sys::path::filename(NamedOutput);
     llvm::sys::path::append(TempPath, OutputFileName);
+    DBG(llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ":\n");
     NamedOutput = C.getArgs().MakeArgString(TempPath.c_str());
   }
 
+  DBG(llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ":\n");
   // If we're saving temps and the temp file conflicts with the input file,
   // then avoid overwriting input file.
   if (!AtTopLevel && isSaveTempsEnabled() && NamedOutput == BaseName) {
@@ -4627,6 +4758,7 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
       std::pair<StringRef, StringRef> Split = Name.split('.');
       std::string TmpName = GetTemporaryPath(
           Split.first, types::getTypeTempSuffix(JA.getType(), IsCLMode()));
+      DBG(llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ":\n");
       return C.addTempFile(C.getArgs().MakeArgString(TmpName));
     }
   }
@@ -4638,8 +4770,10 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
       BasePath = NamedOutput;
     else
       llvm::sys::path::append(BasePath, NamedOutput);
+    DBG(llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ":\n");
     return C.addResultFile(C.getArgs().MakeArgString(BasePath.c_str()), &JA);
   } else {
+    DBG(llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ":\n");
     return C.addResultFile(NamedOutput, &JA);
   }
 }

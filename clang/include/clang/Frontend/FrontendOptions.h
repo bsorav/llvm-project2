@@ -226,6 +226,9 @@ public:
 /// FrontendOptions - Options for controlling the behavior of the frontend.
 class FrontendOptions {
 public:
+  /// Run qcc-codegen to validate compiler output
+  //unsigned Qcc : 1;
+
   /// Disable memory freeing on exit.
   unsigned DisableFree : 1;
 

@@ -70,6 +70,7 @@ public:
     DsymutilJobClass,
     VerifyDebugInfoJobClass,
     VerifyPCHJobClass,
+    QCCCodegenClass,
     OffloadBundlingJobClass,
     OffloadUnbundlingJobClass,
     OffloadWrapperJobClass,
@@ -634,6 +635,19 @@ public:
 
   static bool classof(const Action *A) {
     return A->getKind() == OffloadWrapperJobClass;
+  }
+};
+
+class QCCCodegenAction : public JobAction {
+  Action *mInput;
+  types::ID mOutputType;
+
+  void anchor() override;
+public:
+  QCCCodegenAction(Action *Input, types::ID OutputType);
+  BackendJobAction getBackendAction() const;
+  static bool classof(const Action *A) {
+    return A->getKind() == QCCCodegenClass;
   }
 };
 

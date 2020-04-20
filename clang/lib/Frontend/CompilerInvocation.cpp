@@ -1848,6 +1848,7 @@ static InputKind ParseFrontendArgs(FrontendOptions &Opts, ArgList &Args,
         << A->getAsString(Args) << A->getValue();
   }
   Opts.DisableFree = Args.hasArg(OPT_disable_free);
+  //Opts.Qcc = Args.hasArg(OPT_qcc_codegen);
 
   Opts.OutputFile = std::string(Args.getLastArgValue(OPT_o));
   Opts.Plugins = Args.getAllArgValues(OPT_load);

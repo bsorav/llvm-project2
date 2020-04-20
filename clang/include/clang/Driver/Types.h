@@ -104,6 +104,7 @@ namespace types {
   /// done for type 'Id'.
   void getCompilationPhases(
     ID Id,
+    //bool isQCC,
     llvm::SmallVectorImpl<phases::ID> &Phases);
   void getCompilationPhases(const clang::driver::Driver &Driver,
                             llvm::opt::DerivedArgList &DAL, ID Id,
