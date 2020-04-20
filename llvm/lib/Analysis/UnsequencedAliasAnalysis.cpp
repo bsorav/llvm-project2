@@ -7,7 +7,8 @@
 using namespace llvm;
 
 AliasResult UnseqAAResult::alias(const MemoryLocation &LocA,
-                                 const MemoryLocation &LocB) {
+                                 const MemoryLocation &LocB,
+                                 AAQueryInfo &AAQI) {
 
   // Check if there is a predicate corresponding to LocA and LocB
   if ((predicates.count(LocA.Ptr) && predicates[LocA.Ptr].count(LocB.Ptr)) ||
@@ -16,7 +17,7 @@ AliasResult UnseqAAResult::alias(const MemoryLocation &LocA,
   }
 
   // Forward the query to the next analysis.
-  return AAResultBase::alias(LocA, LocB);
+  return AAResultBase::alias(LocA, LocB, AAQI);
 }
 
 char UnseqAAWrapperPass::ID = 0;
