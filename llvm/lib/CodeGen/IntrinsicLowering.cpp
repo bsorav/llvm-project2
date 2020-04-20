@@ -267,6 +267,9 @@ void IntrinsicLowering::LowerIntrinsicCall(CallInst *CI) {
     break;
   }
 
+  case Intrinsic::unseq_noalias:
+    break;
+
   case Intrinsic::stacksave:
   case Intrinsic::stackrestore: {
     if (!Warned)
@@ -312,6 +315,7 @@ void IntrinsicLowering::LowerIntrinsicCall(CallInst *CI) {
     CI->replaceAllUsesWith(ConstantInt::get(Type::getInt64Ty(Context), 0));
     break;
   }
+
 
   case Intrinsic::dbg_declare:
   case Intrinsic::dbg_label:

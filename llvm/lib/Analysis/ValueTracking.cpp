@@ -603,6 +603,7 @@ bool llvm::isAssumeLikeIntrinsic(const Instruction *I) {
       case Intrinsic::objectsize:
       case Intrinsic::ptr_annotation:
       case Intrinsic::var_annotation:
+      case Intrinsic::unseq_noalias:
         return true;
       }
 
