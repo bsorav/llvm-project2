@@ -15,3 +15,9 @@ documentation setup.
 
 If you are writing a package for LLVM, see docs/Packaging.rst for our
 suggestions.
+
+Build:
+mkdir ../llvm-build && cd ../llvm-build && source ../llvm/build.sh
+
+#./configure --disable-bindings --enable-optimized --enable-libffi && cmake . && make
+#./Release+Asserts/bin/lli --force-interpreter --lockstep -debug-only=interpreter a.bc

@@ -1,3 +1,8 @@
+include_directories(
+  ${LLVM_MAIN_SRC_DIR}/lib/Target/X86
+  ${LLVM_BINARY_DIR}/lib/Target/X86
+  )
+
 set(LLVM_LINK_COMPONENTS
   AllTargetsAsmParsers
   AllTargetsCodeGens
@@ -26,5 +31,7 @@ add_llvm_tool(llc
   intrinsics_gen
   SUPPORT_PLUGINS
   )
+
+target_link_libraries(llc PRIVATE ${SUPEROPT_LIBS})
 
 export_executable_symbols_for_plugins(llc)

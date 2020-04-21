@@ -56,6 +56,8 @@
 #include "llvm/Transforms/IPO/PassManagerBuilder.h"
 #include "llvm/Transforms/IPO/WholeProgramDevirt.h"
 #include "llvm/Transforms/Utils/Cloning.h"
+#include "tfg/tfg.h"
+#include "../lib/Analysis/Superopt/dfa_helper.h"
 #include "llvm/Transforms/Utils/Debugify.h"
 #include <algorithm>
 #include <memory>
@@ -88,6 +90,10 @@ InputFilename(cl::Positional, cl::desc("<input bitcode file>"),
 static cl::opt<std::string>
 OutputFilename("o", cl::desc("Override output filename"),
                cl::value_desc("filename"));
+
+static cl::opt<std::string>
+ChooseFunction("choose-function", cl::desc("Function to be chosen (for instrumentMarkerCall for example)"),
+               cl::value_desc("function-name"));
 
 static cl::opt<bool>
 Force("f", cl::desc("Enable binary output on terminals"));
@@ -687,6 +693,8 @@ int main(int argc, char **argv) {
     }
   }
 
+  set_global_function_name(ChooseFunction);
+
   Triple ModuleTriple(M->getTargetTriple());
   std::string CPUStr, FeaturesStr;
   TargetMachine *Machine = nullptr;
@@ -857,6 +865,8 @@ int main(int argc, char **argv) {
              << PassInf->getPassName() << "\n";
     if (P) {
       PassKind Kind = P->getPassKind();
+      //errs() << __func__ << " " << __LINE__ << ": adding pass " << P->getPassID() << ", name " << P->getPassName() << "\n";
+      //errs().flush();
       addPass(Passes, P);
 
       if (AnalyzeOnly) {
@@ -1007,5 +1017,11 @@ int main(int argc, char **argv) {
   if (ThinLinkOut)
     ThinLinkOut->keep();
 
+  //the following code is only to ensure that function2tfg gets linked into opt; required for future dynamic load of SuperoptMod
+  map<shared_ptr<tfg_edge const>, Instruction *> eimap;
+  std::unique_ptr<tfg> t = function2tfg(nullptr, nullptr, eimap);
+  if (t) {
+    return 1;
+  }
   return 0;
 }

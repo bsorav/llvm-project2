@@ -678,6 +678,9 @@ public:
   bool verify(Pass *p = nullptr, const char *Banner = nullptr,
               bool AbortOnError = true) const;
 
+  /// output_etfg - Convert the MachineFunction to etfg and output it
+  void output_tfg(StringRef output_filename = "") const;
+
   // Provide accessors for the MachineBasicBlock list...
   using iterator = BasicBlockListType::iterator;
   using const_iterator = BasicBlockListType::const_iterator;

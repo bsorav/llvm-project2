@@ -546,7 +546,14 @@ RewriteSymbolsLegacyPass::RewriteSymbolsLegacyPass(
     : ModulePass(ID), Impl(DL) {}
 
 bool RewriteSymbolsLegacyPass::runOnModule(Module &M) {
-  return Impl.runImpl(M);
+  bool ret = Impl.runImpl(M);
+  std::error_code EC;
+  std::string s = M.getName().str();
+  s += ".cg.ll";
+  raw_fd_ostream ofs(s, EC);
+  M.print(ofs, nullptr, true);
+  ofs.close();
+  return ret;
 }
 
 PreservedAnalyses RewriteSymbolPass::run(Module &M, ModuleAnalysisManager &AM) {

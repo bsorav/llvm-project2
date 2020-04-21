@@ -1,6 +1,7 @@
 # See docs/CMake.html for instructions about how to build LLVM with CMake.
 
 cmake_minimum_required(VERSION 3.4.3)
+#set(CMAKE_VERBOSE_MAKEFILE ON)
 
 if(POLICY CMP0068)
   cmake_policy(SET CMP0068 NEW)
@@ -662,6 +663,7 @@ endif()
 option(LLVM_ENABLE_PLUGINS "Enable plugin support" ${LLVM_ENABLE_PLUGINS_default})
 
 include(HandleLLVMOptions)
+include(Eqchecker)
 
 include(FindPythonInterp)
 if( NOT PYTHONINTERP_FOUND )
@@ -674,6 +676,9 @@ endif()
 if( ${PYTHON_VERSION_STRING} VERSION_LESS 2.7 )
   message(FATAL_ERROR "Python 2.7 or newer is required")
 endif()
+
+set(LLVM_REQUIRES_RTTI 1)
+set(LLVM_ENABLE_EH 1)
 
 ######
 # LLVMBuild Integration

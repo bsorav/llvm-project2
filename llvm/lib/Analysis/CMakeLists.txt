@@ -101,6 +101,8 @@ add_llvm_component_library(LLVMAnalysis
   ValueTracking.cpp
   VectorUtils.cpp
   VFABIDemangling.cpp
+  Superopt/sym_exec_llvm.cpp
+  Superopt/dfa_helper.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${LLVM_MAIN_INCLUDE_DIR}/llvm/Analysis
@@ -108,3 +110,6 @@ add_llvm_component_library(LLVMAnalysis
   DEPENDS
   intrinsics_gen
   )
+#add_subdirectory(Superopt)
+
+target_link_libraries(LLVMAnalysis PRIVATE ${SUPEROPT_LIBS})

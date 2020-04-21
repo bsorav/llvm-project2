@@ -85,6 +85,7 @@
 #include <tuple>
 #include <utility>
 #include <vector>
+#include "support/utils.h"
 
 using namespace llvm;
 
@@ -4550,3 +4551,225 @@ void Metadata::dump(const Module *M) const {
 LLVM_DUMP_METHOD
 void ModuleSummaryIndex::dump() const { print(dbgs(), /*IsForDebug=*/true); }
 #endif
+
+//sorav
+std::string
+Module::get_llvm_header_as_string() const
+{
+  std::string s;
+  raw_string_ostream Out(s);
+  Module const* M = this;
+
+  if (!M->getModuleIdentifier().empty() &&
+      // Don't print the ID if it will start a new line (which would
+      // require a comment char before it).
+      M->getModuleIdentifier().find('\n') == std::string::npos)
+    Out << "; ModuleID = '" << M->getModuleIdentifier() << "'\n";
+
+  if (!M->getSourceFileName().empty()) {
+    Out << "source_filename = \"";
+    printEscapedString(M->getSourceFileName(), Out);
+    Out << "\"\n";
+  }
+
+  const std::string &DL = M->getDataLayoutStr();
+  if (!DL.empty())
+    Out << "target datalayout = \"" << DL << "\"\n";
+  if (!M->getTargetTriple().empty())
+    Out << "target triple = \"" << M->getTargetTriple() << "\"\n";
+
+  return Out.str();
+}
+
+static list<string>
+splitLinesLocal(string const& str)
+{
+  istringstream iss(str);
+  list<string> ret;
+  string line;
+  while (getline(iss, line)) {
+    ret.push_back(line);
+  }
+  return ret;
+}
+
+
+
+std::list<std::string>
+Module::get_type_declarations_as_string() const
+{
+  std::string s;
+  raw_string_ostream ROS(s);
+  SlotTracker SlotTable(this);
+  formatted_raw_ostream OS(ROS);
+  AssemblyWriter W(OS, SlotTable, this, nullptr, false,
+                   true);
+  W.printTypeIdentities();
+  OS.flush();
+  std::string ret_str = ROS.str();
+  return splitLinesLocal(ret_str);
+}
+
+std::list<std::string>
+Module::get_globals_with_initializers_as_string() const
+{
+  Module const* M = this;
+  std::list<std::string> ret;
+  for (const GlobalVariable &GV : M->globals()) {
+    std::string s;
+    raw_string_ostream ROS(s);
+    SlotTracker SlotTable(this);
+    formatted_raw_ostream OS(ROS);
+    AssemblyWriter W(OS, SlotTable, this, nullptr, false,
+                     true);
+    W.printGlobal(&GV);//OS << '\n';
+    OS.flush();
+    ret.push_back(ROS.str());
+  }
+  return ret;
+}
+
+std::list<std::string>
+Module::get_function_declarations_as_string() const
+{
+  string s;
+  raw_string_ostream ROS(s);
+  for (Function const& F : *this) {
+    if (F.isDeclaration()) {
+      F.print(ROS, nullptr, true, false);
+    }
+  }
+  string ret_str = ROS.str();
+  return splitLinesLocal(ret_str);
+}
+
+std::map<std::string, eqspace::function_signature_t>
+Module::get_function_signature_map() const
+{
+  Module const* M = this;
+
+  TypePrinting TypePrinter(M);
+  std::map<std::string, eqspace::function_signature_t> ret;
+  for (const Function &F : *this) {
+    std::string fname = F.getName().str();
+    std::string ret_type_strbuf;
+    raw_string_ostream Out(ret_type_strbuf);
+    TypePrinter.print(F.getReturnType(), Out);
+    std::string ret_type_str = Out.str();
+    std::list<std::string> arg_types;
+    std::list<std::string> arg_names;
+
+    FunctionType *FT = F.getFunctionType();
+
+    if (F.isDeclaration()) {
+      for (unsigned I = 0, E = FT->getNumParams(); I != E; ++I) {
+        // Output type...
+        std::string arg_type_buf;
+        raw_string_ostream Out(arg_type_buf);
+        TypePrinter.print(FT->getParamType(I), Out);
+        arg_types.push_back(Out.str());
+
+        // Output name...
+        std::string arg_name_buf;
+        raw_string_ostream OutName(arg_name_buf);
+        OutName << "arg" << I;
+        arg_names.push_back(OutName.str());
+      }
+    } else {
+      unsigned I = 0;
+      for (const Argument &Arg : F.args()) {
+        // Output type...
+        std::string arg_type_buf;
+        raw_string_ostream Out(arg_type_buf);
+        TypePrinter.print(Arg.getType(), Out);
+        arg_types.push_back(Out.str());
+
+        std::string arg_name_buf;
+        raw_string_ostream OutName(arg_name_buf);
+        if (Arg.hasName()) {
+          PrintLLVMName(OutName, &Arg);
+        } else {
+          OutName << "arg" << I;
+        }
+        arg_names.push_back(OutName.str());
+        I++;
+      }
+    }
+    bool is_vararg = false;
+    // Finish printing arguments...
+    if (FT->isVarArg()) {
+      is_vararg = true;
+    }
+    eqspace::function_signature_t fsig(ret_type_str, arg_types, arg_names, is_vararg);
+    ret.insert(make_pair(fname, fsig));
+  }
+  return ret;
+}
+
+std::pair<std::map<std::string, llvm_fn_attribute_id_t>, std::map<llvm_fn_attribute_id_t, std::string>>
+Module::get_function_attributes_map() const
+{
+  SlotTracker SlotTable(this);
+  std::map<std::string, llvm_fn_attribute_id_t> ret1;
+  std::map<llvm_fn_attribute_id_t, std::string> ret2;
+  for (const Function &F : *this) {
+    std::string fname = F.getName().str();
+    AttributeSet Attrs = F.getAttributes().getFnAttributes();
+    if (Attrs.hasAttributes()) {
+      std::string s;
+      raw_string_ostream OS(s);
+      OS << "#" << SlotTable.getAttributeGroupSlot(Attrs);
+      ret1.insert(make_pair(fname, OS.str()));
+    }
+  }
+
+  std::vector<std::pair<AttributeSet, unsigned>> asVec;
+  asVec.resize(SlotTable.as_size());
+  for (SlotTracker::as_iterator I = SlotTable.as_begin(), E = SlotTable.as_end();
+       I != E; ++I) {
+    asVec[I->second] = *I;
+  }
+  for (const auto &I : asVec) {
+    std::string s;
+    raw_string_ostream ss(s);
+    ss << I.second;
+    ret2.insert(make_pair(ss.str(), I.first.getAsString(true)));
+  }
+
+  return make_pair(ret1, ret2);
+}
+
+std::map<std::string, link_status_t>
+Module::get_function_link_status_map() const
+{
+  std::map<std::string, link_status_t> ret;
+  for (const Function &F : *this) {
+    std::string fname = F.getName().str();
+    std::string linkage_name = getLinkageNameWithSpace(F.getLinkage());
+    ret.insert(make_pair(fname, linkage_name));
+  }
+  return ret;
+}
+
+std::list<std::string>
+Module::get_metadata_as_string() const
+{
+  std::string s;
+  raw_string_ostream ROS(s);
+  SlotTracker SlotTable(this);
+  formatted_raw_ostream OS(ROS);
+  AssemblyWriter W(OS, SlotTable, this, nullptr, false,
+                   true);
+
+  for (const NamedMDNode &Node : this->named_metadata()) {
+    W.printNamedMDNode(&Node);
+  }
+  OS << '\n';
+  // Output metadata.
+  if (!SlotTable.mdn_empty()) {
+    W.writeAllMDNodes();
+  }
+  OS.flush();
+  std::string ret_str = ROS.str();
+  return splitLinesLocal(ret_str);
+}

@@ -437,6 +437,13 @@ void initializeWriteBitcodePassPass(PassRegistry&);
 void initializeWriteThinLTOBitcodePass(PassRegistry&);
 void initializeXRayInstrumentationPass(PassRegistry&);
 
+//sorav
+void initializeSplitModulePass(PassRegistry&);
+void initializeIdentifyUnbrokenLoopPass(PassRegistry&);
+void initializeIdentifyForwardDistanceFromMarkerPass(PassRegistry&);
+void initializeIdentifyBackwardDistanceFromMarkerPass(PassRegistry&);
+void initializeInstrumentMarkerCallPass(PassRegistry&);
+
 } // end namespace llvm
 
 #endif // LLVM_INITIALIZEPASSES_H
