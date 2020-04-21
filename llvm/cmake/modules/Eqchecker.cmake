@@ -20,8 +20,8 @@ set(binutils_install_dir ${binutils_dir}-install)
 set(binutils_lib ${binutils_install_dir}/lib/libbfd.a ${binutils_install_dir}/lib/libiberty.a)
 
 #set(z3_install /home/sbansal/z3-4.8.4.d6df51951f4c-x64-ubuntu-16.04)
-set(z3_install /usr)
-link_directories(${z3_install}/bin)
+set(z3_install ${THIRD_PARTY_DIR}/z3/usr)
+link_directories(${z3_install}/lib)
 link_directories(${binutils_install_dir}/lib)
 link_directories(/usr/local/lib)
 
