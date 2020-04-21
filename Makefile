@@ -7,7 +7,7 @@ ifdef DISTCC_AVAILABLE
 endif
 
 all::
-	ninja -C build llc clang opt llvm-config llvm-dis llvm-link lli llvm-as
+	ninja -C build llc clang opt llvm-config llvm-dis llvm-link lli llvm-as UnsequencedAliasVisitor.so
 
 first::
 	#for first time build

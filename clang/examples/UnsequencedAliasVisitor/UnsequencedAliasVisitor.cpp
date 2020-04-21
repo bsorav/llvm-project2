@@ -374,7 +374,7 @@ private:
   }
 
   bool presentInGamma(Object O, Usage &U) {
-    for (int i = 0; i < Gamma.size(); i++) {
+    for (unsigned i = 0; i < Gamma.size(); i++) {
       if (Gamma[i].first == O && Gamma[i].second.Use == U.Use && 
             Gamma[i].second.Seq.getIndex() == U.Seq.getIndex())
         return true;
@@ -488,7 +488,7 @@ private:
     if (UK == UK_ModAsSideEffect) {
       GAMMA_LIST replacementGamma;
 
-      for (int i = 0; i < Gamma.size(); i++) {
+      for (unsigned i = 0; i < Gamma.size(); i++) {
         if (Gamma[i].first == O) {
           replacementGamma.push_back(std::make_pair(O, U));
         } else {
@@ -1324,7 +1324,7 @@ protected:
     CI.getCodeGenOpts().SanitizeRecover.set(SanitizerKind::UnsequencedScalars,
                                             true);
 
-    return llvm::make_unique<SeqConsumer>(
+    return std::make_unique<SeqConsumer>(
         &CI.getASTContext(), CI.getPredicateMap(), predicateFileName,
         CI.getSourceManager());
   }
