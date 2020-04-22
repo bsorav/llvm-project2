@@ -1102,7 +1102,7 @@ sym_exec_llvm::apply_general_function(const CallInst* c, expr_ref fun_name_expr,
       }
  
       set_expr(Elname, c_expr, state_out);
-      add_type_and_align_assumes(Elname, ElTy, c_expr, pc_to, t, UNDEF_BEHAVIOUR_ASSUME_FCALL_ISLANGTYPE);
+      add_align_assumes(Elname, ElTy, c_expr, pc_to, t);
       CPP_DBG_EXEC(LLVM2TFG, errs() << "\n\nfun sort: " << m_ctx->expr_to_string_table(fun) << "\n");
     }
   }
@@ -1377,7 +1377,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I/*, st
     }
     string lname = get_value_name(*l);
     Type *lTy = (*l).getType();
-    add_type_and_align_assumes(lname, lTy, read_value, pc_to/*from_node->get_pc()*/, t/*, assumes*/, UNDEF_BEHAVIOUR_ASSUME_LOAD_ISLANGTYPE);
+    add_align_assumes(lname, lTy, read_value, pc_to/*from_node->get_pc()*/, t);
     break;
   }
   case Instruction::Call:
@@ -1822,7 +1822,7 @@ void sym_exec_common::add_div_no_overflow_assume(expr_ref dividend, expr_ref div
   t.add_assume_pred(from_pc, p);
 }
 
-void sym_exec_llvm::add_type_and_align_assumes(string const &Elname, Type *ElTy/*llvm::Value const &arg*/, expr_ref a, pc const &pc_to, tfg &t/*, unordered_set<predicate> &assumes*/, string langtype_comment)
+void sym_exec_llvm::add_align_assumes(string const &Elname, Type *ElTy/*llvm::Value const &arg*/, expr_ref a, pc const &pc_to, tfg &t)
 {
   //Type *ElTy = arg.getType();
   //string Elname = get_value_name(arg);
@@ -1878,7 +1878,7 @@ sym_exec_llvm::get_tfg(map<string, pair<callee_summary_t, unique_ptr<tfg>>> *fun
     pair<argnum_t, expr_ref> const &a = m_arguments.at(get_value_name(arg));
     string Elname = get_value_name(arg) + SRC_INPUT_ARG_NAME_SUFFIX;
     Type *ElTy = arg.getType();
-    add_type_and_align_assumes(Elname, ElTy, a.second, pc::start(), *t/*, assumes*/, UNDEF_BEHAVIOUR_ASSUME_ARG_ISLANGTYPE);
+    add_align_assumes(Elname, ElTy, a.second, pc::start(), *t);
   }
 
   this->get_tfg_common(*t);

@@ -93,7 +93,7 @@ private:
   //void add_dereference_assume(expr_ref a, pc const &from_pc, tfg &t/*unordered_set<predicate> &assumes*/);
   //void add_divbyzero_assume(expr_ref a, pc const &from_pc, tfg &t/*unordered_set<predicate> &assumes*/);
   //void add_div_no_overflow_assume(expr_ref dividend, expr_ref divisor, pc const &from_pc, tfg &t/*unordered_set<predicate> &assumes*/);
-  void add_type_and_align_assumes(std::string const &elname, llvm::Type *elTy/*llvm::Value const &arg*/, expr_ref a, pc const&from_pc, tfg &t/*, unordered_set<predicate> &assumes*/, string langtype_comment);
+  void add_align_assumes(std::string const &elname, llvm::Type *elTy/*llvm::Value const &arg*/, expr_ref a, pc const&from_pc, tfg &t);
   //sort_ref get_fun_type_sort(/*const llvm::Type* t, */sort_ref ret_sort, const vector<sort_ref>& args) const;
   //sort_ref get_type_sort(const llvm::Type* t) const;
   //sort_ref get_value_type(const llvm::Value& v) const;
