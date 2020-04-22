@@ -765,17 +765,17 @@ expr_ref sym_exec_llvm::exec_gen_expr_casts(const llvm::CastInst& I, expr_ref ar
   case Instruction::BitCast:  // it's a nop cast
   {
     assert(src_size == dst_size);
-    Value *v = I.getOperand(0);
-    Type *typ = I.getType();
-    string typeString = getTypeString(typ);
-    langtype_ref lt = mk_langtype_ref(typeString);
-    predicate p(precond_t(m_ctx), m_ctx->mk_islangtype(src_expr, lt), expr_true(m_ctx), UNDEF_BEHAVIOUR_ASSUME_BITCAST_AFTERCAST_ISLANGTYPE, predicate::assume);
-    t.add_assume_pred(from_pc, p);
+    //Value *v = I.getOperand(0);
+    //Type *typ = I.getType();
+    //string typeString = getTypeString(typ);
+    //langtype_ref lt = mk_langtype_ref(typeString);
+    //predicate p(precond_t(m_ctx), m_ctx->mk_islangtype(src_expr, lt), expr_true(m_ctx), UNDEF_BEHAVIOUR_ASSUME_BITCAST_AFTERCAST_ISLANGTYPE, predicate::assume);
+    //t.add_assume_pred(from_pc, p);
     //assumes.insert(p);
-    typeString = getTypeString(v->getType());
-    langtype_ref lt2 = mk_langtype_ref(typeString);
-    predicate p2(precond_t(m_ctx), m_ctx->mk_islangtype(src_expr, lt2), expr_true(m_ctx), UNDEF_BEHAVIOUR_ASSUME_BITCAST_SRC_EXPR_ISLANGTYPE, predicate::assume);
-    t.add_assume_pred(from_pc, p2);
+    //typeString = getTypeString(v->getType());
+    //langtype_ref lt2 = mk_langtype_ref(typeString);
+    //predicate p2(precond_t(m_ctx), m_ctx->mk_islangtype(src_expr, lt2), expr_true(m_ctx), UNDEF_BEHAVIOUR_ASSUME_BITCAST_SRC_EXPR_ISLANGTYPE, predicate::assume);
+    //t.add_assume_pred(from_pc, p2);
     //assumes.insert(p2);
     return src_expr;
   }
@@ -789,22 +789,22 @@ expr_ref sym_exec_llvm::exec_gen_expr_casts(const llvm::CastInst& I, expr_ref ar
       after_cast = m_ctx->expr_do_simplify(m_ctx->mk_bvzero_ext(src_expr, dst_size - src_size));
 
     Value *v = I.getOperand(0);
-    Type *typ = I.getType();
-    string typeString = getTypeString(typ);
-    langtype_ref lt = mk_langtype_ref(typeString);
-    string comment_opc;
-    if (I.getOpcode() == Instruction::PtrToInt) {
-      comment_opc = "ptr2int";
-    } else if (I.getOpcode() == Instruction::IntToPtr) {
-      comment_opc = "int2ptr";
-    } else NOT_REACHED();
-    predicate p(precond_t(m_ctx), m_ctx->mk_islangtype(after_cast, lt), expr_true(m_ctx), string(UNDEF_BEHAVIOUR_ASSUME_INTPTR_AFTERCAST_ISLANGTYPE "-") + comment_opc, predicate::assume);
-    t.add_assume_pred(from_pc, p);
+    //Type *typ = I.getType();
+    //string typeString = getTypeString(typ);
+    //langtype_ref lt = mk_langtype_ref(typeString);
+    //string comment_opc;
+    //if (I.getOpcode() == Instruction::PtrToInt) {
+    //  comment_opc = "ptr2int";
+    //} else if (I.getOpcode() == Instruction::IntToPtr) {
+    //  comment_opc = "int2ptr";
+    //} else NOT_REACHED();
+    //predicate p(precond_t(m_ctx), m_ctx->mk_islangtype(after_cast, lt), expr_true(m_ctx), string(UNDEF_BEHAVIOUR_ASSUME_INTPTR_AFTERCAST_ISLANGTYPE "-") + comment_opc, predicate::assume);
+    //t.add_assume_pred(from_pc, p);
     //assumes.insert(p);
-    typeString = getTypeString(v->getType());
-    langtype_ref lt2 = mk_langtype_ref(typeString);
-    predicate p2(precond_t(m_ctx), m_ctx->mk_islangtype(src_expr, lt2), expr_true(m_ctx), string(UNDEF_BEHAVIOUR_ASSUME_INTPTR_SRC_EXPR_ISLANGTYPE "-") + comment_opc, predicate::assume);
-    t.add_assume_pred(from_pc, p2);
+    //typeString = getTypeString(v->getType());
+    //langtype_ref lt2 = mk_langtype_ref(typeString);
+    //predicate p2(precond_t(m_ctx), m_ctx->mk_islangtype(src_expr, lt2), expr_true(m_ctx), string(UNDEF_BEHAVIOUR_ASSUME_INTPTR_SRC_EXPR_ISLANGTYPE "-") + comment_opc, predicate::assume);
+    //t.add_assume_pred(from_pc, p2);
     //assumes.insert(p2);
 
     return after_cast;
@@ -1175,10 +1175,10 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I/*, st
     Value* Cond = SI->getCondition();
     Type *ElTy = Cond->getType();
     expr_ref CondVal = get_expr_adding_edges_for_intermediate_vals(*Cond, "", state_in, from_node, pc_to, B, F, t/*, assumes*/);
-    string typeString = getTypeString(ElTy);
-    langtype_ref lt = mk_langtype_ref(typeString);
-    predicate p(precond_t(m_ctx), m_ctx->mk_islangtype(CondVal, lt), expr_true(m_ctx), UNDEF_BEHAVIOUR_ASSUME_SWITCH_ISLANGTYPE, predicate::assume);
-    t.add_assume_pred(from_node->get_pc(), p);
+    //string typeString = getTypeString(ElTy);
+    //langtype_ref lt = mk_langtype_ref(typeString);
+    //predicate p(precond_t(m_ctx), m_ctx->mk_islangtype(CondVal, lt), expr_true(m_ctx), UNDEF_BEHAVIOUR_ASSUME_SWITCH_ISLANGTYPE, predicate::assume);
+    //t.add_assume_pred(from_node->get_pc(), p);
     //assumes.insert(p);
 
     vector<expr_ref> matched_any_cond;
@@ -1225,11 +1225,11 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I/*, st
 
       expr_ref dst_val = get_expr_adding_edges_for_intermediate_vals(*ret, "", state_in, from_node, pc_to, B, F, t/*, assumes*/);
 
-      string typeString = getTypeString(ElTy);
-      langtype_ref lt = mk_langtype_ref(typeString);
-      predicate p(precond_t(m_ctx), m_ctx->mk_islangtype(dst_val, lt), expr_true(m_ctx), UNDEF_BEHAVIOUR_ASSUME_RET_ISLANGTYPE, predicate::assume);
+      //string typeString = getTypeString(ElTy);
+      //langtype_ref lt = mk_langtype_ref(typeString);
+      //predicate p(precond_t(m_ctx), m_ctx->mk_islangtype(dst_val, lt), expr_true(m_ctx), UNDEF_BEHAVIOUR_ASSUME_RET_ISLANGTYPE, predicate::assume);
       //assumes.insert(p);
-      t.add_assume_pred(from_node->get_pc(), p);
+      //t.add_assume_pred(from_node->get_pc(), p);
 
       /*if (dst_val->is_bv_sort() && dst_val->get_sort()->get_size() == DWORD_LEN) {
         memlabel_t ml_top;
@@ -1271,12 +1271,12 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I/*, st
     keyword_to_memlabel(&ml_local, local_name_with_size.c_str(), local_size);
     //keyword_to_memlabel(&ml_local, G_MEM_SYMBOL);
 
-    string typeString = getTypeString(ElTy);
-    typeString = typeString + "*";
-    langtype_ref lt = mk_langtype_ref(typeString);
-    predicate p(precond_t(m_ctx), m_ctx->mk_islangtype(local_addr, lt), expr_true(m_ctx), UNDEF_BEHAVIOUR_ASSUME_ALLOCA_ISLANGTYPE, predicate::assume);
+    //string typeString = getTypeString(ElTy);
+    //typeString = typeString + "*";
+    //langtype_ref lt = mk_langtype_ref(typeString);
+    //predicate p(precond_t(m_ctx), m_ctx->mk_islangtype(local_addr, lt), expr_true(m_ctx), UNDEF_BEHAVIOUR_ASSUME_ALLOCA_ISLANGTYPE, predicate::assume);
     //assumes.insert(p);
-    t.add_assume_pred(from_node->get_pc(), p);
+    //t.add_assume_pred(from_node->get_pc(), p);
 
     state_set_expr(state_out, m_mem_reg, m_ctx->mk_alloca(state_get_expr(state_in, m_mem_reg), ml_local, local_addr, local_size));
     state_set_expr(state_out, name, local_addr);
@@ -1314,19 +1314,19 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I/*, st
     state_set_expr(state_out, m_mem_reg, m_ctx->mk_store(state_get_expr(state_in, m_mem_reg), ml_top, addr, val, count, false/*, comment_t()*/));
     //add_dereference_assume(addr, assumes);
 
-    Type *ElTy = Addr->getType();
-    string typeString = getTypeString(ElTy);
-    langtype_ref lt_addr = mk_langtype_ref(typeString);
-    predicate p1(precond_t(m_ctx), m_ctx->mk_islangtype(addr, lt_addr), expr_true(m_ctx), UNDEF_BEHAVIOUR_ASSUME_STORE_ADDR_ISLANGTYPE, predicate::assume);
+    //Type *ElTy = Addr->getType();
+    //string typeString = getTypeString(ElTy);
+    //langtype_ref lt_addr = mk_langtype_ref(typeString);
+    //predicate p1(precond_t(m_ctx), m_ctx->mk_islangtype(addr, lt_addr), expr_true(m_ctx), UNDEF_BEHAVIOUR_ASSUME_STORE_ADDR_ISLANGTYPE, predicate::assume);
     //assumes.insert(p1);
-    t.add_assume_pred(from_node->get_pc(), p1);
+    //t.add_assume_pred(from_node->get_pc(), p1);
 
-    ElTy = Val->getType();
-    typeString = getTypeString(ElTy);
-    langtype_ref lt_val = mk_langtype_ref(typeString);
-    predicate p2(precond_t(m_ctx), m_ctx->mk_islangtype(val, lt_val), expr_true(m_ctx), UNDEF_BEHAVIOUR_ASSUME_STORE_DATA_ISLANGTYPE, predicate::assume);
+    //ElTy = Val->getType();
+    //typeString = getTypeString(ElTy);
+    //langtype_ref lt_val = mk_langtype_ref(typeString);
+    //predicate p2(precond_t(m_ctx), m_ctx->mk_islangtype(val, lt_val), expr_true(m_ctx), UNDEF_BEHAVIOUR_ASSUME_STORE_DATA_ISLANGTYPE, predicate::assume);
     //assumes.insert(p2);
-    t.add_assume_pred(from_node->get_pc(), p2);
+    //t.add_assume_pred(from_node->get_pc(), p2);
 
     if (align != 0) {
       predicate p3(precond_t(m_ctx), m_ctx->mk_islangaligned(addr, align), expr_true(m_ctx), UNDEF_BEHAVIOUR_ASSUME_ALIGN_ISLANGALIGNED, predicate::assume);
@@ -1363,12 +1363,12 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I/*, st
 
     //add_dereference_assume(addr, assumes);
 
-    Type *ElTy = Addr->getType();
-    string typeString = getTypeString(ElTy);
-    langtype_ref lt_addr = mk_langtype_ref(typeString);
-    predicate p1(precond_t(m_ctx), m_ctx->mk_islangtype(addr, lt_addr), expr_true(m_ctx), UNDEF_BEHAVIOUR_ASSUME_LOAD_ISLANGTYPE, predicate::assume);
+    //Type *ElTy = Addr->getType();
+    //string typeString = getTypeString(ElTy);
+    //langtype_ref lt_addr = mk_langtype_ref(typeString);
+    //predicate p1(precond_t(m_ctx), m_ctx->mk_islangtype(addr, lt_addr), expr_true(m_ctx), UNDEF_BEHAVIOUR_ASSUME_LOAD_ISLANGTYPE, predicate::assume);
     //assumes.insert(p1);
-    t.add_assume_pred(from_node->get_pc(), p1);
+    //t.add_assume_pred(from_node->get_pc(), p1);
 
     if (align != 0) {
       predicate p2(precond_t(m_ctx), m_ctx->mk_islangaligned(addr, align), expr_true(m_ctx), UNDEF_BEHAVIOUR_ASSUME_ALIGN_ISLANGALIGNED, predicate::assume);
@@ -1827,14 +1827,11 @@ void sym_exec_llvm::add_type_and_align_assumes(string const &Elname, Type *ElTy/
   //Type *ElTy = arg.getType();
   //string Elname = get_value_name(arg);
   expr_ref Elexpr = m_ctx->mk_var(string(G_INPUT_KEYWORD ".") + Elname, a->get_sort());
-  string typeString = getTypeString(ElTy);
-  langtype_ref lt = mk_langtype_ref(typeString);
-  expr_ref assume1 = m_ctx->mk_islangtype(Elexpr/*a*/, lt);
-  predicate p(precond_t(m_ctx), assume1, expr_true(m_ctx), langtype_comment, predicate::assume);
-  //cout << __func__ << " " << __LINE__ << ": adding assume " << expr_string(assume1) << endl;
-  //assumes.insert(p);
-  //t.add_assume(from_pc, p);
-  t.add_assume_pred(pc_to, p);
+  //string typeString = getTypeString(ElTy);
+  //langtype_ref lt = mk_langtype_ref(typeString);
+  //expr_ref assume1 = m_ctx->mk_islangtype(Elexpr/*a*/, lt);
+  //predicate p(precond_t(m_ctx), assume1, expr_true(m_ctx), langtype_comment, predicate::assume);
+  //t.add_assume_pred(pc_to, p);
   if (isa<const PointerType>(ElTy)) {
     PointerType *ElTyPointer = cast<PointerType>(ElTy);
     Type *ElTy2 = ElTyPointer->getElementType();
