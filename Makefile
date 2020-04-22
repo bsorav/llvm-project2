@@ -1,7 +1,6 @@
-DISTCC_AVAILABLE := $(shell command -v dot 2> /dev/null)
+DISTCC_AVAILABLE := $(shell command -v distcc 2> /dev/null)
 ifdef DISTCC_AVAILABLE
-  DISTCC_AVAILABLE_HOSTS := $(shell distcc --show-hosts 2>/dev/null | wc -l)
-  ifneq (DISTCC_AVAILABLE_HOSTS, 0)
+  ifneq ($(shell distcc --show-hosts 2>/dev/null | wc -l),0)
   	DISTCC_OPTS := -DCMAKE_C_COMPILER_LAUNCHER=distcc -DCMAKE_CXX_COMPILER_LAUNCHER=distcc
 	endif
 endif
