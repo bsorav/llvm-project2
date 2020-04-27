@@ -857,7 +857,7 @@ sym_exec_llvm::apply_memcpy_function(const CallInst* c, expr_ref fun_name_expr, 
   }
 
   memlabel_t ml_top;
-  keyword_to_memlabel(&ml_top, G_MEMLABEL_TOP_SYMBOL, MEMSIZE_MAX);
+  memlabel_t::keyword_to_memlabel(&ml_top, G_MEMLABEL_TOP_SYMBOL, MEMSIZE_MAX);
 
   unordered_set<expr_ref> succ_assumes;
   if (memcpy_nbytes_expr->is_const()) {
@@ -1202,7 +1202,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, shar
     stringstream ss;
     ss <<  local_name << "." << local_size;
     string local_name_with_size = ss.str();
-    keyword_to_memlabel(&ml_local, local_name_with_size.c_str(), local_size);
+    memlabel_t::keyword_to_memlabel(&ml_local, local_name_with_size.c_str(), local_size);
 
     //string typeString = getTypeString(ElTy);
     //typeString = typeString + "*";
@@ -1219,7 +1219,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, shar
   {
     const StoreInst* s =  cast<const StoreInst>(&I);
     memlabel_t ml_top;
-    keyword_to_memlabel(&ml_top, G_MEMLABEL_TOP_SYMBOL, MEMSIZE_MAX);
+    memlabel_t::keyword_to_memlabel(&ml_top, G_MEMLABEL_TOP_SYMBOL, MEMSIZE_MAX);
     Value const *Addr = s->getPointerOperand();
     Value const *Val = s->getValueOperand();
     size_t align = s->getAlignment();
@@ -1281,7 +1281,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, shar
     sort_ref value_type = get_value_type(*l, m_module->getDataLayout());
     ASSERTCHECK(value_type->is_bv_kind(), cout << __func__ << " " << __LINE__ << ": value_type = " << value_type->to_string() << endl);
     memlabel_t ml_top;
-    keyword_to_memlabel(&ml_top, G_MEMLABEL_TOP_SYMBOL, MEMSIZE_MAX);
+    memlabel_t::keyword_to_memlabel(&ml_top, G_MEMLABEL_TOP_SYMBOL, MEMSIZE_MAX);
     unsigned count = value_type->get_size()/get_memory_addressable_size();
     expr_ref read_value = m_ctx->mk_select(state_get_expr(state_in, m_mem_reg), ml_top, addr, count, false);
     set_expr(get_value_name(*l), read_value, state_out);
