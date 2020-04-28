@@ -1046,7 +1046,8 @@ sym_exec_llvm::apply_general_function(const CallInst* c, expr_ref fun_name_expr,
       }
 
       set_expr(Elname, c_expr, state_out);
-      add_align_assumes(Elname, ElTy, c_expr, pc_to, t);
+      //add_align_assumes(Elname, ElTy, c_expr, pc_to, t);
+      unordered_set_union(succ_assumes, gen_align_assumes(Elname, ElTy, c_expr->get_sort()));
       CPP_DBG_EXEC(LLVM2TFG, errs() << "\n\nfun sort: " << m_ctx->expr_to_string_table(fun) << "\n");
     }
   }
@@ -1260,9 +1261,11 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, shar
     //t.add_assume_pred(from_node->get_pc(), p2);
 
     if (align != 0) {
-      predicate p3(precond_t(m_ctx), m_ctx->mk_islangaligned(addr, align), expr_true(m_ctx), UNDEF_BEHAVIOUR_ASSUME_ALIGN_ISLANGALIGNED, predicate::assume);
+      expr_ref const& isaligned_assume = m_ctx->mk_islangaligned(addr, align);
+      state_assumes.insert(isaligned_assume);
+      //predicate p3(precond_t(m_ctx), m_ctx->mk_islangaligned(addr, align), expr_true(m_ctx), UNDEF_BEHAVIOUR_ASSUME_ALIGN_ISLANGALIGNED, predicate::assume);
       //assumes.insert(p3);
-      t.add_assume_pred(from_node->get_pc(), p3);
+      //t.add_assume_pred(from_node->get_pc(), p3);
     }
     break;
   }
@@ -1297,9 +1300,11 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, shar
 
     size_t align = l->getAlignment();
     if (align != 0) {
-      predicate p2(precond_t(m_ctx), m_ctx->mk_islangaligned(addr, align), expr_true(m_ctx), UNDEF_BEHAVIOUR_ASSUME_ALIGN_ISLANGALIGNED, predicate::assume);
+      expr_ref const& isaligned_assume = m_ctx->mk_islangaligned(addr, align);
+      state_assumes.insert(isaligned_assume);
+      //predicate p2(precond_t(m_ctx), m_ctx->mk_islangaligned(addr, align), expr_true(m_ctx), UNDEF_BEHAVIOUR_ASSUME_ALIGN_ISLANGALIGNED, predicate::assume);
       //assumes.insert(p2);
-      t.add_assume_pred(from_node->get_pc(), p2);
+      //t.add_assume_pred(from_node->get_pc(), p2);
     }
     string lname = get_value_name(*l);
     Type *lTy = (*l).getType();
@@ -1742,18 +1747,18 @@ sym_exec_llvm::gen_align_assumes(string const &Elname, Type *ElTy, sort_ref cons
   return ret;
 }
 
-void sym_exec_llvm::add_align_assumes(string const &Elname, Type *ElTy/*llvm::Value const &arg*/, expr_ref a, pc const &pc_to, tfg &t) const
-{
-  unordered_set<expr_ref> const& assumes = gen_align_assumes(Elname, ElTy, a->get_sort());
-  for (auto const& a_expr : assumes) {
-    string comment;
-    if (a_expr->get_operation_kind() == expr::OP_ISLANGALIGNED) { comment = UNDEF_BEHAVIOUR_ASSUME_ALIGN_ISLANGALIGNED; }
-    else { NOT_REACHED(); }
-
-    predicate p(precond_t(m_ctx), a_expr, expr_true(m_ctx), comment, predicate::assume);
-    t.add_assume_pred(pc_to, p);
-  }
-}
+//void sym_exec_llvm::add_align_assumes(string const &Elname, Type *ElTy/*llvm::Value const &arg*/, expr_ref a, pc const &pc_to, tfg &t) const
+//{
+//  unordered_set<expr_ref> const& assumes = gen_align_assumes(Elname, ElTy, a->get_sort());
+//  for (auto const& a_expr : assumes) {
+//    string comment;
+//    if (a_expr->get_operation_kind() == expr::OP_ISLANGALIGNED) { comment = UNDEF_BEHAVIOUR_ASSUME_ALIGN_ISLANGALIGNED; }
+//    else { NOT_REACHED(); }
+//
+//    predicate p(precond_t(m_ctx), a_expr, expr_true(m_ctx), comment, predicate::assume);
+//    t.add_assume_pred(pc_to, p);
+//  }
+//}
 
 unique_ptr<tfg>
 sym_exec_llvm::get_tfg(map<string, pair<callee_summary_t, unique_ptr<tfg>>> *function_tfg_map, set<string> const *function_call_chain, map<shared_ptr<tfg_edge const>, Instruction *>& eimap)
