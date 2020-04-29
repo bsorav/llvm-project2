@@ -51,7 +51,7 @@ public:
 
   static bool update_function_call_args_and_retvals_with_atlocals(unique_ptr<tfg> t_src);
 
-  list<pair<string_ref, size_t>> const &get_local_refs() { return m_local_refs; }
+  map<local_id_t, graph_local_t> const &get_local_refs() { return m_local_refs; }
   graph_symbol_map_t const &get_symbol_map() { return *m_symbol_map; }
   static string get_value_name(const llvm::Value& v);
   static list<pair<string, unsigned>> get_fun_names(llvm::Module const *M);
@@ -200,7 +200,7 @@ protected:
   //string m_io_reg;
   int m_local_num;
   string m_ret_reg;
-  std::list<pair<string_ref, size_t>> m_local_refs;
+  map<local_id_t, graph_local_t> m_local_refs;
   //map<string, string> m_basicblock_name_map;
   map<string, int> m_basicblock_idx_map;
   list<pair<string, sort_ref>> m_state_templ;

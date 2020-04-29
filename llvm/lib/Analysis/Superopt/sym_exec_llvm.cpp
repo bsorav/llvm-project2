@@ -1197,7 +1197,8 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, shar
     Type *ElTy = a->getAllocatedType();
     uint64_t local_size = dl.getTypeAllocSize(ElTy);
 
-    m_local_refs.push_back(make_pair(mk_string_ref(name), local_size));
+    //m_local_refs.push_back(make_pair(mk_string_ref(name), local_size));
+    m_local_refs.insert(make_pair(m_local_num, graph_local_t(name, local_size)));
     expr_ref local_addr = m_ctx->mk_var(local_name, m_ctx->mk_bv_sort(get_word_length()));
     memlabel_t ml_local;
     stringstream ss;
@@ -2120,7 +2121,7 @@ sym_exec_llvm::sym_exec_preprocess_tfg(string const &name, tfg& t_src, map<strin
   autostop_timer func_timer(__func__);
   context* ctx = this->get_context();
   consts_struct_t &cs = ctx->get_consts_struct();
-  list<pair<string_ref, size_t>> local_refs = this->get_local_refs();
+  map<local_id_t, graph_local_t> local_refs = this->get_local_refs();
 
   pc start_pc = this->get_start_pc();
   t_src.add_extra_node_at_start_pc(start_pc);
@@ -2139,11 +2140,12 @@ sym_exec_llvm::sym_exec_preprocess_tfg(string const &name, tfg& t_src, map<strin
   t_src.set_callee_summaries(nextpc_id_csum);
 
   ASSERT(t_src.get_locals_map().size() == 0);
-  vector<pair<string_ref, size_t>> locals_map;
-  for (auto const &local : local_refs) {
-    locals_map.push_back(local);
-  }
-  t_src.set_locals_map(locals_map);
+  //vector<pair<string_ref, size_t>> locals_map;
+  //for (auto const &local : local_refs) {
+  //  locals_map.push_back(local);
+  //}
+  //t_src.set_locals_map(locals_map);
+  t_src.set_locals_map(local_refs);
   t_src.tfg_preprocess(false, sorted_bbl_indices);
   CPP_DBG_EXEC(EQGEN, cout << __func__ << " " << __LINE__ << ": after preprocess, TFG:\n" << t_src.graph_to_string() << endl);
 }
