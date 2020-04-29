@@ -24,7 +24,7 @@ class sym_exec_common
 {
 public:
   sym_exec_common(context* ctx/*, consts_struct_t const &cs*/, shared_ptr<list<pair<string, unsigned>> const> fun_names, shared_ptr<graph_symbol_map_t const> symbol_map, shared_ptr<map<pair<symbol_id_t, offset_t>, vector<char>> const> string_contents, bool gen_callee_summary, unsigned memory_addressable_size, unsigned word_length) :
-    m_ctx(ctx), m_cs(ctx->get_consts_struct()), m_fun_names(fun_names), m_symbol_map(symbol_map), m_string_contents(string_contents), m_gen_callee_summary(gen_callee_summary), m_memory_addressable_size(memory_addressable_size), m_word_length(word_length), m_mem_reg(G_SRC_KEYWORD "." LLVM_MEM_SYMBOL)/*, m_io_reg(LLVM_IO_SYMBOL)*/, m_local_num(0), m_memlabel_varnum(0)
+    m_ctx(ctx), m_cs(ctx->get_consts_struct()), m_fun_names(fun_names), m_symbol_map(symbol_map), m_string_contents(string_contents), m_gen_callee_summary(gen_callee_summary), m_memory_addressable_size(memory_addressable_size), m_word_length(word_length), m_mem_reg(G_SRC_KEYWORD "." LLVM_MEM_SYMBOL)/*, m_io_reg(LLVM_IO_SYMBOL)*/, m_local_num(graph_locals_map_t::first_non_arg_local()), m_memlabel_varnum(0)
   {
     //list<pair<string, unsigned>> fun_names;
     //sym_exec_common::get_fun_names(M, m_fun_names);
