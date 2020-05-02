@@ -1192,13 +1192,13 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, shar
     stringstream ss0;
     ss0 << "local." << m_local_num;
     string local_name = ss0.str();
-    m_local_num++;
     const DataLayout &dl = m_module->getDataLayout();
     Type *ElTy = a->getAllocatedType();
     uint64_t local_size = dl.getTypeAllocSize(ElTy);
 
     //m_local_refs.push_back(make_pair(mk_string_ref(name), local_size));
     m_local_refs.insert(make_pair(m_local_num, graph_local_t(name, local_size)));
+    m_local_num++;
     expr_ref local_addr = m_ctx->mk_var(local_name, m_ctx->mk_bv_sort(get_word_length()));
     memlabel_t ml_local;
     stringstream ss;
