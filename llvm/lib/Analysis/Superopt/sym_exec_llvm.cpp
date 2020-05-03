@@ -911,7 +911,7 @@ sym_exec_llvm::get_callee_summary(Function *F, string const &fun_name/*, map<sym
     return function_tfg_map.at(fun_name);
   }
   //cout << __func__ << " " << __LINE__ << endl;
-  context *ctx = new context(context::config(600, 600));
+  context *ctx = g_ctx; //new context(context::config(600, 600));
   ctx->parse_consts_db(CONSTS_DB_FILENAME);
   //ctx->parse_consts_db("~/superopt/consts_db.in"); //XXX: fixme
 

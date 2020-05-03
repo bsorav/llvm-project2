@@ -121,6 +121,7 @@ main(int argc, char **argv)
   // Print a stack trace if we signal out.
   sys::PrintStackTraceOnErrorSignal(argv[0]);
   PrettyStackTraceProgram X(argc, argv);
+  g_ctx_init();
 
   //LLVMContext &Context = getGlobalContext();
   LLVMContext Context;
@@ -168,7 +169,8 @@ main(int argc, char **argv)
     errs() << fun_name.first << " : " << fun_name.second << "\n";
   }*/
 
-  context *ctx = new context(context::config(600, 600/*, true, true, true*/));
+  //context *ctx = new context(context::config(600, 600/*, true, true, true*/));
+  context *ctx = g_ctx;
   ctx->parse_consts_db(CONSTS_DB_FILENAME);
   consts_struct_t &cs = ctx->get_consts_struct();
 
