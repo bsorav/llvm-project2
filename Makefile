@@ -6,7 +6,7 @@ ifdef DISTCC_AVAILABLE
 endif
 
 all::
-	ninja -C build llc clang opt llvm-config llvm-dis llvm-link llvm-as LLVMSuperopt.so LLVMLockstep.so UnsequencedAliasVisitor.so llvm2tfg
+	ninja -C build llc clang opt llvm-config llvm-dis llvm-link llvm-as llvm2tfg LLVMSuperopt.so LLVMLockstep.so UnsequencedAliasVisitor.so
 
 install::
 	#https://llvm.org/docs/GettingStarted.html

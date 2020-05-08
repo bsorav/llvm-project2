@@ -871,8 +871,8 @@ sym_exec_llvm::apply_memcpy_function(const CallInst* c, expr_ref fun_name_expr, 
       ////predicate p_dst(m_ctx->mk_islangaligned(memcpy_dst_expr, memcpy_align_int), m_ctx->mk_bool_const(true), UNDEF_BEHAVIOUR_ASSUME_COMMENT_PREFIX "-align-memcpy-dst-assume", predicate::assume);
       expr_ref const& dst_isaligned_assume = m_ctx->mk_islangaligned(memcpy_dst_expr, count /*XXX: not sure*/);
       assumes.insert(dst_isaligned_assume);
-      predicate p_dst(precond_t(m_ctx), dst_isaligned_assume, expr_true(m_ctx), UNDEF_BEHAVIOUR_ASSUME_ALIGN_MEMCPY_DST, predicate::assume);
-      t.add_assume_pred(from_pc, p_dst);
+      //predicate p_dst(precond_t(m_ctx), dst_isaligned_assume, expr_true(m_ctx), UNDEF_BEHAVIOUR_ASSUME_ALIGN_MEMCPY_DST);
+      //t.add_assume_pred(from_pc, p_dst);
     }
 
     for (int i = 0; i < count; i += memcpy_align_int) {
@@ -1667,12 +1667,12 @@ sym_exec_llvm::gen_dereference_assume_expr(expr_ref const& a) const
   return m_ctx->mk_not(m_ctx->mk_eq(a, m_ctx->mk_zerobv(a->get_sort()->get_size())));
 }
 
-void sym_exec_llvm::add_dereference_assume(expr_ref a, pc const &from_pc, tfg &t/*unordered_set<predicate> &assumes*/)
-{
-  predicate p(precond_t(m_ctx), this->gen_dereference_assume_expr(a), expr_true(m_ctx), UNDEF_BEHAVIOUR_ASSUME_DEREFERENCE, predicate::assume);
-  //assumes.insert(p);
-  t.add_assume_pred(from_pc, p);
-}
+//void sym_exec_llvm::add_dereference_assume(expr_ref a, pc const &from_pc, tfg &t/*unordered_set<predicate> &assumes*/)
+//{
+//  predicate p(precond_t(m_ctx), this->gen_dereference_assume_expr(a), expr_true(m_ctx), UNDEF_BEHAVIOUR_ASSUME_DEREFERENCE);
+//  //assumes.insert(p);
+//  t.add_assume_pred(from_pc, p);
+//}
 
 
 expr_ref
@@ -1681,12 +1681,12 @@ sym_exec_llvm::gen_shiftcount_assume_expr(expr_ref const& a, size_t shifted_val_
   return m_ctx->mk_isshiftcount(a, shifted_val_size);
 }
 
-void sym_exec_llvm::add_shiftcount_assume(expr_ref a, size_t shifted_val_size, pc const &from_pc, tfg &t) const
-{
-  predicate p(precond_t(m_ctx), this->gen_shiftcount_assume_expr(a, shifted_val_size), expr_true(m_ctx), UNDEF_BEHAVIOUR_ASSUME_ISSHIFTCOUNT, predicate::assume);
-  //assumes.insert(p);
-  t.add_assume_pred(from_pc, p);
-}
+//void sym_exec_llvm::add_shiftcount_assume(expr_ref a, size_t shifted_val_size, pc const &from_pc, tfg &t) const
+//{
+//  predicate p(precond_t(m_ctx), this->gen_shiftcount_assume_expr(a, shifted_val_size), expr_true(m_ctx), UNDEF_BEHAVIOUR_ASSUME_ISSHIFTCOUNT);
+//  //assumes.insert(p);
+//  t.add_assume_pred(from_pc, p);
+//}
 
 expr_ref
 sym_exec_llvm::gen_no_divbyzero_assume_expr(expr_ref const& a) const
@@ -1694,13 +1694,13 @@ sym_exec_llvm::gen_no_divbyzero_assume_expr(expr_ref const& a) const
   return m_ctx->mk_not(m_ctx->mk_eq(a, m_ctx->mk_zerobv(a->get_sort()->get_size())));
 }
 
-void
-sym_exec_llvm::add_divbyzero_assume(expr_ref a, pc const &from_pc, tfg &t/*, unordered_set<predicate> &assumes*/) const
-{
-  ASSERT(a->is_bv_sort());
-  predicate p(precond_t(m_ctx), this->gen_no_divbyzero_assume_expr(a), expr_true(m_ctx), UNDEF_BEHAVIOUR_ASSUME_DIVBYZERO, predicate::assume);
-  t.add_assume_pred(from_pc, p);
-}
+//void
+//sym_exec_llvm::add_divbyzero_assume(expr_ref a, pc const &from_pc, tfg &t/*, unordered_set<predicate> &assumes*/) const
+//{
+//  ASSERT(a->is_bv_sort());
+//  predicate p(precond_t(m_ctx), this->gen_no_divbyzero_assume_expr(a), expr_true(m_ctx), UNDEF_BEHAVIOUR_ASSUME_DIVBYZERO);
+//  t.add_assume_pred(from_pc, p);
+//}
 
 expr_ref
 sym_exec_llvm::gen_div_no_overflow_assume_expr(expr_ref const& dividend, expr_ref const& divisor) const
@@ -1714,12 +1714,12 @@ sym_exec_llvm::gen_div_no_overflow_assume_expr(expr_ref const& dividend, expr_re
   return m_ctx->mk_not(m_ctx->mk_and(m_ctx->mk_eq(divisor, m_ctx->mk_zerobv(bvsize)), m_ctx->mk_eq(dividend, m_ctx->mk_bv_const(bvsize, max_negative_value))));
 }
 
-void sym_exec_llvm::add_div_no_overflow_assume(expr_ref dividend, expr_ref divisor, pc const &from_pc, tfg &t) const
-{
-  predicate p(precond_t(m_ctx), this->gen_div_no_overflow_assume_expr(dividend, divisor), expr_true(m_ctx), UNDEF_BEHAVIOUR_ASSUME_DIV_NO_OVERFLOW, predicate::assume);
-  //assumes.insert(p);
-  t.add_assume_pred(from_pc, p);
-}
+//void sym_exec_llvm::add_div_no_overflow_assume(expr_ref dividend, expr_ref divisor, pc const &from_pc, tfg &t) const
+//{
+//  predicate p(precond_t(m_ctx), this->gen_div_no_overflow_assume_expr(dividend, divisor), expr_true(m_ctx), UNDEF_BEHAVIOUR_ASSUME_DIV_NO_OVERFLOW);
+//  //assumes.insert(p);
+//  t.add_assume_pred(from_pc, p);
+//}
 
 unordered_set<expr_ref>
 sym_exec_llvm::gen_align_assumes(string const &Elname, Type *ElTy, sort_ref const& s) const
