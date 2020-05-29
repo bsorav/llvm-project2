@@ -30,6 +30,11 @@ sort_ref sym_exec_common::get_mem_range() const
   return m_ctx->mk_bv_sort(m_memory_addressable_size);
 }
 
+sort_ref sym_exec_common::get_mem_sort() const
+{
+  return m_ctx->mk_array_sort(get_mem_domain(), get_mem_range());
+}
+
 string prefix_identifier(const string& id, const string& prefix)
 {
   return prefix + "." + id;
@@ -420,26 +425,26 @@ void sym_exec_common::populate_state_template_common()
   //  m_state_templ.push_back({m_ret_reg, return_reg_sort});
   //  //m_value_name_map[m_ret_reg] = m_ret_reg;
   //}
-  m_state_templ.push_back({G_SRC_KEYWORD "." G_LLVM_HIDDEN_REGISTER_NAME, m_ctx->mk_bv_sort(ETFG_EXREG_LEN(ETFG_EXREG_GROUP_GPRS))});
+  //m_state_templ.push_back({G_SRC_KEYWORD "." G_LLVM_HIDDEN_REGISTER_NAME, m_ctx->mk_bv_sort(ETFG_EXREG_LEN(ETFG_EXREG_GROUP_GPRS))});
   m_state_templ.push_back({m_mem_reg, mem_sort});
   //m_state_templ.push_back({m_io_reg, io_sort});
 
-  m_state_templ.push_back({G_SRC_KEYWORD "." LLVM_CONTAINS_FLOAT_OP_SYMBOL, m_ctx->mk_bool_sort()});
+  //m_state_templ.push_back({G_SRC_KEYWORD "." LLVM_CONTAINS_FLOAT_OP_SYMBOL, m_ctx->mk_bool_sort()});
 
-  m_state_templ.push_back({G_SRC_KEYWORD "." LLVM_CONTAINS_UNSUPPORTED_OP_SYMBOL, m_ctx->mk_bool_sort()});
+  //m_state_templ.push_back({G_SRC_KEYWORD "." LLVM_CONTAINS_UNSUPPORTED_OP_SYMBOL, m_ctx->mk_bool_sort()});
 
-  for (size_t i = 0; i < LLVM_NUM_CALLEE_SAVE_REGS; i++) {
-    stringstream ss;
-    ss << G_SRC_KEYWORD "." LLVM_CALLEE_SAVE_REGNAME "." << i;
-    m_state_templ.push_back({ss.str(), m_ctx->mk_bv_sort(DWORD_LEN)});
-  }
+  //for (size_t i = 0; i < LLVM_NUM_CALLEE_SAVE_REGS; i++) {
+  //  stringstream ss;
+  //  ss << G_SRC_KEYWORD "." LLVM_CALLEE_SAVE_REGNAME "." << i;
+  //  m_state_templ.push_back({ss.str(), m_ctx->mk_bv_sort(DWORD_LEN)});
+  //}
 
-  CPP_DBG_EXEC(LLVM2TFG,
-    errs() << "\n==State template:\n";
-    for (const pair<string, sort_ref>& item : m_state_templ) {
-      errs() << item.first << " : " << item.second->to_string() << "\n";
-    }
-  );
+  //CPP_DBG_EXEC(LLVM2TFG,
+  //  errs() << "\n==State template:\n";
+  //  for (const pair<string, sort_ref>& item : m_state_templ) {
+  //    errs() << item.first << " : " << item.second->to_string() << "\n";
+  //  }
+  //);
   m_state_templ.push_back({G_SRC_KEYWORD "." LLVM_STATE_INDIR_TARGET_KEY_ID, m_ctx->mk_bv_sort(DWORD_LEN)});
   //errs() << "\n==Name mapping:\n";
   //for(auto name_mapping : m_value_name_map)
@@ -455,35 +460,33 @@ void sym_exec_common::populate_state_template_common()
 
 void sym_exec_llvm::populate_state_template(const llvm::Function& F)
 {
-  //const Function::ArgumentListType& args = F.getArgumentList();
-  //sort_ref return_reg_sort;
-  argnum_t argnum = 0;
-  for(Function::const_arg_iterator iter = F.arg_begin(); iter != F.arg_end(); ++iter)
-  {
-    const Value& v = *iter;
-    if (isa<const Constant>(v)) {
-      continue;
-    }
-    string name = get_value_name(v);
-    sort_ref s = get_value_type(v, m_module->getDataLayout());
-    string argname = name + SRC_INPUT_ARG_NAME_SUFFIX;
-    expr_ref argvar = m_ctx->mk_var(string(G_INPUT_KEYWORD) + "." + argname, s);
-    m_arguments[name] = make_pair(argnum, argvar);
-    argnum++;
-    m_state_templ.push_back({argname, s});
-  }
+  //argnum_t argnum = 0;
+  //for(Function::const_arg_iterator iter = F.arg_begin(); iter != F.arg_end(); ++iter)
+  //{
+  //  const Value& v = *iter;
+  //  if (isa<const Constant>(v)) {
+  //    continue;
+  //  }
+  //  string name = get_value_name(v);
+  //  sort_ref s = get_value_type(v, m_module->getDataLayout());
+  //  string argname = name + SRC_INPUT_ARG_NAME_SUFFIX;
+  //  expr_ref argvar = m_ctx->mk_var(string(G_INPUT_KEYWORD) + "." + argname, s);
+  //  m_arguments[name] = make_pair(argnum, argvar);
+  //  argnum++;
+  //  m_state_templ.push_back({argname, s});
+  //}
 
-  int bbnum = 1; //bbnum == 0 is reserved
+  //int bbnum = 1; //bbnum == 0 is reserved
   for (const BasicBlock& B : F) {
-    m_basicblock_idx_map[get_basicblock_name(B)] = bbnum;
-    bbnum++;
-    int insn_id = 0;
+  //  m_basicblock_idx_map[get_basicblock_name(B)] = bbnum;
+  //  bbnum++;
+  //  int insn_id = 0;
     for(const Instruction& I : B)
     {
-      //pc pc_from = get_pc_from_bb_and_insn_id(B, insn_id);
-      if (!isa<const PHINode>(I)) {
-        insn_id++;
-      }
+  //    //pc pc_from = get_pc_from_bb_and_insn_id(B, insn_id);
+  //    if (!isa<const PHINode>(I)) {
+  //      insn_id++;
+  //    }
       if(isa<ReturnInst>(I))
       {
         //const ReturnInst* ret = dyn_cast<const ReturnInst>(dyn_cast<const TerminatorInst>(&I));
@@ -496,60 +499,60 @@ void sym_exec_llvm::populate_state_template(const llvm::Function& F)
         }
         continue;
       }
-      if (isa<SwitchInst>(I)) {
-        const SwitchInst* SI =  cast<const SwitchInst>(&I);
-        size_t varnum = 0;
-        for (SwitchInst::ConstCaseIt i = SI->case_begin(), e = SI->case_end(); i != e; ++i) {
-          stringstream ss;
-          ss << G_SRC_KEYWORD "." G_LLVM_PREFIX "-" LLVM_SWITCH_TMPVAR_PREFIX << varnum;
-          varnum++;
-          m_state_templ.push_back({ss.str(), m_ctx->mk_bool_sort()});
-        }
-        continue;
-      }
-      /*if (I.getOpcode() == Instruction::GetElementPtr) {
-        add_gep_intermediate_vals(I, gep_name_prefix("gep", pc_from, 0));
-      } else {
-        for(unsigned i = 0; i < I.getNumOperands(); ++i) {
-          Value const *op = I.getOperand(i);
-          if (ConstantExpr *ce = (ConstantExpr *)dyn_cast<const ConstantExpr>(op)) {
-            Instruction const &CI = *ce->getAsInstruction();
-            if (CI.getOpcode() == Instruction::GetElementPtr) {
-              add_gep_intermediate_vals(CI, gep_name_prefix("const_operand", pc_from, i));
-            }
-          }
+  //    if (isa<SwitchInst>(I)) {
+  //      const SwitchInst* SI =  cast<const SwitchInst>(&I);
+  //      size_t varnum = 0;
+  //      for (SwitchInst::ConstCaseIt i = SI->case_begin(), e = SI->case_end(); i != e; ++i) {
+  //        stringstream ss;
+  //        ss << G_SRC_KEYWORD "." G_LLVM_PREFIX "-" LLVM_SWITCH_TMPVAR_PREFIX << varnum;
+  //        varnum++;
+  //        m_state_templ.push_back({ss.str(), m_ctx->mk_bool_sort()});
+  //      }
+  //      continue;
+  //    }
+  //    /*if (I.getOpcode() == Instruction::GetElementPtr) {
+  //      add_gep_intermediate_vals(I, gep_name_prefix("gep", pc_from, 0));
+  //    } else {
+  //      for(unsigned i = 0; i < I.getNumOperands(); ++i) {
+  //        Value const *op = I.getOperand(i);
+  //        if (ConstantExpr *ce = (ConstantExpr *)dyn_cast<const ConstantExpr>(op)) {
+  //          Instruction const &CI = *ce->getAsInstruction();
+  //          if (CI.getOpcode() == Instruction::GetElementPtr) {
+  //            add_gep_intermediate_vals(CI, gep_name_prefix("const_operand", pc_from, i));
+  //          }
+  //        }
 
-        }
-      }*/
-      if (I.getType()->isVoidTy())
-        continue;
-      string name = get_value_name(I);
-      vector<sort_ref> sv = get_value_type_vec(I, m_module->getDataLayout());
-      if (sv.size() == 1) {
-        m_state_templ.push_back({name, sv.at(0)});
-      } else {
-        for (size_t i = 0; i < sv.size(); i++) {
-          stringstream ss;
-          ss << name << "." LLVM_FIELDNUM_PREFIX << i;
-          m_state_templ.push_back({ss.str(), sv.at(i)});
-        }
-      }
-      //errs() << "adding field " << name << "\n";
-      if (isa<const PHINode>(I)) {
-        if (sv.size() > 1) {
-          NOT_IMPLEMENTED();
-        }
-        m_state_templ.push_back({name + PHI_NODE_TMPVAR_SUFFIX, sv.at(0)});
-        //errs() << "adding field " << name + PHI_NODE_TMPVAR_SUFFIX << "\n";
-      }
-      //if (I.getOpcode() == Instruction::Call) {
-      //  const CallInst* c =  cast<const CallInst>(&I);
-      //  for (const auto &arg : c->arg_operands()) {
-      //    string name_copy = LLVM_FCALL_ARG_COPY_PREFIX + get_value_name(*arg);
-      //    sort_ref s = get_value_type(*arg);
-      //    m_state_templ.push_back({name_copy, s});
-      //  }
-      //}
+  //      }
+  //    }*/
+  //    if (I.getType()->isVoidTy())
+  //      continue;
+  //    string name = get_value_name(I);
+  //    vector<sort_ref> sv = get_value_type_vec(I, m_module->getDataLayout());
+  //    if (sv.size() == 1) {
+  //      m_state_templ.push_back({name, sv.at(0)});
+  //    } else {
+  //      for (size_t i = 0; i < sv.size(); i++) {
+  //        stringstream ss;
+  //        ss << name << "." LLVM_FIELDNUM_PREFIX << i;
+  //        m_state_templ.push_back({ss.str(), sv.at(i)});
+  //      }
+  //    }
+  //    //errs() << "adding field " << name << "\n";
+  //    if (isa<const PHINode>(I)) {
+  //      if (sv.size() > 1) {
+  //        NOT_IMPLEMENTED();
+  //      }
+  //      m_state_templ.push_back({name + PHI_NODE_TMPVAR_SUFFIX, sv.at(0)});
+  //      //errs() << "adding field " << name + PHI_NODE_TMPVAR_SUFFIX << "\n";
+  //    }
+  //    //if (I.getOpcode() == Instruction::Call) {
+  //    //  const CallInst* c =  cast<const CallInst>(&I);
+  //    //  for (const auto &arg : c->arg_operands()) {
+  //    //    string name_copy = LLVM_FCALL_ARG_COPY_PREFIX + get_value_name(*arg);
+  //    //    sort_ref s = get_value_type(*arg);
+  //    //    m_state_templ.push_back({name_copy, s});
+  //    //  }
+  //    //}
     }
   }
   populate_state_template_common();
@@ -594,7 +597,9 @@ sym_exec_llvm::__get_expr_adding_edges_for_intermediate_vals_helper(const Value&
     ASSERT(m_arguments.count(get_value_name(v)));
     return make_pair(m_arguments.at(get_value_name(v)).second, state_assumes);
   } else if (isa<const Instruction>(&v)) {
-    return make_pair(state_get_expr(state_in, get_value_name(v)), state_assumes);
+    vector<sort_ref> sv = get_value_type_vec(v, m_module->getDataLayout());
+    ASSERT(sv.size() == 1);
+    return make_pair(state_get_expr(state_in, get_value_name(v), sv.at(0)), state_assumes);
   } else {
     assert(false && "value not converted to expr");
   }
@@ -613,9 +618,21 @@ sym_exec_common::state_set_expr(state &st, string const &key, expr_ref const &va
 }
 
 expr_ref
-sym_exec_common::state_get_expr(state const &st, string const &key)
+sym_exec_common::get_input_expr(string const &key, sort_ref const& s) const
 {
-  return st.get_expr(key, st);
+  stringstream ss;
+  ss << G_INPUT_KEYWORD "." << key;
+  return m_ctx->mk_var(ss.str(), s);
+}
+
+expr_ref
+sym_exec_common::state_get_expr(state const &st, string const &key, sort_ref const& s) const
+{
+  if (st.has_expr(key)) {
+    return st.get_expr(key, st);
+  } else {
+    return get_input_expr(key, s);
+  }
 }
 
 void sym_exec_llvm::set_expr(string const &name/*, const llvm::Value& v*/, expr_ref expr, state& st)
@@ -879,8 +896,8 @@ sym_exec_llvm::apply_memcpy_function(const CallInst* c, expr_ref fun_name_expr, 
     for (int i = 0; i < count; i += memcpy_align_int) {
       expr_ref offset = m_ctx->mk_bv_const(DWORD_LEN, i);
       //cout << __func__ << " " << __LINE__ << ": count = " << count << ", memcpy_align_int = " << memcpy_align_int << ", i = " << i << endl;
-      expr_ref inbytes = m_ctx->mk_select(state_get_expr(state_out, m_mem_reg), ml_top, m_ctx->mk_bvadd(memcpy_src_expr, offset), memcpy_align_int, false/*, comment_t()*/);
-      expr_ref out_mem = state_get_expr(state_out, m_mem_reg);
+      expr_ref inbytes = m_ctx->mk_select(state_get_expr(state_out, m_mem_reg, this->get_mem_sort()), ml_top, m_ctx->mk_bvadd(memcpy_src_expr, offset), memcpy_align_int, false/*, comment_t()*/);
+      expr_ref out_mem = state_get_expr(state_out, m_mem_reg, this->get_mem_sort());
       out_mem = m_ctx->mk_store(out_mem, ml_top, m_ctx->mk_bvadd(memcpy_dst_expr, offset), inbytes, memcpy_align_int, false/*, comment_t()*/);
       state_set_expr(state_out, m_mem_reg, out_mem);
     }
@@ -981,7 +998,7 @@ sym_exec_llvm::apply_general_function(const CallInst* c, expr_ref fun_name_expr,
   expr_ref ml_write_expr= m_ctx->memlabel_var(t.get_name()->get_str(), m_memlabel_varnum); //csum.get_write_memlabel();
   m_memlabel_varnum++;
 
-  expr_ref mem = state_get_expr(state_in, m_mem_reg);
+  expr_ref mem = state_get_expr(state_in, m_mem_reg, this->get_mem_sort());
   expr_ref zerobv = m_ctx->mk_zerobv(DWORD_LEN);
   args.push_back(ml_read_expr);
   args_type.push_back(ml_read_expr->get_sort());
@@ -1180,7 +1197,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, shar
       stringstream ss;
       ss << G_INPUT_KEYWORD "." G_SRC_KEYWORD "." LLVM_CALLEE_SAVE_REGNAME << "." << i;
       expr_ref csreg = m_ctx->mk_var(ss.str(), m_ctx->mk_bv_sort(ETFG_EXREG_LEN(ETFG_EXREG_GROUP_GPRS)));
-      state_set_expr(state_out, G_SRC_KEYWORD "." G_LLVM_HIDDEN_REGISTER_NAME, m_ctx->mk_bvxor(state_get_expr(state_out, G_SRC_KEYWORD "." G_LLVM_HIDDEN_REGISTER_NAME), csreg));
+      state_set_expr(state_out, G_SRC_KEYWORD "." G_LLVM_HIDDEN_REGISTER_NAME, m_ctx->mk_bvxor(state_get_expr(state_out, G_SRC_KEYWORD "." G_LLVM_HIDDEN_REGISTER_NAME, csreg->get_sort()), csreg));
     }
     control_flow_transfer cft(from_node->get_pc(), pc(pc::exit), m_ctx->mk_bool_true(), m_cs.get_retaddr_const(), {});
     cfts.push_back(cft);
@@ -1214,7 +1231,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, shar
     //assumes.insert(p);
     //t.add_assume_pred(from_node->get_pc(), p);
 
-    state_set_expr(state_out, m_mem_reg, m_ctx->mk_alloca(state_get_expr(state_in, m_mem_reg), ml_local, local_addr, local_size));
+    state_set_expr(state_out, m_mem_reg, m_ctx->mk_alloca(state_get_expr(state_in, m_mem_reg, this->get_mem_sort()), ml_local, local_addr, local_size));
     state_set_expr(state_out, name, local_addr);
     break;
   }
@@ -1245,7 +1262,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, shar
     }
     ASSERTCHECK(val->is_bv_sort(), cout << __func__ << " " << __LINE__ << ": val = " << expr_string(val) << endl);
     unsigned count = val->get_sort()->get_size()/get_memory_addressable_size();
-    state_set_expr(state_out, m_mem_reg, m_ctx->mk_store(state_get_expr(state_in, m_mem_reg), ml_top, addr, val, count, false/*, comment_t()*/));
+    state_set_expr(state_out, m_mem_reg, m_ctx->mk_store(state_get_expr(state_in, m_mem_reg, this->get_mem_sort()), ml_top, addr, val, count, false/*, comment_t()*/));
     //add_dereference_assume(addr, assumes);
 
     //Type *ElTy = Addr->getType();
@@ -1288,7 +1305,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, shar
     memlabel_t ml_top;
     memlabel_t::keyword_to_memlabel(&ml_top, G_MEMLABEL_TOP_SYMBOL, MEMSIZE_MAX);
     unsigned count = value_type->get_size()/get_memory_addressable_size();
-    expr_ref read_value = m_ctx->mk_select(state_get_expr(state_in, m_mem_reg), ml_top, addr, count, false);
+    expr_ref read_value = m_ctx->mk_select(state_get_expr(state_in, m_mem_reg, this->get_mem_sort()), ml_top, addr, count, false);
     set_expr(get_value_name(*l), read_value, state_out);
 
     //add_dereference_assume(addr, assumes);
@@ -1827,7 +1844,7 @@ sym_exec_llvm::expand_switch(tfg &t, shared_ptr<tfg_node> const &from_node, vect
     state_set_expr(state_to_newvar, new_varname, edgecond);
     shared_ptr<tfg_edge const> e1 = mk_tfg_edge(mk_itfg_edge(cur_pc, new_cur_pc1, state_to_newvar, expr_true(m_ctx), t.get_start_state(), assumes, te_comment));
 
-    expr_ref new_var = state_get_expr(t.get_start_state(), new_varname);
+    expr_ref new_var = state_get_expr(t.get_start_state(), new_varname, m_ctx->mk_bool_sort());
     new_cfts.push_back(control_flow_transfer(new_cur_pc1, to_pc, new_var));
     shared_ptr<tfg_edge const> e3 = mk_tfg_edge(mk_itfg_edge(new_cur_pc1, new_cur_pc2, state_to, m_ctx->mk_not(new_var), t.get_start_state(), {}, te_comment));
     if (!t.find_node(new_cur_pc1)) {
@@ -2117,7 +2134,7 @@ sym_exec_llvm::get_callee_summaries_for_tfg(map<nextpc_id_t, string> const &next
 }
 
 void
-sym_exec_llvm::sym_exec_preprocess_tfg(string const &name, tfg& t_src, map<string, pair<callee_summary_t, unique_ptr<tfg_llvm_t>>> &function_tfg_map, list<string> const& sorted_bbl_indices)
+sym_exec_llvm::sym_exec_preprocess_tfg(string const &name, tfg_llvm_t& t_src, map<string, pair<callee_summary_t, unique_ptr<tfg_llvm_t>>> &function_tfg_map, list<string> const& sorted_bbl_indices)
 {
   autostop_timer func_timer(__func__);
   context* ctx = this->get_context();

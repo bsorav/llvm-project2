@@ -41,6 +41,7 @@ public:
 
   sort_ref get_mem_domain() const;
   sort_ref get_mem_range() const;
+  sort_ref get_mem_sort() const;
 
   virtual unique_ptr<tfg_llvm_t> get_tfg(map<string, pair<callee_summary_t, unique_ptr<tfg_llvm_t>>> *function_tfg_map, set<string> const *function_call_chain, map<shared_ptr<tfg_edge const>, llvm::Instruction *>& eimap) = 0;
   virtual pc get_start_pc() const = 0;
@@ -161,7 +162,8 @@ protected:
   //expr_ref get_expr_adding_edges_for_intermediate_vals(const llvm::Value& v, string vname, const state& state_in, shared_ptr<tfg_node> &from_node, pc const &pc_to, llvm::BasicBlock const &B, llvm::Function const &F, tfg &t);
 
   void state_set_expr(state &st, string const &key, expr_ref const &value);
-  expr_ref state_get_expr(state const &st, string const &key);
+  expr_ref get_input_expr(string const &key, sort_ref const& s) const;
+  expr_ref state_get_expr(state const &st, string const &key, sort_ref const& s) const;
 
   //void set_expr(const llvm::Value& v, expr_ref expr, state& st);
   //vector<expr_ref> get_expr_args(const llvm::Instruction& I, string vname, const state& st, shared_ptr<tfg_node> &from_node, pc const &pc_to, llvm::BasicBlock const &B, llvm::Function const &F, tfg &t/*, unordered_set<predicate> &assumes*/);
