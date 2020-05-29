@@ -42,7 +42,7 @@ public:
   sort_ref get_mem_domain() const;
   sort_ref get_mem_range() const;
 
-  virtual unique_ptr<tfg> get_tfg(map<string, pair<callee_summary_t, unique_ptr<tfg>>> *function_tfg_map, set<string> const *function_call_chain, map<shared_ptr<tfg_edge const>, llvm::Instruction *>& eimap) = 0;
+  virtual unique_ptr<tfg_llvm_t> get_tfg(map<string, pair<callee_summary_t, unique_ptr<tfg_llvm_t>>> *function_tfg_map, set<string> const *function_call_chain, map<shared_ptr<tfg_edge const>, llvm::Instruction *>& eimap) = 0;
   virtual pc get_start_pc() const = 0;
 
   void get_tfg_common(tfg &t);

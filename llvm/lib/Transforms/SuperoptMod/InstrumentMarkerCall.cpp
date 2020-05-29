@@ -659,7 +659,7 @@ IdentifyMaxDistancePC::runOnFunction(Function &F)
     return false;
   }
   map<shared_ptr<tfg_edge const>, Instruction *> eimap;
-  unique_ptr<tfg> t = function2tfg(&F, M, eimap);
+  unique_ptr<tfg_llvm_t> t = function2tfg(&F, M, eimap);
   map<pc, distance_t> fdistances, bdistances;
   distance_dfa_t<dfa_dir_t::forward> fdistance_dfa(t.get(), fdistances);
   fdistance_dfa.initialize(distance_t(0));
@@ -1074,7 +1074,7 @@ InstrumentMarkerCall::addMarkerInBasicBlock(Function *F, BasicBlock *BB, int ins
   //}
   CPP_DBG_EXEC(INSTRUMENT_MARKER_CALL, dbgs() << __func__ << " " << __LINE__ << ": done inserting marker in BB " << get_basicblock_name(*BB) << "\n");
   map<shared_ptr<tfg_edge const>, Instruction *> eimap;
-  unique_ptr<tfg> t = function2tfg(F, M, eimap);
+  unique_ptr<tfg_llvm_t> t = function2tfg(F, M, eimap);
   CPP_DBG_EXEC(INSTRUMENT_MARKER_CALL, dbgs() << __func__ << " " << __LINE__ << ": done function2tfg after inserting marker in BB " << get_basicblock_name(*BB) << "\n");
   //replaceGlobalUsesOfValue(live_vals_vec, eInst_vec, BB, F, t.get(), eimap);
   CPP_DBG_EXEC(INSTRUMENT_MARKER_CALL, dbgs() << __func__ << " " << __LINE__ << ": done replaceGlobalUsesOfValue after inserting marker in BB " << get_basicblock_name(*BB) << "\n");
@@ -1190,7 +1190,7 @@ InstrumentMarkerCall::runOnFunction(Function &F)
     return false;
   }
   assert(insn_num >= 0);
-  unique_ptr<tfg> t = function2tfg(&F, M, eimap);
+  unique_ptr<tfg_llvm_t> t = function2tfg(&F, M, eimap);
   //identify live vars at F/BB/insns_num
   list<Value *> live_values = get_live_values(t, eimap, function, BB, insn_num);
   addMarkerInBasicBlock(function, BB, insn_num, live_values, breaking_loop);

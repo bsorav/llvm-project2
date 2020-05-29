@@ -39,6 +39,7 @@ using namespace llvm;
 #include "expr/consts_struct.h"
 #include "expr/expr.h"
 #include "eq/eqcheck.h"
+#include "tfg/tfg_llvm.h"
 #include "ptfg/llptfg.h"
 #include "ptfg/function_signature.h"
 
@@ -177,7 +178,7 @@ main(int argc, char **argv)
   ofstream outputStream;
   outputStream.open(OutputFilename, ios_base::out | ios_base::trunc);
 
-  map<string, pair<callee_summary_t, unique_ptr<tfg>>> function_tfg_map;
+  map<string, pair<callee_summary_t, unique_ptr<tfg_llvm_t>>> function_tfg_map;
   for (const Function& f : *M1) {
     if (   FunNamesVec.size() != 0
         //&& (FunNamesVec.size() != 1 || *FunNamesVec.begin() != "ALL")
@@ -206,7 +207,7 @@ main(int argc, char **argv)
     set<string> function_call_chain;
 
     cout << __func__ << " " << __LINE__ << ": Doing " << fname << endl;
-    unique_ptr<tfg> t_src = sym_exec_llvm::get_preprocessed_tfg(f, M1.get(), fname, ctx, function_tfg_map, function_call_chain, gen_callee_summary, DisableModelingOfUninitVarUB ? true : false);
+    unique_ptr<tfg_llvm_t> t_src = sym_exec_llvm::get_preprocessed_tfg(f, M1.get(), fname, ctx, function_tfg_map, function_call_chain, gen_callee_summary, DisableModelingOfUninitVarUB ? true : false);
 
     callee_summary_t csum = t_src->get_summary_for_calling_functions();
     function_tfg_map.insert(make_pair(fname, make_pair(csum, std::move(t_src))));

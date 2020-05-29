@@ -9,6 +9,7 @@
 //#include "../lib/Target/X86/X86Subtarget.h"
 #include "expr/expr.h"
 #include "tfg/predicate.h"
+#include "tfg/tfg_llvm.h"
 #include "support/dyn_debug.h"
 //#include "X86.h"
 //#include "X86RegisterInfo.h"
@@ -823,7 +824,7 @@ sym_exec_llvm::exec_gen_expr_casts(const llvm::CastInst& I, expr_ref arg, unorde
 }
 
 pair<unordered_set<expr_ref>,unordered_set<expr_ref>>
-sym_exec_llvm::apply_memcpy_function(const CallInst* c, expr_ref fun_name_expr, string const &fun_name, Function *F, state const &state_in, state &state_out, unordered_set<expr_ref> const& state_assumes, string const &cur_function_name, shared_ptr<tfg_node> &from_node, pc const &pc_to, llvm::BasicBlock const &B, llvm::Function const &curF, tfg &t, map<string, pair<callee_summary_t, unique_ptr<tfg>>> *function_tfg_map, set<string> const *function_call_chain)
+sym_exec_llvm::apply_memcpy_function(const CallInst* c, expr_ref fun_name_expr, string const &fun_name, Function *F, state const &state_in, state &state_out, unordered_set<expr_ref> const& state_assumes, string const &cur_function_name, shared_ptr<tfg_node> &from_node, pc const &pc_to, llvm::BasicBlock const &B, llvm::Function const &curF, tfg &t, map<string, pair<callee_summary_t, unique_ptr<tfg_llvm_t>>> *function_tfg_map, set<string> const *function_call_chain)
 {
   const auto& memcpy_dst = c->getArgOperand(0);
   const auto& memcpy_src = c->getArgOperand(1);
@@ -900,8 +901,8 @@ sym_exec_llvm::function_get_num_bbls(const Function *F)
   return ret;
 }
 
-pair<callee_summary_t, unique_ptr<tfg>> const&
-sym_exec_llvm::get_callee_summary(Function *F, string const &fun_name/*, map<symbol_id_t, tuple<string, size_t, variable_constness_t>> const &symbol_map*/, map<string, pair<callee_summary_t, unique_ptr<tfg>>> &function_tfg_map, set<string> const &function_call_chain)
+pair<callee_summary_t, unique_ptr<tfg_llvm_t>> const&
+sym_exec_llvm::get_callee_summary(Function *F, string const &fun_name/*, map<symbol_id_t, tuple<string, size_t, variable_constness_t>> const &symbol_map*/, map<string, pair<callee_summary_t, unique_ptr<tfg_llvm_t>>> &function_tfg_map, set<string> const &function_call_chain)
 {
   //cout.flush();
   //cout << __func__ << " " << __LINE__ << endl;
@@ -920,7 +921,7 @@ sym_exec_llvm::get_callee_summary(Function *F, string const &fun_name/*, map<sym
     cout << " " << f;
   }
   cout << endl;
-  unique_ptr<tfg> t = sym_exec_llvm::get_preprocessed_tfg(*F, m_module, fun_name, ctx, function_tfg_map, function_call_chain, this->gen_callee_summary(), false);
+  unique_ptr<tfg_llvm_t> t = sym_exec_llvm::get_preprocessed_tfg(*F, m_module, fun_name, ctx, function_tfg_map, function_call_chain, this->gen_callee_summary(), false);
  cout << __func__ << " " << __LINE__ << ": done callee summary for " << fun_name << ": function_call_chain.size() = " << function_call_chain.size() << ", chain:";
   for (const auto &f : function_call_chain) {
     cout << " " << f;
@@ -945,7 +946,7 @@ sym_exec_common::function_belongs_to_program(string const &fun_name) const
 }
 
 pair<unordered_set<expr_ref>,unordered_set<expr_ref>>
-sym_exec_llvm::apply_general_function(const CallInst* c, expr_ref fun_name_expr, string const &fun_name, Function *F, state const &state_in, state &state_out, unordered_set<expr_ref> const& state_assumes, string const &cur_function_name, shared_ptr<tfg_node> &from_node, pc const &pc_to, llvm::BasicBlock const &B, llvm::Function const &curF, tfg &t, map<string, pair<callee_summary_t, unique_ptr<tfg>>> *function_tfg_map, set<string> const *function_call_chain)
+sym_exec_llvm::apply_general_function(const CallInst* c, expr_ref fun_name_expr, string const &fun_name, Function *F, state const &state_in, state &state_out, unordered_set<expr_ref> const& state_assumes, string const &cur_function_name, shared_ptr<tfg_node> &from_node, pc const &pc_to, llvm::BasicBlock const &B, llvm::Function const &curF, tfg &t, map<string, pair<callee_summary_t, unique_ptr<tfg_llvm_t>>> *function_tfg_map, set<string> const *function_call_chain)
 {
   vector<expr_ref> args;
   vector<sort_ref> args_type;
@@ -961,7 +962,7 @@ sym_exec_llvm::apply_general_function(const CallInst* c, expr_ref fun_name_expr,
              && !set_belongs(*function_call_chain, fname)
              && this->gen_callee_summary()) {
     ASSERT(fun_name.substr(0, string(LLVM_FUNCTION_NAME_PREFIX).size()) == LLVM_FUNCTION_NAME_PREFIX);
-    pair<callee_summary_t, unique_ptr<tfg>> const& csum_callee_tfg = get_callee_summary(F, fname, *function_tfg_map, *function_call_chain);
+    pair<callee_summary_t, unique_ptr<tfg_llvm_t>> const& csum_callee_tfg = get_callee_summary(F, fname, *function_tfg_map, *function_call_chain);
     CPP_DBG_EXEC(LLVM2TFG, cout << "Doing resume: " << t.get_name() << endl);
     csum = csum_callee_tfg.first;
     tfg const& callee_tfg = *csum_callee_tfg.second;
@@ -1068,7 +1069,7 @@ sym_exec_llvm::apply_general_function(const CallInst* c, expr_ref fun_name_expr,
   return make_pair(assumes, succ_assumes);
 }
 
-void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, shared_ptr<tfg_node> from_node, llvm::BasicBlock const &B, llvm::Function const &F, size_t next_insn_id, tfg &t, map<string, pair<callee_summary_t, unique_ptr<tfg>>> *function_tfg_map, set<string> const *function_call_chain, map<shared_ptr<tfg_edge const>, Instruction *>& eimap)
+void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, shared_ptr<tfg_node> from_node, llvm::BasicBlock const &B, llvm::Function const &F, size_t next_insn_id, tfg &t, map<string, pair<callee_summary_t, unique_ptr<tfg_llvm_t>>> *function_tfg_map, set<string> const *function_call_chain, map<shared_ptr<tfg_edge const>, Instruction *>& eimap)
 {
   DYN_DEBUG(llvm2tfg, errs() << __func__ << " " << __LINE__ << " " << get_timestamp(as1, sizeof as1) << ": sym exec doing: " << I << "\n");
   unordered_set<expr_ref> state_assumes;
@@ -1761,8 +1762,8 @@ sym_exec_llvm::gen_align_assumes(string const &Elname, Type *ElTy, sort_ref cons
 //  }
 //}
 
-unique_ptr<tfg>
-sym_exec_llvm::get_tfg(map<string, pair<callee_summary_t, unique_ptr<tfg>>> *function_tfg_map, set<string> const *function_call_chain, map<shared_ptr<tfg_edge const>, Instruction *>& eimap)
+unique_ptr<tfg_llvm_t>
+sym_exec_llvm::get_tfg(map<string, pair<callee_summary_t, unique_ptr<tfg_llvm_t>>> *function_tfg_map, set<string> const *function_call_chain, map<shared_ptr<tfg_edge const>, Instruction *>& eimap)
 {
   llvm::Function const &F = m_function;
   populate_state_template(F);
@@ -1770,7 +1771,7 @@ sym_exec_llvm::get_tfg(map<string, pair<callee_summary_t, unique_ptr<tfg>>> *fun
   get_state_template(pc::start(), start_state);
   stringstream ss;
   ss << "llvm." << functionGetName(F);
-  unique_ptr<tfg> t = make_unique<tfg>(ss.str(), m_ctx);
+  unique_ptr<tfg_llvm_t> t = make_unique<tfg_llvm_t>(ss.str(), m_ctx);
   ASSERT(t);
   t->set_start_state(start_state);
 
@@ -1914,7 +1915,7 @@ sym_exec_common::process_cfts(tfg &t, shared_ptr<tfg_node> const &from_node, pc 
 }
 
 void
-sym_exec_llvm::add_edges(const llvm::BasicBlock& B, tfg& t, const llvm::Function& F, map<string, pair<callee_summary_t, unique_ptr<tfg>>> *function_tfg_map, set<string> const *function_call_chain, map<shared_ptr<tfg_edge const>, Instruction *>& eimap)
+sym_exec_llvm::add_edges(const llvm::BasicBlock& B, tfg& t, const llvm::Function& F, map<string, pair<callee_summary_t, unique_ptr<tfg_llvm_t>>> *function_tfg_map, set<string> const *function_call_chain, map<shared_ptr<tfg_edge const>, Instruction *>& eimap)
 {
   //errs() << "Doing BB: " << get_basicblock_name(B) << "\n";
   size_t insn_id = 0;
@@ -2116,7 +2117,7 @@ sym_exec_llvm::get_callee_summaries_for_tfg(map<nextpc_id_t, string> const &next
 }
 
 void
-sym_exec_llvm::sym_exec_preprocess_tfg(string const &name, tfg& t_src, map<string, pair<callee_summary_t, unique_ptr<tfg>>> &function_tfg_map, list<string> const& sorted_bbl_indices)
+sym_exec_llvm::sym_exec_preprocess_tfg(string const &name, tfg& t_src, map<string, pair<callee_summary_t, unique_ptr<tfg_llvm_t>>> &function_tfg_map, list<string> const& sorted_bbl_indices)
 {
   autostop_timer func_timer(__func__);
   context* ctx = this->get_context();
@@ -2169,8 +2170,8 @@ sym_exec_llvm::gen_arg_assumes() const
   return arg_assumes;
 }
 
-unique_ptr<tfg>
-sym_exec_llvm::get_preprocessed_tfg_common(string const &name, map<string, pair<callee_summary_t, unique_ptr<tfg>>> &function_tfg_map, set<string> function_call_chain, list<string> const& sorted_bbl_indices, bool DisableModelingOfUninitVarUB)
+unique_ptr<tfg_llvm_t>
+sym_exec_llvm::get_preprocessed_tfg_common(string const &name, map<string, pair<callee_summary_t, unique_ptr<tfg_llvm_t>>> &function_tfg_map, set<string> function_call_chain, list<string> const& sorted_bbl_indices, bool DisableModelingOfUninitVarUB)
 {
   autostop_timer func_timer(__func__);
   CPP_DBG_EXEC(LLVM2TFG,
@@ -2181,7 +2182,7 @@ sym_exec_llvm::get_preprocessed_tfg_common(string const &name, map<string, pair<
   );
   function_call_chain.insert(name);
   map<shared_ptr<tfg_edge const>, Instruction *> eimap;
-  unique_ptr<tfg> t_src = this->get_tfg(&function_tfg_map, &function_call_chain, eimap);
+  unique_ptr<tfg_llvm_t> t_src = this->get_tfg(&function_tfg_map, &function_call_chain, eimap);
   this->sym_exec_preprocess_tfg(name, *t_src, function_tfg_map, sorted_bbl_indices);
   CPP_DBG_EXEC(LLVM2TFG,
     errs() << "Doing done: " << name << "\n";
@@ -2205,8 +2206,8 @@ sym_exec_llvm::get_preprocessed_tfg_common(string const &name, map<string, pair<
   return t_src;
 }
 
-unique_ptr<tfg>
-sym_exec_llvm::get_preprocessed_tfg(Function const &f, Module const *M, string const &name, context *ctx, map<string, pair<callee_summary_t, unique_ptr<tfg>>> &function_tfg_map, set<string> function_call_chain, bool gen_callee_summary, bool DisableModelingOfUninitVarUB)
+unique_ptr<tfg_llvm_t>
+sym_exec_llvm::get_preprocessed_tfg(Function const &f, Module const *M, string const &name, context *ctx, map<string, pair<callee_summary_t, unique_ptr<tfg_llvm_t>>> &function_tfg_map, set<string> function_call_chain, bool gen_callee_summary, bool DisableModelingOfUninitVarUB)
 {
   autostop_timer func_timer(__func__);
 
@@ -2512,14 +2513,16 @@ sym_exec_common::get_tfg_common(tfg &t)
   t.set_start_state(start_state);
 }
 
-unique_ptr<tfg>
-sym_exec_mir::get_tfg(map<string, pair<callee_summary_t, unique_ptr<tfg>>> *function_tfg_map, set<string> const *function_call_chain, map<shared_ptr<tfg_edge const>, Instruction *>& eimap)
+unique_ptr<tfg_llvm_t>
+sym_exec_mir::get_tfg(map<string, pair<callee_summary_t, unique_ptr<tfg_llvm_t>>> *function_tfg_map, set<string> const *function_call_chain, map<shared_ptr<tfg_edge const>, Instruction *>& eimap)
 {
+  NOT_REACHED();
+/*
   llvm::MachineFunction const &F = m_machine_function;
   populate_state_template_for_mf(m_machine_function);
   state start_state;
   get_state_template(pc::start(), start_state);
-  unique_ptr<tfg> t = make_unique<tfg>("mir", m_ctx/*, start_state*/);
+  unique_ptr<tfg> t = make_unique<tfg>("mir", m_ctx);
   t->set_start_state(start_state);
   for(const MachineBasicBlock& B : F) {
     this->add_edges_for_mir(B, *t, F, *function_tfg_map, *function_call_chain);
@@ -2527,6 +2530,7 @@ sym_exec_mir::get_tfg(map<string, pair<callee_summary_t, unique_ptr<tfg>>> *func
 
   this->get_tfg_common(*t);
   return t;
+*/
 }
 
 pc
