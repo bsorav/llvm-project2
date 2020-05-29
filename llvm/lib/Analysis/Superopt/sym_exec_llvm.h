@@ -58,7 +58,7 @@ public:
   virtual pc get_start_pc() const override;
 
   unordered_set<expr_ref> gen_arg_assumes() const;
-  void sym_exec_preprocess_tfg(string const &name, tfg &t_src, map<string, pair<callee_summary_t, unique_ptr<tfg_llvm_t>>> &function_tfg_map, list<string> const& sorted_bbl_indices);
+  void sym_exec_preprocess_tfg(string const &name, tfg_llvm_t &t_src, map<string, pair<callee_summary_t, unique_ptr<tfg_llvm_t>>> &function_tfg_map, list<string> const& sorted_bbl_indices);
 
   static unique_ptr<tfg_llvm_t> get_preprocessed_tfg(const llvm::Function& F, llvm::Module const *M, string const &name, context *ctx, map<string, pair<callee_summary_t, unique_ptr<tfg_llvm_t>>> &function_tfg_map, set<string> function_call_chain, bool gen_callee_summary, bool DisableModelingOfUninitVarUB);
 
