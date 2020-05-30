@@ -460,21 +460,21 @@ void sym_exec_common::populate_state_template_common()
 
 void sym_exec_llvm::populate_state_template(const llvm::Function& F)
 {
-  //argnum_t argnum = 0;
-  //for(Function::const_arg_iterator iter = F.arg_begin(); iter != F.arg_end(); ++iter)
-  //{
-  //  const Value& v = *iter;
-  //  if (isa<const Constant>(v)) {
-  //    continue;
-  //  }
-  //  string name = get_value_name(v);
-  //  sort_ref s = get_value_type(v, m_module->getDataLayout());
-  //  string argname = name + SRC_INPUT_ARG_NAME_SUFFIX;
-  //  expr_ref argvar = m_ctx->mk_var(string(G_INPUT_KEYWORD) + "." + argname, s);
-  //  m_arguments[name] = make_pair(argnum, argvar);
-  //  argnum++;
-  //  m_state_templ.push_back({argname, s});
-  //}
+  argnum_t argnum = 0;
+  for(Function::const_arg_iterator iter = F.arg_begin(); iter != F.arg_end(); ++iter)
+  {
+    const Value& v = *iter;
+    if (isa<const Constant>(v)) {
+      continue;
+    }
+    string name = get_value_name(v);
+    sort_ref s = get_value_type(v, m_module->getDataLayout());
+    string argname = name + SRC_INPUT_ARG_NAME_SUFFIX;
+    expr_ref argvar = m_ctx->mk_var(string(G_INPUT_KEYWORD) + "." + argname, s);
+    m_arguments[name] = make_pair(argnum, argvar);
+    argnum++;
+    //m_state_templ.push_back({argname, s});
+  }
 
   //int bbnum = 1; //bbnum == 0 is reserved
   for (const BasicBlock& B : F) {
