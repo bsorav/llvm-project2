@@ -201,7 +201,7 @@ protected:
   string m_mem_reg;
   //string m_io_reg;
   int m_local_num;
-  string m_ret_reg;
+  //string m_ret_reg;
   map<local_id_t, graph_local_t> m_local_refs;
   //map<string, string> m_basicblock_name_map;
   map<string, int> m_basicblock_idx_map;
