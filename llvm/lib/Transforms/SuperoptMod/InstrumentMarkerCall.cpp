@@ -14,6 +14,7 @@
 #include "llvm/Analysis/LoopPass.h"
 #include "llvm/IR/Dominators.h"
 #include "tfg/tfg.h"
+#include "tfg/tfg_llvm.h"
 #include "tfg/dfa.h"
 #include "../lib/Analysis/Superopt/dfa_helper.h"
 #include <sstream>
@@ -481,7 +482,7 @@ public:
   //Loop *identifyUnbrokenLoop(Function& F);
   //void unbrokenLoopVisit(Loop *L, loop_depth_t cur_depth, loop_depth_t &depth_out, Loop* &loop_out);
 private:
-  static list<Value *> get_live_values(unique_ptr<tfg> const& t, map<shared_ptr<tfg_edge const>, Instruction *> const& eimap, Function const * function, BasicBlock const* BB, int insn_num);
+  static list<Value *> get_live_values(unique_ptr<tfg_llvm_t> const& t, map<shared_ptr<tfg_edge const>, Instruction *> const& eimap, Function const * function, BasicBlock const* BB, int insn_num);
   void replaceUsesInBBAfterMarkerCall(Value *from, Value *to, BasicBlock *BB, Instruction *markerCallEnd);
   void replaceGlobalUsesOfValue(vector<Value *> const& from, vector<Instruction *> const& to, BasicBlock *BB, Function *F, tfg const* t, map<shared_ptr<tfg_edge const>, Instruction *> const& eimap);
 
@@ -1127,7 +1128,7 @@ IdentifyMaxDistancePC::find_max_distance_pc(map<pc, distance_t> const& fwd_dista
 
 
 list<Value *>
-InstrumentMarkerCall::get_live_values(unique_ptr<tfg> const& t, map<shared_ptr<tfg_edge const>, Instruction *> const& eimap, Function const * function, BasicBlock const* BB, int insn_num)
+InstrumentMarkerCall::get_live_values(unique_ptr<tfg_llvm_t> const& t, map<shared_ptr<tfg_edge const>, Instruction *> const& eimap, Function const * function, BasicBlock const* BB, int insn_num)
 {
   map<pc, liveness_val_t> live_vals;
   liveness_dfa_t ldfa(t.get(), eimap, live_vals);
