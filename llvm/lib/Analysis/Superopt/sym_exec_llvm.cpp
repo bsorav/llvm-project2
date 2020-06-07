@@ -1212,6 +1212,9 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, shar
     string local_name = ss0.str();
     const DataLayout &dl = m_module->getDataLayout();
     Type *ElTy = a->getAllocatedType();
+    if (!a->getAllocationSizeInBits(dl).hasValue()) {
+      NOT_IMPLEMENTED();
+    }
     uint64_t local_size = dl.getTypeAllocSize(ElTy);
 
     //m_local_refs.push_back(make_pair(mk_string_ref(name), local_size));
