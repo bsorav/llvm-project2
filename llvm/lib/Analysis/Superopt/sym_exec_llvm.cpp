@@ -1207,19 +1207,17 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, shar
   {
     const AllocaInst* a =  cast<const AllocaInst>(&I);
     string name = get_value_name(*a);
+    size_t local_id = m_local_num++;
     stringstream ss0;
-    ss0 << "local." << m_local_num;
+    ss0 << "local." << local_id;
     string local_name = ss0.str();
     const DataLayout &dl = m_module->getDataLayout();
     Type *ElTy = a->getAllocatedType();
-    if (!a->getAllocationSizeInBits(dl).hasValue()) {
-      NOT_IMPLEMENTED();
-    }
     uint64_t local_size = dl.getTypeAllocSize(ElTy);
+    unsigned align = a->getAlignment();
+    bool is_varsize = !(a->getAllocationSizeInBits(dl).hasValue());
 
-    //m_local_refs.push_back(make_pair(mk_string_ref(name), local_size));
-    m_local_refs.insert(make_pair(m_local_num, graph_local_t(name, local_size)));
-    m_local_num++;
+    m_local_refs.insert(make_pair(local_id, graph_local_t(name, local_size, align, is_varsize)));
     expr_ref local_addr = m_ctx->mk_var(local_name, m_ctx->mk_bv_sort(get_word_length()));
     memlabel_t ml_local;
     stringstream ss;
@@ -1234,8 +1232,20 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, shar
     //assumes.insert(p);
     //t.add_assume_pred(from_node->get_pc(), p);
 
-    state_set_expr(state_out, m_mem_reg, m_ctx->mk_alloca(state_get_expr(state_in, m_mem_reg, this->get_mem_sort()), ml_local, local_addr, local_size));
+    expr_ref local_size_cs = m_ctx->get_consts_struct().get_expr_value(reg_type_local_size, local_id);
+    expr_ref local_size_expr;
+    if (is_varsize) {
+      expr_ref varsize_expr;
+      Value const* ArraySize = a->getArraySize();
+      tie(varsize_expr, state_assumes) = get_expr_adding_edges_for_intermediate_vals(*ArraySize, "", state_in, state_assumes, from_node, pc_to, B, F, t);
+      local_size_expr = m_ctx->mk_bvmul(varsize_expr, m_ctx->mk_bv_const(varsize_expr->get_sort()->get_size(), local_size));
+    } else {
+      local_size_expr = m_ctx->mk_bv_const(get_word_length(), local_size);
+    }
+
+    state_set_expr(state_out, m_mem_reg, m_ctx->mk_alloca(state_get_expr(state_in, m_mem_reg, this->get_mem_sort()), ml_local, local_addr, local_size_expr));
     state_set_expr(state_out, name, local_addr);
+    state_set_expr(state_out, local_size_cs->get_name()->get_str(), local_size_expr);
     break;
   }
   case Instruction::Store:
