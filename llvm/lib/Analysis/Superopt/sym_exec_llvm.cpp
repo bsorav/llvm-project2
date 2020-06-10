@@ -1376,7 +1376,9 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, shar
       fun_expr = m_ctx->mk_var(fun_name, m_ctx->mk_bv_sort(DWORD_LEN));
     }
     if (   fun_name == LLVM_FUNCTION_NAME_PREFIX G_LLVM_DBG_DECLARE_FUNCTION
-        || fun_name == LLVM_FUNCTION_NAME_PREFIX G_LLVM_DBG_VALUE_FUNCTION) {
+        || fun_name == LLVM_FUNCTION_NAME_PREFIX G_LLVM_DBG_VALUE_FUNCTION
+        || fun_name == LLVM_FUNCTION_NAME_PREFIX G_LLVM_STACKSAVE_FUNCTION
+        || fun_name == LLVM_FUNCTION_NAME_PREFIX G_LLVM_STACKRESTORE_FUNCTION) {
       break;
     }
     if (string_has_prefix(fun_name, LLVM_FUNCTION_NAME_PREFIX G_LLVM_LIFETIME_FUNCTION_PREFIX)) {
