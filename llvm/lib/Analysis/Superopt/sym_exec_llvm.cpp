@@ -1209,7 +1209,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, shar
     string name = get_value_name(*a);
     size_t local_id = m_local_num++;
     stringstream ss0;
-    ss0 << "local." << local_id;
+    ss0 << G_LOCAL_KEYWORD << '.' << local_id;
     string local_name = ss0.str();
     const DataLayout &dl = m_module->getDataLayout();
     Type *ElTy = a->getAllocatedType();
@@ -1232,20 +1232,22 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, shar
     //assumes.insert(p);
     //t.add_assume_pred(from_node->get_pc(), p);
 
-    expr_ref local_size_cs = m_ctx->get_consts_struct().get_expr_value(reg_type_local_size, local_id);
+    ostringstream ss2;
+    ss2 << G_LOCAL_SIZE_KEYWORD << '.' << local_id;
     expr_ref local_size_expr;
     if (is_varsize) {
       expr_ref varsize_expr;
       Value const* ArraySize = a->getArraySize();
       tie(varsize_expr, state_assumes) = get_expr_adding_edges_for_intermediate_vals(*ArraySize, "", state_in, state_assumes, from_node, pc_to, B, F, t);
       local_size_expr = m_ctx->mk_bvmul(varsize_expr, m_ctx->mk_bv_const(varsize_expr->get_sort()->get_size(), local_size));
+      ASSERT(local_size_expr->get_sort()->get_size() == get_word_length());
     } else {
       local_size_expr = m_ctx->mk_bv_const(get_word_length(), local_size);
     }
 
     state_set_expr(state_out, m_mem_reg, m_ctx->mk_alloca(state_get_expr(state_in, m_mem_reg, this->get_mem_sort()), ml_local, local_addr, local_size_expr));
     state_set_expr(state_out, name, local_addr);
-    state_set_expr(state_out, local_size_cs->get_name()->get_str(), local_size_expr);
+    state_set_expr(state_out, ss2.str(), local_size_expr);
     break;
   }
   case Instruction::Store:
