@@ -1131,7 +1131,7 @@ list<Value *>
 InstrumentMarkerCall::get_live_values(unique_ptr<tfg_llvm_t> const& t, map<shared_ptr<tfg_edge const>, Instruction *> const& eimap, Function const * function, BasicBlock const* BB, int insn_num)
 {
   map<pc, liveness_val_t> live_vals;
-  liveness_dfa_t ldfa(t, eimap, live_vals);
+  liveness_dfa_t ldfa(t.get(), eimap, live_vals);
   ldfa.initialize(liveness_val_t());
   ldfa.solve();
   CPP_DBG_EXEC(LLVM_LIVENESS,
@@ -1193,7 +1193,7 @@ InstrumentMarkerCall::runOnFunction(Function &F)
   assert(insn_num >= 0);
   unique_ptr<tfg_llvm_t> t = function2tfg(&F, M, eimap);
   //identify live vars at F/BB/insns_num
-  list<Value *> live_values = get_live_values(t.get(), eimap, function, BB, insn_num);
+  list<Value *> live_values = get_live_values(t, eimap, function, BB, insn_num);
   addMarkerInBasicBlock(function, BB, insn_num, live_values, breaking_loop);
 
   return true;
