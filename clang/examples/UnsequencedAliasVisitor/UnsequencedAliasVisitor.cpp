@@ -207,10 +207,11 @@ class SequenceChecker : public EvaluatedExprVisitor<SequenceChecker> {
   };
 
   struct Usage {
-    Expr *Use = nullptr;
+    Expr *Use;// = nullptr;
     SequenceTree::Seq Seq;
 
-    Usage() = default;
+    Usage() : Use(nullptr)
+    { }
   };
 
   struct UsageInfo {
