@@ -1959,6 +1959,17 @@ sym_exec_llvm::add_edges(const llvm::BasicBlock& B, tfg& t, const llvm::Function
     if (isa<PHINode const>(I)) {
       continue;
     }
+    if (   isa<CallInst>(I) && cast<CallInst>(I).getIntrinsicID() == Intrinsic::dbg_declare
+        || isa<CallInst>(I) && cast<CallInst>(I).getIntrinsicID() == Intrinsic::dbg_value
+        || isa<CallInst>(I) && cast<CallInst>(I).getIntrinsicID() == Intrinsic::dbg_addr
+        || isa<CallInst>(I) && cast<CallInst>(I).getIntrinsicID() == Intrinsic::dbg_label
+       ) {
+      continue;
+    }
+
+    if (isa<CallInst>(I) && cast<CallInst>(I).getIntrinsicID() == Intrinsic::unseq_noalias) {
+      NOT_IMPLEMENTED();
+    }
 
     pc pc_from = get_pc_from_bbindex_and_insn_id(get_basicblock_index(B), insn_id);
     shared_ptr<tfg_node> from_node = make_shared<tfg_node>(pc_from);
