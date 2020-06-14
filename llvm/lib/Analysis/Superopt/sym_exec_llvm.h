@@ -140,7 +140,9 @@ private:
   vector<control_flow_transfer> expand_switch(tfg &t, shared_ptr<tfg_node> const &from_node, vector<control_flow_transfer> const &cfts, state const &state_to, unordered_set<expr_ref> const& cond_assumes, te_comment_t const& te_comment, llvm::Instruction * I, const llvm::BasicBlock& B, const llvm::Function& F, map<shared_ptr<tfg_edge const>, llvm::Instruction *>& eimap);
 
   void process_cft(tfg &t, shared_ptr<tfg_node> const &from_node, pc const &pc_to, expr_ref target, expr_ref to_condition, state const &state_to, unordered_set<expr_ref> const& assumes, const llvm::BasicBlock& B, const llvm::Function& F);
-  void add_edges(const llvm::BasicBlock& B, tfg& t, const llvm::Function& F, map<string, pair<callee_summary_t, unique_ptr<tfg_llvm_t>>> *function_tfg_map, set<string> const *function_call_chain, map<shared_ptr<tfg_edge const>, llvm::Instruction *>& eimap);
+  void add_edges(const llvm::BasicBlock& B, tfg_llvm_t& t, const llvm::Function& F, map<string, pair<callee_summary_t, unique_ptr<tfg_llvm_t>>> *function_tfg_map, set<string> const *function_call_chain, map<shared_ptr<tfg_edge const>, llvm::Instruction *>& eimap);
+
+  void parse_dbg_declare_intrinsic(llvm::Instruction const& I, tfg_llvm_t& t, pc const& pc_from) const;
   //shared_ptr<tfg_node> get_next_intermediate_subsubindex_pc_node(tfg &t, shared_ptr<tfg_node> const &from_node);
 
   pair<expr_ref,unordered_set<expr_ref>> exec_gen_expr_casts(const llvm::CastInst& I, expr_ref arg, unordered_set<expr_ref> const& state_assumes, pc const &from_pc, tfg &t);

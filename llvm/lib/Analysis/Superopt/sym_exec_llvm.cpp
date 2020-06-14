@@ -15,6 +15,7 @@
 //#include "X86RegisterInfo.h"
 //#include "X86Subtarget.h"
 #include <tuple>
+#include <llvm/IR/DebugInfoMetadata.h>
 
 using namespace llvm;
 static char as1[40960];
@@ -1950,7 +1951,32 @@ sym_exec_common::process_cfts(tfg &t, shared_ptr<tfg_node> const &from_node, pc 
 }
 
 void
-sym_exec_llvm::add_edges(const llvm::BasicBlock& B, tfg& t, const llvm::Function& F, map<string, pair<callee_summary_t, unique_ptr<tfg_llvm_t>>> *function_tfg_map, set<string> const *function_call_chain, map<shared_ptr<tfg_edge const>, Instruction *>& eimap)
+sym_exec_llvm::parse_dbg_declare_intrinsic(Instruction const& I, tfg_llvm_t& t, pc const& pc_from) const
+{
+  const CallInst& CI = cast<CallInst>(I);
+  const DbgDeclareInst &DI = cast<DbgDeclareInst>(CI);
+  assert(DI.getVariable() && "Missing variable");
+
+  const Value *Address = DI.getAddress();
+  if (!Address || isa<UndefValue>(Address)) {
+    DYN_DEBUG(dbg_declare_intrinsic, dbgs() << "Dropping debug info for " << DI << "\n");
+    return;
+  }
+
+  auto AI = dyn_cast<AllocaInst>(Address);
+  if (!AI) {
+    DYN_DEBUG(dbg_declare_intrinsic, dbgs() << "Dropping debug info for " << DI << " because it is NOT an alloca\n");
+    return;
+  }
+  string source_varname = DI.getVariable()->getName().str();
+  string llvm_varname = get_value_name(*Address);
+  DYN_DEBUG(dbg_declare_intrinsic, dbgs() << "DI.getVariable().getName() = " << source_varname << "\n");
+  DYN_DEBUG(dbg_declare_intrinsic, dbgs() << "value_name = " << llvm_varname << "\n");
+  t.tfg_llvm_add_source_to_llvm_varname_mapping(source_varname, llvm_varname);
+}
+
+void
+sym_exec_llvm::add_edges(const llvm::BasicBlock& B, tfg_llvm_t& t, const llvm::Function& F, map<string, pair<callee_summary_t, unique_ptr<tfg_llvm_t>>> *function_tfg_map, set<string> const *function_call_chain, map<shared_ptr<tfg_edge const>, Instruction *>& eimap)
 {
   //errs() << "Doing BB: " << get_basicblock_name(B) << "\n";
   size_t insn_id = 0;
@@ -1959,11 +1985,18 @@ sym_exec_llvm::add_edges(const llvm::BasicBlock& B, tfg& t, const llvm::Function
     if (isa<PHINode const>(I)) {
       continue;
     }
-    if (   isa<CallInst>(I) && cast<CallInst>(I).getIntrinsicID() == Intrinsic::dbg_declare
-        || isa<CallInst>(I) && cast<CallInst>(I).getIntrinsicID() == Intrinsic::dbg_value
-        || isa<CallInst>(I) && cast<CallInst>(I).getIntrinsicID() == Intrinsic::dbg_addr
-        || isa<CallInst>(I) && cast<CallInst>(I).getIntrinsicID() == Intrinsic::dbg_label
+    if (   false
+        || (isa<CallInst>(I) && cast<CallInst>(I).getIntrinsicID() == Intrinsic::dbg_value)
+        || (isa<CallInst>(I) && cast<CallInst>(I).getIntrinsicID() == Intrinsic::dbg_addr)
+        || (isa<CallInst>(I) && cast<CallInst>(I).getIntrinsicID() == Intrinsic::dbg_label)
        ) {
+      continue;
+    }
+
+    pc pc_from = get_pc_from_bbindex_and_insn_id(get_basicblock_index(B), insn_id);
+
+    if (isa<CallInst>(I) && cast<CallInst>(I).getIntrinsicID() == Intrinsic::dbg_declare) {
+      this->parse_dbg_declare_intrinsic(I, t, pc_from);
       continue;
     }
 
@@ -1971,7 +2004,6 @@ sym_exec_llvm::add_edges(const llvm::BasicBlock& B, tfg& t, const llvm::Function
       NOT_IMPLEMENTED();
     }
 
-    pc pc_from = get_pc_from_bbindex_and_insn_id(get_basicblock_index(B), insn_id);
     shared_ptr<tfg_node> from_node = make_shared<tfg_node>(pc_from);
     if (!t.find_node(pc_from)) {
       t.add_node(from_node);
