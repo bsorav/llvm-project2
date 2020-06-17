@@ -411,6 +411,7 @@ TargetPassConfig::TargetPassConfig(LLVMTargetMachine &TM, PassManagerBase &pm)
   // Also register alias analysis passes required by codegen passes.
   initializeBasicAAWrapperPassPass(*PassRegistry::getPassRegistry());
   initializeUnseqAAWrapperPassPass(*PassRegistry::getPassRegistry());
+  initializeSemanticAAWrapperPassPass(*PassRegistry::getPassRegistry());
   initializeAAResultsWrapperPassPass(*PassRegistry::getPassRegistry());
 
   if (StringRef(PrintMachineInstrs.getValue()).equals(""))
