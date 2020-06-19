@@ -47,13 +47,19 @@
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Support/Timer.h"
 #include "llvm/Support/raw_ostream.h"
-#include "llvm/Support/mydebug.h"
+//#include "llvm/Support/mydebug.h"
 #include <memory>
 #include <set>
 #include <system_error>
+#include "support/dyn_debug.h"
+#include "support/debug.h"
+
 using namespace clang;
 using namespace clang::driver;
 using namespace llvm::opt;
+
+static llvm::cl::opt<std::string>
+DynDebug("dyn_debug", llvm::cl::desc("<debug.  enable dynamic debugging for debug-class(es).  Expects comma-separated list of debug-classes with optional level e.g. -debug=compute_liveness,sprels,alias_analysis=2"), llvm::cl::init(""));
 
 std::string GetExecutablePath(const char *Argv0, bool CanonicalPrefixes) {
   if (!CanonicalPrefixes) {
@@ -352,13 +358,16 @@ int main(int argc_, const char **argv_) {
   if (llvm::sys::Process::FixupStandardFileDescriptors())
     return 1;
 
-  DBG(llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": argv[0] = " << argv[0] << ", argv.size() = " << argv.size() << "\n");
-  DBG(
+  eqspace::init_dyn_debug_from_string(DynDebug);
+  CPP_DBG_EXEC(DYN_DEBUG, eqspace::print_debug_class_levels());
+
+  CPP_DBG_EXEC(CLANG_DRIVER, llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": argv[0] = " << argv[0] << ", argv.size() = " << argv.size() << "\n");
+  CPP_DBG_EXEC(CLANG_DRIVER,
       for (size_t i = 0; i < argv.size(); i++) {
         llvm::errs() << "argv[" << i << "] = " << argv[i] << "\n";
       }
   );
-  DBG(llvm::errs() << "\n");
+  CPP_DBG_EXEC(CLANG_DRIVER, llvm::errs() << "\n");
   llvm::InitializeAllTargets();
   auto TargetAndMode = ToolChain::getTargetAndModeFromProgramName(argv[0]);
 
