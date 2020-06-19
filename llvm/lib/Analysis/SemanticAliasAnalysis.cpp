@@ -5,6 +5,7 @@
 #include "llvm/IR/Intrinsics.h"
 #include "llvm/InitializePasses.h"
 #include "Superopt/dfa_helper.h"
+#include "Superopt/sym_exec_llvm.h"
 
 #include "tfg/tfg_llvm.h"
 
@@ -13,6 +14,9 @@ using namespace llvm;
 AliasResult SemanticAAResult::alias(const MemoryLocation &LocA,
                                     const MemoryLocation &LocB,
                                     AAQueryInfo &AAQI) {
+
+  DYN_DEBUG2(aliasAnalysis, dbgs() << "SemanticAAResult::" << __func__ << " " << __LINE__ << ": LocA = " << sym_exec_common::get_value_name(*LocA.Ptr) << "\n");
+  DYN_DEBUG2(aliasAnalysis, dbgs() << "SemanticAAResult::" << __func__ << " " << __LINE__ << ": LocB = " << sym_exec_common::get_value_name(*LocB.Ptr) << "\n");
 
   // Check if there is a predicate corresponding to LocA and LocB
   //if ((predicates.count(LocA.Ptr) && predicates[LocA.Ptr].count(LocB.Ptr)) ||
@@ -40,7 +44,7 @@ bool SemanticAAWrapperPass::runOnFunction(Function &F)
 {
   Module &M = *F.getParent();
   map<shared_ptr<tfg_edge const>, Instruction *> eimap;
-  shared_ptr<tfg_llvm_t const> t_llvm = function2tfg(&F, &M, eimap);
+  shared_ptr<tfg_llvm_t const> t_llvm = nullptr; //function2tfg(&F, &M, eimap);
   Result.reset(new SemanticAAResult(t_llvm));
   return false;
 }

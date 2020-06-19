@@ -23,6 +23,7 @@
 #include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/Analysis/TypeBasedAliasAnalysis.h"
 #include "llvm/Analysis/UnsequencedAliasAnalysis.h"
+#include "llvm/Analysis/SemanticAliasAnalysis.h"
 #include "llvm/CodeGen/CSEConfigBase.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
 #include "llvm/CodeGen/MachinePassRegistry.h"
@@ -664,6 +665,7 @@ void TargetPassConfig::addIRPasses() {
   addPass(createScopedNoAliasAAWrapperPass());
   addPass(createBasicAAWrapperPass());
   addPass(createUnseqAAWrapperPass());
+  addPass(createSemanticAAWrapperPass());
 
   // Before running any passes, run the verifier to determine if the input
   // coming from the front-end and/or optimizer is valid.

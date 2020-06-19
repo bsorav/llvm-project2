@@ -60,6 +60,8 @@
 #include <cstdlib>
 #include <utility>
 
+#include "Superopt/sym_exec_llvm.h"
+
 #define DEBUG_TYPE "basicaa"
 
 using namespace llvm;
@@ -850,6 +852,8 @@ static bool notDifferentParent(const Value *O1, const Value *O2) {
 AliasResult BasicAAResult::alias(const MemoryLocation &LocA,
                                  const MemoryLocation &LocB,
                                  AAQueryInfo &AAQI) {
+  DYN_DEBUG2(aliasAnalysis, dbgs() << "BasicAAResult::" << __func__ << " " << __LINE__ << ": LocA = " << sym_exec_common::get_value_name(*LocA.Ptr) << "\n");
+  DYN_DEBUG2(aliasAnalysis, dbgs() << "BasicAAResult::" << __func__ << " " << __LINE__ << ": LocB = " << sym_exec_common::get_value_name(*LocB.Ptr) << "\n");
   assert(notDifferentParent(LocA.Ptr, LocB.Ptr) &&
          "BasicAliasAnalysis doesn't support interprocedural queries.");
 
