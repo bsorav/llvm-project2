@@ -1472,7 +1472,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, shar
     break;
   }
   DYN_DEBUG(llvm2tfg, errs() << __func__ << " " << __LINE__ << " " << get_timestamp(as1, sizeof as1) << ": sym exec done\n");
-  process_cfts<llvm::Function, llvm::BasicBlock, llvm::Instruction>(t, from_node, pc_to, state_out, state_assumes, te_comment, (Instruction *)&I, cfts, B, F, eimap);
+  process_cfts(t, from_node, pc_to, state_out, state_assumes, te_comment, (Instruction *)&I, cfts, B, F, eimap);
 }
 
 te_comment_t
@@ -1885,9 +1885,9 @@ sym_exec_llvm::expand_switch(tfg &t, shared_ptr<tfg_node> const &from_node, vect
   return new_cfts;
 }
 
-template<typename FUNCTION, typename BASICBLOCK, typename INSTRUCTION>
+//template<typename FUNCTION, typename BASICBLOCK, typename INSTRUCTION>
 pair<shared_ptr<tfg_node>, map<string, sort_ref>>
-sym_exec_common::process_cft_first_half(tfg &t, shared_ptr<tfg_node> const &from_node, pc const &pc_to, expr_ref target, expr_ref to_condition, state const &state_to, unordered_set<expr_ref> const& assumes, te_comment_t const& te_comment, Instruction * I, const BASICBLOCK& B, const FUNCTION& F, map<shared_ptr<tfg_edge const>, Instruction *>& eimap)
+sym_exec_llvm::process_cft_first_half(tfg &t, shared_ptr<tfg_node> const &from_node, pc const &pc_to, expr_ref target, expr_ref to_condition, state const &state_to, unordered_set<expr_ref> const& assumes, te_comment_t const& te_comment, Instruction * I, const llvm::BasicBlock& B, const llvm::Function& F, map<shared_ptr<tfg_edge const>, Instruction *>& eimap)
 {
   DYN_DEBUG2(llvm2tfg, errs() << _FNLN_ << ": state_to: " << state_to.to_string() << "\n");
 
@@ -1903,7 +1903,7 @@ sym_exec_common::process_cft_first_half(tfg &t, shared_ptr<tfg_node> const &from
     t.add_edge(e);
     return make_pair(from_node, map<string, sort_ref>());
   } else if (pc_to.is_label() && pc_to.get_subindex() == PC_SUBINDEX_FIRST_INSN_IN_BB) {
-    return process_phi_nodes_first_half<FUNCTION, BASICBLOCK, INSTRUCTION>(t, &B, pc_to, from_node, F, eimap);
+    return process_phi_nodes_first_half(t, &B, pc_to, from_node, F, eimap);
   } else {
     auto e = mk_tfg_edge(mk_itfg_edge(from_pc, pc_to, state_to_cft, to_condition/*, t.get_start_state()*/, assumes, te_comment));
     eimap.insert(make_pair(e, I));
@@ -1912,23 +1912,23 @@ sym_exec_common::process_cft_first_half(tfg &t, shared_ptr<tfg_node> const &from
   }
 }
 
-template<typename FUNCTION, typename BASICBLOCK, typename INSTRUCTION>
+//template<typename FUNCTION, typename BASICBLOCK, typename INSTRUCTION>
 void
-sym_exec_common::process_cft_second_half(tfg &t, shared_ptr<tfg_node> const &from_node, pc const &pc_to, expr_ref target, expr_ref to_condition, unordered_set<expr_ref> const& assumes, te_comment_t const& te_comment, Instruction * I, const BASICBLOCK& B, const FUNCTION& F, map<std::string, sort_ref> const &phi_regnames, map<shared_ptr<tfg_edge const>, Instruction *>& eimap)
+sym_exec_llvm::process_cft_second_half(tfg &t, shared_ptr<tfg_node> const &from_node, pc const &pc_to, expr_ref target, expr_ref to_condition, unordered_set<expr_ref> const& assumes, te_comment_t const& te_comment, Instruction * I, const llvm::BasicBlock& B, const llvm::Function& F, map<std::string, sort_ref> const &phi_regnames, map<shared_ptr<tfg_edge const>, Instruction *>& eimap)
 {
   if (pc_to.is_label() && pc_to.get_subindex() == PC_SUBINDEX_FIRST_INSN_IN_BB) {
-    process_phi_nodes_second_half<FUNCTION, BASICBLOCK, INSTRUCTION>(t, &B, pc_to, from_node, F, to_condition, phi_regnames, assumes, te_comment, I, eimap);
+    process_phi_nodes_second_half(t, &B, pc_to, from_node, F, to_condition, phi_regnames, assumes, te_comment, I, eimap);
   }
 }
 
-template<typename FUNCTION, typename BASICBLOCK, typename INSTRUCTION>
+//template<typename FUNCTION, typename BASICBLOCK, typename INSTRUCTION>
 void
-sym_exec_common::process_cfts(tfg &t, shared_ptr<tfg_node> const &from_node, pc const &pc_to, state const &state_to, unordered_set<expr_ref> const& state_assumes, te_comment_t const& te_comment, Instruction * I, vector<control_flow_transfer> const &cfts, BASICBLOCK const &B, FUNCTION const &F, map<shared_ptr<tfg_edge const>, Instruction *>& eimap)
+sym_exec_llvm::process_cfts(tfg &t, shared_ptr<tfg_node> const &from_node, pc const &pc_to, state const &state_to, unordered_set<expr_ref> const& state_assumes, te_comment_t const& te_comment, Instruction * I, vector<control_flow_transfer> const &cfts, llvm::BasicBlock const &B, llvm::Function const &F, map<shared_ptr<tfg_edge const>, Instruction *>& eimap)
 {
   map<pc, map<string, sort_ref>> pc_to_phi_regnames_map;
   if (cfts.size() == 0) {
     //pc pc_to(pc::insn_label, get_pc_from_bb_and_insn_id(B, next_insn_id));
-    auto n = process_cft_first_half<FUNCTION, BASICBLOCK, INSTRUCTION>(t, from_node, pc_to, nullptr, expr_true(m_ctx), state_to, state_assumes, te_comment, I, B, F, eimap);
+    auto n = process_cft_first_half(t, from_node, pc_to, nullptr, expr_true(m_ctx), state_to, state_assumes, te_comment, I, B, F, eimap);
     ASSERT(n.first == from_node);
     ASSERT(n.second.size() == 0);
   } else {
@@ -1939,13 +1939,13 @@ sym_exec_common::process_cfts(tfg &t, shared_ptr<tfg_node> const &from_node, pc 
       //first half performs all the computation required in the successor phi nodes, as part of the current basic block
       unordered_set<expr_ref> assumes = state_assumes;
       unordered_set_union(assumes, cft.get_assumes());
-      auto r = process_cft_first_half<FUNCTION, BASICBLOCK, INSTRUCTION>(t, bb_last_node, cft.get_to_pc(), cft.get_target(), cft.get_condition(), state_to, assumes, te_comment, I, B, F, eimap);
+      auto r = process_cft_first_half(t, bb_last_node, cft.get_to_pc(), cft.get_target(), cft.get_condition(), state_to, assumes, te_comment, I, B, F, eimap);
       pc_to_phi_regnames_map.insert(make_pair(cft.get_to_pc(), r.second));
       bb_last_node = r.first;
     }
     for(const control_flow_transfer& cft : cfts) {
       //second half creates control-flow edges from the current basic block to the successor(s), while copying the computed phi expressions from their temporary registers to their actual registers. This division of labour between first-half and second-half mimics LLC's code generator
-      process_cft_second_half<FUNCTION, BASICBLOCK, INSTRUCTION>(t, (bb_last_pc == cft.get_from_pc()) ? bb_last_node : t.find_node(cft.get_from_pc()), cft.get_to_pc(), cft.get_target(), cft.get_condition(), cft.get_assumes(), te_comment, I, B, F, pc_to_phi_regnames_map.at(cft.get_to_pc()), eimap);
+      process_cft_second_half(t, (bb_last_pc == cft.get_from_pc()) ? bb_last_node : t.find_node(cft.get_from_pc()), cft.get_to_pc(), cft.get_target(), cft.get_condition(), cft.get_assumes(), te_comment, I, B, F, pc_to_phi_regnames_map.at(cft.get_to_pc()), eimap);
     }
   }
 }
@@ -2015,29 +2015,26 @@ sym_exec_llvm::add_edges(const llvm::BasicBlock& B, tfg_llvm_t& t, const llvm::F
   }
 }
 
-template<typename FUNCTION, typename BASICBLOCK>
-BASICBLOCK/*llvm::BasicBlock*/ const *
-sym_exec_common::get_basic_block_for_pc(const FUNCTION/*llvm::Function*/& F, pc const &p)
+llvm::BasicBlock const *
+sym_exec_llvm::get_basic_block_for_pc(const llvm::Function& F, pc const &p)
 {
-  static map<string, BASICBLOCK/*llvm::BasicBlock*/ const *> cache;
-
   stringstream ss;
   //ss << string(F.getName()) << "." << p.get_index();
   ss << functionGetName(F) << "." << p.get_index();
   string id = ss.str();
-  if (cache.count(id) > 0) {
-    return cache.at(id);
+  if (m_pc2bb_cache.count(id) > 0) {
+    return m_pc2bb_cache.at(id);
   }
   //const BasicBlock* ret = NULL;
-  for (const BASICBLOCK/*BasicBlock*/& B : F) {
+  for (const BasicBlock& B : F) {
     stringstream cur_ss;
     cur_ss << string(F.getName()) << "." << get_basicblock_index(B);
     string cur_id = cur_ss.str();
-    cache[cur_id] = &B;
+    m_pc2bb_cache[cur_id] = &B;
   }
 
-  if (cache.count(id) > 0) {
-    return cache.at(id);
+  if (m_pc2bb_cache.count(id) > 0) {
+    return m_pc2bb_cache.at(id);
   } else {
     /*if(get_basicblock_name(B) == p.get_id()) {
       ret = &B;
@@ -2069,13 +2066,13 @@ sym_exec_common::get_next_intermediate_subsubindex_pc_node(tfg &t, shared_ptr<tf
   return t.find_node(ret);
 }
 
-template<typename FUNCTION, typename BASICBLOCK, typename INSTRUCTION>
+//template<typename FUNCTION, typename BASICBLOCK, typename INSTRUCTION>
 pair<shared_ptr<tfg_node>, map<string, sort_ref>>
-sym_exec_common::process_phi_nodes_first_half(tfg &t, const BASICBLOCK* B_from, const pc& pc_to, shared_ptr<tfg_node> const &from_node, const FUNCTION& F, map<shared_ptr<tfg_edge const>, Instruction *>& eimap)
+sym_exec_llvm::process_phi_nodes_first_half(tfg &t, const llvm::BasicBlock* B_from, const pc& pc_to, shared_ptr<tfg_node> const &from_node, const llvm::Function& F, map<shared_ptr<tfg_edge const>, Instruction *>& eimap)
 {
   DYN_DEBUG(llvm2tfg, cout << __func__ << " " << __LINE__ << " " << get_timestamp(as1, sizeof as1) << ": searching for BB representing " << pc_to.to_string() << endl);
-  const BASICBLOCK* B_to = 0;
-  B_to = get_basic_block_for_pc<FUNCTION, BASICBLOCK>(F, pc_to);
+  const llvm::BasicBlock* B_to = 0;
+  B_to = get_basic_block_for_pc(F, pc_to);
   assert(B_to);
   DYN_DEBUG(llvm2tfg, cout << __func__ << " " << __LINE__ << " " << get_timestamp(as1, sizeof as1) << ": copying state" << endl);
 
@@ -2089,9 +2086,11 @@ sym_exec_common::process_phi_nodes_first_half(tfg &t, const BASICBLOCK* B_from, 
   //pc_to_phi_node = pc_to_phi_start_node;
 
   DYN_DEBUG(llvm2tfg, cout << __func__ << " " << __LINE__ << " " << get_timestamp(as1, sizeof as1) << ": pc_to_phi = " << pc_to_phi_node->get_pc().to_string() << endl);
+
+  DYN_DEBUG(llvm2tfg, cout << __func__ << " " << __LINE__ << " " << get_timestamp(as1, sizeof as1) << ": B_to->getInstList().size() = " << B_to->getInstList().size() << endl);
   map<string, sort_ref> changed_varnames;
   int inum = 0;
-  for (const INSTRUCTION& I : *B_to) {
+  for (const llvm::Instruction& I : *B_to) {
     string varname;
     if (!instructionIsPhiNode(I, varname)) {
       continue;
@@ -2122,9 +2121,9 @@ sym_exec_common::process_phi_nodes_first_half(tfg &t, const BASICBLOCK* B_from, 
   return make_pair(pc_to_phi_node, changed_varnames);
 }
 
-template<typename FUNCTION, typename BASICBLOCK, typename INSTRUCTION>
+//template<typename FUNCTION, typename BASICBLOCK, typename INSTRUCTION>
 void
-sym_exec_common::process_phi_nodes_second_half(tfg &t, const BASICBLOCK* B_from, const pc& pc_to, shared_ptr<tfg_node> const &from_node, const FUNCTION& F, expr_ref edgecond, map<string, sort_ref> const &phi_regnames, unordered_set<expr_ref> const& assumes, te_comment_t const& te_comment, Instruction * I, map<shared_ptr<tfg_edge const>, Instruction *>& eimap)
+sym_exec_llvm::process_phi_nodes_second_half(tfg &t, const llvm::BasicBlock* B_from, const pc& pc_to, shared_ptr<tfg_node> const &from_node, const llvm::Function& F, expr_ref edgecond, map<string, sort_ref> const &phi_regnames, unordered_set<expr_ref> const& assumes, te_comment_t const& te_comment, Instruction * I, map<shared_ptr<tfg_edge const>, Instruction *>& eimap)
 {
   shared_ptr<tfg_node> pc_to_phi_node = from_node;
 

@@ -69,24 +69,24 @@ protected:
   te_comment_t instruction_to_te_comment(llvm::Instruction const& I, pc const& from_pc, bbl_order_descriptor_t const& bbo) const;
   expr_ref get_symbol_expr_for_global_var(string const &name, sort_ref const &sr);
 
-  template<typename FUNCTION, typename BASICBLOCK, typename INSTRUCTION>
-  pair<shared_ptr<tfg_node>, map<std::string, sort_ref>>
-  process_cft_first_half(tfg &t, shared_ptr<tfg_node> const &from_node, pc const &pc_to, expr_ref target, expr_ref to_condition, state const &state_to, unordered_set<expr_ref> const& assumes, te_comment_t const& te_comment, llvm::Instruction * I, const BASICBLOCK/*llvm::BasicBlock*/& B, const FUNCTION/*llvm::Function*/& F, map<shared_ptr<tfg_edge const>, llvm::Instruction *>& eimap);
+  //template<typename FUNCTION, typename BASICBLOCK, typename INSTRUCTION>
+  //pair<shared_ptr<tfg_node>, map<std::string, sort_ref>>
+  //process_cft_first_half(tfg &t, shared_ptr<tfg_node> const &from_node, pc const &pc_to, expr_ref target, expr_ref to_condition, state const &state_to, unordered_set<expr_ref> const& assumes, te_comment_t const& te_comment, llvm::Instruction * I, const BASICBLOCK/*llvm::BasicBlock*/& B, const FUNCTION/*llvm::Function*/& F, map<shared_ptr<tfg_edge const>, llvm::Instruction *>& eimap);
 
-  template<typename FUNCTION, typename BASICBLOCK, typename INSTRUCTION>
-  void
-  process_cft_second_half(tfg &t, shared_ptr<tfg_node> const &from_node, pc const &pc_to, expr_ref target, expr_ref to_condition, unordered_set<expr_ref> const& assumes, te_comment_t const& te_comment, llvm::Instruction * I, const BASICBLOCK& B, const FUNCTION& F, map<std::string, sort_ref> const &phi_regnames, map<shared_ptr<tfg_edge const>, llvm::Instruction *>& eimap);
+  //template<typename FUNCTION, typename BASICBLOCK, typename INSTRUCTION>
+  //void
+  //process_cft_second_half(tfg &t, shared_ptr<tfg_node> const &from_node, pc const &pc_to, expr_ref target, expr_ref to_condition, unordered_set<expr_ref> const& assumes, te_comment_t const& te_comment, llvm::Instruction * I, const BASICBLOCK& B, const FUNCTION& F, map<std::string, sort_ref> const &phi_regnames, map<shared_ptr<tfg_edge const>, llvm::Instruction *>& eimap);
 
 
-  template<typename FUNCTION, typename BASICBLOCK, typename INSTRUCTION>
-  void process_cfts(tfg &t, shared_ptr<tfg_node> const &from_node, pc const &pc_to, state const &state_to, unordered_set<expr_ref> const& assumes, te_comment_t const& te_comment, llvm::Instruction * I, vector<control_flow_transfer> const &cfts, BASICBLOCK const &B, FUNCTION const &F, map<shared_ptr<tfg_edge const>, llvm::Instruction *>& eimap);
+  //template<typename FUNCTION, typename BASICBLOCK, typename INSTRUCTION>
+  //void process_cfts(tfg &t, shared_ptr<tfg_node> const &from_node, pc const &pc_to, state const &state_to, unordered_set<expr_ref> const& assumes, te_comment_t const& te_comment, llvm::Instruction * I, vector<control_flow_transfer> const &cfts, BASICBLOCK const &B, FUNCTION const &F, map<shared_ptr<tfg_edge const>, llvm::Instruction *>& eimap);
 
-  template<typename FUNCTION, typename BASICBLOCK, typename INSTRUCTION>
-  pair<shared_ptr<tfg_node>, map<std::string, sort_ref>>
-  process_phi_nodes_first_half(tfg &t, const BASICBLOCK/*llvm::MachineBasicBlock*/* B_from, const pc& p_to, shared_ptr<tfg_node> const &from_node, const FUNCTION/*llvm::MachineFunction*/& F, map<shared_ptr<tfg_edge const>, llvm::Instruction *>& eimap);
+  //template<typename FUNCTION, typename BASICBLOCK, typename INSTRUCTION>
+  //pair<shared_ptr<tfg_node>, map<std::string, sort_ref>>
+  //process_phi_nodes_first_half(tfg &t, const BASICBLOCK/*llvm::MachineBasicBlock*/* B_from, const pc& p_to, shared_ptr<tfg_node> const &from_node, const FUNCTION/*llvm::MachineFunction*/& F, map<shared_ptr<tfg_edge const>, llvm::Instruction *>& eimap);
 
-  template<typename FUNCTION, typename BASICBLOCK, typename INSTRUCTION>
-  void process_phi_nodes_second_half(tfg &t, const BASICBLOCK* B_from, const pc& p_to, shared_ptr<tfg_node> const &from_node, const FUNCTION& F, expr_ref edgecond, map<string, sort_ref> const &phi_regnames, unordered_set<expr_ref> const& assumes, te_comment_t const& te_comment, llvm::Instruction * I, map<shared_ptr<tfg_edge const>, llvm::Instruction *>& eimap);
+  //template<typename FUNCTION, typename BASICBLOCK, typename INSTRUCTION>
+  //void process_phi_nodes_second_half(tfg &t, const BASICBLOCK* B_from, const pc& p_to, shared_ptr<tfg_node> const &from_node, const FUNCTION& F, expr_ref edgecond, map<string, sort_ref> const &phi_regnames, unordered_set<expr_ref> const& assumes, te_comment_t const& te_comment, llvm::Instruction * I, map<shared_ptr<tfg_edge const>, llvm::Instruction *>& eimap);
 
   virtual pair<expr_ref,unordered_set<expr_ref>> phiInstructionGetIncomingBlockValue(llvm::Instruction const &I/*, state const &start_state*/, shared_ptr<tfg_node> &pc_to_phi_node, pc const &pc_to, llvm::BasicBlock const *B_from, llvm::Function const &F, tfg &t)
   {
@@ -96,8 +96,6 @@ protected:
   {
     NOT_REACHED(); //should be either overwritten or never called
   }
-  template<typename FUNCTION, typename BASICBLOCK>
-  BASICBLOCK const *get_basic_block_for_pc(const FUNCTION& F, pc const &p);
   virtual string functionGetName(llvm::Function const &F) const
   {
     NOT_REACHED();

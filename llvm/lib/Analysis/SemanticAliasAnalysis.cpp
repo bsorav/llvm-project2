@@ -44,7 +44,8 @@ bool SemanticAAWrapperPass::runOnFunction(Function &F)
 {
   Module &M = *F.getParent();
   map<shared_ptr<tfg_edge const>, Instruction *> eimap;
-  shared_ptr<tfg_llvm_t const> t_llvm = nullptr; //function2tfg(&F, &M, eimap);
+  DYN_DEBUG(llvm2tfg, dbgs() << "SemanticAAWrapperPass::" << __func__ << " " << __LINE__ << ": F.getName() = " << F.getName() << "\n");
+  shared_ptr<tfg_llvm_t const> t_llvm = function2tfg(&F, &M, eimap);
   Result.reset(new SemanticAAResult(t_llvm));
   return false;
 }
