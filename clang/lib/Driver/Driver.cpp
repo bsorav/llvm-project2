@@ -4477,7 +4477,7 @@ InputInfo Driver::BuildJobsForActionNoCache(
                        BaseInput);
     CPP_DBG_EXEC(CLANG_DRIVER, llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": C.getJobs().size() = " << C.getJobs().size() << "\n");
   }
-  llvm::errs() << "Result = " << Result.getAsString() << "\n";
+  CPP_DBG_EXEC(CLANG_DRIVER, llvm::errs() << "Result = " << Result.getAsString() << "\n");
 
   {
     Arg *FinalOutput = C.getArgs().getLastArg(options::OPT_o);

@@ -32,6 +32,8 @@
 #include <system_error>
 #include <utility>
 
+#include "support/dyn_debug.h"
+
 using namespace clang;
 using namespace driver;
 
@@ -330,6 +332,10 @@ int Command::Execute(ArrayRef<llvm::Optional<StringRef>> Redirects,
   SmallVector<const char *, 128> Argv;
   if (ResponseFile == nullptr) {
     Argv.push_back(Executable);
+    std::string dyn_debug_args = eqspace::get_dyn_debug_cmdline_args();
+    if (dyn_debug_args != "") {
+      Argv.push_back(dyn_debug_args.c_str());
+    }
     Argv.append(Arguments.begin(), Arguments.end());
     Argv.push_back(nullptr);
   } else {

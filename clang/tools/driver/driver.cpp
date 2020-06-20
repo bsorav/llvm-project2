@@ -58,9 +58,6 @@ using namespace clang;
 using namespace clang::driver;
 using namespace llvm::opt;
 
-static llvm::cl::opt<std::string>
-DynDebug("dyn_debug", llvm::cl::desc("<debug.  enable dynamic debugging for debug-class(es).  Expects comma-separated list of debug-classes with optional level e.g. -debug=compute_liveness,sprels,alias_analysis=2"), llvm::cl::init(""));
-
 std::string GetExecutablePath(const char *Argv0, bool CanonicalPrefixes) {
   if (!CanonicalPrefixes) {
     SmallString<128> ExecutablePath(Argv0);
@@ -358,8 +355,16 @@ int main(int argc_, const char **argv_) {
   if (llvm::sys::Process::FixupStandardFileDescriptors())
     return 1;
 
-  eqspace::init_dyn_debug_from_string(DynDebug);
-  CPP_DBG_EXEC(DYN_DEBUG, eqspace::print_debug_class_levels());
+  {
+    std::string dyn_debug_prefix = "--dyn_debug=";
+    auto iter = llvm::find_if(argv, [&dyn_debug_prefix](const char *F) {
+            return F && std::string(F).substr(0, dyn_debug_prefix.size()) == dyn_debug_prefix;
+          });
+    if (iter != argv.end()) {
+      eqspace::init_dyn_debug_from_string(std::string(*iter).substr(dyn_debug_prefix.size()));
+      CPP_DBG_EXEC(DYN_DEBUG, eqspace::print_debug_class_levels());
+    }
+  }
 
   CPP_DBG_EXEC(CLANG_DRIVER, llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": argv[0] = " << argv[0] << ", argv.size() = " << argv.size() << "\n");
   CPP_DBG_EXEC(CLANG_DRIVER,

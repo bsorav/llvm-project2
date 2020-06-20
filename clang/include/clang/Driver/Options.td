@@ -255,6 +255,9 @@ def internal_debug_Group :
 
 class InternalDriverOpt : Group<internal_driver_Group>,
   Flags<[DriverOption, HelpHidden]>;
+def dyn_debug : Joined<["--"], "dyn_debug=">, Group<internal_driver_Group>,
+  Flags<[CoreOption, DriverOption, HelpHidden]>,
+  HelpText<"Enable dynamic debugging for debug-class(es).  Expects comma-separated list of debug-classes with optional level e.g. --dyn_debug=compute_liveness,sprels,alias_analysis=2 ">;
 def driver_mode : Joined<["--"], "driver-mode=">, Group<internal_driver_Group>,
   Flags<[CoreOption, DriverOption, HelpHidden]>,
   HelpText<"Set the driver mode to either 'gcc', 'g++', 'cpp', or 'cl'">;
