@@ -25,6 +25,7 @@
 
 #include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/Analysis/BasicAliasAnalysis.h"
+#include "llvm/Analysis/SemanticAliasAnalysis.h"
 #include "llvm/Analysis/CFLAndersAliasAnalysis.h"
 #include "llvm/Analysis/CFLSteensAliasAnalysis.h"
 #include "llvm/Analysis/CaptureTracking.h"
@@ -114,13 +115,27 @@ AliasResult AAResults::alias(const MemoryLocation &LocA,
 
 AliasResult AAResults::alias(const MemoryLocation &LocA,
                              const MemoryLocation &LocB, AAQueryInfo &AAQI) {
-  DYN_DEBUG(aliasAnalysis, dbgs() << "AAResults::" << __func__ << " " << __LINE__ << ": LocA = " << sym_exec_common::get_value_name(*LocA.Ptr) << "\n");
-  DYN_DEBUG(aliasAnalysis, dbgs() << "AAResults::" << __func__ << " " << __LINE__ << ": LocB = " << sym_exec_common::get_value_name(*LocB.Ptr) << "\n");
+  DYN_DEBUG(aliasAnalysis, dbgs() << "AAResults::" << __func__ << " " << __LINE__ << ": LocA = " << sym_exec_common::get_value_name(*LocA.Ptr) << ", LocB = " << sym_exec_common::get_value_name(*LocB.Ptr) << "\n");
   for (const auto &AA : AAs) {
     auto Result = AA->alias(LocA, LocB, AAQI);
-    if (Result != MayAlias)
+    if (Result != MayAlias) {
+      DYN_DEBUG(aliasAnalysis, dbgs() << "AAResults::" << __func__ << " " << __LINE__ << ": Result = " << Result << ". LocA = " << sym_exec_common::get_value_name(*LocA.Ptr) << ", LocB = " << sym_exec_common::get_value_name(*LocB.Ptr) << "\n");
+      DYN_DEBUG(checkSemanticAlias,
+        bool found = false;
+        for (auto const& SAA : AAs) {
+          if (SAA->isSemanticAA()) {
+            found = true;
+            if (SAA->alias(LocA, LocB, AAQI) == MayAlias) {
+              dbgs() << "WARNING: Syntactic alias analysis returning " << Result << " but Semantic alias analysis returning MayAlias. LocA = " << sym_exec_common::get_value_name(*LocA.Ptr) << ", LocB = " << sym_exec_common::get_value_name(*LocB.Ptr) << "\n";
+            }
+          }
+        }
+        ASSERT(found);
+      );
       return Result;
+    }
   }
+  DYN_DEBUG(aliasAnalysis, dbgs() << "AAResults::" << __func__ << " " << __LINE__ << ": Result = " << MayAlias << ". LocA = " << sym_exec_common::get_value_name(*LocA.Ptr) << ", LocB = " << sym_exec_common::get_value_name(*LocB.Ptr) << "\n");
   return MayAlias;
 }
 
