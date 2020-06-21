@@ -16,9 +16,9 @@ class SemanticAAResult : public AAResultBase<SemanticAAResult> {
 public:
   using function_tfg_map_t = map<string, pair<callee_summary_t, unique_ptr<tfg_llvm_t>>>;
 private:
-  shared_ptr<function_tfg_map_t> m_function_tfg_map;
+  shared_ptr<function_tfg_map_t const> m_function_tfg_map;
 public:
-  explicit SemanticAAResult(shared_ptr<function_tfg_map_t> const& function_tfg_map) : AAResultBase(), m_function_tfg_map(function_tfg_map) {}
+  explicit SemanticAAResult(shared_ptr<function_tfg_map_t const> const& function_tfg_map) : AAResultBase(), m_function_tfg_map(function_tfg_map) {}
   SemanticAAResult(SemanticAAResult &&Arg)
       : AAResultBase(std::move(Arg)), m_function_tfg_map(Arg.m_function_tfg_map) {}
 

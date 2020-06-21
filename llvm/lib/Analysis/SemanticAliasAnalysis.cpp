@@ -78,7 +78,11 @@ bool SemanticAAWrapperPass::doInitialization(Module &M)
   //Module &M = *F.getParent();
   //map<shared_ptr<tfg_edge const>, Instruction *> eimap;
   //DYN_DEBUG(llvm2tfg, dbgs() << "SemanticAAWrapperPass::" << __func__ << " " << __LINE__ << ": F.getName() = " << F.getName() << "\n");
-  shared_ptr<SemanticAAResult::function_tfg_map_t> function_tfg_map = nullptr;
+  if (!g_ctx) {
+    g_ctx_init();
+  }
+  ASSERT(g_ctx);
+  shared_ptr<SemanticAAResult::function_tfg_map_t const> function_tfg_map = make_shared<SemanticAAResult::function_tfg_map_t const>(sym_exec_llvm::get_function_tfg_map(&M, set<string>(), false, g_ctx));
   Result.reset(new SemanticAAResult(function_tfg_map));
   return false;
 }
