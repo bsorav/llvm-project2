@@ -11,12 +11,41 @@
 
 using namespace llvm;
 
-AliasResult SemanticAAResult::alias(const MemoryLocation &LocA,
-                                    const MemoryLocation &LocB,
-                                    AAQueryInfo &AAQI) {
+AliasResult
+SemanticAAResult::convertTfgAliasResultToAliasResult(tfg_alias_result_t tfg_alias_result)
+{
+  switch (tfg_alias_result) {
+    case TfgMayAlias: {
+      return MayAlias;
+    }
+    case TfgMustNotAlias: {
+      return NoAlias;
+    }
+    case TfgMustAlias: {
+      return MustAlias;
+    }
+    case TfgPartialAlias: {
+      return PartialAlias;
+    }
+    default: NOT_REACHED();
+  }
+}
 
-  DYN_DEBUG2(aliasAnalysis, dbgs() << "SemanticAAResult::" << __func__ << " " << __LINE__ << ": LocA = " << sym_exec_common::get_value_name(*LocA.Ptr) << "\n");
-  DYN_DEBUG2(aliasAnalysis, dbgs() << "SemanticAAResult::" << __func__ << " " << __LINE__ << ": LocB = " << sym_exec_common::get_value_name(*LocB.Ptr) << "\n");
+AliasResult
+SemanticAAResult::alias(const MemoryLocation &LocA,
+                        const MemoryLocation &LocB,
+                        AAQueryInfo &AAQI) {
+
+  string nameA = sym_exec_common::get_value_name(*LocA.Ptr);
+  string nameB = sym_exec_common::get_value_name(*LocB.Ptr);
+
+  DYN_DEBUG2(aliasAnalysis, dbgs() << "SemanticAAResult::" << __func__ << " " << __LINE__ << ": LocA = " << nameA << "\n");
+  DYN_DEBUG2(aliasAnalysis, dbgs() << "SemanticAAResult::" << __func__ << " " << __LINE__ << ": LocB = " << nameB << "\n");
+
+  uint64_t sizeA = LocA.Size.hasValue() ? LocA.Size.getValue() : (uint64_t)-1;
+  uint64_t sizeB = LocB.Size.hasValue() ? LocB.Size.getValue() : (uint64_t)-1;
+
+  //return convertTfgAliasResultToAliasResult(m_tfg_llvm->get_aliasing_relationship_between_memaccesses(nameA, sizeA, nameB, sizeB));
 
   // Check if there is a predicate corresponding to LocA and LocB
   //if ((predicates.count(LocA.Ptr) && predicates[LocA.Ptr].count(LocB.Ptr)) ||
@@ -32,21 +61,30 @@ char SemanticAAWrapperPass::ID = 0;
 INITIALIZE_PASS(SemanticAAWrapperPass, "semantic-aa", "Semantic Alias Analysis",
                 false, true)
 
-FunctionPass *llvm::createSemanticAAWrapperPass() {
+ImmutablePass *llvm::createSemanticAAWrapperPass() {
   return new SemanticAAWrapperPass();
 }
 
-SemanticAAWrapperPass::SemanticAAWrapperPass() : FunctionPass(ID) {
+SemanticAAWrapperPass::SemanticAAWrapperPass() : ImmutablePass(ID) {
   initializeSemanticAAWrapperPassPass(*PassRegistry::getPassRegistry());
 }
 
-bool SemanticAAWrapperPass::runOnFunction(Function &F)
+bool SemanticAAWrapperPass::doInitialization(Module &M)
 {
-  Module &M = *F.getParent();
-  map<shared_ptr<tfg_edge const>, Instruction *> eimap;
-  DYN_DEBUG(llvm2tfg, dbgs() << "SemanticAAWrapperPass::" << __func__ << " " << __LINE__ << ": F.getName() = " << F.getName() << "\n");
-  shared_ptr<tfg_llvm_t const> t_llvm = function2tfg(&F, &M, eimap);
-  Result.reset(new SemanticAAResult(t_llvm));
+  //string const& fname = F.getName().str();
+  //if (m_function_tfg_map->count(fname)) {
+  //  return false;
+  //}
+  //Module &M = *F.getParent();
+  //map<shared_ptr<tfg_edge const>, Instruction *> eimap;
+  //DYN_DEBUG(llvm2tfg, dbgs() << "SemanticAAWrapperPass::" << __func__ << " " << __LINE__ << ": F.getName() = " << F.getName() << "\n");
+  shared_ptr<SemanticAAResult::function_tfg_map_t> function_tfg_map = nullptr;
+  Result.reset(new SemanticAAResult(function_tfg_map));
+  return false;
+}
+
+bool SemanticAAWrapperPass::doFinalization(Module &M)
+{
   return false;
 }
 

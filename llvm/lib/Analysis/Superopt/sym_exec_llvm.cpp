@@ -90,50 +90,50 @@ sym_exec_mir::mir_get_value_expr(MachineOperand const &v)
   //}
 }
 
-void sym_exec_mir::exec_mir(const state& state_in, const llvm::MachineInstr& I/*, state& state_out, vector<control_flow_transfer>& cfts, bool &expand_switch_flag, unordered_set<predicate> &assumes*/, shared_ptr<tfg_node> from_node, llvm::MachineBasicBlock const &B, size_t next_insn_id, tfg &t, map<string, pair<callee_summary_t, unique_ptr<tfg>>> &function_tfg_map, set<string> const &function_call_chain)
-{
-  NOT_IMPLEMENTED();
-#if 0
-  //CPP_DBG_EXEC(LLVM2TFG, errs() << __func__ << " " << __LINE__ << " " << get_timestamp(as1, sizeof as1) << ": sym exec doing: " << I << "\n");
-  state state_out = state_in;
-  vector<control_flow_transfer> cfts;
-  //unordered_set<predicate> assumes;
-  //bool expand_switch_flag = false;
-  //bool cft_processing_needed = true;
-  MachineFunction const &F = m_machine_function;
-  //string const &cur_function_name = F.getName(); //NOT_IMPLEMENTED
-  pc pc_to = get_pc_from_bbindex_and_insn_id(get_basicblock_index(B), next_insn_id);
-  errs() << "exec_mir: " << I << "\n";
-
-  switch(I.getOpcode())
-  {
-  case X86::MOV32rm:
-  case X86::MOV32ri: {
-    const auto &dstOp = I.getOperand(0);
-    ASSERT(dstOp.getType() == MachineOperand::MO_Register);
-    const auto &srcOp = I.getOperand(1);
-    expr_ref insn_expr = mir_get_value_expr(srcOp);
-    mir_set_expr(dstOp, insn_expr, state_out);
-  }
-  case X86::MOV32r0: {
-    const auto &dstOp = I.getOperand(0);
-    ASSERT(dstOp.getType() == MachineOperand::MO_Register);
-    mir_set_expr(dstOp, m_ctx->mk_zerobv(DWORD_LEN), state_out);
-    break;
-  }
-  default: {
-    errs() << "unsupported opcode: " << I << "\n";
-    NOT_IMPLEMENTED();
-    break;
-  }
-  }
-
-  errs() << __func__ << " " << __LINE__ << ": state_out =\n" << state_out.to_string_for_eq() << "\n";
-  process_cfts<llvm::MachineFunction, llvm::MachineBasicBlock, llvm::MachineInstr>(t, from_node, pc_to, state_out, cfts, B, F);
-  //CPP_DBG_EXEC(LLVM2TFG, errs() << __func__ << " " << __LINE__ << " " << get_timestamp(as1, sizeof as1) << ": sym exec done\n");
-  ////t.add_assumes(pc_from, assumes);
-#endif
-}
+//void sym_exec_mir::exec_mir(const state& state_in, const llvm::MachineInstr& I/*, state& state_out, vector<control_flow_transfer>& cfts, bool &expand_switch_flag, unordered_set<predicate> &assumes*/, shared_ptr<tfg_node> from_node, llvm::MachineBasicBlock const &B, size_t next_insn_id, tfg &t, map<string, pair<callee_summary_t, unique_ptr<tfg>>> &function_tfg_map, set<string> const &function_call_chain)
+//{
+//  NOT_IMPLEMENTED();
+//#if 0
+//  //CPP_DBG_EXEC(LLVM2TFG, errs() << __func__ << " " << __LINE__ << " " << get_timestamp(as1, sizeof as1) << ": sym exec doing: " << I << "\n");
+//  state state_out = state_in;
+//  vector<control_flow_transfer> cfts;
+//  //unordered_set<predicate> assumes;
+//  //bool expand_switch_flag = false;
+//  //bool cft_processing_needed = true;
+//  MachineFunction const &F = m_machine_function;
+//  //string const &cur_function_name = F.getName(); //NOT_IMPLEMENTED
+//  pc pc_to = get_pc_from_bbindex_and_insn_id(get_basicblock_index(B), next_insn_id);
+//  errs() << "exec_mir: " << I << "\n";
+//
+//  switch(I.getOpcode())
+//  {
+//  case X86::MOV32rm:
+//  case X86::MOV32ri: {
+//    const auto &dstOp = I.getOperand(0);
+//    ASSERT(dstOp.getType() == MachineOperand::MO_Register);
+//    const auto &srcOp = I.getOperand(1);
+//    expr_ref insn_expr = mir_get_value_expr(srcOp);
+//    mir_set_expr(dstOp, insn_expr, state_out);
+//  }
+//  case X86::MOV32r0: {
+//    const auto &dstOp = I.getOperand(0);
+//    ASSERT(dstOp.getType() == MachineOperand::MO_Register);
+//    mir_set_expr(dstOp, m_ctx->mk_zerobv(DWORD_LEN), state_out);
+//    break;
+//  }
+//  default: {
+//    errs() << "unsupported opcode: " << I << "\n";
+//    NOT_IMPLEMENTED();
+//    break;
+//  }
+//  }
+//
+//  errs() << __func__ << " " << __LINE__ << ": state_out =\n" << state_out.to_string_for_eq() << "\n";
+//  process_cfts<llvm::MachineFunction, llvm::MachineBasicBlock, llvm::MachineInstr>(t, from_node, pc_to, state_out, cfts, B, F);
+//  //CPP_DBG_EXEC(LLVM2TFG, errs() << __func__ << " " << __LINE__ << " " << get_timestamp(as1, sizeof as1) << ": sym exec done\n");
+//  ////t.add_assumes(pc_from, assumes);
+//#endif
+//}
 
 string
 sym_exec_mir::get_basicblock_index(const llvm::MachineBasicBlock &v) const
@@ -2200,7 +2200,7 @@ sym_exec_llvm::sym_exec_preprocess_tfg(string const &name, tfg_llvm_t& t_src, ma
 {
   autostop_timer func_timer(__func__);
   context* ctx = this->get_context();
-  consts_struct_t &cs = ctx->get_consts_struct();
+  //consts_struct_t &cs = ctx->get_consts_struct();
   map<local_id_t, graph_local_t> local_refs = this->get_local_refs();
 
   pc start_pc = this->get_start_pc();
@@ -2538,38 +2538,38 @@ sym_exec_mir::populate_state_template_for_mf(MachineFunction const &mf)
 #endif
 }
 
-void sym_exec_mir::add_edges_for_mir(const llvm::MachineBasicBlock& B, tfg& t, const llvm::MachineFunction& F, map<string, pair<callee_summary_t, unique_ptr<tfg>>> &function_tfg_map, set<string> const &function_call_chain)
-{
-  size_t insn_id = 0;
-
-  TargetInstrInfo const &TII = *m_machine_function.getSubtarget().getInstrInfo();
-  for (const MachineInstr& I : B) {
-    if (I.getOpcode() == TargetOpcode::PHI) {
-      continue;
-    }
-
-    pc pc_from = get_pc_from_bbindex_and_insn_id(get_basicblock_index(B), insn_id);
-
-    //state state_start;
-    //get_state_template(pc_from, state_start);
-
-    shared_ptr<tfg_node> from_node((tfg_node*)(new tfg_node(pc_from)));
-    if (!t.find_node(pc_from)) {
-      t.add_node(from_node);
-    }
-    //state state_to(t.get_start_state());
-    insn_id++;
-
-    //errs() << "from state:\n" << state_to.to_string();
-    //exec(state_to, I, state_to, cfts, expand_switch_flag, assumes, F.getName(), t, function_tfg_map);
-    //errs() << "to state:\n" << state_to.to_string();
-
-    exec_mir(/*t.get_start_state()*/state(), I/*, state_to, cfts, expand_switch_flag, assumes*/, from_node, B/*, F*/, insn_id, t, function_tfg_map, function_call_chain);
-
-    //t.add_assumes(pc_from, assumes);
-    //errs() << __func__ << " " << __LINE__ << ": insn_id = " << insn_id << "\n";
-  }
-}
+//void sym_exec_mir::add_edges_for_mir(const llvm::MachineBasicBlock& B, tfg& t, const llvm::MachineFunction& F, map<string, pair<callee_summary_t, unique_ptr<tfg>>> &function_tfg_map, set<string> const &function_call_chain)
+//{
+//  size_t insn_id = 0;
+//
+//  TargetInstrInfo const &TII = *m_machine_function.getSubtarget().getInstrInfo();
+//  for (const MachineInstr& I : B) {
+//    if (I.getOpcode() == TargetOpcode::PHI) {
+//      continue;
+//    }
+//
+//    pc pc_from = get_pc_from_bbindex_and_insn_id(get_basicblock_index(B), insn_id);
+//
+//    //state state_start;
+//    //get_state_template(pc_from, state_start);
+//
+//    shared_ptr<tfg_node> from_node((tfg_node*)(new tfg_node(pc_from)));
+//    if (!t.find_node(pc_from)) {
+//      t.add_node(from_node);
+//    }
+//    //state state_to(t.get_start_state());
+//    insn_id++;
+//
+//    //errs() << "from state:\n" << state_to.to_string();
+//    //exec(state_to, I, state_to, cfts, expand_switch_flag, assumes, F.getName(), t, function_tfg_map);
+//    //errs() << "to state:\n" << state_to.to_string();
+//
+//    exec_mir(/*t.get_start_state()*/state(), I/*, state_to, cfts, expand_switch_flag, assumes*/, from_node, B/*, F*/, insn_id, t, function_tfg_map, function_call_chain);
+//
+//    //t.add_assumes(pc_from, assumes);
+//    //errs() << __func__ << " " << __LINE__ << ": insn_id = " << insn_id << "\n";
+//  }
+//}
 
 void
 sym_exec_common::get_tfg_common(tfg &t)

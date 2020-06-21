@@ -13,14 +13,17 @@
 namespace llvm {
 
 class SemanticAAResult : public AAResultBase<SemanticAAResult> {
-private:
-  shared_ptr<tfg_llvm_t const> m_tfg_llvm;
 public:
-  explicit SemanticAAResult(shared_ptr<tfg_llvm_t const> const& t_llvm) : AAResultBase(), m_tfg_llvm(t_llvm) {}
+  using function_tfg_map_t = map<string, pair<callee_summary_t, unique_ptr<tfg_llvm_t>>>;
+private:
+  shared_ptr<function_tfg_map_t> m_function_tfg_map;
+public:
+  explicit SemanticAAResult(shared_ptr<function_tfg_map_t> const& function_tfg_map) : AAResultBase(), m_function_tfg_map(function_tfg_map) {}
   SemanticAAResult(SemanticAAResult &&Arg)
-      : AAResultBase(std::move(Arg)), m_tfg_llvm(Arg.m_tfg_llvm) {}
+      : AAResultBase(std::move(Arg)), m_function_tfg_map(Arg.m_function_tfg_map) {}
 
   AliasResult alias(const MemoryLocation &LocA, const MemoryLocation &LocB, AAQueryInfo &AAQI);
+  static AliasResult convertTfgAliasResultToAliasResult(tfg_alias_result_t tfg_alias_result);
 };
 
 /// Analysis pass providing a never-invalidated alias analysis result.
@@ -35,7 +38,7 @@ public:
 };
 
 /// Legacy wrapper pass to provide the SemanticAAResult object.
-class SemanticAAWrapperPass : public FunctionPass {
+class SemanticAAWrapperPass : public ImmutablePass {
   std::unique_ptr<SemanticAAResult> Result;
 
 public:
@@ -46,12 +49,13 @@ public:
   SemanticAAResult &getResult() { return *Result; }
   const SemanticAAResult &getResult() const { return *Result; }
 
-  bool runOnFunction(Function &F) override;
+  bool doInitialization(Module &M) override;
+  bool doFinalization(Module &M) override;
   void getAnalysisUsage(AnalysisUsage &AU) const override;
 };
 
 /// Creates an instance of \c SemanticAAWrapperPass.
-FunctionPass *createSemanticAAWrapperPass();
+ImmutablePass *createSemanticAAWrapperPass();
 }
 
 #endif
