@@ -72,6 +72,7 @@ public:
   //map<symbol_id_t, tuple<string, size_t, bool>> const &get_symbol_map() { return m_symbol_map; }
   //static string get_value_name(const llvm::Value& v);
   //virtual void process_phi_nodes(tfg &t, const llvm::BasicBlock* B_from, const pc& p_to, shared_ptr<tfg_node> const &from_node, const llvm::Function& F, expr_ref edgecond) override;
+  static map<string, pair<callee_summary_t, unique_ptr<tfg_llvm_t>>> get_function_tfg_map(llvm::Module* M, set<string> FunNamesVec, bool DisableModelingOfUninitVarUB, context* ctx);
 
 private:
   //virtual expr_ref phiInstructionGetIncomingBlockValue(llvm::Instruction const &I/*, state const &start_state*/, shared_ptr<tfg_node> &pc_to_phi_node, pc const &pc_to, llvm::BasicBlock const *B_from, llvm::Function const &F, tfg &t) override;

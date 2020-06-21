@@ -2707,3 +2707,40 @@ sym_exec_llvm::get_basicblock_index(const llvm::BasicBlock &v) const
   return ret;*/
   return s1;
 }
+
+map<string, pair<callee_summary_t, unique_ptr<tfg_llvm_t>>>
+sym_exec_llvm::get_function_tfg_map(Module* M, set<string> FunNamesVec, bool DisableModelingOfUninitVarUB, context* ctx)
+{
+  map<string, pair<callee_summary_t, unique_ptr<tfg_llvm_t>>> function_tfg_map;
+
+  for (const Function& f : *M) {
+    if (   FunNamesVec.size() != 0
+        //&& (FunNamesVec.size() != 1 || *FunNamesVec.begin() != "ALL")
+        && !set_belongs(FunNamesVec, string(f.getName().data()))) {
+      continue;
+    }
+    if (sym_exec_common::get_num_insn(f) == 0) {
+      continue;
+    }
+
+    string fname = f.getName().str();
+    autostop_timer total_timer(string(__func__));
+    autostop_timer func_timer(string(__func__) + "." + fname);
+
+    if (function_tfg_map.count(fname)) {
+      continue;
+    }
+    //errs() << "Doing: " << fname << "\n";
+    //errs().flush();
+
+    bool gen_callee_summary = (FunNamesVec.size() == 0);
+    set<string> function_call_chain;
+
+    cout << __func__ << " " << __LINE__ << ": Doing " << fname << endl;
+    unique_ptr<tfg_llvm_t> t_src = sym_exec_llvm::get_preprocessed_tfg(f, M, fname, ctx, function_tfg_map, function_call_chain, gen_callee_summary, DisableModelingOfUninitVarUB);
+
+    callee_summary_t csum = t_src->get_summary_for_calling_functions();
+    function_tfg_map.insert(make_pair(fname, make_pair(csum, std::move(t_src))));
+  }
+  return function_tfg_map;
+}
