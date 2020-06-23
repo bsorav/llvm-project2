@@ -2713,6 +2713,12 @@ sym_exec_llvm::get_function_tfg_map(Module* M, set<string> FunNamesVec, bool Dis
 {
   map<string, pair<callee_summary_t, unique_ptr<tfg_llvm_t>>> function_tfg_map;
 
+  DYN_DEBUG2(llvm2tfg,
+    cout.flush();
+    M->print(dbgs(), nullptr, true);
+    dbgs().flush();
+  );
+
   for (const Function& f : *M) {
     if (   FunNamesVec.size() != 0
         //&& (FunNamesVec.size() != 1 || *FunNamesVec.begin() != "ALL")
@@ -2736,7 +2742,8 @@ sym_exec_llvm::get_function_tfg_map(Module* M, set<string> FunNamesVec, bool Dis
     bool gen_callee_summary = (FunNamesVec.size() == 0);
     set<string> function_call_chain;
 
-    DYN_DEBUG(llvm2tfg, cout << __func__ << " " << __LINE__ << ": Doing " << fname << endl);
+    DYN_DEBUG(llvm2tfg, cout << __func__ << " " << __LINE__ << ": Doing " << fname << endl; cout.flush());
+
     unique_ptr<tfg_llvm_t> t_src = sym_exec_llvm::get_preprocessed_tfg(f, M, fname, ctx, function_tfg_map, function_call_chain, gen_callee_summary, DisableModelingOfUninitVarUB);
 
     callee_summary_t csum = t_src->get_summary_for_calling_functions();
