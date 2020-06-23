@@ -1970,8 +1970,8 @@ sym_exec_llvm::parse_dbg_declare_intrinsic(Instruction const& I, tfg_llvm_t& t, 
   }
   string source_varname = DI.getVariable()->getName().str();
   string llvm_varname = get_value_name(*Address);
-  DYN_DEBUG(dbg_declare_intrinsic, dbgs() << "DI.getVariable().getName() = " << source_varname << "\n");
-  DYN_DEBUG(dbg_declare_intrinsic, dbgs() << "value_name = " << llvm_varname << "\n");
+  DYN_DEBUG(dbg_declare_intrinsic, std::cout << "DI.getVariable().getName() = " << source_varname << "\n");
+  DYN_DEBUG(dbg_declare_intrinsic, std::cout << "value_name = " << llvm_varname << "\n");
   t.tfg_llvm_add_source_to_llvm_varname_mapping(source_varname, llvm_varname);
 }
 

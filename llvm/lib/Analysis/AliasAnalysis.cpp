@@ -115,18 +115,18 @@ AliasResult AAResults::alias(const MemoryLocation &LocA,
 
 AliasResult AAResults::alias(const MemoryLocation &LocA,
                              const MemoryLocation &LocB, AAQueryInfo &AAQI) {
-  DYN_DEBUG(aliasAnalysis, dbgs() << "AAResults::" << __func__ << " " << __LINE__ << ": LocA = " << sym_exec_common::get_value_name(*LocA.Ptr) << ", LocB = " << sym_exec_common::get_value_name(*LocB.Ptr) << "\n");
+  DYN_DEBUG(aliasAnalysis, std::cout << "AAResults::" << __func__ << " " << __LINE__ << ": LocA = " << sym_exec_common::get_value_name(*LocA.Ptr) << ", LocB = " << sym_exec_common::get_value_name(*LocB.Ptr) << "\n");
   for (const auto &AA : AAs) {
     auto Result = AA->alias(LocA, LocB, AAQI);
     if (Result != MayAlias) {
-      DYN_DEBUG(aliasAnalysis, dbgs() << "AAResults::" << __func__ << " " << __LINE__ << ": Result = " << Result << ". LocA = " << sym_exec_common::get_value_name(*LocA.Ptr) << ", LocB = " << sym_exec_common::get_value_name(*LocB.Ptr) << "\n");
-      DYN_DEBUG(checkSemanticAlias,
+      DYN_DEBUG(aliasAnalysis, std::cout << "AAResults::" << __func__ << " " << __LINE__ << ": Result = " << Result << ". LocA = " << sym_exec_common::get_value_name(*LocA.Ptr) << ", LocB = " << sym_exec_common::get_value_name(*LocB.Ptr) << "\n");
+      DYN_DEBUG_MUTE(checkSemanticAlias,
         bool found = false;
         for (auto const& SAA : AAs) {
           if (SAA->isSemanticAA()) {
             found = true;
             if (SAA->alias(LocA, LocB, AAQI) == MayAlias) {
-              dbgs() << "WARNING: Syntactic alias analysis returning " << Result << " but Semantic alias analysis returning MayAlias. LocA = " << sym_exec_common::get_value_name(*LocA.Ptr) << ", LocB = " << sym_exec_common::get_value_name(*LocB.Ptr) << "\n";
+              std::cout << "WARNING: Syntactic alias analysis returning " << Result << " but Semantic alias analysis returning MayAlias. LocA = " << sym_exec_common::get_value_name(*LocA.Ptr) << ", LocB = " << sym_exec_common::get_value_name(*LocB.Ptr) << "\n";
             }
           }
         }
@@ -135,7 +135,7 @@ AliasResult AAResults::alias(const MemoryLocation &LocA,
       return Result;
     }
   }
-  DYN_DEBUG(aliasAnalysis, dbgs() << "AAResults::" << __func__ << " " << __LINE__ << ": Result = " << MayAlias << ". LocA = " << sym_exec_common::get_value_name(*LocA.Ptr) << ", LocB = " << sym_exec_common::get_value_name(*LocB.Ptr) << "\n");
+  DYN_DEBUG(aliasAnalysis, std::cout << "AAResults::" << __func__ << " " << __LINE__ << ": Result = " << MayAlias << ". LocA = " << sym_exec_common::get_value_name(*LocA.Ptr) << ", LocB = " << sym_exec_common::get_value_name(*LocB.Ptr) << "\n");
   return MayAlias;
 }
 

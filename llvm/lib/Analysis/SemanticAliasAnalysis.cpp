@@ -75,17 +75,11 @@ SemanticAAResult::alias(const MemoryLocation &LocA,
 
   string fname = F ? F->getName().str() : "";
 
-  if (!m_function_tfg_map->count(fname)) {
-    return MayAlias;
-  }
-
-  //tfg_llvm_t const* t_llvm = m_function_tfg_map->at(fname).second.get();
-
   string nameA = sym_exec_common::get_value_name(*LocA.Ptr);
   string nameB = sym_exec_common::get_value_name(*LocB.Ptr);
 
-  DYN_DEBUG2(aliasAnalysis, dbgs() << "SemanticAAResult::" << __func__ << " " << __LINE__ << ": LocA = " << nameA << "\n");
-  DYN_DEBUG2(aliasAnalysis, dbgs() << "SemanticAAResult::" << __func__ << " " << __LINE__ << ": LocB = " << nameB << "\n");
+  DYN_DEBUG2(aliasAnalysis, std::cout << "SemanticAAResult::" << __func__ << " " << __LINE__ << ": LocA = " << nameA << "\n");
+  DYN_DEBUG2(aliasAnalysis, std::cout << "SemanticAAResult::" << __func__ << " " << __LINE__ << ": LocB = " << nameB << "\n");
 
   uint64_t sizeA = LocA.Size.hasValue() ? LocA.Size.getValue() : (uint64_t)-1;
   uint64_t sizeB = LocB.Size.hasValue() ? LocB.Size.getValue() : (uint64_t)-1;
@@ -122,7 +116,7 @@ bool SemanticAAWrapperPass::doInitialization(Module &M)
   //}
   //Module &M = *F.getParent();
   //map<shared_ptr<tfg_edge const>, Instruction *> eimap;
-  //DYN_DEBUG(llvm2tfg, dbgs() << "SemanticAAWrapperPass::" << __func__ << " " << __LINE__ << ": F.getName() = " << F.getName() << "\n");
+  //DYN_DEBUG(llvm2tfg, std::cout << "SemanticAAWrapperPass::" << __func__ << " " << __LINE__ << ": F.getName() = " << F.getName() << "\n");
   if (!g_ctx) {
     g_ctx_init();
   }
