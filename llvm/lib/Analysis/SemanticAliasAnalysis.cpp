@@ -31,10 +31,55 @@ SemanticAAResult::convertTfgAliasResultToAliasResult(tfg_alias_result_t tfg_alia
   }
 }
 
+#ifndef NDEBUG
+static const Function *getParent(const Value *V) {
+  if (const Instruction *inst = dyn_cast<Instruction>(V)) {
+    if (!inst->getParent())
+      return nullptr;
+    return inst->getParent()->getParent();
+  }
+
+  if (const Argument *arg = dyn_cast<Argument>(V))
+    return arg->getParent();
+
+  return nullptr;
+}
+
+static bool notDifferentParent(const Value *O1, const Value *O2) {
+
+  const Function *F1 = getParent(O1);
+  const Function *F2 = getParent(O2);
+
+  return !F1 || !F2 || F1 == F2;
+}
+#endif
+
+
 AliasResult
 SemanticAAResult::alias(const MemoryLocation &LocA,
                         const MemoryLocation &LocB,
                         AAQueryInfo &AAQI) {
+  assert(notDifferentParent(LocA.Ptr, LocB.Ptr) &&
+         "SemanticAliasAnalysis doesn't support interprocedural queries.");
+
+  Function const* F1 = getParent(LocA.Ptr);
+  Function const* F2 = getParent(LocB.Ptr);
+  Function const* F = nullptr;
+
+  if (F1) {
+    F = F1;
+  }
+  if (F2) {
+    F = F2;
+  }
+
+  string fname = F ? F->getName().str() : "";
+
+  if (!m_function_tfg_map->count(fname)) {
+    return MayAlias;
+  }
+
+  //tfg_llvm_t const* t_llvm = m_function_tfg_map->at(fname).second.get();
 
   string nameA = sym_exec_common::get_value_name(*LocA.Ptr);
   string nameB = sym_exec_common::get_value_name(*LocB.Ptr);
@@ -45,7 +90,7 @@ SemanticAAResult::alias(const MemoryLocation &LocA,
   uint64_t sizeA = LocA.Size.hasValue() ? LocA.Size.getValue() : (uint64_t)-1;
   uint64_t sizeB = LocB.Size.hasValue() ? LocB.Size.getValue() : (uint64_t)-1;
 
-  //return convertTfgAliasResultToAliasResult(m_tfg_llvm->get_aliasing_relationship_between_memaccesses(nameA, sizeA, nameB, sizeB));
+  return convertTfgAliasResultToAliasResult(tfg_llvm_t::get_aliasing_relationship_between_memaccesses(*m_function_tfg_map, fname, nameA, sizeA, nameB, sizeB));
 
   // Check if there is a predicate corresponding to LocA and LocB
   //if ((predicates.count(LocA.Ptr) && predicates[LocA.Ptr].count(LocB.Ptr)) ||
