@@ -470,7 +470,7 @@ void sym_exec_llvm::populate_state_template(const llvm::Function& F)
     }
     string name = get_value_name(v);
     sort_ref s = get_value_type(v, m_module->getDataLayout());
-    string argname = name + SRC_INPUT_ARG_NAME_SUFFIX;
+    string argname = name/* + SRC_INPUT_ARG_NAME_SUFFIX*/;
     expr_ref argvar = m_ctx->mk_var(string(G_INPUT_KEYWORD) + "." + argname, s);
     m_arguments[name] = make_pair(argnum, argvar);
     argnum++;
@@ -2242,7 +2242,7 @@ sym_exec_llvm::gen_arg_assumes() const
   unordered_set<expr_ref> arg_assumes;
   for (const auto& arg : m_function.args()) {
     pair<argnum_t, expr_ref> const &a = m_arguments.at(get_value_name(arg));
-    string Elname = get_value_name(arg) + SRC_INPUT_ARG_NAME_SUFFIX;
+    string Elname = get_value_name(arg)/* + SRC_INPUT_ARG_NAME_SUFFIX*/;
     Type *ElTy = arg.getType();
     unordered_set_union(arg_assumes, gen_align_assumes(Elname, ElTy, a.second->get_sort()));
   }
