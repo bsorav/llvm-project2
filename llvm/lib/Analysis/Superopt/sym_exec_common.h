@@ -144,8 +144,8 @@ protected:
 
   //void add_type_and_align_assumes(llvm::Value const &arg, expr_ref a, pc const&from_pc, tfg &t/*, unordered_set<predicate> &assumes*/, string langtype_comment);
   sort_ref get_fun_type_sort(/*const llvm::Type* t, */sort_ref ret_sort, const vector<sort_ref>& args) const;
-  sort_ref get_type_sort(const llvm::Type* t, const llvm::DataLayout &dl) const;
-  vector<sort_ref> get_type_sort_vec(const llvm::Type* t, const llvm::DataLayout &dl) const;
+  sort_ref get_type_sort(llvm::Type* t, const llvm::DataLayout &dl) const;
+  vector<sort_ref> get_type_sort_vec(llvm::Type* t, const llvm::DataLayout &dl) const;
   sort_ref get_value_type(const llvm::Value& v, const llvm::DataLayout &dl) const;
   vector<sort_ref> get_value_type_vec(const llvm::Value& v, const llvm::DataLayout &dl) const;
   //string get_basicblock_name(const llvm::BasicBlock& v) const;

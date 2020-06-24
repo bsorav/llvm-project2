@@ -266,7 +266,7 @@ sort_ref sym_exec_mir::get_mir_type_sort(const MachineOperand::MachineOperandTyp
   return m_ctx->mk_bv_sort(size);
 }
 
-vector<sort_ref> sym_exec_common::get_type_sort_vec(const llvm::Type* t, DataLayout const &dl) const
+vector<sort_ref> sym_exec_common::get_type_sort_vec(llvm::Type* t, DataLayout const &dl) const
 {
   vector<sort_ref> sv;
   if(const IntegerType* itype = dyn_cast<const IntegerType>(t))
@@ -283,10 +283,16 @@ vector<sort_ref> sym_exec_common::get_type_sort_vec(const llvm::Type* t, DataLay
     sv.push_back(m_ctx->mk_bv_sort(get_word_length()));
     return sv;
   } else if (t->getTypeID() == Type::FloatTyID) {
-    sv.push_back(m_ctx->mk_bv_sort(DWORD_LEN));
+    //cout << __func__ << " " << __LINE__ << ": float size in bits = " << dl.getTypeSizeInBits(t) << endl;
+    size_t size = dl.getTypeSizeInBits(t);
+    ASSERT(size == DWORD_LEN);
+    sv.push_back(m_ctx->mk_bv_sort(size));
+    //sv.push_back(m_ctx->mk_bv_sort(DWORD_LEN));
     return sv;
   } else if (t->getTypeID() == Type::DoubleTyID) {
-    sv.push_back(m_ctx->mk_bv_sort(QWORD_LEN));
+    cout << __func__ << " " << __LINE__ << ": double size in bits = " << dl.getTypeSizeInBits(t) << endl;
+    sv.push_back(m_ctx->mk_bv_sort(dl.getTypeSizeInBits(t)));
+    //sv.push_back(m_ctx->mk_bv_sort(QWORD_LEN));
     return sv;
   } else if (t->getTypeID() == Type::StructTyID) {
     //const DataLayout &dl = m_module->getDataLayout();
@@ -316,7 +322,7 @@ vector<sort_ref> sym_exec_common::get_type_sort_vec(const llvm::Type* t, DataLay
   }
 }
 
-sort_ref sym_exec_common::get_type_sort(const llvm::Type* t, DataLayout const &dl) const
+sort_ref sym_exec_common::get_type_sort(llvm::Type* t, DataLayout const &dl) const
 {
   vector<sort_ref> sv = get_type_sort_vec(t, dl);
   if (sv.size() != 1) {
@@ -1311,11 +1317,11 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, shar
 
     expr_ref addr;
     tie(addr, state_assumes) = get_expr_adding_edges_for_intermediate_vals(*Addr, gep_name_prefix("const_operand", from_node->get_pc(), pc_to, 0), state_in, state_assumes, from_node, pc_to, B, F, t);
-    if (   l->getType()->getTypeID() == Type::FloatTyID
-        || l->getType()->getTypeID() == Type::DoubleTyID) {
-      state_set_expr(state_out, G_SRC_KEYWORD "." LLVM_CONTAINS_FLOAT_OP_SYMBOL, m_ctx->mk_bool_const(true));
-      break;
-    }
+    //if (   l->getType()->getTypeID() == Type::FloatTyID
+    //    || l->getType()->getTypeID() == Type::DoubleTyID) {
+    //  state_set_expr(state_out, G_SRC_KEYWORD "." LLVM_CONTAINS_FLOAT_OP_SYMBOL, m_ctx->mk_bool_const(true));
+    //  break;
+    //}
     sort_ref value_type = get_value_type(*l, m_module->getDataLayout());
     ASSERTCHECK(value_type->is_bv_kind(), cout << __func__ << " " << __LINE__ << ": value_type = " << value_type->to_string() << endl);
     memlabel_t ml_top;
