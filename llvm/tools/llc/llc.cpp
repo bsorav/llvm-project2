@@ -54,6 +54,8 @@
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 #include <memory>
+#include "support/debug.h"
+#include "support/dyn_debug.h"
 using namespace llvm;
 
 static codegen::RegisterCodeGenFlags CGF;
@@ -185,6 +187,9 @@ static cl::opt<RunPassOption, true, cl::parser<std::string>> RunPass(
     "run-pass",
     cl::desc("Run compiler only for specified passes (comma separated list)"),
     cl::value_desc("pass-name"), cl::ZeroOrMore, cl::location(RunPassOpt));
+
+cl::opt<std::string>
+DynDebug("dyn_debug", cl::desc("<debug.  enable dynamic debugging for debug-class(es).  Expects comma-separated list of debug-classes with optional level e.g. -debug=compute_liveness,sprels,alias_analysis=2"), cl::init(""));
 
 static int compileModule(char **, LLVMContext &);
 
@@ -328,6 +333,9 @@ int main(int argc, char **argv) {
   cl::AddExtraVersionPrinter(TargetRegistry::printRegisteredTargetsForVersion);
 
   cl::ParseCommandLineOptions(argc, argv, "llvm system compiler\n");
+
+  eqspace::init_dyn_debug_from_string(DynDebug);
+  CPP_DBG_EXEC(DYN_DEBUG, eqspace::print_debug_class_levels());
 
   Context.setDiscardValueNames(DiscardValueNames);
 
