@@ -176,6 +176,11 @@ sym_exec_llvm::get_const_value_expr(const llvm::Value& v, string vname, const st
     else
       return make_pair(m_ctx->mk_bool_true(), state_assumes);
   }
+  else if(const ConstantFP* c = dyn_cast<const ConstantFP>(&v))
+  {
+    APInt ai = c->getValueAPF().bitcastToAPInt();
+    return make_pair(m_ctx->mk_bv_const(ai.getBitWidth(), ai.getZExtValue()), state_assumes);
+  }
   else if (ConstantExpr const* ce = (ConstantExpr const*)dyn_cast<const ConstantExpr>(&v))
   {
     Instruction *i_sp = ce->getAsInstruction();
@@ -1104,6 +1109,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, shar
   bbl_order_descriptor_t const& bbo = this->m_bbl_order_map.at(mk_string_ref(bbindex));
   pc pc_to = get_pc_from_bbindex_and_insn_id(bbindex, next_insn_id);
   te_comment_t te_comment = this->instruction_to_te_comment(I, from_node->get_pc(), bbo);
+  const DataLayout &dl = m_module->getDataLayout();
 
   //cout << __func__ << " " << __LINE__ << ": t.incoming =\n" << t.incoming_sizes_to_string() << endl;
   switch(I.getOpcode())
@@ -1218,7 +1224,6 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, shar
     stringstream ss0;
     ss0 << G_LOCAL_KEYWORD << '.' << local_id;
     string local_name = ss0.str();
-    const DataLayout &dl = m_module->getDataLayout();
     Type *ElTy = a->getAllocatedType();
     uint64_t local_size = dl.getTypeAllocSize(ElTy);
     unsigned align = a->getAlignment();
@@ -1266,11 +1271,11 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, shar
     Value const *Val = s->getValueOperand();
     size_t align = s->getAlignment();
 
-    if (   Val->getType()->getTypeID() == Type::FloatTyID
-        || Val->getType()->getTypeID() == Type::DoubleTyID) {
-      state_set_expr(state_out, G_SRC_KEYWORD "." LLVM_CONTAINS_FLOAT_OP_SYMBOL, m_ctx->mk_bool_const(true));
-      break;
-    }
+    //if (   Val->getType()->getTypeID() == Type::FloatTyID
+    //    || Val->getType()->getTypeID() == Type::DoubleTyID) {
+    //  state_set_expr(state_out, G_SRC_KEYWORD "." LLVM_CONTAINS_FLOAT_OP_SYMBOL, m_ctx->mk_bool_const(true));
+    //  break;
+    //}
 
     expr_ref addr, val;
     tie(addr, state_assumes) = get_expr_adding_edges_for_intermediate_vals(*Addr, "", state_in, state_assumes, from_node, pc_to, B, F, t);
@@ -1278,7 +1283,8 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, shar
     if (val->is_bool_sort()) {
       string val_str = expr_string(val);
       /*if (val_str.find("unsupported") != string::npos) */{
-        state_set_expr(state_out, G_SRC_KEYWORD "." LLVM_CONTAINS_FLOAT_OP_SYMBOL, m_ctx->mk_bool_const(true));
+        NOT_REACHED();
+        //state_set_expr(state_out, G_SRC_KEYWORD "." LLVM_CONTAINS_FLOAT_OP_SYMBOL, m_ctx->mk_bool_const(true));
         break;
       }
     }
@@ -1428,27 +1434,79 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, shar
   case Instruction::Unreachable:
     //assert(false);
     break;
-  case Instruction::FDiv:
-  case Instruction::FMul:
-  case Instruction::FAdd:
-  case Instruction::FCmp:
-  case Instruction::FSub:
-  case Instruction::FRem:
-  case Instruction::FPToUI:
-  case Instruction::FPToSI:
-  case Instruction::UIToFP:
-  case Instruction::SIToFP:
-  case Instruction::FPTrunc:
-  case Instruction::FPExt:
-    state_set_expr(state_out, G_SRC_KEYWORD "." LLVM_CONTAINS_FLOAT_OP_SYMBOL, m_ctx->mk_bool_const(true));
+  case Instruction::FDiv: {
+    NOT_IMPLEMENTED();
     break;
+  }
+  case Instruction::FMul: {
+    NOT_IMPLEMENTED();
+    break;
+  }
+  case Instruction::FAdd: {
+    NOT_IMPLEMENTED();
+    break;
+  }
+  case Instruction::FCmp: {
+    NOT_IMPLEMENTED();
+    break;
+  }
+  case Instruction::FSub: {
+    NOT_IMPLEMENTED();
+    break;
+  }
+  case Instruction::FRem: {
+    NOT_IMPLEMENTED();
+    break;
+  }
+  case Instruction::FPToUI: {
+    NOT_IMPLEMENTED();
+    break;
+  }
+  case Instruction::FPToSI: {
+    NOT_IMPLEMENTED();
+    break;
+  }
+  case Instruction::UIToFP: {
+    NOT_IMPLEMENTED();
+    break;
+  }
+  case Instruction::SIToFP: {
+    NOT_IMPLEMENTED();
+    break;
+  }
+  case Instruction::FPTrunc: {
+    NOT_IMPLEMENTED();
+    break;
+  }
+  case Instruction::FPExt: {
+    FPExtInst const *FI = cast<FPExtInst const>(&I);
+    ASSERT(FI);
+    //Type* typ = FI->getType();
+    //size_t resultBitwidth = dl.getTypeSizeInBits(typ);
+    ASSERT(I.getNumOperands() == 1);
+    Value const &op0 = *I.getOperand(0);
+    string iname = get_value_name(I);
+    string op0name = get_value_name(op0);
+    sort_ref op0_sort = get_value_type(op0, dl);
+    ASSERT(op0_sort->is_bv_kind());
+    sort_ref isort = get_value_type(I, dl);
+    ASSERT(isort->is_bv_kind());
+    size_t target_size = isort->get_size();
+    int ebits, sbits;
+    tie(ebits, sbits) = context::floating_point_get_ebits_and_sbits_from_size(target_size);
+    stringstream ss;
+    ss << G_INPUT_KEYWORD "." << op0name;
+    state_set_expr(state_out, iname, m_ctx->mk_fpext(m_ctx->mk_var(ss.str(), op0_sort), ebits, sbits));
+    cout << __func__ << " " << __LINE__ << ": FPExt: state_out =\n" << state_out.to_string_for_eq() << endl;
+    break;
+  }
   case Instruction::ExtractValue: {
     ASSERT(I.getNumOperands() == 1);
     Value const &op0 = *I.getOperand(0);
     string iname = get_value_name(I);
     string op0name = get_value_name(op0);
-    sort_ref op0_sort = get_value_type(op0, m_module->getDataLayout());
-    sort_ref s = get_value_type(I, m_module->getDataLayout());
+    sort_ref op0_sort = get_value_type(op0, dl);
+    sort_ref s = get_value_type(I, dl);
     const ExtractValueInst *EVI = cast<ExtractValueInst>(&I);
     vector<int> indices;
     for (auto idx = EVI->idx_begin(); idx != EVI->idx_end(); idx++) {
