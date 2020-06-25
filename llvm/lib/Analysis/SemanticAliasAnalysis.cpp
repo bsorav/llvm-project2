@@ -59,6 +59,11 @@ AliasResult
 SemanticAAResult::alias(const MemoryLocation &LocA,
                         const MemoryLocation &LocB,
                         AAQueryInfo &AAQI) {
+  DYN_DEBUG(disableSemanticAA,
+    // Forward the query to the next analysis.
+    return AAResultBase::alias(LocA, LocB, AAQI);
+  );
+
   assert(notDifferentParent(LocA.Ptr, LocB.Ptr) &&
          "SemanticAliasAnalysis doesn't support interprocedural queries.");
 
@@ -92,8 +97,6 @@ SemanticAAResult::alias(const MemoryLocation &LocA,
   //  return NoAlias;
   //}
 
-  // Forward the query to the next analysis.
-  return AAResultBase::alias(LocA, LocB, AAQI);
 }
 
 char SemanticAAWrapperPass::ID = 0;
@@ -110,6 +113,10 @@ SemanticAAWrapperPass::SemanticAAWrapperPass() : ImmutablePass(ID) {
 
 bool SemanticAAWrapperPass::doInitialization(Module &M)
 {
+  DYN_DEBUG(disableSemanticAA,
+    Result.reset(new SemanticAAResult(nullptr));
+    return false
+  );
   //string const& fname = F.getName().str();
   //if (m_function_tfg_map->count(fname)) {
   //  return false;
