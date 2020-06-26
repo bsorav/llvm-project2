@@ -295,8 +295,10 @@ vector<sort_ref> sym_exec_common::get_type_sort_vec(llvm::Type* t, DataLayout co
     //sv.push_back(m_ctx->mk_bv_sort(DWORD_LEN));
     return sv;
   } else if (t->getTypeID() == Type::DoubleTyID) {
-    cout << __func__ << " " << __LINE__ << ": double size in bits = " << dl.getTypeSizeInBits(t) << endl;
-    sv.push_back(m_ctx->mk_bv_sort(dl.getTypeSizeInBits(t)));
+    //cout << __func__ << " " << __LINE__ << ": double size in bits = " << dl.getTypeSizeInBits(t) << endl;
+    size_t size = dl.getTypeSizeInBits(t);
+    ASSERT(size == QWORD_LEN);
+    sv.push_back(m_ctx->mk_bv_sort(size));
     //sv.push_back(m_ctx->mk_bv_sort(QWORD_LEN));
     return sv;
   } else if (t->getTypeID() == Type::StructTyID) {
@@ -1475,7 +1477,25 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, shar
     break;
   }
   case Instruction::FPTrunc: {
-    NOT_IMPLEMENTED();
+    FPTruncInst const *FI = cast<FPTruncInst const>(&I);
+    ASSERT(FI);
+    //Type* typ = FI->getType();
+    //size_t resultBitwidth = dl.getTypeSizeInBits(typ);
+    ASSERT(I.getNumOperands() == 1);
+    Value const &op0 = *I.getOperand(0);
+    string iname = get_value_name(I);
+    string op0name = get_value_name(op0);
+    sort_ref op0_sort = get_value_type(op0, dl);
+    ASSERT(op0_sort->is_bv_kind());
+    sort_ref isort = get_value_type(I, dl);
+    ASSERT(isort->is_bv_kind());
+    size_t target_size = isort->get_size();
+    int ebits, sbits;
+    tie(ebits, sbits) = context::floating_point_get_ebits_and_sbits_from_size(target_size);
+    stringstream ss;
+    ss << G_INPUT_KEYWORD "." << op0name;
+    state_set_expr(state_out, iname, m_ctx->mk_fptrunc(m_ctx->mk_var(ss.str(), op0_sort), ebits, sbits));
+    //cout << __func__ << " " << __LINE__ << ": FPTrunc: state_out =\n" << state_out.to_string_for_eq() << endl;
     break;
   }
   case Instruction::FPExt: {
@@ -1497,7 +1517,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, shar
     stringstream ss;
     ss << G_INPUT_KEYWORD "." << op0name;
     state_set_expr(state_out, iname, m_ctx->mk_fpext(m_ctx->mk_var(ss.str(), op0_sort), ebits, sbits));
-    cout << __func__ << " " << __LINE__ << ": FPExt: state_out =\n" << state_out.to_string_for_eq() << endl;
+    //cout << __func__ << " " << __LINE__ << ": FPExt: state_out =\n" << state_out.to_string_for_eq() << endl;
     break;
   }
   case Instruction::ExtractValue: {
