@@ -140,6 +140,7 @@ public:
 
   bool verify(DWARFUnit *U);
 
+  uint8_t getAddressSize() const { return AddressSize; }
 private:
   DataExtractor Data;
   uint8_t AddressSize;
