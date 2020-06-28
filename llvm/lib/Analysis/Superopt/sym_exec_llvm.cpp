@@ -1501,9 +1501,8 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, shar
     Value const &op1 = *I.getOperand(1);
 
     expr_ref e0, e1;
-    unordered_set<expr_ref> assumes;
-    tie(e0, assumes) = get_expr_adding_edges_for_intermediate_vals(op0, "", state(), assumes, from_node, pc_to, B, F, t);
-    tie(e1, assumes) = get_expr_adding_edges_for_intermediate_vals(op1, "", state(), assumes, from_node, pc_to, B, F, t);
+    tie(e0, state_assumes) = get_expr_adding_edges_for_intermediate_vals(op0, "", state(), state_assumes, from_node, pc_to, B, F, t);
+    tie(e1, state_assumes) = get_expr_adding_edges_for_intermediate_vals(op1, "", state(), state_assumes, from_node, pc_to, B, F, t);
 
     expr_vector args;
     args.push_back(e0);
