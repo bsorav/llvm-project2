@@ -149,6 +149,7 @@ private:
 
   void add_gep_intermediate_vals(llvm::Instruction const &I, string const &name);
   void populate_state_template(const llvm::Function& F);
+  expr_ref fcmp_to_expr(llvm::FCmpInst::Predicate cmp_kind, const vector<expr_ref>& args) const;
   expr_ref icmp_to_expr(llvm::ICmpInst::Predicate k, const vector<expr_ref>& args) const;
 
   //pc get_pc_from_bb_and_insn_id(llvm::BasicBlock const &B, size_t insn_id) const;

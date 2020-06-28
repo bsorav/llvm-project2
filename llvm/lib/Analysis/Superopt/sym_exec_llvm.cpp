@@ -743,6 +743,48 @@ expr::operation_kind binary_op_to_expr_kind(Instruction::BinaryOps kind, bool is
   }
 }
 
+expr_ref
+sym_exec_llvm::fcmp_to_expr(FCmpInst::Predicate cmp_kind, const vector<expr_ref>& args) const
+{
+  switch (cmp_kind) {
+    case CmpInst::FCMP_FALSE:
+      return m_ctx->mk_bool_false();
+    case CmpInst::FCMP_OEQ:
+      return m_ctx->mk_fcmp_oeq(args.at(0), args.at(1));
+    case CmpInst::FCMP_OGT:
+      return m_ctx->mk_fcmp_ogt(args.at(0), args.at(1));
+    case CmpInst::FCMP_OGE:
+      return m_ctx->mk_fcmp_oge(args.at(0), args.at(1));
+    case CmpInst::FCMP_OLT:
+      return m_ctx->mk_fcmp_olt(args.at(0), args.at(1));
+    case CmpInst::FCMP_OLE:
+      return m_ctx->mk_fcmp_ole(args.at(0), args.at(1));
+    case CmpInst::FCMP_ONE:
+      return m_ctx->mk_fcmp_one(args.at(0), args.at(1));
+    case CmpInst::FCMP_ORD:
+      return m_ctx->mk_fcmp_ord(args.at(0), args.at(1));
+    case CmpInst::FCMP_UNO:
+      return m_ctx->mk_fcmp_uno(args.at(0), args.at(1));
+    case CmpInst::FCMP_UEQ:
+      return m_ctx->mk_fcmp_ueq(args.at(0), args.at(1));
+    case CmpInst::FCMP_UGT:
+      return m_ctx->mk_fcmp_ugt(args.at(0), args.at(1));
+    case CmpInst::FCMP_UGE:
+      return m_ctx->mk_fcmp_uge(args.at(0), args.at(1));
+    case CmpInst::FCMP_ULT:
+      return m_ctx->mk_fcmp_ult(args.at(0), args.at(1));
+    case CmpInst::FCMP_ULE:
+      return m_ctx->mk_fcmp_ule(args.at(0), args.at(1));
+    case CmpInst::FCMP_UNE:
+      return m_ctx->mk_fcmp_une(args.at(0), args.at(1));
+    case CmpInst::FCMP_TRUE:
+      return m_ctx->mk_bool_true();
+    default:
+      NOT_REACHED();
+  }
+  NOT_REACHED();
+}
+
 expr_ref sym_exec_llvm::icmp_to_expr(ICmpInst::Predicate cmp_kind, const vector<expr_ref>& args) const
 {
   expr_ref ret = m_ctx->mk_app(icmp_kind_to_expr_kind(cmp_kind), args);
@@ -1449,7 +1491,25 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, shar
     break;
   }
   case Instruction::FCmp: {
-    NOT_IMPLEMENTED();
+    FCmpInst const *FI = cast<FCmpInst const>(&I);
+    ASSERT(FI);
+    sort_ref isort = get_value_type(I, dl);
+    ASSERT(isort->is_bool_kind());
+    string iname = get_value_name(I);
+
+    Value const &op0 = *I.getOperand(0);
+    Value const &op1 = *I.getOperand(1);
+
+    expr_ref e0, e1;
+    unordered_set<expr_ref> assumes;
+    tie(e0, assumes) = get_expr_adding_edges_for_intermediate_vals(op0, "", state(), assumes, from_node, pc_to, B, F, t);
+    tie(e1, assumes) = get_expr_adding_edges_for_intermediate_vals(op1, "", state(), assumes, from_node, pc_to, B, F, t);
+
+    expr_vector args;
+    args.push_back(e0);
+    args.push_back(e1);
+
+    state_set_expr(state_out, iname, fcmp_to_expr(FI->getPredicate(), args));
     break;
   }
   case Instruction::FSub: {
