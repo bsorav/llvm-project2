@@ -1142,6 +1142,21 @@ sym_exec_llvm::apply_general_function(const CallInst* c, expr_ref fun_name_expr,
   return make_pair(assumes, succ_assumes);
 }
 
+expr::operation_kind
+sym_exec_llvm::farith_to_operation_kind(unsigned opcode, expr_vector const& args)
+{
+  if (opcode == Instruction::FDiv) {
+    return expr::OP_FDIV;
+  } else if (opcode == Instruction::FMul) {
+    return expr::OP_FMUL;
+  } else if (opcode == Instruction::FAdd) {
+    return expr::OP_FADD;
+  } else if (opcode == Instruction::FSub) {
+    return expr::OP_FSUB;
+  }
+  NOT_REACHED();
+}
+
 void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, shared_ptr<tfg_node> from_node, llvm::BasicBlock const &B, llvm::Function const &F, size_t next_insn_id, tfg &t, map<string, pair<callee_summary_t, unique_ptr<tfg_llvm_t>>> *function_tfg_map, set<string> const *function_call_chain, map<shared_ptr<tfg_edge const>, Instruction *>& eimap)
 {
   DYN_DEBUG(llvm2tfg, errs() << __func__ << " " << __LINE__ << " " << get_timestamp(as1, sizeof as1) << ": sym exec doing: " << I << "\n");
@@ -1478,15 +1493,30 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, shar
   case Instruction::Unreachable:
     //assert(false);
     break;
-  case Instruction::FDiv: {
-    NOT_IMPLEMENTED();
+  case Instruction::FDiv:
+  case Instruction::FMul:
+  case Instruction::FAdd:
+  case Instruction::FSub:
+  {
+    sort_ref isort = get_value_type(I, dl);
+    ASSERT(isort->is_bv_kind());
+    string iname = get_value_name(I);
+
+    Value const &op0 = *I.getOperand(0);
+    Value const &op1 = *I.getOperand(1);
+
+    expr_ref e0, e1;
+    tie(e0, state_assumes) = get_expr_adding_edges_for_intermediate_vals(op0, "", state(), state_assumes, from_node, pc_to, B, F, t);
+    tie(e1, state_assumes) = get_expr_adding_edges_for_intermediate_vals(op1, "", state(), state_assumes, from_node, pc_to, B, F, t);
+
+    expr_vector args;
+    args.push_back(e0);
+    args.push_back(e1);
+
+    state_set_expr(state_out, iname, m_ctx->mk_app(farith_to_operation_kind(I.getOpcode(), args), args));
     break;
   }
-  case Instruction::FMul: {
-    NOT_IMPLEMENTED();
-    break;
-  }
-  case Instruction::FAdd: {
+  case Instruction::FRem: {
     NOT_IMPLEMENTED();
     break;
   }
@@ -1509,14 +1539,6 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, shar
     args.push_back(e1);
 
     state_set_expr(state_out, iname, fcmp_to_expr(FI->getPredicate(), args));
-    break;
-  }
-  case Instruction::FSub: {
-    NOT_IMPLEMENTED();
-    break;
-  }
-  case Instruction::FRem: {
-    NOT_IMPLEMENTED();
     break;
   }
   case Instruction::FPToUI: {

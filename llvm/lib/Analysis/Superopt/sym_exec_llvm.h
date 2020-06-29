@@ -151,6 +151,7 @@ private:
   void populate_state_template(const llvm::Function& F);
   expr_ref fcmp_to_expr(llvm::FCmpInst::Predicate cmp_kind, const vector<expr_ref>& args) const;
   expr_ref icmp_to_expr(llvm::ICmpInst::Predicate k, const vector<expr_ref>& args) const;
+  expr::operation_kind farith_to_operation_kind(unsigned opcode, expr_vector const& args);
 
   //pc get_pc_from_bb_and_insn_id(llvm::BasicBlock const &B, size_t insn_id) const;
   vector<control_flow_transfer> expand_switch(tfg &t, shared_ptr<tfg_node> const &from_node, vector<control_flow_transfer> const &cfts, state const &state_to, unordered_set<expr_ref> const& cond_assumes, te_comment_t const& te_comment, llvm::Instruction * I, const llvm::BasicBlock& B, const llvm::Function& F, map<shared_ptr<tfg_edge const>, llvm::Instruction *>& eimap);
