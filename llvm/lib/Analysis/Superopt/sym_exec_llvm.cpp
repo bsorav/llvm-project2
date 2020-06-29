@@ -1520,7 +1520,26 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, shar
     break;
   }
   case Instruction::FPToUI: {
-    NOT_IMPLEMENTED();
+    FPToUIInst const *FI = cast<FPToUIInst const>(&I);
+    ASSERT(FI);
+    sort_ref isort = get_value_type(I, dl);
+    ASSERT(isort->is_bool_kind() || isort->is_bv_kind());
+    size_t target_size = isort->is_bool_kind() ? 1 : isort->get_size();
+    string iname = get_value_name(I);
+
+    Value const &op0 = *I.getOperand(0);
+
+    expr_ref e0;
+    tie(e0, state_assumes) = get_expr_adding_edges_for_intermediate_vals(op0, "", state(), state_assumes, from_node, pc_to, B, F, t);
+
+    expr_ref max_limit = m_ctx->mk_minusonebv(target_size);
+    expr_ref min_limit = m_ctx->mk_zerobv(target_size);
+
+    //add to state_assumes the conditions that op0 is within limits
+    state_assumes.insert(m_ctx->mk_fcmp_oge(e0, min_limit));
+    state_assumes.insert(m_ctx->mk_fcmp_ole(e0, max_limit));
+
+    state_set_expr(state_out, iname, m_ctx->mk_fp_to_ubv(e0, target_size));
     break;
   }
   case Instruction::FPToSI: {
