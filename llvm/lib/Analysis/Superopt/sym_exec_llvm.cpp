@@ -1568,11 +1568,25 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, shar
     break;
   }
   case Instruction::UIToFP: {
-    NOT_IMPLEMENTED();
+    sort_ref isort = get_value_type(I, dl);
+    ASSERT(isort->is_bool_kind() || isort->is_bv_kind());
+    size_t target_size = isort->is_bool_kind() ? 1 : isort->get_size();
+    string iname = get_value_name(I);
+    Value const &op0 = *I.getOperand(0);
+    expr_ref e0;
+    tie(e0, state_assumes) = get_expr_adding_edges_for_intermediate_vals(op0, "", state(), state_assumes, from_node, pc_to, B, F, t);
+    state_set_expr(state_out, iname, m_ctx->mk_ubv_to_fp(e0, target_size));
     break;
   }
   case Instruction::SIToFP: {
-    NOT_IMPLEMENTED();
+    sort_ref isort = get_value_type(I, dl);
+    ASSERT(isort->is_bool_kind() || isort->is_bv_kind());
+    size_t target_size = isort->is_bool_kind() ? 1 : isort->get_size();
+    string iname = get_value_name(I);
+    Value const &op0 = *I.getOperand(0);
+    expr_ref e0;
+    tie(e0, state_assumes) = get_expr_adding_edges_for_intermediate_vals(op0, "", state(), state_assumes, from_node, pc_to, B, F, t);
+    state_set_expr(state_out, iname, m_ctx->mk_sbv_to_fp(e0, target_size));
     break;
   }
   case Instruction::FPTrunc: {
