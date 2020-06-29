@@ -1153,6 +1153,8 @@ sym_exec_llvm::farith_to_operation_kind(unsigned opcode, expr_vector const& args
     return expr::OP_FADD;
   } else if (opcode == Instruction::FSub) {
     return expr::OP_FSUB;
+  } else if (opcode == Instruction::FRem) {
+    return expr::OP_FREM;
   }
   NOT_REACHED();
 }
@@ -1497,6 +1499,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, shar
   case Instruction::FMul:
   case Instruction::FAdd:
   case Instruction::FSub:
+  case Instruction::FRem:
   {
     sort_ref isort = get_value_type(I, dl);
     ASSERT(isort->is_bv_kind());
@@ -1514,10 +1517,6 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, shar
     args.push_back(e1);
 
     state_set_expr(state_out, iname, m_ctx->mk_app(farith_to_operation_kind(I.getOpcode(), args), args));
-    break;
-  }
-  case Instruction::FRem: {
-    NOT_IMPLEMENTED();
     break;
   }
   case Instruction::FCmp: {
