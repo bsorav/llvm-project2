@@ -1532,12 +1532,13 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, shar
     expr_ref e0;
     tie(e0, state_assumes) = get_expr_adding_edges_for_intermediate_vals(op0, "", state(), state_assumes, from_node, pc_to, B, F, t);
 
-    expr_ref max_limit = m_ctx->mk_minusonebv(target_size);
-    expr_ref min_limit = m_ctx->mk_zerobv(target_size);
+    long double max_limit = powl(2, target_size) - 1;
+    long double min_limit = 0;
 
+    ASSERT(e0->is_bv_sort());
     //add to state_assumes the conditions that op0 is within limits
-    state_assumes.insert(m_ctx->mk_fcmp_oge(e0, min_limit));
-    state_assumes.insert(m_ctx->mk_fcmp_ole(e0, max_limit));
+    state_assumes.insert(m_ctx->mk_fcmp_oge(e0, m_ctx->mk_fp_const(e0->get_sort()->get_size(), min_limit)));
+    state_assumes.insert(m_ctx->mk_fcmp_ole(e0, m_ctx->mk_fp_const(e0->get_sort()->get_size(), max_limit)));
 
     state_set_expr(state_out, iname, m_ctx->mk_fp_to_ubv(e0, target_size));
     break;
