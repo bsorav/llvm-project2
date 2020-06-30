@@ -2219,7 +2219,8 @@ sym_exec_llvm::add_edges(const llvm::BasicBlock& B, tfg_llvm_t& t, const llvm::F
     }
 
     if (isa<CallInst>(I) && cast<CallInst>(I).getIntrinsicID() == Intrinsic::unseq_noalias) {
-      NOT_IMPLEMENTED();
+      //NOT_IMPLEMENTED();
+      continue;
     }
 
     shared_ptr<tfg_node> from_node = make_shared<tfg_node>(pc_from);

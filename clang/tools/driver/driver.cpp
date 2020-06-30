@@ -366,13 +366,16 @@ int main(int argc_, const char **argv_) {
     }
   }
 
-  CPP_DBG_EXEC(CLANG_DRIVER, llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": argv[0] = " << argv[0] << ", argv.size() = " << argv.size() << "\n");
-  CPP_DBG_EXEC(CLANG_DRIVER,
+  DYN_DEBUG(clang_driver, llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": argv[0] = " << argv[0] << ", argv.size() = " << argv.size() << "\n");
+  DYN_DEBUG(clang_driver,
       for (size_t i = 0; i < argv.size(); i++) {
         llvm::errs() << "argv[" << i << "] = " << argv[i] << "\n";
       }
   );
-  CPP_DBG_EXEC(CLANG_DRIVER, llvm::errs() << "\n");
+  DYN_DEBUG(clang_driver, llvm::errs() << "\n");
+      for (size_t i = 0; i < argv.size(); i++) {
+        llvm::errs() << "argv[" << i << "] = " << argv[i] << "\n";
+      }
   llvm::InitializeAllTargets();
   auto TargetAndMode = ToolChain::getTargetAndModeFromProgramName(argv[0]);
 

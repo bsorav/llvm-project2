@@ -1,4 +1,3 @@
-//===--- Options.td - Options for clang -----------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -255,9 +254,6 @@ def internal_debug_Group :
 
 class InternalDriverOpt : Group<internal_driver_Group>,
   Flags<[DriverOption, HelpHidden]>;
-def dyn_debug : Joined<["--"], "dyn_debug=">, Group<internal_driver_Group>,
-  Flags<[CoreOption, DriverOption, HelpHidden]>,
-  HelpText<"Enable dynamic debugging for debug-class(es).  Expects comma-separated list of debug-classes with optional level e.g. --dyn_debug=compute_liveness,sprels,alias_analysis=2 ">;
 def driver_mode : Joined<["--"], "driver-mode=">, Group<internal_driver_Group>,
   Flags<[CoreOption, DriverOption, HelpHidden]>,
   HelpText<"Set the driver mode to either 'gcc', 'g++', 'cpp', or 'cl'">;
@@ -276,6 +272,7 @@ def ccc_print_phases : Flag<["-"], "ccc-print-phases">, InternalDebugOpt,
   HelpText<"Dump list of actions to perform">;
 def ccc_print_bindings : Flag<["-"], "ccc-print-bindings">, InternalDebugOpt,
   HelpText<"Show bindings of tools to actions">;
+
 
 def ccc_arcmt_check : Flag<["-"], "ccc-arcmt-check">, InternalDriverOpt,
   HelpText<"Check for ARC migration issues that need manual handling">;
@@ -3308,6 +3305,10 @@ multiclass BooleanFFlag<string name> {
 defm : BooleanFFlag<"keep-inline-functions">, Group<clang_ignored_gcc_optimization_f_Group>;
 
 def fprofile_dir : Joined<["-"], "fprofile-dir=">, Group<f_Group>;
+
+def dyn_debug : JoinedOrSeparate<["--"], "dyn_debug=">, Group<Preprocessor_Group>,
+  Flags<[CoreOption,DriverOption,CC1Option,HelpHidden]>,
+  HelpText<"Enable dynamic debugging for debug-class(es).  Expects comma-separated list of debug-classes with optional level e.g. --dyn_debug=compute_liveness,sprels,alias_analysis=2">;
 
 def fuse_ld_EQ : Joined<["-"], "fuse-ld=">, Group<f_Group>, Flags<[CoreOption]>;
 

@@ -44,6 +44,7 @@
 //#include "llvm/Support/mydebug.h"
 
 #include "support/debug.h"
+#include "support/dyn_debug.h"
 
 #ifdef LLVM_ON_UNIX
 #include <unistd.h> // For getuid().
@@ -3950,11 +3951,11 @@ Clang::ConstructCommand(Compilation & C, const JobAction &JA,
   const llvm::Triple &RawTriple = TC.getTriple();
   const llvm::Triple &Triple = TC.getEffectiveTriple();
   const std::string &TripleStr = Triple.getTriple();
-  CPP_DBG_EXEC(CLANG_DRIVER, llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": entry\n");
-  CPP_DBG_EXEC(CLANG_DRIVER, llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": JA.getKind() = " <<
+  DYN_DEBUG(clang_driver, llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": entry\n");
+  DYN_DEBUG(clang_driver, llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": JA.getKind() = " <<
                         Action::getClassName(JA.getKind()) << "\n");
-  CPP_DBG_EXEC(CLANG_DRIVER, llvm::errs() << "Inputs:\n");
-  CPP_DBG_EXEC(CLANG_DRIVER, 
+  DYN_DEBUG(clang_driver, llvm::errs() << "Inputs:\n");
+  DYN_DEBUG(clang_driver,
       for (auto const& Input : Inputs) {
         llvm::errs() << "  " << Input.getAsString() << "\n";
       }
@@ -4185,7 +4186,7 @@ Clang::ConstructCommand(Compilation & C, const JobAction &JA,
   } else if (isa<VerifyPCHJobAction>(JA)) {
     CmdArgs.push_back("-verify-pch");
   } else {
-    CPP_DBG_EXEC(CLANG_DRIVER, llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ":\n");
+    DYN_DEBUG(clang_driver, llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ":\n");
     assert((isa<CompileJobAction>(JA) || isa<BackendJobAction>(JA)) &&
            "Invalid action for clang tool.");
     if (JA.getType() == types::TY_Nothing) {
@@ -7183,17 +7184,17 @@ Qcc::ConstructJob(Compilation &C, const JobAction &JA,
                   const llvm::opt::ArgList &TCArgs,
                   const char *LinkingOutput) const
 {
-  CPP_DBG_EXEC(CLANG_DRIVER, llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": JA.getKind() = " <<
+  DYN_DEBUG(clang_driver, llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": JA.getKind() = " <<
                         Action::getClassName(JA.getKind()) << "\n");
   const auto &TC = getToolChain();
   const llvm::Triple &RawTriple = TC.getTriple();
   const llvm::Triple &Triple = TC.getEffectiveTriple();
   const std::string &TripleStr = Triple.getTriple();
-  CPP_DBG_EXEC(CLANG_DRIVER, llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": entry. TripleStr = " << TripleStr << "\n");
+  DYN_DEBUG(clang_driver, llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": entry. TripleStr = " << TripleStr << "\n");
   const Driver &D = TC.getDriver();
   // Check number of inputs for sanity. We need at least one input.
   assert(Inputs.size() >= 1 && "Must have at least one input.");
-  
+ 
   //llvm::errs() << "TCArgs:\n";
   //for (auto Arg : TCArgs) {
   //  llvm::errs() << "  " << Arg->getValue() << "\n";
