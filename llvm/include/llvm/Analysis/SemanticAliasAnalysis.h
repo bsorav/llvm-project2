@@ -24,6 +24,7 @@ public:
 
   AliasResult alias(const MemoryLocation &LocA, const MemoryLocation &LocB, AAQueryInfo &AAQI);
   static AliasResult convertTfgAliasResultToAliasResult(tfg_alias_result_t tfg_alias_result);
+  static std::string get_function_name(Value const * ptrA, Value const * ptrB);
 };
 
 /// Analysis pass providing a never-invalidated alias analysis result.

@@ -59,7 +59,9 @@ AliasResult
 SemanticAAResult::alias(const MemoryLocation &LocA,
                         const MemoryLocation &LocB,
                         AAQueryInfo &AAQI) {
-  DYN_DEBUG(disableSemanticAA,
+  DYN_DEBUG2(aliasAnalysis, std::cout << "SemanticAAResult::" << __func__ << " " << __LINE__ << ": LocA = " << sym_exec_common::get_value_name(*LocA.Ptr) << "\n");
+  DYN_DEBUG2(aliasAnalysis, std::cout << "SemanticAAResult::" << __func__ << " " << __LINE__ << ": LocB = " << sym_exec_common::get_value_name(*LocB.Ptr) << "\n");
+  DYN_DEBUG_MUTE(disableSemanticAA,
     // Forward the query to the next analysis.
     return AAResultBase::alias(LocA, LocB, AAQI);
   );
@@ -86,8 +88,8 @@ SemanticAAResult::alias(const MemoryLocation &LocA,
   DYN_DEBUG2(aliasAnalysis, std::cout << "SemanticAAResult::" << __func__ << " " << __LINE__ << ": LocA = " << nameA << "\n");
   DYN_DEBUG2(aliasAnalysis, std::cout << "SemanticAAResult::" << __func__ << " " << __LINE__ << ": LocB = " << nameB << "\n");
 
-  uint64_t sizeA = LocA.Size.hasValue() ? LocA.Size.getValue() : (uint64_t)-1;
-  uint64_t sizeB = LocB.Size.hasValue() ? LocB.Size.getValue() : (uint64_t)-1;
+  uint64_t sizeA = LocA.Size.isPrecise() ? LocA.Size.getValue() : (uint64_t)-1;
+  uint64_t sizeB = LocB.Size.isPrecise() ? LocB.Size.getValue() : (uint64_t)-1;
 
   return convertTfgAliasResultToAliasResult(tfg_llvm_t::get_aliasing_relationship_between_memaccesses(*m_function_tfg_map, fname, nameA, sizeA, nameB, sizeB));
 
@@ -113,7 +115,8 @@ SemanticAAWrapperPass::SemanticAAWrapperPass() : ImmutablePass(ID) {
 
 bool SemanticAAWrapperPass::doInitialization(Module &M)
 {
-  DYN_DEBUG(disableSemanticAA,
+  DYN_DEBUG(aliasAnalysis, std::cout << "SemanticAAResult::doInitialization() called\n");
+  DYN_DEBUG_MUTE(disableSemanticAA,
     Result.reset(new SemanticAAResult(nullptr));
     return false
   );
@@ -140,4 +143,24 @@ bool SemanticAAWrapperPass::doFinalization(Module &M)
 
 void SemanticAAWrapperPass::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.setPreservesAll();
+}
+
+std::string
+SemanticAAResult::get_function_name(Value const * ptrA, Value const * ptrB)
+{
+  Instruction const* iA = dyn_cast<Instruction>(ptrA);
+  if (iA) {
+    BasicBlock const* bb = iA->getParent();
+    ASSERT(bb);
+    Function const* f = bb->getParent();
+    return f->getName().str();
+  }
+  Instruction const* iB = dyn_cast<Instruction>(ptrB);
+  if (iB) {
+    BasicBlock const* bb = iB->getParent();
+    ASSERT(bb);
+    Function const* f = bb->getParent();
+    return f->getName().str();
+  }
+  return "<global>";
 }

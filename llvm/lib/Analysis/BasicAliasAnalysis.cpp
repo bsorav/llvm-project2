@@ -248,11 +248,13 @@ static uint64_t getMinimalExtentFrom(const Value &V,
   // the "or null" part if null is a valid pointer.
   bool CanBeNull;
   uint64_t DerefBytes = V.getPointerDereferenceableBytes(DL, CanBeNull);
+  DYN_DEBUG3(aliasAnalysis, std::cout << "DerefBytes = " << DerefBytes << ", CanBeNull = " << CanBeNull << ", NullIsValidLoc = " << NullIsValidLoc << endl);
   DerefBytes = (CanBeNull && NullIsValidLoc) ? 0 : DerefBytes;
   // If queried with a precise location size, we assume that location size to be
   // accessed, thus valid.
   if (LocSize.isPrecise())
     DerefBytes = std::max(DerefBytes, LocSize.getValue());
+  DYN_DEBUG3(aliasAnalysis, std::cout << "DerefBytes = " << DerefBytes << ", CanBeNull = " << CanBeNull << ", NullIsValidLoc = " << NullIsValidLoc << endl);
   return DerefBytes;
 }
 
@@ -861,17 +863,21 @@ AliasResult BasicAAResult::alias(const MemoryLocation &LocA,
   // through this once, so just return the cached results. Notably, when this
   // happens, we don't clear the cache.
   auto CacheIt = AAQI.AliasCache.find(AAQueryInfo::LocPair(LocA, LocB));
-  if (CacheIt != AAQI.AliasCache.end())
+  if (CacheIt != AAQI.AliasCache.end()) {
+    DYN_DEBUG2(aliasAnalysis, std::cout << "BasicAAResult::" << __func__ << " " << __LINE__ << ": returning " << CacheIt->second << endl);
     return CacheIt->second;
+  }
 
   CacheIt = AAQI.AliasCache.find(AAQueryInfo::LocPair(LocB, LocA));
-  if (CacheIt != AAQI.AliasCache.end())
+  if (CacheIt != AAQI.AliasCache.end()) {
+    DYN_DEBUG2(aliasAnalysis, std::cout << "BasicAAResult::" << __func__ << " " << __LINE__ << ": returning " << CacheIt->second << endl);
     return CacheIt->second;
-
+  }
   AliasResult Alias = aliasCheck(LocA.Ptr, LocA.Size, LocA.AATags, LocB.Ptr,
                                  LocB.Size, LocB.AATags, AAQI);
 
   VisitedPhiBBs.clear();
+  DYN_DEBUG2(aliasAnalysis, std::cout << "BasicAAResult::" << __func__ << " " << __LINE__ << ": returning " << Alias << endl);
   return Alias;
 }
 
@@ -1761,8 +1767,10 @@ AliasResult BasicAAResult::aliasCheck(const Value *V1, LocationSize V1Size,
                                       const Value *O2) {
   // If either of the memory references is empty, it doesn't matter what the
   // pointer values are.
-  if (V1Size.isZero() || V2Size.isZero())
+  if (V1Size.isZero() || V2Size.isZero()) {
+    DYN_DEBUG2(aliasAnalysis, std::cout << "BasicAAResult::" << __func__ << " " << __LINE__ << ": returning NoAlias because size is 0 for one of them\n");
     return NoAlias;
+  }
 
   // Strip off any casts if they exist.
   V1 = V1->stripPointerCastsAndInvariantGroups();
@@ -1770,8 +1778,10 @@ AliasResult BasicAAResult::aliasCheck(const Value *V1, LocationSize V1Size,
 
   // If V1 or V2 is undef, the result is NoAlias because we can always pick a
   // value for undef that aliases nothing in the program.
-  if (isa<UndefValue>(V1) || isa<UndefValue>(V2))
+  if (isa<UndefValue>(V1) || isa<UndefValue>(V2)) {
+    DYN_DEBUG2(aliasAnalysis, std::cout << "BasicAAResult::" << __func__ << " " << __LINE__ << ": returning NoAlias because one of them is an undef value\n");
     return NoAlias;
+  }
 
   // Are we checking for alias of the same value?
   // Because we look 'through' phi nodes, we could look at "Value" pointers from
@@ -1779,11 +1789,15 @@ AliasResult BasicAAResult::aliasCheck(const Value *V1, LocationSize V1Size,
   // case. The function isValueEqualInPotentialCycles ensures that this cannot
   // happen by looking at the visited phi nodes and making sure they cannot
   // reach the value.
-  if (isValueEqualInPotentialCycles(V1, V2))
+  if (isValueEqualInPotentialCycles(V1, V2)) {
+    DYN_DEBUG2(aliasAnalysis, std::cout << "BasicAAResult::" << __func__ << " " << __LINE__ << ": returning mustAlias\n");
     return MustAlias;
+  }
 
-  if (!V1->getType()->isPointerTy() || !V2->getType()->isPointerTy())
+  if (!V1->getType()->isPointerTy() || !V2->getType()->isPointerTy()) {
+    DYN_DEBUG2(aliasAnalysis, std::cout << "BasicAAResult::" << __func__ << " " << __LINE__ << ": returning NoAlias\n");
     return NoAlias; // Scalars cannot alias each other
+  }
 
   // Figure out what objects these things are pointing to if we can.
   if (O1 == nullptr)
@@ -1794,28 +1808,41 @@ AliasResult BasicAAResult::aliasCheck(const Value *V1, LocationSize V1Size,
 
   // Null values in the default address space don't point to any object, so they
   // don't alias any other pointer.
-  if (const ConstantPointerNull *CPN = dyn_cast<ConstantPointerNull>(O1))
-    if (!NullPointerIsDefined(&F, CPN->getType()->getAddressSpace()))
+  if (const ConstantPointerNull *CPN = dyn_cast<ConstantPointerNull>(O1)) {
+    if (!NullPointerIsDefined(&F, CPN->getType()->getAddressSpace())) {
+      DYN_DEBUG2(aliasAnalysis, std::cout << "BasicAAResult::" << __func__ << " " << __LINE__ << ": returning NoAlias\n");
       return NoAlias;
-  if (const ConstantPointerNull *CPN = dyn_cast<ConstantPointerNull>(O2))
-    if (!NullPointerIsDefined(&F, CPN->getType()->getAddressSpace()))
+    }
+  }
+
+  if (const ConstantPointerNull *CPN = dyn_cast<ConstantPointerNull>(O2)) {
+    if (!NullPointerIsDefined(&F, CPN->getType()->getAddressSpace())) {
+      DYN_DEBUG2(aliasAnalysis, std::cout << "BasicAAResult::" << __func__ << " " << __LINE__ << ": returning NoAlias\n");
       return NoAlias;
+    }
+  }
 
   if (O1 != O2) {
     // If V1/V2 point to two different objects, we know that we have no alias.
-    if (isIdentifiedObject(O1) && isIdentifiedObject(O2))
+    if (isIdentifiedObject(O1) && isIdentifiedObject(O2)) {
+      DYN_DEBUG2(aliasAnalysis, std::cout << "BasicAAResult::" << __func__ << " " << __LINE__ << ": returning NoAlias\n");
       return NoAlias;
+    }
 
     // Constant pointers can't alias with non-const isIdentifiedObject objects.
     if ((isa<Constant>(O1) && isIdentifiedObject(O2) && !isa<Constant>(O2)) ||
-        (isa<Constant>(O2) && isIdentifiedObject(O1) && !isa<Constant>(O1)))
+        (isa<Constant>(O2) && isIdentifiedObject(O1) && !isa<Constant>(O1))) {
+      DYN_DEBUG2(aliasAnalysis, std::cout << "BasicAAResult::" << __func__ << " " << __LINE__ << ": returning NoAlias\n");
       return NoAlias;
+    }
 
     // Function arguments can't alias with things that are known to be
     // unambigously identified at the function level.
     if ((isa<Argument>(O1) && isIdentifiedFunctionLocal(O2)) ||
-        (isa<Argument>(O2) && isIdentifiedFunctionLocal(O1)))
+        (isa<Argument>(O2) && isIdentifiedFunctionLocal(O1))) {
+      DYN_DEBUG2(aliasAnalysis, std::cout << "BasicAAResult::" << __func__ << " " << __LINE__ << ": returning NoAlias\n");
       return NoAlias;
+    }
 
     // If one pointer is the result of a call/invoke or load and the other is a
     // non-escaping local object within the same function, then we know the
@@ -1827,11 +1854,15 @@ AliasResult BasicAAResult::aliasCheck(const Value *V1, LocationSize V1Size,
     // location if that memory location doesn't escape. Or it may pass a
     // nocapture value to other functions as long as they don't capture it.
     if (isEscapeSource(O1) &&
-        isNonEscapingLocalObject(O2, &AAQI.IsCapturedCache))
+        isNonEscapingLocalObject(O2, &AAQI.IsCapturedCache)) {
+      DYN_DEBUG2(aliasAnalysis, std::cout << "BasicAAResult::" << __func__ << " " << __LINE__ << ": returning NoAlias\n");
       return NoAlias;
+    }
     if (isEscapeSource(O2) &&
-        isNonEscapingLocalObject(O1, &AAQI.IsCapturedCache))
+        isNonEscapingLocalObject(O1, &AAQI.IsCapturedCache)) {
+      DYN_DEBUG2(aliasAnalysis, std::cout << "BasicAAResult::" << __func__ << " " << __LINE__ << ": returning NoAlias\n");
       return NoAlias;
+    }
   }
 
   // If the size of one access is larger than the entire object on the other
@@ -1842,8 +1873,12 @@ AliasResult BasicAAResult::aliasCheck(const Value *V1, LocationSize V1Size,
           TLI, NullIsValidLocation)) ||
       (isObjectSmallerThan(
           O1, getMinimalExtentFrom(*V2, V2Size, DL, NullIsValidLocation), DL,
-          TLI, NullIsValidLocation)))
+          TLI, NullIsValidLocation))) {
+    DYN_DEBUG2(aliasAnalysis, std::cout << "BasicAAResult::" << __func__ << " " << __LINE__ << ": getMinimalExtentFrom(*V1) = " << getMinimalExtentFrom(*V1, V1Size, DL, NullIsValidLocation) << ", isObjectSmallerThan(O2, getMinimalExtentFrom(*V1)) = " << (isObjectSmallerThan(O2, getMinimalExtentFrom(*V1, V1Size, DL, NullIsValidLocation), DL, TLI, NullIsValidLocation)) << endl);
+    DYN_DEBUG2(aliasAnalysis, std::cout << "BasicAAResult::" << __func__ << " " << __LINE__ << ": getMinimalExtentFrom(*V2) = " << getMinimalExtentFrom(*V2, V2Size, DL, NullIsValidLocation) << ", isObjectSmallerThan(O1, getMinimalExtentFrom(*V2)) = " << (isObjectSmallerThan(O1, getMinimalExtentFrom(*V2, V2Size, DL, NullIsValidLocation), DL, TLI, NullIsValidLocation)) << endl);
+    DYN_DEBUG2(aliasAnalysis, std::cout << "BasicAAResult::" << __func__ << " " << __LINE__ << ": returning NoAlias\n");
     return NoAlias;
+  }
 
   // Check the cache before climbing up use-def chains. This also terminates
   // otherwise infinitely recursive queries.
@@ -1853,8 +1888,10 @@ AliasResult BasicAAResult::aliasCheck(const Value *V1, LocationSize V1Size,
     std::swap(Locs.first, Locs.second);
   std::pair<AAQueryInfo::AliasCacheT::iterator, bool> Pair =
       AAQI.AliasCache.try_emplace(Locs, MayAlias);
-  if (!Pair.second)
+  if (!Pair.second) {
+    DYN_DEBUG2(aliasAnalysis, std::cout << "BasicAAResult::" << __func__ << " " << __LINE__ << ": returning " << Pair.first->second << "\n");
     return Pair.first->second;
+  }
 
   // FIXME: This isn't aggressively handling alias(GEP, PHI) for example: if the
   // GEP can't simplify, we don't even look at the PHI cases.
@@ -1871,6 +1908,7 @@ AliasResult BasicAAResult::aliasCheck(const Value *V1, LocationSize V1Size,
       auto ItInsPair = AAQI.AliasCache.insert(std::make_pair(Locs, Result));
       assert(!ItInsPair.second && "Entry must have existed");
       ItInsPair.first->second = Result;
+      DYN_DEBUG2(aliasAnalysis, std::cout << "BasicAAResult::" << __func__ << " " << __LINE__ << ": returning " << Result << "\n");
       return Result;
     }
   }
@@ -1887,6 +1925,7 @@ AliasResult BasicAAResult::aliasCheck(const Value *V1, LocationSize V1Size,
     if (Result != MayAlias) {
       Pair = AAQI.AliasCache.try_emplace(Locs, Result);
       assert(!Pair.second && "Entry must have existed");
+      DYN_DEBUG2(aliasAnalysis, std::cout << "BasicAAResult::" << __func__ << " " << __LINE__ << ": returning " << Result << "\n");
       return Pair.first->second = Result;
     }
   }
@@ -1903,6 +1942,7 @@ AliasResult BasicAAResult::aliasCheck(const Value *V1, LocationSize V1Size,
     if (Result != MayAlias) {
       Pair = AAQI.AliasCache.try_emplace(Locs, Result);
       assert(!Pair.second && "Entry must have existed");
+      DYN_DEBUG2(aliasAnalysis, std::cout << "BasicAAResult::" << __func__ << " " << __LINE__ << ": returning " << Result << "\n");
       return Pair.first->second = Result;
     }
   }
@@ -1915,6 +1955,7 @@ AliasResult BasicAAResult::aliasCheck(const Value *V1, LocationSize V1Size,
          isObjectSize(O2, V2Size.getValue(), DL, TLI, NullIsValidLocation))) {
       Pair = AAQI.AliasCache.try_emplace(Locs, PartialAlias);
       assert(!Pair.second && "Entry must have existed");
+      DYN_DEBUG2(aliasAnalysis, std::cout << "BasicAAResult::" << __func__ << " " << __LINE__ << ": returning PartialAlias\n");
       return Pair.first->second = PartialAlias;
     }
 
@@ -1924,6 +1965,7 @@ AliasResult BasicAAResult::aliasCheck(const Value *V1, LocationSize V1Size,
   AliasResult Result = getBestAAResults().alias(Locs.first, Locs.second, AAQI);
   Pair = AAQI.AliasCache.try_emplace(Locs, Result);
   assert(!Pair.second && "Entry must have existed");
+  DYN_DEBUG2(aliasAnalysis, std::cout << "BasicAAResult::" << __func__ << " " << __LINE__ << ": returning " << Result << "\n");
   return Pair.first->second = Result;
 }
 

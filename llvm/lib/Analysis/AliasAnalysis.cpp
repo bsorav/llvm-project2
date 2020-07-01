@@ -115,18 +115,19 @@ AliasResult AAResults::alias(const MemoryLocation &LocA,
 
 AliasResult AAResults::alias(const MemoryLocation &LocA,
                              const MemoryLocation &LocB, AAQueryInfo &AAQI) {
-  DYN_DEBUG(aliasAnalysis, std::cout << "AAResults::" << __func__ << " " << __LINE__ << ": LocA = " << sym_exec_common::get_value_name(*LocA.Ptr) << ", LocB = " << sym_exec_common::get_value_name(*LocB.Ptr) << "\n");
+  DYN_DEBUG(aliasAnalysis, std::cout << "AAResults::" << __func__ << " " << __LINE__ << ": LocA = " << sym_exec_common::get_value_name(*LocA.Ptr) << " (size " << (LocA.Size.isPrecise() ? LocA.Size.getValue() : (uint64_t)-1) << "), LocB = " << sym_exec_common::get_value_name(*LocB.Ptr) << " (size " << (LocB.Size.isPrecise() ? LocB.Size.getValue() : (uint64_t)-1) << ")\n");
   for (const auto &AA : AAs) {
     auto Result = AA->alias(LocA, LocB, AAQI);
     if (Result != MayAlias) {
       DYN_DEBUG(aliasAnalysis, std::cout << "AAResults::" << __func__ << " " << __LINE__ << ": Result = " << Result << ". LocA = " << sym_exec_common::get_value_name(*LocA.Ptr) << ", LocB = " << sym_exec_common::get_value_name(*LocB.Ptr) << "\n");
-      DYN_DEBUG_MUTE(checkSemanticAlias,
+      DYN_DEBUG_MUTE(checkSemanticAA,
         bool found = false;
         for (auto const& SAA : AAs) {
           if (SAA->isSemanticAA()) {
             found = true;
+            std::string function_name = SemanticAAResult::get_function_name(LocA.Ptr, LocB.Ptr);
             if (SAA->alias(LocA, LocB, AAQI) == MayAlias) {
-              std::cout << "WARNING: Syntactic alias analysis returning " << Result << " but Semantic alias analysis returning MayAlias. LocA = " << sym_exec_common::get_value_name(*LocA.Ptr) << ", LocB = " << sym_exec_common::get_value_name(*LocB.Ptr) << "\n";
+              std::cout << "WARNING: Syntactic alias analysis returning " << Result << " but Semantic alias analysis returning MayAlias. Function '" << function_name << "', LocA = " << sym_exec_common::get_value_name(*LocA.Ptr) << " (size " << (LocA.Size.isPrecise() ? LocA.Size.getValue() : (uint64_t)-1) << "), LocB = " << sym_exec_common::get_value_name(*LocB.Ptr) << " (size " << (LocB.Size.isPrecise() ? LocB.Size.getValue() : (uint64_t)-1) << ")\n";
             }
           }
         }
