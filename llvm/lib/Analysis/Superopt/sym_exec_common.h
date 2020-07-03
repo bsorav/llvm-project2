@@ -132,7 +132,6 @@ protected:
   static string gep_name_prefix(string const &name, pc const &from_pc, pc const &pc_to, int argnum);
   //expr_ref __get_expr_adding_edges_for_intermediate_vals_helper(const llvm::Value& v, string vname, const state& state_in, shared_ptr<tfg_node> *from_node, pc const &pc_to, llvm::BasicBlock const *B, llvm::Function const *F, tfg *t);
   bool function_belongs_to_program(string const &fun_name) const;
-  string constgep_instruction_get_intermediate_value_name(string base_name, unsigned index_counter, int intermediate_value_num);
 
   //llvm::BasicBlock const *get_basic_block_for_pc(const llvm::Function& F, pc const &p);
 
