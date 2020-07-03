@@ -46,6 +46,7 @@ string
 SemanticAAResult::memory_location_get_name(MemoryLocation const& l) const
 {
   llvm_value_id_t llvm_value_id = sym_exec_llvm::get_llvm_value_id_for_value(l.Ptr);
+  DYN_DEBUG2(aliasAnalysis, std::cout << "SemanticAAResult::" << __func__ << " " << __LINE__ << ": llvm_value_id = " << llvm_value_id.llvm_value_id_to_string() << "\n");
   if (m_value_to_name_map && m_value_to_name_map->count(llvm_value_id)) {
     return m_value_to_name_map->at(llvm_value_id)->get_str();
   }

@@ -1909,11 +1909,11 @@ sym_exec_llvm::exec_gen_expr(const llvm::Instruction& I/*, string Iname*/, const
     if (value_to_name_map) {
       llvm_value_id_t llvm_value_id = sym_exec_llvm::get_llvm_value_id_for_value((Value const*)&I);
 
-      //errs() << "llvm_value_id = " << llvm_value_id.llvm_value_id_to_string() << ": total_offset_name = " << total_offset_name << "\n";
+      DYN_DEBUG(value_to_name_map_dbg, std::cout << "llvm_value_id = " << llvm_value_id.llvm_value_id_to_string() << ": total_offset_name = " << total_offset_name << "\n");
 
       if (value_to_name_map->count(llvm_value_id) && value_to_name_map->at(llvm_value_id) != mk_string_ref(total_offset_name)) {
-        //errs() << "llvm_value_id = " << llvm_value_id.llvm_value_id_to_string() << ": total_offset_name = " << total_offset_name << "\n";
-        //errs() << "llvm_value_id = " << llvm_value_id.llvm_value_id_to_string() << ": value_to_name_map->at(llvm_value_id) = " << value_to_name_map->at(llvm_value_id)->get_str() << "\n";
+        errs() << "llvm_value_id = " << llvm_value_id.llvm_value_id_to_string() << ": total_offset_name = " << total_offset_name << "\n";
+        errs() << "llvm_value_id = " << llvm_value_id.llvm_value_id_to_string() << ": value_to_name_map->at(llvm_value_id) = " << value_to_name_map->at(llvm_value_id)->get_str() << "\n";
       }
       ASSERT(!value_to_name_map->count(llvm_value_id) || value_to_name_map->at(llvm_value_id) == mk_string_ref(total_offset_name));
       value_to_name_map->insert(make_pair(llvm_value_id, mk_string_ref(total_offset_name)));
@@ -2993,10 +2993,14 @@ sym_exec_llvm::get_llvm_value_id_for_value(Value const* v)
 {
   ASSERT(v);
   string valname;
-  if (isa<Instruction>(v)) {
+  if (Instruction const* I = (Instruction const*)dyn_cast<Instruction>(v)) {
     raw_string_ostream ss(valname);
-    Instruction const* I = dyn_cast<Instruction>(v);
     ss << *I;
+  } else if (ConstantExpr const* ce = (ConstantExpr const*)dyn_cast<const ConstantExpr>(v)) {
+    Instruction* I = ce->getAsInstruction();
+    raw_string_ostream ss(valname);
+    ss << *I;
+    I->deleteValue();
   } else { 
     valname = sym_exec_common::get_value_name(*v);
   }
