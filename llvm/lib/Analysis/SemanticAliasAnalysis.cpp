@@ -8,6 +8,7 @@
 #include "Superopt/sym_exec_llvm.h"
 
 #include "tfg/tfg_llvm.h"
+#include "ptfg/llvm_value_id.h"
 
 using namespace llvm;
 
@@ -32,35 +33,34 @@ SemanticAAResult::convertTfgAliasResultToAliasResult(tfg_alias_result_t tfg_alia
 }
 
 #ifndef NDEBUG
-static const Function *getParent(const Value *V) {
-  if (const Instruction *inst = dyn_cast<Instruction>(V)) {
-    if (!inst->getParent())
-      return nullptr;
-    return inst->getParent()->getParent();
-  }
-
-  if (const Argument *arg = dyn_cast<Argument>(V))
-    return arg->getParent();
-
-  return nullptr;
-}
-
 static bool notDifferentParent(const Value *O1, const Value *O2) {
 
-  const Function *F1 = getParent(O1);
-  const Function *F2 = getParent(O2);
+  const Function *F1 = sym_exec_llvm::getParent(O1);
+  const Function *F2 = sym_exec_llvm::getParent(O2);
 
   return !F1 || !F2 || F1 == F2;
 }
 #endif
+
+string
+SemanticAAResult::memory_location_get_name(MemoryLocation const& l) const
+{
+  llvm_value_id_t llvm_value_id = sym_exec_llvm::get_llvm_value_id_for_value(l.Ptr);
+  if (m_value_to_name_map && m_value_to_name_map->count(llvm_value_id)) {
+    return m_value_to_name_map->at(llvm_value_id)->get_str();
+  }
+  return sym_exec_common::get_value_name(*l.Ptr);
+}
 
 
 AliasResult
 SemanticAAResult::alias(const MemoryLocation &LocA,
                         const MemoryLocation &LocB,
                         AAQueryInfo &AAQI) {
-  DYN_DEBUG2(aliasAnalysis, std::cout << "SemanticAAResult::" << __func__ << " " << __LINE__ << ": LocA = " << sym_exec_common::get_value_name(*LocA.Ptr) << "\n");
-  DYN_DEBUG2(aliasAnalysis, std::cout << "SemanticAAResult::" << __func__ << " " << __LINE__ << ": LocB = " << sym_exec_common::get_value_name(*LocB.Ptr) << "\n");
+  string nameA = memory_location_get_name(LocA);
+  string nameB = memory_location_get_name(LocB);
+  DYN_DEBUG2(aliasAnalysis, std::cout << "SemanticAAResult::" << __func__ << " " << __LINE__ << ": LocA = " << nameA << "\n");
+  DYN_DEBUG2(aliasAnalysis, std::cout << "SemanticAAResult::" << __func__ << " " << __LINE__ << ": LocB = " << nameB << "\n");
   DYN_DEBUG_MUTE(disableSemanticAA,
     // Forward the query to the next analysis.
     return AAResultBase::alias(LocA, LocB, AAQI);
@@ -69,8 +69,8 @@ SemanticAAResult::alias(const MemoryLocation &LocA,
   assert(notDifferentParent(LocA.Ptr, LocB.Ptr) &&
          "SemanticAliasAnalysis doesn't support interprocedural queries.");
 
-  Function const* F1 = getParent(LocA.Ptr);
-  Function const* F2 = getParent(LocB.Ptr);
+  Function const* F1 = sym_exec_llvm::getParent(LocA.Ptr);
+  Function const* F2 = sym_exec_llvm::getParent(LocB.Ptr);
   Function const* F = nullptr;
 
   if (F1) {
@@ -81,9 +81,6 @@ SemanticAAResult::alias(const MemoryLocation &LocA,
   }
 
   string fname = F ? F->getName().str() : "";
-
-  string nameA = sym_exec_common::get_value_name(*LocA.Ptr);
-  string nameB = sym_exec_common::get_value_name(*LocB.Ptr);
 
   DYN_DEBUG2(aliasAnalysis, std::cout << "SemanticAAResult::" << __func__ << " " << __LINE__ << ": LocA = " << nameA << "\n");
   DYN_DEBUG2(aliasAnalysis, std::cout << "SemanticAAResult::" << __func__ << " " << __LINE__ << ": LocB = " << nameB << "\n");
@@ -117,7 +114,7 @@ bool SemanticAAWrapperPass::doInitialization(Module &M)
 {
   DYN_DEBUG(aliasAnalysis, std::cout << "SemanticAAResult::doInitialization() called\n");
   DYN_DEBUG_MUTE(disableSemanticAA,
-    Result.reset(new SemanticAAResult(nullptr));
+    Result.reset(new SemanticAAResult(nullptr, nullptr));
     return false
   );
   //string const& fname = F.getName().str();
@@ -131,8 +128,10 @@ bool SemanticAAWrapperPass::doInitialization(Module &M)
     g_ctx_init();
   }
   ASSERT(g_ctx);
-  shared_ptr<SemanticAAResult::function_tfg_map_t const> function_tfg_map = make_shared<SemanticAAResult::function_tfg_map_t const>(sym_exec_llvm::get_function_tfg_map(&M, set<string>(), false, g_ctx));
-  Result.reset(new SemanticAAResult(function_tfg_map));
+
+  map<llvm_value_id_t, string_ref> value_to_name_map;
+  shared_ptr<SemanticAAResult::function_tfg_map_t const> function_tfg_map = make_shared<SemanticAAResult::function_tfg_map_t const>(sym_exec_llvm::get_function_tfg_map(&M, set<string>(), false, g_ctx, &value_to_name_map));
+  Result.reset(new SemanticAAResult(function_tfg_map, make_shared<map<llvm_value_id_t, string_ref> const>(value_to_name_map)));
   return false;
 }
 
@@ -148,6 +147,16 @@ void SemanticAAWrapperPass::getAnalysisUsage(AnalysisUsage &AU) const {
 std::string
 SemanticAAResult::get_function_name(Value const * ptrA, Value const * ptrB)
 {
+  Function const* fA = sym_exec_llvm::getParent(ptrA);
+  if (fA) {
+    return fA->getName().str();
+  }
+  Function const* fB = sym_exec_llvm::getParent(ptrB);
+  if (fB) {
+    return fB->getName().str();
+  }
+  return FNAME_GLOBAL_SPACE;
+/*
   Instruction const* iA = dyn_cast<Instruction>(ptrA);
   if (iA) {
     BasicBlock const* bb = iA->getParent();
@@ -163,4 +172,5 @@ SemanticAAResult::get_function_name(Value const * ptrA, Value const * ptrB)
     return f->getName().str();
   }
   return "<global>";
+*/
 }

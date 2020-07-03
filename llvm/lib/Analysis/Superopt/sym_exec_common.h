@@ -43,7 +43,7 @@ public:
   sort_ref get_mem_range() const;
   sort_ref get_mem_sort() const;
 
-  virtual unique_ptr<tfg_llvm_t> get_tfg(map<string, pair<callee_summary_t, unique_ptr<tfg_llvm_t>>> *function_tfg_map, set<string> const *function_call_chain, map<shared_ptr<tfg_edge const>, llvm::Instruction *>& eimap) = 0;
+  //virtual unique_ptr<tfg_llvm_t> get_tfg(map<string, pair<callee_summary_t, unique_ptr<tfg_llvm_t>>> *function_tfg_map, set<string> const *function_call_chain, map<shared_ptr<tfg_edge const>, llvm::Instruction *>& eimap) = 0;
   virtual pc get_start_pc() const = 0;
 
   void get_tfg_common(tfg &t);
@@ -88,10 +88,10 @@ protected:
   //template<typename FUNCTION, typename BASICBLOCK, typename INSTRUCTION>
   //void process_phi_nodes_second_half(tfg &t, const BASICBLOCK* B_from, const pc& p_to, shared_ptr<tfg_node> const &from_node, const FUNCTION& F, expr_ref edgecond, map<string, sort_ref> const &phi_regnames, unordered_set<expr_ref> const& assumes, te_comment_t const& te_comment, llvm::Instruction * I, map<shared_ptr<tfg_edge const>, llvm::Instruction *>& eimap);
 
-  virtual pair<expr_ref,unordered_set<expr_ref>> phiInstructionGetIncomingBlockValue(llvm::Instruction const &I/*, state const &start_state*/, shared_ptr<tfg_node> &pc_to_phi_node, pc const &pc_to, llvm::BasicBlock const *B_from, llvm::Function const &F, tfg &t)
-  {
-    NOT_REACHED(); //should be either overwritten or never called
-  }
+  //virtual pair<expr_ref,unordered_set<expr_ref>> phiInstructionGetIncomingBlockValue(llvm::Instruction const &I/*, state const &start_state*/, shared_ptr<tfg_node> &pc_to_phi_node, pc const &pc_to, llvm::BasicBlock const *B_from, llvm::Function const &F, tfg &t)
+  //{
+  //  NOT_REACHED(); //should be either overwritten or never called
+  //}
   virtual expr_ref phiInstructionGetIncomingBlockValue(llvm::MachineInstr const &I/*, state const &start_state*/, shared_ptr<tfg_node> &pc_to_phi_node, pc const &pc_to, llvm::MachineBasicBlock const *B_from, llvm::MachineFunction const &F, tfg &t)
   {
     NOT_REACHED(); //should be either overwritten or never called
@@ -132,7 +132,7 @@ protected:
   static string gep_name_prefix(string const &name, pc const &from_pc, pc const &pc_to, int argnum);
   //expr_ref __get_expr_adding_edges_for_intermediate_vals_helper(const llvm::Value& v, string vname, const state& state_in, shared_ptr<tfg_node> *from_node, pc const &pc_to, llvm::BasicBlock const *B, llvm::Function const *F, tfg *t);
   bool function_belongs_to_program(string const &fun_name) const;
-  string gep_instruction_get_intermediate_value_name(string base_name, unsigned index_counter, int intermediate_value_num);
+  string constgep_instruction_get_intermediate_value_name(string base_name, unsigned index_counter, int intermediate_value_num);
 
   //llvm::BasicBlock const *get_basic_block_for_pc(const llvm::Function& F, pc const &p);
 

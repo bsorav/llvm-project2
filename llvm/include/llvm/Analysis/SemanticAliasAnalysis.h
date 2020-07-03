@@ -7,6 +7,7 @@
 #include "llvm/IR/Module.h"
 #include "llvm/Pass.h"
 #include "tfg/tfg_llvm.h"
+#include "ptfg/llvm_value_id.h"
 
 #include <set>
 
@@ -17,10 +18,14 @@ public:
   using function_tfg_map_t = map<string, pair<callee_summary_t, unique_ptr<tfg_llvm_t>>>;
 private:
   shared_ptr<function_tfg_map_t const> m_function_tfg_map;
+  shared_ptr<map<llvm_value_id_t, string_ref> const> m_value_to_name_map;
+private:
+  std::string memory_location_get_name(MemoryLocation const& l) const;
+  static llvm_value_id_t get_llvm_value_id_for_value(Value const* v);
 public:
-  explicit SemanticAAResult(shared_ptr<function_tfg_map_t const> const& function_tfg_map) : AAResultBase(), m_function_tfg_map(function_tfg_map) {}
+  explicit SemanticAAResult(shared_ptr<function_tfg_map_t const> const& function_tfg_map, shared_ptr<map<llvm_value_id_t, string_ref> const> const& value_to_name_map) : AAResultBase(), m_function_tfg_map(function_tfg_map), m_value_to_name_map(value_to_name_map) {}
   SemanticAAResult(SemanticAAResult &&Arg)
-      : AAResultBase(std::move(Arg)), m_function_tfg_map(Arg.m_function_tfg_map) {}
+      : AAResultBase(std::move(Arg)), m_function_tfg_map(Arg.m_function_tfg_map), m_value_to_name_map(Arg.m_value_to_name_map) {}
 
   AliasResult alias(const MemoryLocation &LocA, const MemoryLocation &LocB, AAQueryInfo &AAQI);
   static AliasResult convertTfgAliasResultToAliasResult(tfg_alias_result_t tfg_alias_result);
