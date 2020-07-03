@@ -2985,6 +2985,12 @@ sym_exec_llvm::get_function_tfg_map(Module* M, set<string> FunNamesVec, bool Dis
     callee_summary_t csum = t_src->get_summary_for_calling_functions();
     function_tfg_map.insert(make_pair(fname, make_pair(csum, std::move(t_src))));
   }
+  DYN_DEBUG(get_function_tfg_map,
+    for (auto const& p : function_tfg_map) {
+      cout << __func__ << " " << __LINE__ << ": TFG for " << p.first << ":\n";
+      p.second.second->graph_to_stream(cout); cout << endl;
+    }
+  );
   return function_tfg_map;
 }
 
