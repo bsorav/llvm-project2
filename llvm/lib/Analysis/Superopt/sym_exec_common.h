@@ -65,8 +65,8 @@ public:
   bool gen_callee_summary() const { return m_gen_callee_summary; }
 
 protected:
-  te_comment_t phi_node_to_te_comment(bbl_order_descriptor_t const& bbo, int inum, llvm::Instruction const& I) const;
-  te_comment_t instruction_to_te_comment(llvm::Instruction const& I, pc const& from_pc, bbl_order_descriptor_t const& bbo) const;
+  te_comment_t phi_node_to_te_comment(/*bbl_order_descriptor_t const& bbo, */int inum, llvm::Instruction const& I) const;
+  te_comment_t instruction_to_te_comment(llvm::Instruction const& I, pc const& from_pc/*, bbl_order_descriptor_t const& bbo*/) const;
   expr_ref get_symbol_expr_for_global_var(string const &name, sort_ref const &sr);
 
   //template<typename FUNCTION, typename BASICBLOCK, typename INSTRUCTION>
@@ -211,7 +211,7 @@ protected:
   //map<pc, pc> m_next_phi_pc;
   map<pc, int> m_intermediate_subsubindex_map;
 
-  map<string_ref, bbl_order_descriptor_t> m_bbl_order_map; //map from bbl name to bbl_order_descriptor_t
+  //map<string_ref, bbl_order_descriptor_t> m_bbl_order_map; //map from bbl name to bbl_order_descriptor_t
 };
 
 

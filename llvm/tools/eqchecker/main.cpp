@@ -218,11 +218,11 @@ main(int argc, char **argv)
   outputStream.close();
   outputStream.flush();
 
-  ofstream llcopy;
-  llcopy.open(OutputFilename + ".ll", ios_base::out | ios_base::trunc);
-  llptfg.output_llvm_code(llcopy);
-  llcopy.close();
-  llcopy.flush();
+  //ofstream llcopy;
+  //llcopy.open(OutputFilename + ".ll", ios_base::out | ios_base::trunc);
+  //llptfg.output_llvm_code(llcopy);
+  //llcopy.close();
+  //llcopy.flush();
 
   CPP_DBG_EXEC2(STATS,
     print_all_timers();
