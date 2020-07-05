@@ -237,13 +237,13 @@ sym_exec_llvm::get_const_value_expr(const llvm::Value& v/*, string vname*/, cons
     ASSERT(!ret);
     ret = get_symbol_expr_for_global_var(name, sr);
     if (!ret) {
-      cout << __func__ << " " << __LINE__ << ": Warning: symbol not recognized. name = " << name << endl;
-      cout << __func__ << " " << __LINE__ << ": sort = " << get_value_type(v, m_module->getDataLayout())->to_string() << endl;
-      for (const auto &s : m_symbol_map->get_map()) {
-        cout << __func__ << " " << __LINE__ << ": sym = " << s.second.get_name()->get_str() << endl;
-      }
-      NOT_REACHED(); //could be a function pointer!
-      //ret = m_ctx->mk_var(name, get_value_type(v, m_module->getDataLayout()));
+      //cout << __func__ << " " << __LINE__ << ": Warning: symbol not recognized. name = " << name << endl;
+      //cout << __func__ << " " << __LINE__ << ": sort = " << get_value_type(v, m_module->getDataLayout())->to_string() << endl;
+      //for (const auto &s : m_symbol_map->get_map()) {
+      //  cout << __func__ << " " << __LINE__ << ": sym = " << s.second.get_name()->get_str() << endl;
+      //}
+      //NOT_REACHED(); //could be a function pointer!
+      ret = m_ctx->mk_var(string(LLVM_FUNCTION_NAME_PREFIX) + name, get_value_type(v, m_module->getDataLayout()));
     }
     ASSERT(ret);
 
@@ -1482,11 +1482,12 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, shar
       Value const *v = c->getCalledValue();
       Value const *sv = v->stripPointerCasts();
       fun_name = string(sv->getName());
+      tie(fun_expr, state_assumes) = get_expr_adding_edges_for_intermediate_vals(*v/*, ""*/, state_in, state_assumes, from_node/*, pc_to, B, F*/, t, value_to_name_map);
       if (fun_name != "") {
         fun_name = string(LLVM_FUNCTION_NAME_PREFIX) + fun_name;
-        //fun_expr = m_ctx->mk_var(fun_name, m_ctx->mk_bv_sort(DWORD_LEN));
+        //fun_expr = m_ctx->mk_var(fun_name, m_ctx->mk_bv_sort(DWORD_LEN)); //shortcut the expression (we are assuming the casts are meaningless). This is a hack, and should be removed at some point.
       }
-      tie(fun_expr, state_assumes) = get_expr_adding_edges_for_intermediate_vals(*v/*, ""*/, state_in, state_assumes, from_node/*, pc_to, B, F*/, t, value_to_name_map);
+
     } else {
       fun_name = calleeF->getName().str();
       fun_name = string(LLVM_FUNCTION_NAME_PREFIX) + fun_name;
