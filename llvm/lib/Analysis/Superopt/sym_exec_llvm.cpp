@@ -1483,7 +1483,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, shar
       fun_name = string(sv->getName());
       if (fun_name == "") {
         //fun_expr = get_expr_adding_edges_for_intermediate_vals(*sv, "", state_in, from_node, pc_to, B, F, t/*, assumes*/);
-        tie(fun_expr, state_assumes) = get_expr_adding_edges_for_intermediate_vals(*sv/*, ""*/, state_in, state_assumes, from_node/*, pc_to, B, F*/, t, value_to_name_map);
+        tie(fun_expr, state_assumes) = get_expr_adding_edges_for_intermediate_vals(*v/*, ""*/, state_in, state_assumes, from_node/*, pc_to, B, F*/, t, value_to_name_map);
       } else {
         fun_name = string(LLVM_FUNCTION_NAME_PREFIX) + fun_name;
         fun_expr = m_ctx->mk_var(fun_name, m_ctx->mk_bv_sort(DWORD_LEN));
