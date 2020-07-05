@@ -192,7 +192,31 @@ sym_exec_llvm::get_const_value_expr(const llvm::Value& v/*, string vname*/, cons
     unordered_set<expr_ref> assumes = state_assumes;
     tie(expr_args, assumes) = get_expr_args(*i_sp/*, vname*/, state_in, assumes, from_node/*, pc_to, *B, *F*/, t, value_to_name_map);
     expr_ref ce_expr;
-    tie(ce_expr, assumes) = exec_gen_expr(*i_sp/*, vname*/, expr_args, state_in, assumes, from_node/*, pc_to, *B, *F*/, t, value_to_name_map);
+    tie(ce_expr, assumes) = exec_gen_expr(*i_sp/*, vname*/, expr_args, state_in, assumes, from_node/*, pc_to, *B, *F*/, t);
+
+    string ce_key_name = constexpr_instruction_get_name(*i_sp);
+
+    state state_to_intermediate_val;
+    state_set_expr(state_to_intermediate_val, ce_key_name, ce_expr);
+    shared_ptr<tfg_node> intermediate_node = get_next_intermediate_subsubindex_pc_node(t, from_node);
+    shared_ptr<tfg_edge const> e = mk_tfg_edge(mk_itfg_edge(from_node->get_pc(), intermediate_node->get_pc(), state_to_intermediate_val, expr_true(m_ctx), {}, this->instruction_to_te_comment(*i_sp, from_node->get_pc())));
+    t.add_edge(e);
+
+    ce_expr = mk_fresh_expr(ce_key_name, G_INPUT_KEYWORD, ce_expr->get_sort());
+
+    if (value_to_name_map) {
+      llvm_value_id_t llvm_value_id = sym_exec_llvm::get_llvm_value_id_for_value((Value const*)i_sp);
+
+      DYN_DEBUG(value_to_name_map_dbg, std::cout << "llvm_value_id = " << llvm_value_id.llvm_value_id_to_string() << ": ce_key_name = " << ce_key_name << "\n");
+
+      if (value_to_name_map->count(llvm_value_id) && value_to_name_map->at(llvm_value_id) != mk_string_ref(ce_key_name)) {
+        errs() << "llvm_value_id = " << llvm_value_id.llvm_value_id_to_string() << ": ce_key_name = " << ce_key_name << "\n";
+        errs() << "llvm_value_id = " << llvm_value_id.llvm_value_id_to_string() << ": value_to_name_map->at(llvm_value_id) = " << value_to_name_map->at(llvm_value_id)->get_str() << "\n";
+      }
+      ASSERT(!value_to_name_map->count(llvm_value_id) || value_to_name_map->at(llvm_value_id) == mk_string_ref(ce_key_name));
+      value_to_name_map->insert(make_pair(llvm_value_id, mk_string_ref(ce_key_name)));
+    }
+
     DYN_DEBUG(llvm2tfg, errs() << "ce_expr:" << m_ctx->expr_to_string(ce_expr) << "\n");
     i_sp->deleteValue();
     return make_pair(ce_expr, assumes);
@@ -387,6 +411,13 @@ sym_exec_llvm::llvm_instruction_get_md5sum_name(Instruction const& I)
   raw_string_ostream rso(istr);
   rso << I;
   return string(G_SRC_KEYWORD "." G_LLVM_PREFIX "-%") + md5_checksum(istr);
+}
+
+string
+sym_exec_llvm::constexpr_instruction_get_name(Instruction const& I)
+{
+  string base_name = llvm_instruction_get_md5sum_name(I);
+  return base_name + "." + CONSTEXPR_KEYWORD;
 }
 
 string
@@ -1696,7 +1727,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, shar
     vector<expr_ref> expr_args;
     tie(expr_args, state_assumes) = get_expr_args(I/*, ""*/, state_in, state_assumes, from_node/*, pc_to, B, F*/, t, value_to_name_map);
     expr_ref insn_expr;
-    tie(insn_expr, state_assumes) = exec_gen_expr(I/*, ""*/, expr_args, state_in, state_assumes, from_node/*, pc_to, B, F*/, t, value_to_name_map);
+    tie(insn_expr, state_assumes) = exec_gen_expr(I/*, ""*/, expr_args, state_in, state_assumes, from_node/*, pc_to, B, F*/, t);
     set_expr(get_value_name(I), insn_expr, state_out);
     break;
   }
@@ -1737,7 +1768,7 @@ sym_exec_common::instruction_to_te_comment(llvm::Instruction const& I, pc const&
 //thus these common opcodes are encapsulated in a separate function
 //Returns: resulting expression EXPR_REF, set of UB assumes UNORDERED_SET<EXPR_REF>
 pair<expr_ref,unordered_set<expr_ref>>
-sym_exec_llvm::exec_gen_expr(const llvm::Instruction& I/*, string Iname*/, const vector<expr_ref>& args, state const &state_in, unordered_set<expr_ref> const& state_assumes, shared_ptr<tfg_node> &from_node/*, pc const &pc_to, llvm::BasicBlock const &B, llvm::Function const &F*/, tfg &t, map<llvm_value_id_t, string_ref>* value_to_name_map)
+sym_exec_llvm::exec_gen_expr(const llvm::Instruction& I/*, string Iname*/, const vector<expr_ref>& args, state const &state_in, unordered_set<expr_ref> const& state_assumes, shared_ptr<tfg_node> &from_node/*, pc const &pc_to, llvm::BasicBlock const &B, llvm::Function const &F*/, tfg &t)
 {
   //errs() << "exec_gen_expr: " << I << " (function " << F.getName() << ")\n";
   pc const &from_pc = from_node->get_pc();
@@ -1915,18 +1946,6 @@ sym_exec_llvm::exec_gen_expr(const llvm::Instruction& I/*, string Iname*/, const
     shared_ptr<tfg_edge const> e = mk_tfg_edge(mk_itfg_edge(cur_pc, intermediate_node->get_pc(), state_to_intermediate_val, expr_true(m_ctx)/*, t.get_start_state()*/, {}, this->instruction_to_te_comment(I, from_node->get_pc()/*, bbo*/)));
     t.add_edge(e);
 
-    if (value_to_name_map) {
-      llvm_value_id_t llvm_value_id = sym_exec_llvm::get_llvm_value_id_for_value((Value const*)&I);
-
-      DYN_DEBUG(value_to_name_map_dbg, std::cout << "llvm_value_id = " << llvm_value_id.llvm_value_id_to_string() << ": total_offset_name = " << total_offset_name << "\n");
-
-      if (value_to_name_map->count(llvm_value_id) && value_to_name_map->at(llvm_value_id) != mk_string_ref(total_offset_name)) {
-        errs() << "llvm_value_id = " << llvm_value_id.llvm_value_id_to_string() << ": total_offset_name = " << total_offset_name << "\n";
-        errs() << "llvm_value_id = " << llvm_value_id.llvm_value_id_to_string() << ": value_to_name_map->at(llvm_value_id) = " << value_to_name_map->at(llvm_value_id)->get_str() << "\n";
-      }
-      ASSERT(!value_to_name_map->count(llvm_value_id) || value_to_name_map->at(llvm_value_id) == mk_string_ref(total_offset_name));
-      value_to_name_map->insert(make_pair(llvm_value_id, mk_string_ref(total_offset_name)));
-    }
     cur_expr = mk_fresh_expr(total_offset_name, G_INPUT_KEYWORD, m_ctx->mk_bv_sort(DWORD_LEN));
     cur_pc = intermediate_node->get_pc();
 

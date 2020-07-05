@@ -94,6 +94,7 @@ private:
   static string llvm_instruction_get_md5sum_name(llvm::Instruction const& I);
 
   string gep_instruction_get_intermediate_value_name(llvm::Instruction const& I/*string base_name*/, unsigned index_counter, int intermediate_value_num);
+  string constexpr_instruction_get_name(llvm::Instruction const& I);
 
   //llvm::BasicBlock const *get_basic_block_for_pc(const llvm::Function& F, pc const &p);
 
@@ -174,7 +175,7 @@ private:
   pair<expr_ref,unordered_set<expr_ref>> exec_gen_expr_casts(const llvm::CastInst& I, expr_ref arg, unordered_set<expr_ref> const& state_assumes/*, pc const &from_pc, tfg &t*/);
   static string getTypeString(llvm::Type *t);
 
-  pair<expr_ref,unordered_set<expr_ref>> exec_gen_expr(const llvm::Instruction& I/*, string Iname*/, const vector<expr_ref>& args, state const &state_in, unordered_set<expr_ref> const& state_assumes, shared_ptr<tfg_node> &from_node/*, pc const &pc_to, llvm::BasicBlock const &B, llvm::Function const &F*/, tfg &t, map<llvm_value_id_t, string_ref>* value_to_name_map);
+  pair<expr_ref,unordered_set<expr_ref>> exec_gen_expr(const llvm::Instruction& I/*, string Iname*/, const vector<expr_ref>& args, state const &state_in, unordered_set<expr_ref> const& state_assumes, shared_ptr<tfg_node> &from_node/*, pc const &pc_to, llvm::BasicBlock const &B, llvm::Function const &F*/, tfg &t);
 
   void populate_bbl_order_map();
 
