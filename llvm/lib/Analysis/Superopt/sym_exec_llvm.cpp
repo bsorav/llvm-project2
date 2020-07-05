@@ -201,6 +201,7 @@ sym_exec_llvm::get_const_value_expr(const llvm::Value& v/*, string vname*/, cons
     shared_ptr<tfg_node> intermediate_node = get_next_intermediate_subsubindex_pc_node(t, from_node);
     shared_ptr<tfg_edge const> e = mk_tfg_edge(mk_itfg_edge(from_node->get_pc(), intermediate_node->get_pc(), state_to_intermediate_val, expr_true(m_ctx), {}, this->instruction_to_te_comment(*i_sp, from_node->get_pc())));
     t.add_edge(e);
+    from_node = intermediate_node;
 
     ce_expr = mk_fresh_expr(ce_key_name, G_INPUT_KEYWORD, ce_expr->get_sort());
 
@@ -242,7 +243,7 @@ sym_exec_llvm::get_const_value_expr(const llvm::Value& v/*, string vname*/, cons
         cout << __func__ << " " << __LINE__ << ": sym = " << s.second.get_name()->get_str() << endl;
       }
       NOT_REACHED(); //could be a function pointer!
-      //ret = m_ctx->mk_var(name, get_value_type(v));
+      //ret = m_ctx->mk_var(name, get_value_type(v, m_module->getDataLayout()));
     }
     ASSERT(ret);
 
@@ -1481,13 +1482,11 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, shar
       Value const *v = c->getCalledValue();
       Value const *sv = v->stripPointerCasts();
       fun_name = string(sv->getName());
-      if (fun_name == "") {
-        //fun_expr = get_expr_adding_edges_for_intermediate_vals(*sv, "", state_in, from_node, pc_to, B, F, t/*, assumes*/);
-        tie(fun_expr, state_assumes) = get_expr_adding_edges_for_intermediate_vals(*v/*, ""*/, state_in, state_assumes, from_node/*, pc_to, B, F*/, t, value_to_name_map);
-      } else {
+      if (fun_name != "") {
         fun_name = string(LLVM_FUNCTION_NAME_PREFIX) + fun_name;
-        fun_expr = m_ctx->mk_var(fun_name, m_ctx->mk_bv_sort(DWORD_LEN));
+        //fun_expr = m_ctx->mk_var(fun_name, m_ctx->mk_bv_sort(DWORD_LEN));
       }
+      tie(fun_expr, state_assumes) = get_expr_adding_edges_for_intermediate_vals(*v/*, ""*/, state_in, state_assumes, from_node/*, pc_to, B, F*/, t, value_to_name_map);
     } else {
       fun_name = calleeF->getName().str();
       fun_name = string(LLVM_FUNCTION_NAME_PREFIX) + fun_name;
