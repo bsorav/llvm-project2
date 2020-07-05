@@ -91,8 +91,9 @@ private:
   //pair<expr_ref,unordered_set<expr_ref>> __get_expr_adding_edges_for_intermediate_vals_helper(const llvm::Value& v/*, string vname*/, const state& state_in, unordered_set<expr_ref> const& state_assumes, shared_ptr<tfg_node> *from_node, pc const &pc_to, llvm::BasicBlock const *B, llvm::Function const *F, tfg& t, map<llvm_value_id_t, string_ref>* value_to_name_map);
   //bool function_belongs_to_program(string const &fun_name) const;
   //string gep_instruction_get_intermediate_value_name(string base_name, unsigned index_counter, int intermediate_value_num);
+  static string llvm_instruction_get_md5sum_name(llvm::Instruction const& I);
 
-  string constgep_instruction_get_intermediate_value_name(llvm::Instruction const& I/*string base_name*/, unsigned index_counter, int intermediate_value_num);
+  string gep_instruction_get_intermediate_value_name(llvm::Instruction const& I/*string base_name*/, unsigned index_counter, int intermediate_value_num);
 
   //llvm::BasicBlock const *get_basic_block_for_pc(const llvm::Function& F, pc const &p);
 

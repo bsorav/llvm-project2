@@ -381,18 +381,24 @@ expr_ref sym_exec_common::mk_fresh_expr(const string& name, const string& prefix
 }
 
 string
-sym_exec_llvm::constgep_instruction_get_intermediate_value_name(Instruction const& I/*string base_name*/, unsigned index_counter, int intermediate_value_num)
+sym_exec_llvm::llvm_instruction_get_md5sum_name(Instruction const& I)
 {
   string istr;
   raw_string_ostream rso(istr);
   rso << I;
-  string base_name = string(G_SRC_KEYWORD "." G_LLVM_PREFIX "-%") + md5_checksum(istr);
+  return string(G_SRC_KEYWORD "." G_LLVM_PREFIX "-%") + md5_checksum(istr);
+}
+
+string
+sym_exec_llvm::gep_instruction_get_intermediate_value_name(Instruction const& I/*string base_name*/, unsigned index_counter, int intermediate_value_num)
+{
+  string base_name = llvm_instruction_get_md5sum_name(I);
   stringstream ss;
   ASSERT(intermediate_value_num == 0 || intermediate_value_num == 1);
   if (intermediate_value_num == 0) {
     ss << base_name << "." << LLVM_INTERMEDIATE_VALUE_KEYWORD << "." << GEPOFFSET_KEYWORD << "." << index_counter << "." << "offset";
   } else {
-    ss << base_name << ".gepoffset." << index_counter << "." << "total_offset";
+    ss << base_name << "." GEPOFFSET_KEYWORD << "." << index_counter << "." << "total_offset";
   }
   //m_state_templ.push_back(make_pair(ss.str(), m_ctx->mk_bv_sort(DWORD_LEN)));
   return ss.str();
@@ -1727,6 +1733,9 @@ sym_exec_common::instruction_to_te_comment(llvm::Instruction const& I, pc const&
   return te_comment_t(/*bbo, */false, from_subindex, ss.str());
 }
 
+//exec_gen_expr(): this is shared common logic for general instruction computation and constant-expression computation;
+//thus these common opcodes are encapsulated in a separate function
+//Returns: resulting expression EXPR_REF, set of UB assumes UNORDERED_SET<EXPR_REF>
 pair<expr_ref,unordered_set<expr_ref>>
 sym_exec_llvm::exec_gen_expr(const llvm::Instruction& I/*, string Iname*/, const vector<expr_ref>& args, state const &state_in, unordered_set<expr_ref> const& state_assumes, shared_ptr<tfg_node> &from_node/*, pc const &pc_to, llvm::BasicBlock const &B, llvm::Function const &F*/, tfg &t, map<llvm_value_id_t, string_ref>* value_to_name_map)
 {
@@ -1870,8 +1879,8 @@ sym_exec_llvm::exec_gen_expr(const llvm::Instruction& I/*, string Iname*/, const
 
       expr_ref new_cur_expr = m_ctx->mk_bvadd(cur_expr, offset_expr);
 
-      string offset_name       = constgep_instruction_get_intermediate_value_name(I/*gnp*/, index_counter, 0);
-      string total_offset_name = constgep_instruction_get_intermediate_value_name(I/*gnp*/, index_counter, 1);
+      string offset_name       = gep_instruction_get_intermediate_value_name(I/*gnp*/, index_counter, 0);
+      string total_offset_name = gep_instruction_get_intermediate_value_name(I/*gnp*/, index_counter, 1);
 
       state state_to_intermediate_val;
       state_set_expr(state_to_intermediate_val, offset_name, offset_expr);
@@ -1897,7 +1906,7 @@ sym_exec_llvm::exec_gen_expr(const llvm::Instruction& I/*, string Iname*/, const
       cur_pc = intermediate_node->get_pc();
     }
 
-    string total_offset_name = constgep_instruction_get_intermediate_value_name(I/*gnp*/, index_counter, 1);
+    string total_offset_name = gep_instruction_get_intermediate_value_name(I/*gnp*/, index_counter, 1);
 
     state state_to_intermediate_val;
     state_set_expr(state_to_intermediate_val, total_offset_name, m_ctx->mk_bvadd(ptr, cur_expr));
