@@ -194,6 +194,11 @@ DWARFExpression_to_eqspace_expr::handle_op(DWARFExpression::Operation &op)
       // this is suppposed to be the last op of the expression
       assert(m_stk.size());
       break;
+    case llvm::dwarf::DW_OP_consts: {
+      eqspace::expr_ref res = this->signed_const_to_bvconst(op.getRawOperand(0));
+      m_stk.push(res);
+      break;
+    }
     default: {
       StringRef name = llvm::dwarf::OperationEncodingString(opcode);
       assert(!name.empty() && "DW_OP has no name!");
@@ -416,7 +421,7 @@ static bool dumpObjectFile(ObjectFile &Obj, DWARFContext &DICtx,
   	    auto const& loc_exprs = pp.second;
   	    OS << "=VarName: " << vname << "\n";
   	    for (auto const& loc_expr : loc_exprs) {
-  	      OS << format("=LocRange\n0x%" PRIx64 " ; 0x%" PRIx64 "\n", get<0>(loc_expr) , get<1>(loc_expr));
+  	      OS << format("=LocRange\n0x%" PRIx64 " 0x%" PRIx64 "\n", get<0>(loc_expr) , get<1>(loc_expr));
   	      OS << formatv("=Expr\n{0}\n", g_ctx->expr_to_string_table(get<2>(loc_expr)));
   	    }
   	  }
