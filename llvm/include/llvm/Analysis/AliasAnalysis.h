@@ -733,6 +733,8 @@ public:
   }
 
 private:
+  void performSemanticAACheck(const MemoryLocation &LocA, const MemoryLocation &LocB, AAQueryInfo &AAQI);
+
   AliasResult alias(const MemoryLocation &LocA, const MemoryLocation &LocB,
                     AAQueryInfo &AAQI);
   bool pointsToConstantMemory(const MemoryLocation &Loc, AAQueryInfo &AAQI,

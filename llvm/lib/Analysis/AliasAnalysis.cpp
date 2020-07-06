@@ -113,6 +113,38 @@ AliasResult AAResults::alias(const MemoryLocation &LocA,
   return alias(LocA, LocB, AAQIP);
 }
 
+void
+AAResults::performSemanticAACheck(const MemoryLocation &LocA, const MemoryLocation &LocB, AAQueryInfo &AAQI)
+{
+  bool found = false;
+  AliasResult semanticAA_result, otherAA_result;
+  otherAA_result = MayAlias;
+  for (auto const& SAA : AAs) {
+    AliasResult this_result = SAA->alias(LocA, LocB, AAQI);
+    if (SAA->isSemanticAA()) {
+      found = true;
+      semanticAA_result = this_result;
+    } else {
+      if (otherAA_result == MayAlias && this_result != MayAlias) {
+        otherAA_result = this_result;
+      }
+    }
+  }
+  ASSERT(found);
+  std::string function_name = SemanticAAResult::get_function_name(LocA.Ptr, LocB.Ptr);
+  if (semanticAA_result == MayAlias && otherAA_result != MayAlias) {
+    string s;
+    raw_string_ostream rso(s);
+    rso << "WARNING: Syntactic alias analysis returning " << otherAA_result << " but Semantic alias analysis returning MayAlias. Function '" << function_name << "', LocA = " << sym_exec_common::get_value_name(*LocA.Ptr) << " (size " << (LocA.Size.isPrecise() ? LocA.Size.getValue() : (uint64_t)-1) << "), LocB = " << sym_exec_common::get_value_name(*LocB.Ptr) << " (size " << (LocB.Size.isPrecise() ? LocB.Size.getValue() : (uint64_t)-1) << ")\n";
+    std::cout << rso.str();
+  } else if (semanticAA_result != MayAlias && otherAA_result == MayAlias) {
+    string s;
+    raw_string_ostream rso(s);
+    rso << "NICE! Syntactic alias analysis returning " << otherAA_result << " but Semantic alias analysis returning " << semanticAA_result << ". Function '" << function_name << "', LocA = " << sym_exec_common::get_value_name(*LocA.Ptr) << " (size " << (LocA.Size.isPrecise() ? LocA.Size.getValue() : (uint64_t)-1) << "), LocB = " << sym_exec_common::get_value_name(*LocB.Ptr) << " (size " << (LocB.Size.isPrecise() ? LocB.Size.getValue() : (uint64_t)-1) << ")\n";
+    std::cout << rso.str();
+  }
+}
+
 AliasResult AAResults::alias(const MemoryLocation &LocA,
                              const MemoryLocation &LocB, AAQueryInfo &AAQI) {
   DYN_DEBUG(aliasAnalysis, std::cout << "AAResults::" << __func__ << " " << __LINE__ << ": LocA = " << sym_exec_common::get_value_name(*LocA.Ptr) << " (size " << (LocA.Size.isPrecise() ? LocA.Size.getValue() : (uint64_t)-1) << "), LocB = " << sym_exec_common::get_value_name(*LocB.Ptr) << " (size " << (LocB.Size.isPrecise() ? LocB.Size.getValue() : (uint64_t)-1) << ")\n");
@@ -120,22 +152,7 @@ AliasResult AAResults::alias(const MemoryLocation &LocA,
     auto Result = AA->alias(LocA, LocB, AAQI);
     if (Result != MayAlias) {
       DYN_DEBUG(aliasAnalysis, std::cout << "AAResults::" << __func__ << " " << __LINE__ << ": Result = " << Result << ". LocA = " << sym_exec_common::get_value_name(*LocA.Ptr) << ", LocB = " << sym_exec_common::get_value_name(*LocB.Ptr) << "\n");
-      DYN_DEBUG_MUTE(checkSemanticAA,
-        bool found = false;
-        for (auto const& SAA : AAs) {
-          if (SAA->isSemanticAA()) {
-            found = true;
-            std::string function_name = SemanticAAResult::get_function_name(LocA.Ptr, LocB.Ptr);
-            if (SAA->alias(LocA, LocB, AAQI) == MayAlias) {
-              string s;
-              raw_string_ostream rso(s);
-              rso << "WARNING: Syntactic alias analysis returning " << Result << " but Semantic alias analysis returning MayAlias. Function '" << function_name << "', LocA = " << sym_exec_common::get_value_name(*LocA.Ptr) << " (size " << (LocA.Size.isPrecise() ? LocA.Size.getValue() : (uint64_t)-1) << "), LocB = " << sym_exec_common::get_value_name(*LocB.Ptr) << " (size " << (LocB.Size.isPrecise() ? LocB.Size.getValue() : (uint64_t)-1) << ")\n";
-              std::cout << rso.str();
-            }
-          }
-        }
-        ASSERT(found);
-      );
+      DYN_DEBUG_MUTE(checkSemanticAA, performSemanticAACheck(LocA, LocB, AAQI));
       return Result;
     }
   }
