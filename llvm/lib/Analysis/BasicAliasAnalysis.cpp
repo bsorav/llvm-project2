@@ -864,20 +864,35 @@ AliasResult BasicAAResult::alias(const MemoryLocation &LocA,
   // happens, we don't clear the cache.
   auto CacheIt = AAQI.AliasCache.find(AAQueryInfo::LocPair(LocA, LocB));
   if (CacheIt != AAQI.AliasCache.end()) {
-    DYN_DEBUG2(aliasAnalysis, std::cout << "BasicAAResult::" << __func__ << " " << __LINE__ << ": returning " << CacheIt->second << endl);
+    DYN_DEBUG2(aliasAnalysis,
+      string s;
+      raw_string_ostream rso(s);
+      rso << "BasicAAResult::" << __func__ << " " << __LINE__ << ": returning " << CacheIt->second << "\n";
+      std::cout << rso.str();
+    );
     return CacheIt->second;
   }
 
   CacheIt = AAQI.AliasCache.find(AAQueryInfo::LocPair(LocB, LocA));
   if (CacheIt != AAQI.AliasCache.end()) {
-    DYN_DEBUG2(aliasAnalysis, std::cout << "BasicAAResult::" << __func__ << " " << __LINE__ << ": returning " << CacheIt->second << endl);
+    DYN_DEBUG2(aliasAnalysis,
+      string s;
+      raw_string_ostream rso(s);
+      rso << "BasicAAResult::" << __func__ << " " << __LINE__ << ": returning " << CacheIt->second << "\n";
+      std::cout << rso.str();
+    );
     return CacheIt->second;
   }
   AliasResult Alias = aliasCheck(LocA.Ptr, LocA.Size, LocA.AATags, LocB.Ptr,
                                  LocB.Size, LocB.AATags, AAQI);
 
   VisitedPhiBBs.clear();
-  DYN_DEBUG2(aliasAnalysis, std::cout << "BasicAAResult::" << __func__ << " " << __LINE__ << ": returning " << Alias << endl);
+  DYN_DEBUG2(aliasAnalysis,
+    string s;
+    raw_string_ostream rso(s);
+    rso << "BasicAAResult::" << __func__ << " " << __LINE__ << ": returning " << Alias << "\n";
+    std::cout << rso.str();
+  );
   return Alias;
 }
 
@@ -1348,8 +1363,15 @@ AliasResult BasicAAResult::aliasGEP(
   // Don't attempt to analyze the decomposed GEP if index scale is not a
   // compile-time constant.
   if (!DecompGEP1.HasCompileTimeConstantScale ||
-      !DecompGEP2.HasCompileTimeConstantScale)
+      !DecompGEP2.HasCompileTimeConstantScale) {
+    DYN_DEBUG2(aliasAnalysis,
+              string s;
+              raw_string_ostream rso(s);
+              rso << "BasicAAResult::" << __func__ << " " << __LINE__ << ": returning " << MayAlias << "\n";
+              std::cout << rso.str();
+            );
     return MayAlias;
+  }
 
   APInt GEP1BaseOffset = DecompGEP1.StructOffset + DecompGEP1.OtherOffset;
   APInt GEP2BaseOffset = DecompGEP2.StructOffset + DecompGEP2.OtherOffset;
@@ -1362,8 +1384,15 @@ AliasResult BasicAAResult::aliasGEP(
   // fall below the start of the object underlying V2, then the GEP and V2
   // cannot alias.
   if (!GEP1MaxLookupReached && !GEP2MaxLookupReached &&
-      isGEPBaseAtNegativeOffset(GEP1, DecompGEP1, DecompGEP2, V2Size))
+      isGEPBaseAtNegativeOffset(GEP1, DecompGEP1, DecompGEP2, V2Size)) {
+    DYN_DEBUG2(aliasAnalysis,
+      string s;
+      raw_string_ostream rso(s);
+      rso << "BasicAAResult::" << __func__ << " " << __LINE__ << ": returning " << NoAlias << "\n";
+      std::cout << rso.str();
+    );
     return NoAlias;
+  }
   // If we have two gep instructions with must-alias or not-alias'ing base
   // pointers, figure out if the indexes to the GEP tell us anything about the
   // derived pointer.
@@ -1371,8 +1400,15 @@ AliasResult BasicAAResult::aliasGEP(
     // Check for the GEP base being at a negative offset, this time in the other
     // direction.
     if (!GEP1MaxLookupReached && !GEP2MaxLookupReached &&
-        isGEPBaseAtNegativeOffset(GEP2, DecompGEP2, DecompGEP1, V1Size))
+        isGEPBaseAtNegativeOffset(GEP2, DecompGEP2, DecompGEP1, V1Size)) {
+      DYN_DEBUG2(aliasAnalysis,
+                string s;
+                raw_string_ostream rso(s);
+                rso << "BasicAAResult::" << __func__ << " " << __LINE__ << ": returning " << NoAlias << "\n";
+                std::cout << rso.str();
+      );
       return NoAlias;
+    }
     // Do the base pointers alias?
     AliasResult BaseAlias =
         aliasCheck(UnderlyingV1, LocationSize::unknown(), AAMDNodes(),
@@ -1388,13 +1424,27 @@ AliasResult BasicAAResult::aliasGEP(
         // See if the computed offset from the common pointer tells us about the
         // relation of the resulting pointer.
         // If the max search depth is reached the result is undefined
-        if (GEP2MaxLookupReached || GEP1MaxLookupReached)
+        if (GEP2MaxLookupReached || GEP1MaxLookupReached) {
+          DYN_DEBUG2(aliasAnalysis,
+            string s;
+            raw_string_ostream rso(s);
+            rso << "BasicAAResult::" << __func__ << " " << __LINE__ << ": returning " << NoAlias << "\n";
+            std::cout << rso.str();
+          );
           return MayAlias;
+        }
 
         // Same offsets.
         if (GEP1BaseOffset == GEP2BaseOffset &&
-            DecompGEP1.VarIndices == DecompGEP2.VarIndices)
+            DecompGEP1.VarIndices == DecompGEP2.VarIndices) {
+          DYN_DEBUG2(aliasAnalysis,
+            string s;
+            raw_string_ostream rso(s);
+            rso << "BasicAAResult::" << __func__ << " " << __LINE__ << ": returning " << NoAlias << "\n";
+            std::cout << rso.str();
+          );
           return NoAlias;
+        }
       }
     }
 
@@ -1402,6 +1452,12 @@ AliasResult BasicAAResult::aliasGEP(
     // will improve this situation.
     if (BaseAlias != MustAlias) {
       assert(BaseAlias == NoAlias || BaseAlias == MayAlias);
+      DYN_DEBUG2(aliasAnalysis,
+        string s;
+        raw_string_ostream rso(s);
+        rso << "BasicAAResult::" << __func__ << " " << __LINE__ << ": returning " << BaseAlias << "\n";
+        std::cout << rso.str();
+      );
       return BaseAlias;
     }
 
@@ -1416,13 +1472,27 @@ AliasResult BasicAAResult::aliasGEP(
         GEP1->getPointerOperandType() == GEP2->getPointerOperandType()) {
       AliasResult R = aliasSameBasePointerGEPs(GEP1, V1Size, GEP2, V2Size, DL);
       // If we couldn't find anything interesting, don't abandon just yet.
-      if (R != MayAlias)
+      if (R != MayAlias) {
+        DYN_DEBUG2(aliasAnalysis,
+          string s;
+          raw_string_ostream rso(s);
+          rso << "BasicAAResult::" << __func__ << " " << __LINE__ << ": returning " << R << "\n";
+          std::cout << rso.str();
+        );
         return R;
+      }
     }
 
     // If the max search depth is reached, the result is undefined
-    if (GEP2MaxLookupReached || GEP1MaxLookupReached)
+    if (GEP2MaxLookupReached || GEP1MaxLookupReached) {
+      DYN_DEBUG2(aliasAnalysis,
+        string s;
+        raw_string_ostream rso(s);
+        rso << "BasicAAResult::" << __func__ << " " << __LINE__ << ": returning " << MayAlias << "\n";
+        std::cout << rso.str();
+      );
       return MayAlias;
+    }
 
     // Subtract the GEP2 pointer from the GEP1 pointer to find out their
     // symbolic difference.
@@ -1435,8 +1505,15 @@ AliasResult BasicAAResult::aliasGEP(
     // pointer, we know they cannot alias.
 
     // If both accesses are unknown size, we can't do anything useful here.
-    if (V1Size == LocationSize::unknown() && V2Size == LocationSize::unknown())
+    if (V1Size == LocationSize::unknown() && V2Size == LocationSize::unknown()) {
+      DYN_DEBUG2(aliasAnalysis,
+        string s;
+        raw_string_ostream rso(s);
+        rso << "BasicAAResult::" << __func__ << " " << __LINE__ << ": returning " << MayAlias << "\n";
+        std::cout << rso.str();
+      );
       return MayAlias;
+    }
 
     AliasResult R = aliasCheck(UnderlyingV1, LocationSize::unknown(),
                                AAMDNodes(), V2, LocationSize::unknown(),
@@ -1448,12 +1525,25 @@ AliasResult BasicAAResult::aliasGEP(
       // a pointer value associated with an address range of the memory access,
       // otherwise the behavior is undefined.".
       assert(R == NoAlias || R == MayAlias);
+      DYN_DEBUG2(aliasAnalysis,
+        string s;
+        raw_string_ostream rso(s);
+        rso << "BasicAAResult::" << __func__ << " " << __LINE__ << ": returning " << R << "\n";
+        std::cout << rso.str();
+      );
       return R;
     }
 
     // If the max search depth is reached the result is undefined
-    if (GEP1MaxLookupReached)
+    if (GEP1MaxLookupReached) {
+      DYN_DEBUG2(aliasAnalysis,
+        string s;
+        raw_string_ostream rso(s);
+        rso << "BasicAAResult::" << __func__ << " " << __LINE__ << ": returning " << MayAlias << "\n";
+        std::cout << rso.str();
+      );
       return MayAlias;
+    }
   }
 
   // In the two GEP Case, if there is no difference in the offsets of the
@@ -1462,8 +1552,15 @@ AliasResult BasicAAResult::aliasGEP(
   //
   // In the other case, if we have getelementptr <ptr>, 0, 0, 0, 0, ... and V2
   // must aliases the GEP, the end result is a must alias also.
-  if (GEP1BaseOffset == 0 && DecompGEP1.VarIndices.empty())
+  if (GEP1BaseOffset == 0 && DecompGEP1.VarIndices.empty()) {
+    DYN_DEBUG2(aliasAnalysis,
+      string s;
+      raw_string_ostream rso(s);
+      rso << "BasicAAResult::" << __func__ << " " << __LINE__ << ": returning " << MustAlias << "\n";
+      std::cout << rso.str();
+    );
     return MustAlias;
+  }
 
   // If there is a constant difference between the pointers, but the difference
   // is less than the size of the associated memory object, then we know
@@ -1472,8 +1569,21 @@ AliasResult BasicAAResult::aliasGEP(
   if (GEP1BaseOffset != 0 && DecompGEP1.VarIndices.empty()) {
     if (GEP1BaseOffset.sge(0)) {
       if (V2Size != LocationSize::unknown()) {
-        if (GEP1BaseOffset.ult(V2Size.getValue()))
+        if (GEP1BaseOffset.ult(V2Size.getValue())) {
+          DYN_DEBUG2(aliasAnalysis,
+            string s;
+            raw_string_ostream rso(s);
+            rso << "BasicAAResult::" << __func__ << " " << __LINE__ << ": returning " << PartialAlias << "\n";
+            std::cout << rso.str();
+          );
           return PartialAlias;
+        }
+        DYN_DEBUG2(aliasAnalysis,
+          string s;
+          raw_string_ostream rso(s);
+          rso << "BasicAAResult::" << __func__ << " " << __LINE__ << ": returning " << NoAlias << "\n";
+          std::cout << rso.str();
+        );
         return NoAlias;
       }
     } else {
@@ -1487,8 +1597,21 @@ AliasResult BasicAAResult::aliasGEP(
       // stripped a gep with negative index ('gep <ptr>, -1, ...).
       if (V1Size != LocationSize::unknown() &&
           V2Size != LocationSize::unknown()) {
-        if ((-GEP1BaseOffset).ult(V1Size.getValue()))
+        if ((-GEP1BaseOffset).ult(V1Size.getValue())) {
+          DYN_DEBUG2(aliasAnalysis,
+            string s;
+            raw_string_ostream rso(s);
+            rso << "BasicAAResult::" << __func__ << " " << __LINE__ << ": returning " << PartialAlias << "\n";
+            std::cout << rso.str();
+          );
           return PartialAlias;
+        }
+        DYN_DEBUG2(aliasAnalysis,
+          string s;
+          raw_string_ostream rso(s);
+          rso << "BasicAAResult::" << __func__ << " " << __LINE__ << ": returning " << NoAlias << "\n";
+          std::cout << rso.str();
+        );
         return NoAlias;
       }
     }
@@ -1539,25 +1662,52 @@ AliasResult BasicAAResult::aliasGEP(
     APInt ModOffset = GEP1BaseOffset & (Modulo - 1);
     if (V1Size != LocationSize::unknown() &&
         V2Size != LocationSize::unknown() && ModOffset.uge(V2Size.getValue()) &&
-        (Modulo - ModOffset).uge(V1Size.getValue()))
+        (Modulo - ModOffset).uge(V1Size.getValue())) {
+      DYN_DEBUG2(aliasAnalysis,
+        string s;
+        raw_string_ostream rso(s);
+        rso << "BasicAAResult::" << __func__ << " " << __LINE__ << ": returning " << NoAlias << "\n";
+        std::cout << rso.str();
+      );
       return NoAlias;
+    }
 
     // If we know all the variables are positive, then GEP1 >= GEP1BasePtr.
     // If GEP1BasePtr > V2 (GEP1BaseOffset > 0) then we know the pointers
     // don't alias if V2Size can fit in the gap between V2 and GEP1BasePtr.
     if (AllPositive && GEP1BaseOffset.sgt(0) &&
         V2Size != LocationSize::unknown() &&
-        GEP1BaseOffset.uge(V2Size.getValue()))
+        GEP1BaseOffset.uge(V2Size.getValue())) {
+      DYN_DEBUG2(aliasAnalysis,
+        string s;
+        raw_string_ostream rso(s);
+        rso << "BasicAAResult::" << __func__ << " " << __LINE__ << ": returning " << NoAlias << "\n";
+        std::cout << rso.str();
+      );
       return NoAlias;
+    }
 
     if (constantOffsetHeuristic(DecompGEP1.VarIndices, V1Size, V2Size,
-                                GEP1BaseOffset, &AC, DT))
+                                GEP1BaseOffset, &AC, DT)) {
+      DYN_DEBUG2(aliasAnalysis,
+        string s;
+        raw_string_ostream rso(s);
+        rso << "BasicAAResult::" << __func__ << " " << __LINE__ << ": returning " << NoAlias << "\n";
+        std::cout << rso.str();
+      );
       return NoAlias;
+    }
   }
 
   // Statically, we can see that the base objects are the same, but the
   // pointers have dynamic offsets which we can't resolve. And none of our
   // little tricks above worked.
+  DYN_DEBUG2(aliasAnalysis,
+    string s;
+    raw_string_ostream rso(s);
+    rso << "BasicAAResult::" << __func__ << " " << __LINE__ << ": returning " << NoAlias << "\n";
+    std::cout << rso.str();
+  );
   return MayAlias;
 }
 
@@ -1765,6 +1915,8 @@ AliasResult BasicAAResult::aliasCheck(const Value *V1, LocationSize V1Size,
                                       LocationSize V2Size, AAMDNodes V2AAInfo,
                                       AAQueryInfo &AAQI, const Value *O1,
                                       const Value *O2) {
+  DYN_DEBUG2(aliasAnalysis, std::cout << "BasicAAResult::" << __func__ << " " << __LINE__ << ": V1 = " << sym_exec_common::get_value_name(*V1) << "\n");
+  DYN_DEBUG2(aliasAnalysis, std::cout << "BasicAAResult::" << __func__ << " " << __LINE__ << ": V2 = " << sym_exec_common::get_value_name(*V2) << "\n");
   // If either of the memory references is empty, it doesn't matter what the
   // pointer values are.
   if (V1Size.isZero() || V2Size.isZero()) {
@@ -1889,7 +2041,12 @@ AliasResult BasicAAResult::aliasCheck(const Value *V1, LocationSize V1Size,
   std::pair<AAQueryInfo::AliasCacheT::iterator, bool> Pair =
       AAQI.AliasCache.try_emplace(Locs, MayAlias);
   if (!Pair.second) {
-    DYN_DEBUG2(aliasAnalysis, std::cout << "BasicAAResult::" << __func__ << " " << __LINE__ << ": returning " << Pair.first->second << "\n");
+    DYN_DEBUG2(aliasAnalysis,
+      string s;
+      raw_string_ostream rso(s);
+      rso << "BasicAAResult::" << __func__ << " " << __LINE__ << ": returning " << Pair.first->second << "\n";
+      std::cout << rso.str();
+    );
     return Pair.first->second;
   }
 
@@ -1908,7 +2065,12 @@ AliasResult BasicAAResult::aliasCheck(const Value *V1, LocationSize V1Size,
       auto ItInsPair = AAQI.AliasCache.insert(std::make_pair(Locs, Result));
       assert(!ItInsPair.second && "Entry must have existed");
       ItInsPair.first->second = Result;
-      DYN_DEBUG2(aliasAnalysis, std::cout << "BasicAAResult::" << __func__ << " " << __LINE__ << ": returning " << Result << "\n");
+      DYN_DEBUG2(aliasAnalysis,
+        string s;
+        raw_string_ostream rso(s);
+        rso << "BasicAAResult::" << __func__ << " " << __LINE__ << ": returning " << Result << "\n";
+        std::cout << rso.str();
+      );
       return Result;
     }
   }
@@ -1925,7 +2087,12 @@ AliasResult BasicAAResult::aliasCheck(const Value *V1, LocationSize V1Size,
     if (Result != MayAlias) {
       Pair = AAQI.AliasCache.try_emplace(Locs, Result);
       assert(!Pair.second && "Entry must have existed");
-      DYN_DEBUG2(aliasAnalysis, std::cout << "BasicAAResult::" << __func__ << " " << __LINE__ << ": returning " << Result << "\n");
+      DYN_DEBUG2(aliasAnalysis,
+        string s;
+        raw_string_ostream rso(s);
+        rso << "BasicAAResult::" << __func__ << " " << __LINE__ << ": returning " << Result << "\n";
+        std::cout << rso.str();
+      );
       return Pair.first->second = Result;
     }
   }
@@ -1942,7 +2109,12 @@ AliasResult BasicAAResult::aliasCheck(const Value *V1, LocationSize V1Size,
     if (Result != MayAlias) {
       Pair = AAQI.AliasCache.try_emplace(Locs, Result);
       assert(!Pair.second && "Entry must have existed");
-      DYN_DEBUG2(aliasAnalysis, std::cout << "BasicAAResult::" << __func__ << " " << __LINE__ << ": returning " << Result << "\n");
+      DYN_DEBUG2(aliasAnalysis,
+        string s;
+        raw_string_ostream rso(s);
+        rso << "BasicAAResult::" << __func__ << " " << __LINE__ << ": returning " << Result << "\n";
+        std::cout << rso.str();
+      );
       return Pair.first->second = Result;
     }
   }
@@ -1965,7 +2137,12 @@ AliasResult BasicAAResult::aliasCheck(const Value *V1, LocationSize V1Size,
   AliasResult Result = getBestAAResults().alias(Locs.first, Locs.second, AAQI);
   Pair = AAQI.AliasCache.try_emplace(Locs, Result);
   assert(!Pair.second && "Entry must have existed");
-  DYN_DEBUG2(aliasAnalysis, std::cout << "BasicAAResult::" << __func__ << " " << __LINE__ << ": returning " << Result << "\n");
+  DYN_DEBUG2(aliasAnalysis,
+    string s;
+    raw_string_ostream rso(s);
+    rso << "BasicAAResult::" << __func__ << " " << __LINE__ << ": returning " << Result << "\n";
+    std::cout << rso.str();
+  );
   return Pair.first->second = Result;
 }
 

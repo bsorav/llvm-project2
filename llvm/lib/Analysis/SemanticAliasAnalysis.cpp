@@ -86,8 +86,8 @@ SemanticAAResult::alias(const MemoryLocation &LocA,
   DYN_DEBUG2(aliasAnalysis, std::cout << "SemanticAAResult::" << __func__ << " " << __LINE__ << ": LocA = " << nameA << "\n");
   DYN_DEBUG2(aliasAnalysis, std::cout << "SemanticAAResult::" << __func__ << " " << __LINE__ << ": LocB = " << nameB << "\n");
 
-  uint64_t sizeA = LocA.Size.isPrecise() ? LocA.Size.getValue() : (uint64_t)-1;
-  uint64_t sizeB = LocB.Size.isPrecise() ? LocB.Size.getValue() : (uint64_t)-1;
+  uint64_t sizeA = LocA.Size.isPrecise() ? LocA.Size.getValue() : SEMANTICAA_LOCSIZE_UNKNOWN;
+  uint64_t sizeB = LocB.Size.isPrecise() ? LocB.Size.getValue() : SEMANTICAA_LOCSIZE_UNKNOWN;
 
   return convertTfgAliasResultToAliasResult(tfg_llvm_t::get_aliasing_relationship_between_memaccesses(*m_function_tfg_map, fname, nameA, sizeA, nameB, sizeB));
 
