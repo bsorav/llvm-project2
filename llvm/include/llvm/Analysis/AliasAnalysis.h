@@ -57,6 +57,7 @@ namespace llvm {
 
 class AnalysisUsage;
 class BasicAAResult;
+class SemanticAAResult;
 class BasicBlock;
 class DominatorTree;
 class Value;
@@ -866,6 +867,8 @@ class AAResults::Concept {
 public:
   virtual ~Concept() = 0;
 
+  virtual bool isSemanticAA() const { return false; }
+
   /// An update API used internally by the AAResults to provide
   /// a handle back to the top level aggregation.
   virtual void setAAResults(AAResults *NewAAR) = 0;
@@ -934,6 +937,15 @@ public:
     Result.setAAResults(&AAR);
   }
   ~Model() override = default;
+
+  virtual bool isSemanticAA() const
+  {
+    if (std::is_same<AAResultT, SemanticAAResult>::value) {
+      return true;
+    } else {
+      return false;
+    }
+  }
 
   void setAAResults(AAResults *NewAAR) override { Result.setAAResults(NewAAR); }
 

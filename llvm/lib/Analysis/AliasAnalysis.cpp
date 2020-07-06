@@ -25,6 +25,7 @@
 
 #include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/Analysis/BasicAliasAnalysis.h"
+#include "llvm/Analysis/SemanticAliasAnalysis.h"
 #include "llvm/Analysis/CFLAndersAliasAnalysis.h"
 #include "llvm/Analysis/CFLSteensAliasAnalysis.h"
 #include "llvm/Analysis/CaptureTracking.h"
@@ -36,6 +37,7 @@
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/Analysis/TypeBasedAliasAnalysis.h"
 #include "llvm/Analysis/UnsequencedAliasAnalysis.h"
+#include "llvm/Analysis/SemanticAliasAnalysis.h"
 #include "llvm/Analysis/ValueTracking.h"
 #include "llvm/IR/Argument.h"
 #include "llvm/IR/Attributes.h"
@@ -54,6 +56,8 @@
 #include <cassert>
 #include <functional>
 #include <iterator>
+
+#include "Superopt/sym_exec_llvm.h"
 
 using namespace llvm;
 
@@ -111,11 +115,31 @@ AliasResult AAResults::alias(const MemoryLocation &LocA,
 
 AliasResult AAResults::alias(const MemoryLocation &LocA,
                              const MemoryLocation &LocB, AAQueryInfo &AAQI) {
+  DYN_DEBUG(aliasAnalysis, std::cout << "AAResults::" << __func__ << " " << __LINE__ << ": LocA = " << sym_exec_common::get_value_name(*LocA.Ptr) << " (size " << (LocA.Size.isPrecise() ? LocA.Size.getValue() : (uint64_t)-1) << "), LocB = " << sym_exec_common::get_value_name(*LocB.Ptr) << " (size " << (LocB.Size.isPrecise() ? LocB.Size.getValue() : (uint64_t)-1) << ")\n");
   for (const auto &AA : AAs) {
     auto Result = AA->alias(LocA, LocB, AAQI);
-    if (Result != MayAlias)
+    if (Result != MayAlias) {
+      DYN_DEBUG(aliasAnalysis, std::cout << "AAResults::" << __func__ << " " << __LINE__ << ": Result = " << Result << ". LocA = " << sym_exec_common::get_value_name(*LocA.Ptr) << ", LocB = " << sym_exec_common::get_value_name(*LocB.Ptr) << "\n");
+      DYN_DEBUG_MUTE(checkSemanticAA,
+        bool found = false;
+        for (auto const& SAA : AAs) {
+          if (SAA->isSemanticAA()) {
+            found = true;
+            std::string function_name = SemanticAAResult::get_function_name(LocA.Ptr, LocB.Ptr);
+            if (SAA->alias(LocA, LocB, AAQI) == MayAlias) {
+              string s;
+              raw_string_ostream rso(s);
+              rso << "WARNING: Syntactic alias analysis returning " << Result << " but Semantic alias analysis returning MayAlias. Function '" << function_name << "', LocA = " << sym_exec_common::get_value_name(*LocA.Ptr) << " (size " << (LocA.Size.isPrecise() ? LocA.Size.getValue() : (uint64_t)-1) << "), LocB = " << sym_exec_common::get_value_name(*LocB.Ptr) << " (size " << (LocB.Size.isPrecise() ? LocB.Size.getValue() : (uint64_t)-1) << ")\n";
+              std::cout << rso.str();
+            }
+          }
+        }
+        ASSERT(found);
+      );
       return Result;
+    }
   }
+  DYN_DEBUG(aliasAnalysis, std::cout << "AAResults::" << __func__ << " " << __LINE__ << ": Result = MayAlias. LocA = " << sym_exec_common::get_value_name(*LocA.Ptr) << ", LocB = " << sym_exec_common::get_value_name(*LocB.Ptr) << "\n");
   return MayAlias;
 }
 
@@ -769,6 +793,7 @@ INITIALIZE_PASS_DEPENDENCY(SCEVAAWrapperPass)
 INITIALIZE_PASS_DEPENDENCY(ScopedNoAliasAAWrapperPass)
 INITIALIZE_PASS_DEPENDENCY(TypeBasedAAWrapperPass)
 INITIALIZE_PASS_DEPENDENCY(UnseqAAWrapperPass)
+INITIALIZE_PASS_DEPENDENCY(SemanticAAWrapperPass)
 INITIALIZE_PASS_END(AAResultsWrapperPass, "aa",
                     "Function Alias Analysis Results", false, true)
 
@@ -801,6 +826,7 @@ bool AAResultsWrapperPass::runOnFunction(Function &F) {
   if (!DisableBasicAA) {
     AAR->addAAResult(getAnalysis<BasicAAWrapperPass>().getResult());
     AAR->addAAResult(getAnalysis<UnseqAAWrapperPass>().getResult());
+    AAR->addAAResult(getAnalysis<SemanticAAWrapperPass>().getResult());
   }
 
   // Populate the results with the currently available AAs.
@@ -809,6 +835,8 @@ bool AAResultsWrapperPass::runOnFunction(Function &F) {
   if (auto *WrapperPass = getAnalysisIfAvailable<TypeBasedAAWrapperPass>())
     AAR->addAAResult(WrapperPass->getResult());
   if (auto *WrapperPass = getAnalysisIfAvailable<UnseqAAWrapperPass>())
+    AAR->addAAResult(WrapperPass->getResult());
+  if (auto *WrapperPass = getAnalysisIfAvailable<SemanticAAWrapperPass>())
     AAR->addAAResult(WrapperPass->getResult());
   if (auto *WrapperPass =
           getAnalysisIfAvailable<objcarc::ObjCARCAAWrapperPass>())
@@ -836,6 +864,7 @@ void AAResultsWrapperPass::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.setPreservesAll();
   AU.addRequired<BasicAAWrapperPass>();
   AU.addRequired<UnseqAAWrapperPass>();
+  AU.addRequired<SemanticAAWrapperPass>();
   AU.addRequired<TargetLibraryInfoWrapperPass>();
 
   // We also need to mark all the alias analysis passes we will potentially
@@ -868,6 +897,8 @@ AAResults llvm::createLegacyPMAAResults(Pass &P, Function &F,
     AAR.addAAResult(WrapperPass->getResult());
   if (auto *WrapperPass = P.getAnalysisIfAvailable<UnseqAAWrapperPass>())
     AAR.addAAResult(WrapperPass->getResult());
+  if (auto *WrapperPass = P.getAnalysisIfAvailable<SemanticAAWrapperPass>())
+    AAR.addAAResult(WrapperPass->getResult());
   if (auto *WrapperPass =
           P.getAnalysisIfAvailable<objcarc::ObjCARCAAWrapperPass>())
     AAR.addAAResult(WrapperPass->getResult());
@@ -878,6 +909,8 @@ AAResults llvm::createLegacyPMAAResults(Pass &P, Function &F,
   if (auto *WrapperPass = P.getAnalysisIfAvailable<CFLSteensAAWrapperPass>())
     AAR.addAAResult(WrapperPass->getResult());
   if (auto *WrapperPass = P.getAnalysisIfAvailable<UnseqAAWrapperPass>())
+    AAR.addAAResult(WrapperPass->getResult());
+  if (auto *WrapperPass = P.getAnalysisIfAvailable<SemanticAAWrapperPass>())
     AAR.addAAResult(WrapperPass->getResult());
   if (auto *WrapperPass = P.getAnalysisIfAvailable<ExternalAAWrapperPass>())
     if (WrapperPass->CB)
@@ -922,10 +955,10 @@ void llvm::getAAResultsAnalysisUsage(AnalysisUsage &AU) {
   AU.addUsedIfAvailable<ScopedNoAliasAAWrapperPass>();
   AU.addUsedIfAvailable<TypeBasedAAWrapperPass>();
   AU.addUsedIfAvailable<UnseqAAWrapperPass>();
+  AU.addUsedIfAvailable<SemanticAAWrapperPass>();
   AU.addUsedIfAvailable<objcarc::ObjCARCAAWrapperPass>();
   AU.addUsedIfAvailable<GlobalsAAWrapperPass>();
   AU.addUsedIfAvailable<CFLAndersAAWrapperPass>();
   AU.addUsedIfAvailable<CFLSteensAAWrapperPass>();
-  AU.addUsedIfAvailable<UnseqAAWrapperPass>();
   AU.addUsedIfAvailable<ExternalAAWrapperPass>();
 }

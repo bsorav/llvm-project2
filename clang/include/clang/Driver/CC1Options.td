@@ -476,6 +476,7 @@ def Wno_rewrite_macros : Flag<["-"], "Wno-rewrite-macros">,
 def cc1 : Flag<["-"], "cc1">;
 def cc1as : Flag<["-"], "cc1as">;
 
+
 def ast_merge : Separate<["-"], "ast-merge">,
   MetaVarName<"<ast file>">,
   HelpText<"Merge the given AST file into the translation unit being compiled.">;

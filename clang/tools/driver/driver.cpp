@@ -47,10 +47,13 @@
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Support/Timer.h"
 #include "llvm/Support/raw_ostream.h"
-#include "llvm/Support/mydebug.h"
+//#include "llvm/Support/mydebug.h"
 #include <memory>
 #include <set>
 #include <system_error>
+#include "support/dyn_debug.h"
+#include "support/debug.h"
+
 using namespace clang;
 using namespace clang::driver;
 using namespace llvm::opt;
@@ -352,13 +355,27 @@ int main(int argc_, const char **argv_) {
   if (llvm::sys::Process::FixupStandardFileDescriptors())
     return 1;
 
-  DBG(llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": argv[0] = " << argv[0] << ", argv.size() = " << argv.size() << "\n");
-  DBG(
+  {
+    std::string dyn_debug_prefix = "--dyn_debug=";
+    auto iter = llvm::find_if(argv, [&dyn_debug_prefix](const char *F) {
+            return F && std::string(F).substr(0, dyn_debug_prefix.size()) == dyn_debug_prefix;
+          });
+    if (iter != argv.end()) {
+      eqspace::init_dyn_debug_from_string(std::string(*iter).substr(dyn_debug_prefix.size()));
+      CPP_DBG_EXEC(DYN_DEBUG, eqspace::print_debug_class_levels());
+    }
+  }
+
+  DYN_DEBUG(clang_driver, llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": argv[0] = " << argv[0] << ", argv.size() = " << argv.size() << "\n");
+  DYN_DEBUG(clang_driver,
       for (size_t i = 0; i < argv.size(); i++) {
         llvm::errs() << "argv[" << i << "] = " << argv[i] << "\n";
       }
   );
-  DBG(llvm::errs() << "\n");
+  DYN_DEBUG(clang_driver, llvm::errs() << "\n");
+      for (size_t i = 0; i < argv.size(); i++) {
+        llvm::errs() << "argv[" << i << "] = " << argv[i] << "\n";
+      }
   llvm::InitializeAllTargets();
   auto TargetAndMode = ToolChain::getTargetAndModeFromProgramName(argv[0]);
 
