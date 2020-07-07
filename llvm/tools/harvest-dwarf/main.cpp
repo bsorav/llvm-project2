@@ -68,7 +68,8 @@ public:
   DWARFExpression_to_eqspace_expr(DWARFExpression const& expr, raw_ostream& OS)
   : m_dwarf_expr(expr),
     m_OS(OS),
-    m_bvsort_size(m_dwarf_expr.getAddressSize()*8)
+    m_bvsort_size(m_dwarf_expr.getAddressSize()*8),
+    m_memvar(g_ctx->mk_var(G_SOLVER_DST_MEM_NAME, g_ctx->mk_array_sort(g_ctx->mk_bv_sort(DWORD_LEN), g_ctx->mk_bv_sort(BYTE_LEN))))
   { }
 
   eqspace::expr_ref get_result()
@@ -90,6 +91,7 @@ private:
   raw_ostream& m_OS;
   std::stack<eqspace::expr_ref> m_stk;
   unsigned m_bvsort_size;
+  expr_ref m_memvar;
 };
 
 eqspace::expr_ref
@@ -101,7 +103,17 @@ DWARFExpression_to_eqspace_expr::convert()
       return nullptr;
     }
   }
-  assert(m_stk.size());
+  if (m_stk.size() != 1) {
+    auto cp_stk = m_stk;
+    while (!cp_stk.empty()) {
+      auto v = cp_stk.top(); cp_stk.pop();
+      m_OS << eqspace::expr_string(v) << " ";
+    }
+    m_OS << "\nDWARFExpression = ";
+    m_dwarf_expr.print(m_OS, nullptr, nullptr);
+    m_OS << '\n';
+  }
+  assert(m_stk.size() == 1);
   return m_stk.top();
 }
 
@@ -194,8 +206,90 @@ DWARFExpression_to_eqspace_expr::handle_op(DWARFExpression::Operation &op)
       // this is suppposed to be the last op of the expression
       assert(m_stk.size());
       break;
+    case llvm::dwarf::DW_OP_deref: {
+      eqspace::expr_ref addr = m_stk.top();
+      m_stk.pop();
+      eqspace::expr_ref res  = g_ctx->mk_select(m_memvar, memlabel_t::memlabel_top(), addr, m_bvsort_size/8, false);
+      m_stk.push(res);
+      break;
+    }
+    case llvm::dwarf::DW_OP_constu: {
+      eqspace::expr_ref res = this->unsigned_const_to_bvconst(op.getRawOperand(0));
+      m_stk.push(res);
+      break;
+    }
+    case llvm::dwarf::DW_OP_const1u: {
+      eqspace::expr_ref res = this->unsigned_const_to_bvconst(op.getRawOperand(0));
+      m_stk.push(res);
+      break;
+    }
+    case llvm::dwarf::DW_OP_const2u: {
+      eqspace::expr_ref res = this->unsigned_const_to_bvconst(op.getRawOperand(0));
+      m_stk.push(res);
+      break;
+    }
     case llvm::dwarf::DW_OP_consts: {
       eqspace::expr_ref res = this->signed_const_to_bvconst(op.getRawOperand(0));
+      m_stk.push(res);
+      break;
+    }
+    case llvm::dwarf::DW_OP_const1s: {
+      eqspace::expr_ref res = this->signed_const_to_bvconst(op.getRawOperand(0));
+      m_stk.push(res);
+      break;
+    }
+    case llvm::dwarf::DW_OP_const2s: {
+      eqspace::expr_ref res = this->signed_const_to_bvconst(op.getRawOperand(0));
+      m_stk.push(res);
+      break;
+    }
+    case llvm::dwarf::DW_OP_plus:
+    case llvm::dwarf::DW_OP_minus:
+    case llvm::dwarf::DW_OP_mul:
+    case llvm::dwarf::DW_OP_shl:
+    case llvm::dwarf::DW_OP_and:
+    case llvm::dwarf::DW_OP_xor:
+    case llvm::dwarf::DW_OP_eq:
+    case llvm::dwarf::DW_OP_gt: {
+      eqspace::expr_ref op2 = m_stk.top();
+      m_stk.pop();
+      eqspace::expr_ref op1 = m_stk.top();
+      m_stk.pop();
+      eqspace::expr_ref res;
+      if (opcode == llvm::dwarf::DW_OP_plus) {
+        res = g_ctx->mk_bvadd(op1, op2);
+      } else if (opcode == llvm::dwarf::DW_OP_minus) {
+        res = g_ctx->mk_bvsub(op1, op2);
+      } else if (opcode == llvm::dwarf::DW_OP_mul) {
+        res = g_ctx->mk_bvmul(op1, op2);
+      } else if (opcode == llvm::dwarf::DW_OP_shl) {
+        res = g_ctx->mk_bvexshl(op1, op2);
+      } else if (opcode == llvm::dwarf::DW_OP_and) {
+        res = g_ctx->mk_bvand(op1, op2);
+      } else if (opcode == llvm::dwarf::DW_OP_xor) {
+        res = g_ctx->mk_bvxor(op1, op2);
+      } else if (opcode == llvm::dwarf::DW_OP_eq) {
+        res = g_ctx->mk_ite(g_ctx->mk_eq(op1, op2),
+                            this->unsigned_const_to_bvconst(1),
+                            this->unsigned_const_to_bvconst(0));
+      } else if (opcode == llvm::dwarf::DW_OP_gt) {
+        res = g_ctx->mk_ite(g_ctx->mk_bvugt(op1, op2),
+                            this->unsigned_const_to_bvconst(1),
+                            this->unsigned_const_to_bvconst(0));
+      } else { NOT_REACHED(); }
+      m_stk.push(res);
+      break;
+    }
+    //case llvm::dwarf::DW_OP_piece: {
+    //  break;
+    //}
+    case llvm::dwarf::DW_OP_bit_piece: {
+      uint64_t piece_size = op.getRawOperand(0);
+      uint64_t offset     = op.getRawOperand(1);
+      // we store location descriptions in the stack (which may not be the right(tm) choice here)
+      eqspace::expr_ref val = m_stk.top();
+      m_stk.pop();
+      eqspace::expr_ref res = g_ctx->mk_bvextract(val, offset+piece_size-1, offset);
       m_stk.push(res);
       break;
     }
@@ -204,7 +298,7 @@ DWARFExpression_to_eqspace_expr::handle_op(DWARFExpression::Operation &op)
       assert(!name.empty() && "DW_OP has no name!");
       m_OS << "operation \"" << name << "\" not handled\n";
       m_OS.flush();
-      NOT_REACHED();
+      NOT_IMPLEMENTED();
     }
     }
   }
