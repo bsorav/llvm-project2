@@ -65,8 +65,9 @@ using HandlerFn = std::function<bool(ObjectFile &, DWARFContext &DICtx,
 class DWARFExpression_to_eqspace_expr
 {
 public:
-  DWARFExpression_to_eqspace_expr(DWARFExpression const& expr, raw_ostream& OS)
+  DWARFExpression_to_eqspace_expr(DWARFExpression const& expr, eqspace::expr_ref const& frame_base, raw_ostream& OS)
   : m_dwarf_expr(expr),
+    m_frame_base(frame_base),
     m_OS(OS),
     m_bvsort_size(m_dwarf_expr.getAddressSize()*8),
     m_memvar(g_ctx->mk_var(G_SOLVER_DST_MEM_NAME, g_ctx->mk_array_sort(g_ctx->mk_bv_sort(DWORD_LEN), g_ctx->mk_bv_sort(BYTE_LEN))))
@@ -88,6 +89,7 @@ private:
   eqspace::expr_ref unsigned_const_to_bvconst(uint64_t cval) const;
 
   DWARFExpression const& m_dwarf_expr;
+  eqspace::expr_ref const& m_frame_base;
   raw_ostream& m_OS;
   std::stack<eqspace::expr_ref> m_stk;
   unsigned m_bvsort_size;
@@ -195,7 +197,8 @@ DWARFExpression_to_eqspace_expr::handle_op(DWARFExpression::Operation &op)
     }
     case llvm::dwarf::DW_OP_fbreg: {
       // signed offset from frame_base which we assume to be input_stack_pointer_const
-      eqspace::expr_ref regvar = g_ctx->get_consts_struct().get_input_stack_pointer_const_expr();
+      assert(this->m_frame_base);
+      eqspace::expr_ref regvar = this->m_frame_base;
       eqspace::expr_ref offset = this->signed_const_to_bvconst(op.getRawOperand(0));
       eqspace::expr_ref res    = g_ctx->mk_bvadd(regvar, offset);
       m_stk.push(res);
@@ -293,6 +296,17 @@ DWARFExpression_to_eqspace_expr::handle_op(DWARFExpression::Operation &op)
       m_stk.push(res);
       break;
     }
+    case llvm::dwarf::DW_OP_call_frame_cfa: {
+      // see section 6.4 line 10:
+      //   Typically, the CFA is defined to be the value of the stack
+      //   pointer at the call site in the previous frame (which may be different from its value
+      //   on entry to the current frame)
+      // This is usually just (input stack pointer + address size in bytes) i.e. esp before call insn
+      eqspace::expr_ref res = g_ctx->mk_bvadd(g_ctx->get_consts_struct().get_input_stack_pointer_const_expr(),
+                                              g_ctx->mk_bv_const(m_bvsort_size, (int)m_bvsort_size/8));
+      m_stk.push(res);
+      break;
+    }
     default: {
       StringRef name = llvm::dwarf::OperationEncodingString(opcode);
       assert(!name.empty() && "DW_OP has no name!");
@@ -306,19 +320,42 @@ DWARFExpression_to_eqspace_expr::handle_op(DWARFExpression::Operation &op)
 }
 
 static eqspace::expr_ref
-dwarf_expr_to_expr(DWARFExpression const& dwarf_expr, raw_ostream& OS)
+dwarf_expr_to_expr(DWARFExpression const& dwarf_expr, eqspace::expr_ref const& frame_base, raw_ostream& OS)
 {
-  DWARFExpression_to_eqspace_expr dexpr2expr(dwarf_expr, OS);
+  DWARFExpression_to_eqspace_expr dexpr2expr(dwarf_expr, frame_base, OS);
   return dexpr2expr.get_result();
 }
 
-static llvm::Optional<std::tuple<uint64_t,uint64_t,eqspace::expr_ref>>
-handle_location_list(DWARFLocationTable const& location_table,
-										 uint64_t Offset,
-                     raw_ostream &OS,
-                     llvm::Optional<SectionedAddress> BaseAddr,
-                     const DWARFObject &Obj,
-                     DWARFUnit *U)
+class SubprogramLocalsHarvester
+{
+public:
+  SubprogramLocalsHarvester(DWARFDie const& die, raw_ostream& OS)
+  : m_OS(OS)
+  {
+    ASSERT(die.isSubprogramDIE());
+    visit_die(die);
+  }
+
+  std::string get_name() const { return this->m_name; }
+  std::list<pair<std::string, std::vector<std::tuple<uint64_t,uint64_t,eqspace::expr_ref>>>> get_locals() const { return this->m_locals; }
+
+private:
+  void visit_die(DWARFDie const& die);
+  llvm::Optional<std::tuple<uint64_t,uint64_t,eqspace::expr_ref>> handle_location_list(DWARFLocationTable const& location_table, uint64_t Offset, llvm::Optional<SectionedAddress> BaseAddr, DWARFUnit *U);
+
+  raw_ostream& m_OS;
+
+  std::string m_name;
+  eqspace::expr_ref m_frame_base;
+  std::stack<pair<uint64_t,uint64_t>> m_addr_ranges;
+  std::list<pair<std::string, std::vector<std::tuple<uint64_t,uint64_t,eqspace::expr_ref>>>> m_locals;
+};
+
+llvm::Optional<std::tuple<uint64_t,uint64_t,eqspace::expr_ref>>
+SubprogramLocalsHarvester::handle_location_list(DWARFLocationTable const& location_table,
+										                            uint64_t Offset,
+                                                llvm::Optional<SectionedAddress> BaseAddr,
+                                                DWARFUnit *U)
 {
 	assert(U);
   auto const& DataEx = location_table.getDataExtractor();
@@ -327,7 +364,7 @@ handle_location_list(DWARFLocationTable const& location_table,
   Error E = location_table.visitAbsoluteLocationList(Offset, BaseAddr,
     [U](uint32_t Index) -> llvm::Optional<SectionedAddress>
     { return U->getAddrOffsetSectionItem(Index); },
-    [U,&DataEx,&OS,first_only,&loc_exprs](llvm::Expected<DWARFLocationExpression> Loc) -> bool
+    [U,&DataEx,first_only,&loc_exprs,this](llvm::Expected<DWARFLocationExpression> Loc) -> bool
     {
       if (!Loc) {
         consumeError(Loc.takeError());
@@ -343,7 +380,7 @@ handle_location_list(DWARFLocationTable const& location_table,
       }
   		DWARFDataExtractor Extractor(Loc->Expr, DataEx.isLittleEndian(), DataEx.getAddressSize());
 			auto dwarf_expr = DWARFExpression(Extractor, DataEx.getAddressSize());
-      eqspace::expr_ref ret = dwarf_expr_to_expr(dwarf_expr, OS);
+      eqspace::expr_ref ret = dwarf_expr_to_expr(dwarf_expr, this->m_frame_base, this->m_OS);
 			loc_exprs.push_back(make_tuple(lpc, hpc, ret));
 			return !first_only;
    	});
@@ -353,41 +390,38 @@ handle_location_list(DWARFLocationTable const& location_table,
   return loc_exprs.front();
 }
 
-static void
-populate_function_to_variable_to_expr_map(DWARFDie const& die,
-                                               std::list<pair<std::string, std::list<pair<std::string, std::vector<std::tuple<uint64_t,uint64_t,eqspace::expr_ref>>>>>>& ret_map,
-                                               std::stack<pair<uint64_t,uint64_t>> addr_ranges,
-                                               raw_ostream& OS,
-                                               bool in_subprogram)
+void
+SubprogramLocalsHarvester::visit_die(DWARFDie const& die)
 {
   if (!die.isValid()) {
-    OS << "Invalid die\n";
+    this->m_OS << "Invalid die\n";
     return;
   }
 
   DWARFUnit *U = die.getDwarfUnit();
 	assert(U);
   DWARFDataExtractor debug_info_data = U->getDebugInfoExtractor();
+  DWARFContext &Ctx = U->getContext();
 
   uint64_t offset = die.getOffset();
   if (!debug_info_data.isValidOffset(offset)) {
-    OS << "Invalid offset: " << offset << '\n';
+    this->m_OS << "Invalid offset: " << offset << '\n';
 		return;
   }
   uint32_t abbrCode = debug_info_data.getULEB128(&offset);
   if (!abbrCode) {
-    OS << "Abbrev Code not found for offset: " << offset << '\n';
+    this->m_OS << "Abbrev Code not found for offset: " << offset << '\n';
 		return;
   }
   auto AbbrevDecl = die.getAbbreviationDeclarationPtr();
   if (!AbbrevDecl) {
-    OS << "Arrev Declaration ptr is null\n";
+    this->m_OS << "AbbrevDeclarationPtr is null\n";
 		return;
   }
+
   auto tag = AbbrevDecl->getTag();
-  if (   (   in_subprogram
-          && (   tag == dwarf::DW_TAG_variable
-              || tag == dwarf::DW_TAG_lexical_block)) // for lexical blocks we only handle the single address and contiguous address range
+  if (   (   tag == dwarf::DW_TAG_variable
+          || tag == dwarf::DW_TAG_lexical_block) // for lexical blocks we only handle the single address and contiguous address range
       || die.isSubprogramDIE()
      ) {
     std::string name;
@@ -411,7 +445,12 @@ populate_function_to_variable_to_expr_map(DWARFDie const& die,
 
     	switch (Attr) {
     	  case dwarf::DW_AT_frame_base:
-    	    // TODO assert that frame_base is equal to ESP
+  			  if (FormValue.isFormClass(DWARFFormValue::FC_Exprloc)) {
+    			  ArrayRef<uint8_t> Expr = *FormValue.getAsBlock();
+    			  DataExtractor Data(StringRef((const char *)Expr.data(), Expr.size()), Ctx.isLittleEndian(), 0);
+    			  auto dwarf_expr = DWARFExpression(Data, U->getAddressByteSize());
+            this->m_frame_base = dwarf_expr_to_expr(dwarf_expr, nullptr, this->m_OS);
+  			  } else { assert(0 && "non-exprloc forms not supported for DW_AT_frame_base"); }
           break;
     	  case dwarf::DW_AT_low_pc:
           if (llvm::Optional<uint64_t> addr = FormValue.getAsAddress()) {
@@ -425,44 +464,48 @@ populate_function_to_variable_to_expr_map(DWARFDie const& die,
             high_pc = offset.getValue();
             high_pc_is_offset = true;
           } else {
-    	      OS << "\t" << formatv("{0} [{1}]", Attr, Form) << " ";
+    	      this->m_OS << "\t" << formatv("{0} [{1}]", Attr, Form) << " ";
             assert(0 && "unable to decode DW_AT_high_pc");
           }
     	    break;
     	  case dwarf::DW_AT_name:
-    	    if (llvm::Optional<const char*> cstr = FormValue.getAsCString()) {
+    	    if (llvm::Optional<const char*> cstr = dwarf::toString(FormValue)) {
     	      name = cstr.getValue();
-          } else { assert(0 && "unable to decode DW_AT_name"); }
+          } else {
+    	      this->m_OS << formatv("{0}: {1} [{2}]", tag, Attr, Form) << " ";
+    	      if (tag == dwarf::DW_TAG_subprogram) {
+    	        this->m_OS << "subprogram name: " << die.getSubroutineName(llvm::DINameKind::ShortName) << '\n';
+    	        this->m_OS << "toString: " << dwarf::toString(FormValue) << '\n';
+    	      }
+            assert(0 && "unable to decode DW_AT_name");
+          }
     	    break;
-    	  case dwarf::DW_AT_location:
-    	    if (   Form == dwarf::Form::DW_FORM_exprloc
-        	    || DWARFAttribute::mayHaveLocationDescription(Attr)) {
-  			    DWARFContext &Ctx = U->getContext();
-  			    if (FormValue.isFormClass(DWARFFormValue::FC_Exprloc)) {
-    			    ArrayRef<uint8_t> Expr = *FormValue.getAsBlock();
-    			    DataExtractor Data(StringRef((const char *)Expr.data(), Expr.size()), Ctx.isLittleEndian(), 0);
-    			    auto dwarf_expr = DWARFExpression(Data, U->getAddressByteSize());
-              eqspace::expr_ref ret = dwarf_expr_to_expr(dwarf_expr, OS);
-					    assert(addr_ranges.size());
-					    low_pc = addr_ranges.top().first;
-					    high_pc = addr_ranges.top().second;
-					    loc_exprs.push_back(make_tuple(low_pc, high_pc, ret));
-  			    } else if (FormValue.isFormClass(DWARFFormValue::FC_SectionOffset)) {
-    			    uint64_t Offset = *FormValue.getAsSectionOffset();
-    			    if (FormValue.getForm() == dwarf::Form::DW_FORM_loclistx) {
-      			    if (auto LoclistOffset = U->getLoclistOffset(Offset))
-        			    Offset = *LoclistOffset;
-      			    else {
-							    // loclists section offset not found; cannot extract anything
-							    continue;
-						    }
-    			    }
-              llvm::Optional<std::tuple<uint64_t,uint64_t,eqspace::expr_ref>> loc_expr = handle_location_list(U->getLocationTable(), Offset, OS, U->getBaseAddress(), Ctx.getDWARFObj(), U);
-					    assert(loc_expr);
-					    loc_exprs.push_back(loc_expr.getValue());
-      	    } else { llvm_unreachable("unhandled location type"); }
-      	  } else { assert(0 && "unable to decode DW_AT_location"); }
+    	  case dwarf::DW_AT_location: {
+  			  if (FormValue.isFormClass(DWARFFormValue::FC_Exprloc)) {
+    			  ArrayRef<uint8_t> Expr = *FormValue.getAsBlock();
+    			  DataExtractor Data(StringRef((const char *)Expr.data(), Expr.size()), Ctx.isLittleEndian(), 0);
+    			  auto dwarf_expr = DWARFExpression(Data, U->getAddressByteSize());
+            eqspace::expr_ref ret = dwarf_expr_to_expr(dwarf_expr, this->m_frame_base, this->m_OS);
+					  assert(this->m_addr_ranges.size());
+					  low_pc  = this->m_addr_ranges.top().first;
+					  high_pc = this->m_addr_ranges.top().second;
+					  loc_exprs.push_back(make_tuple(low_pc, high_pc, ret));
+  			  } else if (FormValue.isFormClass(DWARFFormValue::FC_SectionOffset)) {
+    			  uint64_t Offset = *FormValue.getAsSectionOffset();
+    			  if (FormValue.getForm() == dwarf::Form::DW_FORM_loclistx) {
+      		    if (auto LoclistOffset = U->getLoclistOffset(Offset))
+        		    Offset = *LoclistOffset;
+      		    else {
+						    // loclists section offset not found; cannot extract anything
+						    continue;
+					    }
+    			  }
+            llvm::Optional<std::tuple<uint64_t,uint64_t,eqspace::expr_ref>> loc_expr = handle_location_list(U->getLocationTable(), Offset, U->getBaseAddress(), U);
+					  assert(loc_expr);
+					  loc_exprs.push_back(loc_expr.getValue());
+      	  } else { llvm_unreachable("unhandled location type"); }
       	  break;
+      	}
         default:
           break; // nop for any other attribute
     	}
@@ -470,24 +513,44 @@ populate_function_to_variable_to_expr_map(DWARFDie const& die,
 
     if (   tag == dwarf::DW_TAG_variable
   	    && loc_exprs.size()) {
-  	  ret_map.back().second.push_back(make_pair(name, loc_exprs));
+  	  this->m_locals.push_back(make_pair(name, loc_exprs));
   	}
     if (die.isSubprogramDIE()) {
-      ret_map.push_back(std::make_pair(name, std::list<pair<std::string,std::vector<std::tuple<uint64_t,uint64_t,eqspace::expr_ref>>>>()));
+      this->m_name = name;
     }
     if (   tag == dwarf::DW_TAG_lexical_block
         || die.isSubprogramDIE()) {
       if (high_pc_is_offset) {
         high_pc += low_pc;
       }
-      addr_ranges.push(make_pair(low_pc, high_pc));
+      this->m_addr_ranges.push(make_pair(low_pc, high_pc));
     }
-	}
+  }
 
-  // recursive call
-	bool child_in_subprogram = in_subprogram || die.isSubprogramDIE();
 	for (auto child : die.children()) {
-  	populate_function_to_variable_to_expr_map(child, ret_map, addr_ranges, OS, child_in_subprogram);
+    visit_die(child);
+	}
+}
+
+static void
+populate_function_to_variable_to_expr_map(DWARFDie const& die,
+                                               std::list<pair<std::string, std::list<pair<std::string, std::vector<std::tuple<uint64_t,uint64_t,eqspace::expr_ref>>>>>>& ret_map,
+                                               raw_ostream& OS)
+{
+  if (!die.isValid()) {
+    OS << "Invalid die\n";
+    return;
+  }
+
+  if (die.isSubprogramDIE()) {
+    SubprogramLocalsHarvester subprogram_harvester(die, OS);
+    auto subprogram_locals = subprogram_harvester.get_locals();
+    if (subprogram_locals.size())
+      ret_map.push_back(make_pair(subprogram_harvester.get_name(), subprogram_locals));
+  }
+
+	for (auto child : die.children()) {
+  	populate_function_to_variable_to_expr_map(child, ret_map, OS);
 	}
 }
 
@@ -501,7 +564,7 @@ static bool dumpObjectFile(ObjectFile &Obj, DWARFContext &DICtx,
   std::list<pair<std::string, std::list<pair<std::string, std::vector<std::tuple<uint64_t,uint64_t,eqspace::expr_ref>>>>>> ret_map;
   for (auto const& unit : DICtx.info_section_units()) {
     if (DWARFDie CUDie = unit->getUnitDIE(false)) {
-      populate_function_to_variable_to_expr_map(CUDie, ret_map, {}, OS, false);
+      populate_function_to_variable_to_expr_map(CUDie, ret_map, OS);
     }
   }
 
