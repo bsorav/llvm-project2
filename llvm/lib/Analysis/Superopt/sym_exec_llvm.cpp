@@ -518,6 +518,7 @@ void sym_exec_common::populate_state_template_common()
 void sym_exec_llvm::populate_state_template(const llvm::Function& F)
 {
   argnum_t argnum = 0;
+  const DataLayout &dl = m_module->getDataLayout();
   for(Function::const_arg_iterator iter = F.arg_begin(); iter != F.arg_end(); ++iter)
   {
     const Value& v = *iter;
@@ -527,10 +528,22 @@ void sym_exec_llvm::populate_state_template(const llvm::Function& F)
     string name = get_value_name(v);
     sort_ref s = get_value_type(v, m_module->getDataLayout());
     string argname = name/* + SRC_INPUT_ARG_NAME_SUFFIX*/;
-    expr_ref argvar = m_ctx->mk_var(string(G_INPUT_KEYWORD) + "." + argname, s);
+    expr_ref argvar = m_ctx->get_input_expr_for_key(mk_string_ref(argname), s);
     m_arguments[name] = make_pair(argnum, argvar);
     argnum++;
     //m_state_templ.push_back({argname, s});
+
+    Type* ty = v.getType();
+    unsigned size = dl.getTypeAllocSize(ty);
+    unsigned align = dl.getPrefTypeAlignment(ty);
+    m_local_refs.insert(make_pair(m_local_num++, graph_local_t(argname, size, align)));
+  }
+  if (F.isVarArg()) {
+    string name = G_SRC_KEYWORD "." VARARG_LOCAL_VARNAME;
+    expr_ref argvar = m_ctx->get_input_expr_for_key(mk_string_ref(name), m_ctx->mk_bv_sort(get_word_length()));
+    m_arguments[name] = make_pair(argnum, argvar);
+
+    m_local_refs.insert(make_pair(graph_locals_map_t::vararg_local_id(), graph_local_t::vararg_local()));
   }
 
   //int bbnum = 1; //bbnum == 0 is reserved
