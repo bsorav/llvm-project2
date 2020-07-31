@@ -1020,6 +1020,45 @@ sym_exec_llvm::apply_memcpy_function(const CallInst* c, expr_ref fun_name_expr, 
   return make_pair(state_assumes, succ_assumes);
 }
 
+pair<unordered_set<expr_ref>,unordered_set<expr_ref>>
+sym_exec_llvm::apply_va_start_function(const CallInst* c, state const& state_in, state &state_out, unordered_set<expr_ref> const& state_assumes, shared_ptr<tfg_node>& from_node, tfg& t, map<llvm_value_id_t,string_ref>* value_to_name_map)
+{
+  const auto& va_list_ptr = c->getArgOperand(0);
+  expr_ref va_list_ptr_expr;
+  ASSERT(va_list_ptr);
+  unordered_set<expr_ref> assumes = state_assumes;
+  // store vararg addr at the location pointed to by va_list_ptr
+  tie(va_list_ptr_expr, assumes) = get_expr_adding_edges_for_intermediate_vals(*va_list_ptr, state_out, assumes, from_node, t, value_to_name_map);
+
+  expr_ref vararg_addr = m_ctx->get_consts_struct().get_expr_value(reg_type_local, graph_locals_map_t::vararg_local_id());
+  memlabel_t ml_top = memlabel_t::memlabel_top();
+  unsigned count = get_word_length()/get_memory_addressable_size();
+  state_set_expr(state_out, m_mem_reg, m_ctx->mk_store(state_get_expr(state_in, m_mem_reg, this->get_mem_sort()), ml_top, va_list_ptr_expr, vararg_addr, count, false));
+  return make_pair(state_assumes, unordered_set<expr_ref>());
+}
+
+pair<unordered_set<expr_ref>,unordered_set<expr_ref>>
+sym_exec_llvm::apply_va_copy_function(const CallInst* c, state const& state_in, state &state_out, unordered_set<expr_ref> const& state_assumes, shared_ptr<tfg_node>& from_node, tfg& t, map<llvm_value_id_t,string_ref>* value_to_name_map)
+{
+  const auto& dst_va_list_ptr = c->getArgOperand(0);
+  const auto& src_va_list_ptr = c->getArgOperand(1);
+  expr_ref src_va_list_ptr_expr, dst_va_list_ptr_expr;
+  ASSERT(dst_va_list_ptr);
+  ASSERT(src_va_list_ptr);
+  // copy word-legnth bytes from [src_va_list_ptr] to [dst_va_list_ptr]
+  unordered_set<expr_ref> assumes = state_assumes;
+  tie(src_va_list_ptr_expr, assumes) = get_expr_adding_edges_for_intermediate_vals(*src_va_list_ptr, state_out, assumes, from_node, t, value_to_name_map);
+  tie(dst_va_list_ptr_expr, assumes) = get_expr_adding_edges_for_intermediate_vals(*dst_va_list_ptr, state_out, assumes, from_node, t, value_to_name_map);
+
+  memlabel_t ml_top = memlabel_t::memlabel_top();
+  unsigned count = get_word_length()/get_memory_addressable_size();
+  expr_ref mem_expr = state_get_expr(state_in, m_mem_reg, this->get_mem_sort());
+  expr_ref va_list_expr = m_ctx->mk_select(mem_expr, ml_top, src_va_list_ptr_expr, count, false);
+  state_set_expr(state_out, m_mem_reg, m_ctx->mk_store(mem_expr, ml_top, dst_va_list_ptr_expr, va_list_expr, count, false));
+
+  return make_pair(state_assumes, unordered_set<expr_ref>());
+}
+
 size_t
 sym_exec_llvm::function_get_num_bbls(const Function *F)
 {
@@ -1519,10 +1558,15 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, shar
       fun_name = LLVM_FUNCTION_NAME_PREFIX G_SELFCALL_IDENTIFIER;
       fun_expr = m_ctx->mk_var(fun_name, m_ctx->mk_bv_sort(DWORD_LEN));
     }
-    string memcpy_fn = LLVM_FUNCTION_NAME_PREFIX G_LLVM_MEMCPY_FUNCTION;
     unordered_set<expr_ref> succ_assumes;
-    if (fun_name.substr(0, memcpy_fn.length()) == memcpy_fn) {
+    if (string_has_prefix(fun_name, LLVM_FUNCTION_NAME_PREFIX G_LLVM_MEMCPY_FUNCTION)) {
       tie(state_assumes, succ_assumes) = apply_memcpy_function(c, fun_expr, fun_name, calleeF, state_in, state_out, state_assumes, cur_function_name, from_node/*, pc_to, B, F*/, t, function_tfg_map, value_to_name_map, function_call_chain);
+    } else if (fun_name == LLVM_FUNCTION_NAME_PREFIX G_LLVM_VA_START_FUNCTION) {
+      tie(state_assumes, succ_assumes) = apply_va_start_function(c, state_in, state_out, state_assumes, from_node, t, value_to_name_map);
+    } else if (fun_name == LLVM_FUNCTION_NAME_PREFIX G_LLVM_VA_COPY_FUNCTION) {
+      tie(state_assumes, succ_assumes) = apply_va_copy_function(c, state_in, state_out, state_assumes, from_node, t, value_to_name_map);
+    } else if (fun_name == LLVM_FUNCTION_NAME_PREFIX G_LLVM_VA_END_FUNCTION) {
+      //NOP
     } else {
       tie(state_assumes, succ_assumes) = apply_general_function(c, fun_expr, fun_name, calleeF, state_in, state_out, state_assumes, cur_function_name, from_node/*, pc_to, B, F*/, t, function_tfg_map, value_to_name_map, function_call_chain);
     }
