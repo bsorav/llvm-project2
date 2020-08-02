@@ -13,9 +13,9 @@
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/Analysis/LoopPass.h"
 #include "llvm/IR/Dominators.h"
-#include "tfg/tfg.h"
-#include "tfg/tfg_llvm.h"
-#include "tfg/dfa.h"
+#include "graph/tfg.h"
+#include "graph/tfg_llvm.h"
+#include "graph/dfa.h"
 #include "../lib/Analysis/Superopt/dfa_helper.h"
 #include <sstream>
 

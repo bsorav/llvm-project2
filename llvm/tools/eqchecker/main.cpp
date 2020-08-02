@@ -39,7 +39,7 @@ using namespace llvm;
 #include "expr/consts_struct.h"
 #include "expr/expr.h"
 #include "eq/eqcheck.h"
-#include "tfg/tfg_llvm.h"
+#include "graph/tfg_llvm.h"
 #include "ptfg/llptfg.h"
 #include "ptfg/function_signature.h"
 

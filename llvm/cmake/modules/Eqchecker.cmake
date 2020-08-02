@@ -26,6 +26,7 @@ link_directories(${z3_lib})
 link_directories(${binutils_install_dir}/lib)
 link_directories(/usr/local/lib)
 
+INCLUDE_DIRECTORIES(${LLVM_BINARY_DIR}/../../superopt/include)
 INCLUDE_DIRECTORIES(${LLVM_BINARY_DIR}/../../superopt/lib)
 INCLUDE_DIRECTORIES(${LLVM_BINARY_DIR}/../../superopt/lib/eq)
 INCLUDE_DIRECTORIES(${LLVM_BINARY_DIR}/../../superopt/lib/expr)

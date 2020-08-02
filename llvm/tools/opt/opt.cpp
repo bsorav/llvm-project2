@@ -56,7 +56,7 @@
 #include "llvm/Transforms/IPO/PassManagerBuilder.h"
 #include "llvm/Transforms/IPO/WholeProgramDevirt.h"
 #include "llvm/Transforms/Utils/Cloning.h"
-#include "tfg/tfg.h"
+#include "graph/tfg.h"
 #include "../lib/Analysis/Superopt/dfa_helper.h"
 #include "llvm/Transforms/Utils/Debugify.h"
 #include <algorithm>
