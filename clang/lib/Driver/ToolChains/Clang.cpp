@@ -7207,7 +7207,7 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
 }
 
 Qcc::Qcc(const ToolChain &TC)
-    : Tool("clang", "clang frontend", TC, RF_Full), m_clang(TC)
+    : Tool("clang", "clang frontend", TC), m_clang(TC)
 {}
 
 Qcc::~Qcc()
@@ -7258,7 +7258,7 @@ Qcc::ConstructJob(Compilation &C, const JobAction &JA,
     }
   }
 
-  C.addCommand(std::make_unique<Command>(JA, *this, TCArgs.MakeArgString(getToolChain().GetProgramPath("qcc-codegen")), CmdArgs, Inputs));
+  C.addCommand(std::make_unique<Command>(JA, *this, ResponseFileSupport::AtFileUTF8(), TCArgs.MakeArgString(getToolChain().GetProgramPath("qcc-codegen")), CmdArgs, Inputs));
 
   //m_clang.ConstructJob(C, JA, Output, Inputs, TCArgs, LinkingOutput);
 }

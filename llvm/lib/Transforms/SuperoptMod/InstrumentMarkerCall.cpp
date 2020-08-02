@@ -1060,7 +1060,7 @@ InstrumentMarkerCall::addMarkerInBasicBlock(Function *F, BasicBlock *BB, int ins
   FunctionType *markerFT = this->getMarkerFunctionType(live_types);
   CPP_DBG_EXEC(INSTRUMENT_MARKER_CALL, dbgs() << __func__ << " " << __LINE__ << ": adding marker in BB " << get_basicblock_name(*BB) << "\n");
   BasicBlock::iterator IP = BB->getFirstInsertionPt();
-  Value *markerFload = new LoadInst(markerFT, markerF, "", false, MaybeAlign(4), &(*IP));
+  Value *markerFload = new LoadInst(markerFT, markerF, "", false, Align(4), &(*IP));
   //CastInst *markerFcast = CastInst::CreatePointerCast(markerFload, PointerType::get(PointerType::get(markerFT, M->getDataLayout().getProgramAddressSpace()), M->getDataLayout().getProgramAddressSpace()), "", &(*IP));
   CastInst *markerFcast = CastInst::CreatePointerCast(markerFload, PointerType::get(markerFT, M->getDataLayout().getProgramAddressSpace()), "", &(*IP));
   vector<Value *> live_vals_vec = list_to_vector(live_values);

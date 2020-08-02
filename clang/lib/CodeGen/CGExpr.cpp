@@ -1504,7 +1504,7 @@ void CodeGenFunction::EmitAliasCall(LOCN_TYPE loc) {
           break;
         }
 
-        val = cast<llvm::CallInst>(val)->getCalledValue()->stripPointerCasts();
+        val = cast<llvm::CallInst>(val)->getCalledOperand()->stripPointerCasts();
         ValueArgs.push_back(wrapValueinMD(val, CGM));
       }
 
