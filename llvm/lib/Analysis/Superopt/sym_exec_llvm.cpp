@@ -1209,16 +1209,17 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, shar
   {
     const AllocaInst* a =  cast<const AllocaInst>(&I);
     string name = get_value_name(*a);
+    size_t local_id = m_local_num++;
     stringstream ss0;
-    ss0 << "local." << m_local_num;
+    ss0 << G_LOCAL_KEYWORD << '.' << local_id;
     string local_name = ss0.str();
     const DataLayout &dl = m_module->getDataLayout();
     Type *ElTy = a->getAllocatedType();
     uint64_t local_size = dl.getTypeAllocSize(ElTy);
+    unsigned align = a->getAlignment();
+    bool is_varsize = !(a->getAllocationSizeInBits(dl).hasValue());
 
-    //m_local_refs.push_back(make_pair(mk_string_ref(name), local_size));
-    m_local_refs.insert(make_pair(m_local_num, graph_local_t(name, local_size)));
-    m_local_num++;
+    m_local_refs.insert(make_pair(local_id, graph_local_t(name, local_size, align, is_varsize)));
     expr_ref local_addr = m_ctx->mk_var(local_name, m_ctx->mk_bv_sort(get_word_length()));
     memlabel_t ml_local;
     stringstream ss;
@@ -1233,8 +1234,22 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, shar
     //assumes.insert(p);
     //t.add_assume_pred(from_node->get_pc(), p);
 
-    state_set_expr(state_out, m_mem_reg, m_ctx->mk_alloca(state_get_expr(state_in, m_mem_reg, this->get_mem_sort()), ml_local, local_addr, local_size));
+    ostringstream ss2;
+    ss2 << G_LOCAL_SIZE_KEYWORD << '.' << local_id;
+    expr_ref local_size_expr;
+    if (is_varsize) {
+      expr_ref varsize_expr;
+      Value const* ArraySize = a->getArraySize();
+      tie(varsize_expr, state_assumes) = get_expr_adding_edges_for_intermediate_vals(*ArraySize, "", state_in, state_assumes, from_node, pc_to, B, F, t);
+      local_size_expr = m_ctx->mk_bvmul(varsize_expr, m_ctx->mk_bv_const(varsize_expr->get_sort()->get_size(), local_size));
+      ASSERT(local_size_expr->get_sort()->get_size() == get_word_length());
+    } else {
+      local_size_expr = m_ctx->mk_bv_const(get_word_length(), local_size);
+    }
+
+    state_set_expr(state_out, m_mem_reg, m_ctx->mk_alloca(state_get_expr(state_in, m_mem_reg, this->get_mem_sort()), ml_local, local_addr, local_size_expr));
     state_set_expr(state_out, name, local_addr);
+    state_set_expr(state_out, ss2.str(), local_size_expr);
     break;
   }
   case Instruction::Store:
@@ -1365,7 +1380,9 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, shar
       fun_expr = m_ctx->mk_var(fun_name, m_ctx->mk_bv_sort(DWORD_LEN));
     }
     if (   fun_name == LLVM_FUNCTION_NAME_PREFIX G_LLVM_DBG_DECLARE_FUNCTION
-        || fun_name == LLVM_FUNCTION_NAME_PREFIX G_LLVM_DBG_VALUE_FUNCTION) {
+        || fun_name == LLVM_FUNCTION_NAME_PREFIX G_LLVM_DBG_VALUE_FUNCTION
+        || fun_name == LLVM_FUNCTION_NAME_PREFIX G_LLVM_STACKSAVE_FUNCTION
+        || fun_name == LLVM_FUNCTION_NAME_PREFIX G_LLVM_STACKRESTORE_FUNCTION) {
       break;
     }
     if (string_has_prefix(fun_name, LLVM_FUNCTION_NAME_PREFIX G_LLVM_LIFETIME_FUNCTION_PREFIX)) {
