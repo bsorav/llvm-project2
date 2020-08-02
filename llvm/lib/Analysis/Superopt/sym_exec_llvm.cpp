@@ -304,7 +304,9 @@ vector<sort_ref> sym_exec_common::get_type_sort_vec(const llvm::Type* t, DataLay
     //errs() << "\n";
     //errs().flush();
     //NOT_IMPLEMENTED();
-  } else if (t->getTypeID() == Type::VectorTyID) {
+  } else if (   t->getTypeID() == Type::FixedVectorTyID
+             || t->getTypeID() == Type::ScalableVectorTyID
+            ) {
     t->print(errs());
     errs().flush();
     NOT_IMPLEMENTED();
@@ -1347,7 +1349,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, shar
     string fun_name;
     expr_ref fun_expr;
     if (calleeF == NULL) {
-      Value const *v = c->getCalledValue();
+      Value const *v = c->getCalledOperand();
       Value const *sv = v->stripPointerCasts();
       fun_name = string(sv->getName());
       if (fun_name == "") {

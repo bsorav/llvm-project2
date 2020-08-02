@@ -538,7 +538,7 @@ get_function_name(Instruction const& I)
   const CallInst* c =  cast<const CallInst>(&I);
   Function *F = c->getCalledFunction();
   if (F == NULL) {
-    Value const *v = c->getCalledValue();
+    Value const *v = c->getCalledOperand();
     Value const *sv = v->stripPointerCasts();
     return string(sv->getName());
   } else {
@@ -1013,7 +1013,7 @@ InstrumentMarkerCall::markerPresentInBasicBlock(Function *F, BasicBlock *BB)
     if (calleeF) {
       continue;
     }
-    Value const *v = c->getCalledValue();
+    Value const *v = c->getCalledOperand();
     if (!isa<Instruction const>(v)) {
       continue;
     }
