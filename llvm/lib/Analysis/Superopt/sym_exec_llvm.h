@@ -3,8 +3,8 @@
 
 #include "expr/expr.h"
 #include "state_llvm.h"
-#include "graph/tfg.h"
-#include "graph/tfg_llvm.h"
+#include "tfg/tfg.h"
+#include "tfg/tfg_llvm.h"
 #include "llvm/IR/Module.h"
 /*#include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
