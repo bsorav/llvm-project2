@@ -539,9 +539,9 @@ void sym_exec_llvm::populate_state_template(const llvm::Function& F)
     m_local_refs.insert(make_pair(m_local_num++, graph_local_t(argname, size, align)));
   }
   if (F.isVarArg()) {
-    string name = G_SRC_KEYWORD "." VARARG_LOCAL_VARNAME;
-    expr_ref argvar = m_ctx->get_input_expr_for_key(mk_string_ref(name), m_ctx->mk_bv_sort(get_word_length()));
-    m_arguments[name] = make_pair(argnum, argvar);
+    expr_ref argvar = m_ctx->get_vararg_local_expr();
+    string_ref name = m_ctx->get_key_from_input_expr(argvar);
+    m_arguments[name->get_str()] = make_pair(argnum, argvar);
 
     m_local_refs.insert(make_pair(graph_locals_map_t::vararg_local_id(), graph_local_t::vararg_local()));
   }
