@@ -1,21 +1,18 @@
+#include <tuple>
+#include <llvm/IR/DebugInfoMetadata.h>
+
 #include "sym_exec_llvm.h"
 #include "sym_exec_mir.h"
 #include "dfa_helper.h"
-//#include "../lib/Target/X86/X86CallLowering.h"
-////#include "../lib/Target/X86/X86CallingConv.h"
-//#include "../lib/Target/X86/X86ISelLowering.h"
-//#include "../lib/Target/X86/X86InstrInfo.h"
-//#include "../lib/Target/X86/X86RegisterInfo.h"
-//#include "../lib/Target/X86/X86Subtarget.h"
-#include "expr/expr.h"
-#include "tfg/predicate.h"
-#include "tfg/tfg_llvm.h"
+
 #include "support/dyn_debug.h"
-//#include "X86.h"
-//#include "X86RegisterInfo.h"
-//#include "X86Subtarget.h"
-#include <tuple>
-#include <llvm/IR/DebugInfoMetadata.h>
+
+#include "expr/expr.h"
+
+#include "gsupport/predicate.h"
+
+#include "tfg/tfg_llvm.h"
+
 #include "ptfg/llvm_value_id.h"
 
 using namespace llvm;
