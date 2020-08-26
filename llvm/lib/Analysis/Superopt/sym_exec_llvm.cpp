@@ -2300,7 +2300,8 @@ sym_exec_llvm::add_edges(const llvm::BasicBlock& B, tfg_llvm_t& t, const llvm::F
       //cout << __func__ << " " << __LINE__ << ": pc_from = " << pc_from.to_string() << ", diloc = " << diloc << endl;
       if (diloc) {
 	unsigned linenum = diloc->getLine();
-        t.tfg_llvm_add_pc_line_number_mapping(pc_from, linenum);
+        unsigned column_num = diloc->getColumn();
+        t.tfg_llvm_add_pc_line_number_mapping(pc_from, linenum, column_num);
 	//cout << __func__ << " " << __LINE__ << ": pc_from = " << pc_from.to_string() << ", linenum = " << linenum << endl;
       }
     }
