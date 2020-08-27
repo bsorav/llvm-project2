@@ -1,11 +1,8 @@
 #include <tuple>
 #include <llvm/IR/DebugInfoMetadata.h>
 
-#include "sym_exec_llvm.h"
-#include "sym_exec_mir.h"
-#include "dfa_helper.h"
-
 #include "support/dyn_debug.h"
+#include "support/globals.h"
 
 #include "expr/expr.h"
 
@@ -14,6 +11,10 @@
 #include "tfg/tfg_llvm.h"
 
 #include "ptfg/llvm_value_id.h"
+
+#include "sym_exec_llvm.h"
+#include "sym_exec_mir.h"
+#include "dfa_helper.h"
 
 using namespace llvm;
 static char as1[40960];
@@ -3070,7 +3071,11 @@ sym_exec_llvm::get_function_tfg_map(Module* M, set<string> FunNamesVec, bool Dis
     }
     //errs() << "Doing: " << fname << "\n";
     //errs().flush();
-
+    {
+      stringstream ss;
+      ss << "Converting LLVM IR bitcode to Transfer Function Graph (TFG) for function " << fname;
+      MSG(ss.str().c_str());
+    }
     bool gen_callee_summary = (FunNamesVec.size() == 0);
     set<string> function_call_chain;
 
