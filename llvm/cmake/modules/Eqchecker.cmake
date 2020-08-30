@@ -26,6 +26,7 @@ link_directories(${z3_lib})
 link_directories(${binutils_install_dir}/lib)
 link_directories(/usr/local/lib)
 
+INCLUDE_DIRECTORIES(${LLVM_BINARY_DIR}/../../superopt/include)
 INCLUDE_DIRECTORIES(${LLVM_BINARY_DIR}/../../superopt/lib)
 INCLUDE_DIRECTORIES(${LLVM_BINARY_DIR}/../../superopt/lib/eq)
 INCLUDE_DIRECTORIES(${LLVM_BINARY_DIR}/../../superopt/lib/expr)
@@ -34,4 +35,4 @@ INCLUDE_DIRECTORIES(${LLVM_BINARY_DIR}/../../superopt/build/${SUPEROPT_RELEVANT_
 
 LINK_DIRECTORIES(${z3_lib})
 LINK_DIRECTORIES(${EQ_BINARY_DIR})
-set(SUPEROPT_LIBS rewrite_lib gas support cutils fpu parser z3 -lgmp -lgmpxx ${Boost_LIBRARIES} -ldl ${binutils_lib} -lm -lz -lmagic -lboost_filesystem -lboost_system -lssl -lcrypto)
+set(SUPEROPT_LIBS superopt fbgen eqchecker sym_exec rewrite_lib insn tfg graph gsupport exec expr valtag gas support cutils fpu parser z3 -lgmp -lgmpxx ${Boost_LIBRARIES} -ldl ${binutils_lib} -lm -lz -lmagic -lboost_filesystem -lboost_system -lssl -lcrypto)

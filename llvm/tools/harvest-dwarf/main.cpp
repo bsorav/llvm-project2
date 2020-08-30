@@ -22,7 +22,7 @@
 
 #include "expr/expr.h"
 #include "expr/context.h"
-#include "tfg/state.h"
+#include "expr/state.h"
 
 using namespace llvm;
 using namespace llvm::object;

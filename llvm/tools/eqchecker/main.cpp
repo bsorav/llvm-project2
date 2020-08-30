@@ -45,6 +45,7 @@ using namespace llvm;
 
 #include "support/timers.h"
 #include "support/dyn_debug.h"
+#include "support/globals.h"
 
 using namespace eqspace;
 
@@ -60,6 +61,9 @@ static cl::opt<std::string>
 FunNames("f", cl::desc("<funname>"), cl::init(""));
 static cl::opt<std::string>
 OutputFilename("o", cl::desc("<output>"), cl::init("out.etfg"));
+
+static cl::opt<std::string>
+xml_output_file("xml-output", cl::desc("<xml output>"), cl::init(""));
 
 static cl::opt<bool>
 DisableModelingOfUninitVarUB("u", cl::desc("<disable-modeling-of-uninit-var-ub>"), cl::init(false));
@@ -137,6 +141,11 @@ main(int argc, char **argv)
 
   CPP_DBG_EXEC(LLVM2TFG, errs() << "doing functions:" << FunNames << "\n");
   CPP_DBG_EXEC(LLVM2TFG, errs() << "output filename:" << OutputFilename << "\n");
+
+  if (xml_output_file != "") {
+    g_xml_output_stream.open(xml_output_file, ios_base::app | ios_base::ate);
+    ASSERT(g_xml_output_stream.is_open());
+  }
 
   set<string> FunNamesVec;
   size_t curpos = 0, nextpos;

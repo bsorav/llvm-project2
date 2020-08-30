@@ -1,22 +1,20 @@
+#include <tuple>
+#include <llvm/IR/DebugInfoMetadata.h>
+
+#include "support/dyn_debug.h"
+#include "support/globals.h"
+
+#include "expr/expr.h"
+
+#include "gsupport/predicate.h"
+
+#include "tfg/tfg_llvm.h"
+
+#include "ptfg/llvm_value_id.h"
+
 #include "sym_exec_llvm.h"
 #include "sym_exec_mir.h"
 #include "dfa_helper.h"
-//#include "../lib/Target/X86/X86CallLowering.h"
-////#include "../lib/Target/X86/X86CallingConv.h"
-//#include "../lib/Target/X86/X86ISelLowering.h"
-//#include "../lib/Target/X86/X86InstrInfo.h"
-//#include "../lib/Target/X86/X86RegisterInfo.h"
-//#include "../lib/Target/X86/X86Subtarget.h"
-#include "expr/expr.h"
-#include "tfg/predicate.h"
-#include "tfg/tfg_llvm.h"
-#include "support/dyn_debug.h"
-//#include "X86.h"
-//#include "X86RegisterInfo.h"
-//#include "X86Subtarget.h"
-#include <tuple>
-#include <llvm/IR/DebugInfoMetadata.h>
-#include "ptfg/llvm_value_id.h"
 
 using namespace llvm;
 static char as1[40960];
@@ -2273,7 +2271,7 @@ sym_exec_llvm::process_cfts(tfg &t, map<llvm_value_id_t, string_ref>* value_to_n
 }
 
 void
-sym_exec_llvm::parse_dbg_declare_intrinsic(Instruction const& I, tfg_llvm_t& t, pc const& pc_from) const
+sym_exec_llvm::parse_dbg_declare_intrinsic(Instruction const& I, tfg_llvm_t& t) const
 {
   const CallInst& CI = cast<CallInst>(I);
   const DbgDeclareInst &DI = cast<DbgDeclareInst>(CI);
@@ -2294,8 +2292,27 @@ sym_exec_llvm::parse_dbg_declare_intrinsic(Instruction const& I, tfg_llvm_t& t, 
   string llvm_varname = get_value_name(*Address);
   DYN_DEBUG(dbg_declare_intrinsic, std::cout << "DI.getVariable().getName() = " << source_varname << "\n");
   DYN_DEBUG(dbg_declare_intrinsic, std::cout << "value_name = " << llvm_varname << "\n");
-  t.tfg_llvm_add_source_to_llvm_varname_mapping(source_varname, llvm_varname);
+  t.tfg_llvm_add_source_declaration_to_llvm_varname_mapping(source_varname, llvm_varname);
 }
+
+void
+sym_exec_llvm::parse_dbg_value_intrinsic(Instruction const& I, tfg_llvm_t& t, pc const& pc_from) const
+{
+  const CallInst& CI = cast<CallInst>(I);
+  const DbgValueInst &DI = cast<DbgValueInst>(CI);
+
+  Value* v = DI.getValue();
+  if (!v) {
+    return;
+  } else if (const auto *CI = dyn_cast<Constant>(v)) {
+    return;
+  }
+  string llvm_varname = string(G_INPUT_KEYWORD ".") + get_value_name(*v);
+  string source_varname = DI.getVariable()->getName().str();
+  DIExpression* die = DI.getExpression(); //not used so far
+  t.tfg_llvm_add_source_to_llvm_varname_mapping_at_pc(source_varname, llvm_varname, pc_from);
+}
+
 
 void
 sym_exec_llvm::add_edges(const llvm::BasicBlock& B, tfg_llvm_t& t, const llvm::Function& F, map<string, pair<callee_summary_t, unique_ptr<tfg_llvm_t>>> *function_tfg_map, map<llvm_value_id_t, string_ref>* value_to_name_map, set<string> const *function_call_chain, map<shared_ptr<tfg_edge const>, Instruction *>& eimap)
@@ -2308,7 +2325,6 @@ sym_exec_llvm::add_edges(const llvm::BasicBlock& B, tfg_llvm_t& t, const llvm::F
       continue;
     }
     if (   false
-        || (isa<CallInst>(I) && cast<CallInst>(I).getIntrinsicID() == Intrinsic::dbg_value)
         || (isa<CallInst>(I) && cast<CallInst>(I).getIntrinsicID() == Intrinsic::dbg_addr)
         || (isa<CallInst>(I) && cast<CallInst>(I).getIntrinsicID() == Intrinsic::dbg_label)
        ) {
@@ -2317,8 +2333,13 @@ sym_exec_llvm::add_edges(const llvm::BasicBlock& B, tfg_llvm_t& t, const llvm::F
 
     pc pc_from = get_pc_from_bbindex_and_insn_id(get_basicblock_index(B), insn_id);
 
-    if (isa<CallInst>(I) && cast<CallInst>(I).getIntrinsicID() == Intrinsic::dbg_declare) {
-      this->parse_dbg_declare_intrinsic(I, t, pc_from);
+    if (isa<CallInst>(I) && cast<CallInst>(I).getIntrinsicID() == Intrinsic::dbg_declare) {//declare will be replaced with addr in future revisions; so watch out for this change
+      this->parse_dbg_declare_intrinsic(I, t);
+      continue;
+    }
+
+    if (isa<CallInst>(I) && cast<CallInst>(I).getIntrinsicID() == Intrinsic::dbg_value) {
+      this->parse_dbg_value_intrinsic(I, t, pc_from);
       continue;
     }
 
@@ -2330,6 +2351,17 @@ sym_exec_llvm::add_edges(const llvm::BasicBlock& B, tfg_llvm_t& t, const llvm::F
     shared_ptr<tfg_node> from_node = make_shared<tfg_node>(pc_from);
     if (!t.find_node(pc_from)) {
       t.add_node(from_node);
+    }
+    {
+      DebugLoc const& dl = I.getDebugLoc();
+      DILocation* diloc = dl.get();
+      //cout << __func__ << " " << __LINE__ << ": pc_from = " << pc_from.to_string() << ", diloc = " << diloc << endl;
+      if (diloc) {
+	unsigned linenum = diloc->getLine();
+        unsigned column_num = diloc->getColumn();
+        t.tfg_llvm_add_pc_line_number_mapping(pc_from, linenum, column_num);
+	//cout << __func__ << " " << __LINE__ << ": pc_from = " << pc_from.to_string() << ", linenum = " << linenum << endl;
+      }
     }
     insn_id++;
 
@@ -3096,7 +3128,11 @@ sym_exec_llvm::get_function_tfg_map(Module* M, set<string> FunNamesVec, bool Dis
     }
     //errs() << "Doing: " << fname << "\n";
     //errs().flush();
-
+    {
+      stringstream ss;
+      ss << "Converting LLVM IR bitcode to Transfer Function Graph (TFG) for function " << fname;
+      MSG(ss.str().c_str());
+    }
     bool gen_callee_summary = (FunNamesVec.size() == 0);
     set<string> function_call_chain;
 

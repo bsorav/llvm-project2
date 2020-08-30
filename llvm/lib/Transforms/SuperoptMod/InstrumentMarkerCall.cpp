@@ -15,7 +15,7 @@
 #include "llvm/IR/Dominators.h"
 #include "tfg/tfg.h"
 #include "tfg/tfg_llvm.h"
-#include "tfg/dfa.h"
+#include "graph/dfa.h"
 #include "../lib/Analysis/Superopt/dfa_helper.h"
 #include <sstream>
 
