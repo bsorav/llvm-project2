@@ -2121,8 +2121,8 @@ sym_exec_llvm::expand_switch(tfg &t, shared_ptr<tfg_node> const &from_node, vect
 }
 
 //template<typename FUNCTION, typename BASICBLOCK, typename INSTRUCTION>
-pair<shared_ptr<tfg_node>, map<string, sort_ref>>
-//void
+//pair<shared_ptr<tfg_node>, map<string, sort_ref>>
+void
 sym_exec_llvm::process_cft(tfg &t, map<llvm_value_id_t, string_ref>* value_to_name_map, shared_ptr<tfg_node> const &from_node, pc const &pc_to, expr_ref target, expr_ref to_condition, state const &state_to, unordered_set<expr_ref> const& assumes, te_comment_t const& te_comment, Instruction * I, const llvm::BasicBlock& B, const llvm::Function& F, map<shared_ptr<tfg_edge const>, Instruction *>& eimap)
 {
   DYN_DEBUG2(llvm2tfg, errs() << _FNLN_ << ": state_to: " << state_to.to_string() << "\n");
@@ -2137,65 +2137,53 @@ sym_exec_llvm::process_cft(tfg &t, map<llvm_value_id_t, string_ref>* value_to_na
     auto e = mk_tfg_edge(mk_itfg_edge(from_pc, pc_to, state_to_cft, to_condition/*, t.get_start_state()*/, assumes, te_comment));
     eimap.insert(make_pair(e, I));
     t.add_edge(e);
-    return make_pair(from_node, map<string, sort_ref>());
+    return;//make_pair(from_node, map<string, sort_ref>());
   } else if (pc_to.is_label() && pc_to.get_subindex() == PC_SUBINDEX_FIRST_INSN_IN_BB) {
-    return process_phi_nodes(t, value_to_name_map, &B, pc_to, from_node, to_condition, assumes, te_comment, I, F, eimap);
-    //return;
+    process_phi_nodes(t, value_to_name_map, &B, pc_to, from_node, to_condition, assumes, te_comment, I, F, eimap);
+    return;
   } else {
     auto e = mk_tfg_edge(mk_itfg_edge(from_pc, pc_to, state_to_cft, to_condition/*, t.get_start_state()*/, assumes, te_comment));
     eimap.insert(make_pair(e, I));
     t.add_edge(e);
-    return make_pair(from_node, map<string, sort_ref>());
+    return;//make_pair(from_node, map<string, sort_ref>());
   }
 }
 
 //template<typename FUNCTION, typename BASICBLOCK, typename INSTRUCTION>
-void
-sym_exec_llvm::process_cft_second_half(tfg &t, shared_ptr<tfg_node> const &from_node, pc const &pc_to, expr_ref target, expr_ref to_condition, unordered_set<expr_ref> const& assumes, te_comment_t const& te_comment, Instruction * I, const llvm::BasicBlock& B, const llvm::Function& F, map<std::string, sort_ref> const &phi_regnames, map<shared_ptr<tfg_edge const>, Instruction *>& eimap)
-{
-  if (pc_to.is_label() && pc_to.get_subindex() == PC_SUBINDEX_FIRST_INSN_IN_BB) {
-    process_phi_nodes_second_half(t, &B, pc_to, from_node, F, to_condition, phi_regnames, assumes, te_comment, I, eimap);
-  }
-}
+//void
+//sym_exec_llvm::process_cft_second_half(tfg &t, shared_ptr<tfg_node> const &from_node, pc const &pc_to, expr_ref target, expr_ref to_condition, unordered_set<expr_ref> const& assumes, te_comment_t const& te_comment, Instruction * I, const llvm::BasicBlock& B, const llvm::Function& F, map<std::string, sort_ref> const &phi_regnames, map<shared_ptr<tfg_edge const>, Instruction *>& eimap)
+//{
+//  if (pc_to.is_label() && pc_to.get_subindex() == PC_SUBINDEX_FIRST_INSN_IN_BB) {
+//    process_phi_nodes_second_half(t, &B, pc_to, from_node, F, to_condition, phi_regnames, assumes, te_comment, I, eimap);
+//  }
+//}
 
 //template<typename FUNCTION, typename BASICBLOCK, typename INSTRUCTION>
 void
 sym_exec_llvm::process_cfts(tfg &t, map<llvm_value_id_t, string_ref>* value_to_name_map, shared_ptr<tfg_node> const &from_node, pc const &pc_to, state const &state_to, unordered_set<expr_ref> const& state_assumes, te_comment_t const& te_comment, Instruction * I, vector<control_flow_transfer> const &cfts, llvm::BasicBlock const &B, llvm::Function const &F, map<shared_ptr<tfg_edge const>, Instruction *>& eimap)
 {
   map<pc, map<string, sort_ref>> pc_to_phi_regnames_map;
-  bool hasUnsplittedNodes = false;
   if (cfts.size() == 0) {
     //pc pc_to(pc::insn_label, get_pc_from_bb_and_insn_id(B, next_insn_id));
-    auto n = process_cft(t, value_to_name_map, from_node, pc_to, nullptr, expr_true(m_ctx), state_to, state_assumes, te_comment, I, B, F, eimap);
+    /*auto n = */process_cft(t, value_to_name_map, from_node, pc_to, nullptr, expr_true(m_ctx), state_to, state_assumes, te_comment, I, B, F, eimap);
     //ASSERT(n.first == from_node);
     //ASSERT(n.second.size() == 0);
   } else {
     pc const &bb_last_pc = cfts.at(cfts.size() - 1).get_from_pc();
     shared_ptr<tfg_node> bb_last_node = t.find_node(bb_last_pc);
     ASSERT(bb_last_node);
-    bool lastVal = false;
     for(const control_flow_transfer& cft : cfts) {
       //first half performs all the computation required in the successor phi nodes, as part of the current basic block
       unordered_set<expr_ref> assumes = state_assumes;
       unordered_set_union(assumes, cft.get_assumes());
-      auto r = process_cft(t, value_to_name_map, bb_last_node, cft.get_to_pc(), cft.get_target(), cft.get_condition(), state_to, assumes, te_comment, I, B, F, eimap);
-      if (!r.second.empty()) {
-        pc_to_phi_regnames_map.insert(make_pair(cft.get_to_pc(), r.second));
-        bb_last_node = r.first;
-        hasUnsplittedNodes = true;
-        lastVal = true;
-      } else {
-        lastVal = false;
-      }
+      /*auto r = */process_cft(t, value_to_name_map, bb_last_node, cft.get_to_pc(), cft.get_target(), cft.get_condition(), state_to, assumes, te_comment, I, B, F, eimap);
+      //pc_to_phi_regnames_map.insert(make_pair(cft.get_to_pc(), r.second));
+      //bb_last_node = r.first;
     }
-    if (hasUnsplittedNodes) {
-      for(const control_flow_transfer& cft : cfts) {
-        if (pc_to_phi_regnames_map.find(cft.get_to_pc()) != pc_to_phi_regnames_map.end()) {
-          //second half creates control-flow edges from the current basic block to the successor(s), while copying the computed phi expressions from their temporary registers to their actual registers. This division of labour between first-half and second-half mimics LLC's code generator
-          process_cft_second_half(t, (bb_last_pc == cft.get_from_pc()) ? bb_last_node : t.find_node(cft.get_from_pc()), cft.get_to_pc(), cft.get_target(), cft.get_condition(), cft.get_assumes(), te_comment, I, B, F, pc_to_phi_regnames_map.at(cft.get_to_pc()), eimap);
-        }
-      }
-    }
+    //for(const control_flow_transfer& cft : cfts) {
+    //  //second half creates control-flow edges from the current basic block to the successor(s), while copying the computed phi expressions from their temporary registers to their actual registers. This division of labour between first-half and second-half mimics LLC's code generator
+    //  process_cft_second_half(t, (bb_last_pc == cft.get_from_pc()) ? bb_last_node : t.find_node(cft.get_from_pc()), cft.get_to_pc(), cft.get_target(), cft.get_condition(), cft.get_assumes(), te_comment, I, B, F, pc_to_phi_regnames_map.at(cft.get_to_pc()), eimap);
+    //}
   }
 }
 
@@ -2317,8 +2305,8 @@ sym_exec_common::get_next_intermediate_subsubindex_pc_node(tfg &t, shared_ptr<tf
 }
 
 //template<typename FUNCTION, typename BASICBLOCK, typename INSTRUCTION>
-pair<shared_ptr<tfg_node>, map<string, sort_ref>>
-//void
+//pair<shared_ptr<tfg_node>, map<string, sort_ref>>
+void
 sym_exec_llvm::process_phi_nodes(tfg &t, map<llvm_value_id_t, string_ref>* value_to_name_map, const llvm::BasicBlock* B_from, const pc& pc_to, shared_ptr<tfg_node> const &from_node, expr_ref edgecond, unordered_set<expr_ref> const& assumes, te_comment_t const& te_comment, Instruction * I, const llvm::Function& F, map<shared_ptr<tfg_edge const>, Instruction *>& eimap)
 {
   DYN_DEBUG(llvm2tfg, cout << __func__ << " " << __LINE__ << " " << get_timestamp(as1, sizeof as1) << ": searching for BB representing " << pc_to.to_string() << endl);
@@ -2349,7 +2337,6 @@ sym_exec_llvm::process_phi_nodes(tfg &t, map<llvm_value_id_t, string_ref>* value
 
   DYN_DEBUG(llvm2tfg, cout << __func__ << " " << __LINE__ << " " << get_timestamp(as1, sizeof as1) << ": B_to->getInstList().size() = " << B_to->getInstList().size() << endl);
   map<string, sort_ref> changed_varnames;
-  map<string, sort_ref> unsplitted_varnames;
   int inum = 0;
   for (const llvm::Instruction& I : *B_to) {
     string varname;
@@ -2366,11 +2353,7 @@ sym_exec_llvm::process_phi_nodes(tfg &t, map<llvm_value_id_t, string_ref>* value
     //expr_ref e = get_expr_adding_edges_for_intermediate_vals(*val/*phi->getIncomingValue(i)*/, "", t.get_start_state(), pc_to_phi_node, pc_to, *B_from, F, t);
     DYN_DEBUG(llvm2tfg, cout << __func__ << " " << __LINE__ << " " << get_timestamp(as1, sizeof as1) << ": after adding expr edges: from_node = " << from_node->get_pc() << ": pc_to_phi_node = " << pc_to_phi_node->get_pc() << ", val = " << expr_string(val) << endl);
     //string varname = get_value_name(*phi);
-    if (isSplitPhiNodeNeeded(I, varname)) {
-      changed_varnames.insert(make_pair(varname, val->get_sort()));
-    } else {
-      unsplitted_varnames.insert(make_pair(varname, val->get_sort()));
-    }
+    changed_varnames.insert(make_pair(varname, val->get_sort()));
     state_set_expr(state_out, varname + PHI_NODE_TMPVAR_SUFFIX, val); //first update the tmpvars (do not want updates of one phi-node to influene the rhs of another phi-node.
 
     shared_ptr<tfg_node> pc_to_phi_dst_node = get_next_intermediate_subsubindex_pc_node(t, from_node);
@@ -2409,42 +2392,41 @@ sym_exec_llvm::process_phi_nodes(tfg &t, map<llvm_value_id_t, string_ref>* value
   auto e = mk_tfg_edge(mk_itfg_edge(pc_to_phi_node->get_pc(), pc_to, state(), expr_true(m_ctx), {}, te_comment));
   eimap.insert(make_pair(e, (Instruction *)&I));
   t.add_edge(e);
-  return make_pair(pc_to_phi_node, unsplitted_varnames);
 }
 
 //template<typename FUNCTION, typename BASICBLOCK, typename INSTRUCTION>
-void
-sym_exec_llvm::process_phi_nodes_second_half(tfg &t, const llvm::BasicBlock* B_from, const pc& pc_to, shared_ptr<tfg_node> const &from_node, const llvm::Function& F, expr_ref edgecond, map<string, sort_ref> const &phi_regnames, unordered_set<expr_ref> const& assumes, te_comment_t const& te_comment, Instruction * I, map<shared_ptr<tfg_edge const>, Instruction *>& eimap)
-{
-  shared_ptr<tfg_node> pc_to_phi_node = from_node;
-
-  shared_ptr<tfg_node> pc_to_phi_start_node = get_next_intermediate_subsubindex_pc_node(t, from_node);
-  auto e1 = mk_tfg_edge(mk_itfg_edge(pc_to_phi_node->get_pc(), pc_to_phi_start_node->get_pc(), state()/*t.get_start_state()*/, edgecond/*, t.get_start_state()*/, assumes, te_comment));
-  eimap.insert(make_pair(e1, I));
-  t.add_edge(e1);
-  //cout << __func__ << " " << __LINE__ << ": t.incoming =\n" << t.incoming_sizes_to_string() << endl;
-  pc_to_phi_node = pc_to_phi_start_node;
-
-  for (const auto &cvarname_sort : phi_regnames) {
-    string const &cvarname = cvarname_sort.first;
-    sort_ref const &cvarsort = cvarname_sort.second;
-    state state_out;
-    state_set_expr(state_out, cvarname, m_ctx->mk_var(string(G_INPUT_KEYWORD ".") + cvarname + PHI_NODE_TMPVAR_SUFFIX, cvarsort));
-    shared_ptr<tfg_node> pc_to_phi_dst_node = get_next_intermediate_subsubindex_pc_node(t, from_node);
-    auto e = mk_tfg_edge(mk_itfg_edge(pc_to_phi_node->get_pc(), pc_to_phi_dst_node->get_pc(), state_out, expr_true(m_ctx)/*, t.get_start_state()*/, {}, te_comment));
-    eimap.insert(make_pair(e, I));
-    t.add_edge(e);
-    //cout << __func__ << " " << __LINE__ << ": t.incoming =\n" << t.incoming_sizes_to_string() << endl;
-    DYN_DEBUG(llvm2tfg, cout << __func__ << " " << __LINE__ << " " << get_timestamp(as1, sizeof as1) << ": adding phi edge: " << e->to_string(/*&t.get_start_state()*/) << endl);
-    pc_to_phi_node = pc_to_phi_dst_node;
-  }
-  DYN_DEBUG(llvm2tfg, cout << __func__ << " " << __LINE__ << " " << get_timestamp(as1, sizeof as1) << ": all done" << endl);
-  //auto e = mk_tfg_edge(mk_itfg_edge(pc_to_phi_node->get_pc(), pc_to, t.get_start_state(), expr_true(m_ctx)/*, t.get_start_state()*/, {}, te_comment));
-  auto e = mk_tfg_edge(mk_itfg_edge(pc_to_phi_node->get_pc(), pc_to, state()/*t.get_start_state()*/, expr_true(m_ctx)/*, t.get_start_state()*/, {}, te_comment));
-  eimap.insert(make_pair(e, I));
-  t.add_edge(e);
-  //cout << __func__ << " " << __LINE__ << ": t.incoming =\n" << t.incoming_sizes_to_string() << endl;
-}
+//void
+//sym_exec_llvm::process_phi_nodes_second_half(tfg &t, const llvm::BasicBlock* B_from, const pc& pc_to, shared_ptr<tfg_node> const &from_node, const llvm::Function& F, expr_ref edgecond, map<string, sort_ref> const &phi_regnames, unordered_set<expr_ref> const& assumes, te_comment_t const& te_comment, Instruction * I, map<shared_ptr<tfg_edge const>, Instruction *>& eimap)
+//{
+//  shared_ptr<tfg_node> pc_to_phi_node = from_node;
+//
+//  shared_ptr<tfg_node> pc_to_phi_start_node = get_next_intermediate_subsubindex_pc_node(t, from_node);
+//  auto e1 = mk_tfg_edge(mk_itfg_edge(pc_to_phi_node->get_pc(), pc_to_phi_start_node->get_pc(), state()/*t.get_start_state()*/, edgecond/*, t.get_start_state()*/, assumes, te_comment));
+//  eimap.insert(make_pair(e1, I));
+//  t.add_edge(e1);
+//  //cout << __func__ << " " << __LINE__ << ": t.incoming =\n" << t.incoming_sizes_to_string() << endl;
+//  pc_to_phi_node = pc_to_phi_start_node;
+//
+//  for (const auto &cvarname_sort : phi_regnames) {
+//    string const &cvarname = cvarname_sort.first;
+//    sort_ref const &cvarsort = cvarname_sort.second;
+//    state state_out;
+//    state_set_expr(state_out, cvarname, m_ctx->mk_var(string(G_INPUT_KEYWORD ".") + cvarname + PHI_NODE_TMPVAR_SUFFIX, cvarsort));
+//    shared_ptr<tfg_node> pc_to_phi_dst_node = get_next_intermediate_subsubindex_pc_node(t, from_node);
+//    auto e = mk_tfg_edge(mk_itfg_edge(pc_to_phi_node->get_pc(), pc_to_phi_dst_node->get_pc(), state_out, expr_true(m_ctx)/*, t.get_start_state()*/, {}, te_comment));
+//    eimap.insert(make_pair(e, I));
+//    t.add_edge(e);
+//    //cout << __func__ << " " << __LINE__ << ": t.incoming =\n" << t.incoming_sizes_to_string() << endl;
+//    DYN_DEBUG(llvm2tfg, cout << __func__ << " " << __LINE__ << " " << get_timestamp(as1, sizeof as1) << ": adding phi edge: " << e->to_string(/*&t.get_start_state()*/) << endl);
+//    pc_to_phi_node = pc_to_phi_dst_node;
+//  }
+//  DYN_DEBUG(llvm2tfg, cout << __func__ << " " << __LINE__ << " " << get_timestamp(as1, sizeof as1) << ": all done" << endl);
+//  //auto e = mk_tfg_edge(mk_itfg_edge(pc_to_phi_node->get_pc(), pc_to, t.get_start_state(), expr_true(m_ctx)/*, t.get_start_state()*/, {}, te_comment));
+//  auto e = mk_tfg_edge(mk_itfg_edge(pc_to_phi_node->get_pc(), pc_to, state()/*t.get_start_state()*/, expr_true(m_ctx)/*, t.get_start_state()*/, {}, te_comment));
+//  eimap.insert(make_pair(e, I));
+//  t.add_edge(e);
+//  //cout << __func__ << " " << __LINE__ << ": t.incoming =\n" << t.incoming_sizes_to_string() << endl;
+//}
 
 
 
@@ -2962,14 +2944,6 @@ sym_exec_llvm::instructionIsPhiNode(llvm::Instruction const &I, string &varname)
   }
   varname = get_value_name(*phi);
   return true;
-}
-
-bool
-sym_exec_llvm::isSplitPhiNodeNeeded(llvm::Instruction const &I, string &varname)
-{
-  static bool ret = false;
-  ret = !ret;
-  return ret;
 }
 
 //void
