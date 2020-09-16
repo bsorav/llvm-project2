@@ -329,6 +329,51 @@ cl::opt<std::string> CSProfileGenFile(
     cl::desc("Path to the instrumented context sensitive profile."),
     cl::Hidden);
 
+cl::opt<std::string>
+DynDebug("dyn_debug", cl::desc("<debug.  enable dynamic debugging for debug-class(es).  Expects comma-separated list of debug-classes with optional level e.g. -debug=compute_liveness,sprels,alias_analysis=2"), cl::init(""));
+
+class OptCustomPassManager : public legacy::PassManager {
+  DebugifyStatsMap DIStatsMap;
+
+public:
+  using super = legacy::PassManager;
+
+  void add(Pass *P) override {
+    // Wrap each pass with (-check)-debugify passes if requested, making
+    // exceptions for passes which shouldn't see -debugify instrumentation.
+    bool WrapWithDebugify = DebugifyEach && !P->getAsImmutablePass() &&
+                            !isIRPrintingPass(P) && !isBitcodeWriterPass(P);
+    if (!WrapWithDebugify) {
+      super::add(P);
+      return;
+    }
+
+    // Apply -debugify/-check-debugify before/after each pass and collect
+    // debug info loss statistics.
+    PassKind Kind = P->getPassKind();
+    StringRef Name = P->getPassName();
+
+    // TODO: Implement Debugify for LoopPass.
+    switch (Kind) {
+      case PT_Function:
+        super::add(createDebugifyFunctionPass());
+        super::add(P);
+        super::add(createCheckDebugifyFunctionPass(true, Name, &DIStatsMap));
+        break;
+      case PT_Module:
+        super::add(createDebugifyModulePass());
+        super::add(P);
+        super::add(createCheckDebugifyModulePass(true, Name, &DIStatsMap));
+        break;
+      default:
+        super::add(P);
+        break;
+    }
+  }
+
+  const DebugifyStatsMap &getDebugifyStatsMap() const { return DIStatsMap; }
+};
+
 static inline void addPass(legacy::PassManagerBase &PM, Pass *P) {
   // Add the pass to the pass manager...
   PM.add(P);
@@ -588,6 +633,9 @@ int main(int argc, char **argv) {
 
   cl::ParseCommandLineOptions(argc, argv,
     "llvm .bc -> .bc modular optimizer and analysis printer\n");
+
+  eqspace::init_dyn_debug_from_string(DynDebug);
+  CPP_DBG_EXEC(DYN_DEBUG, eqspace::print_debug_class_levels());
 
   if (AnalyzeOnly && NoOutput) {
     errs() << argv[0] << ": analyze mode conflicts with no-output mode.\n";

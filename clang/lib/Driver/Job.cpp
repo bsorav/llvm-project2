@@ -32,6 +32,10 @@
 #include <system_error>
 #include <utility>
 
+#include "support/debug.h"
+#include "support/dyn_debug.h"
+#include "support/utils.h"
+
 using namespace clang;
 using namespace driver;
 
@@ -305,6 +309,25 @@ void Command::PrintFileNames() const {
   }
 }
 
+static bool
+executable_supports_dyn_debug(char const* exec)
+{
+  //llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": exec = '" << exec << "'\n";
+  //llvm::dbgs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": exec = '" << exec << "'\n";
+  char const* last_slash = strrchr(exec, '/');
+  if (!last_slash) {
+    last_slash = exec;
+  } else {
+    last_slash++;
+  }
+  if (   string_has_prefix(last_slash, "clang")
+      || string_has_prefix(last_slash, "llc")
+      || string_has_prefix(last_slash, "opt")) {
+    return true;
+  }
+  return false;
+}
+
 int Command::Execute(ArrayRef<llvm::Optional<StringRef>> Redirects,
                      std::string *ErrMsg, bool *ExecutionFailed) const {
   PrintFileNames();
@@ -312,7 +335,27 @@ int Command::Execute(ArrayRef<llvm::Optional<StringRef>> Redirects,
   SmallVector<const char *, 128> Argv;
   if (ResponseFile == nullptr) {
     Argv.push_back(Executable);
+    //std::vector<std::string> ArgsCopy;
+    //for (auto arg : Arguments) {
+    //  ArgsCopy.push_back(arg);
+    //}
     Argv.append(Arguments.begin(), Arguments.end());
+    std::string dyn_debug_args = eqspace::get_dyn_debug_cmdline_args();
+    if (executable_supports_dyn_debug(Executable) && dyn_debug_args != "") {
+      dyn_debug_args = std::string("--dyn_debug=") + dyn_debug_args;
+      char *s = new char[strlen(dyn_debug_args.c_str()) + 1];
+      strcpy(s, dyn_debug_args.c_str());
+      Argv.push_back(s);
+    }
+    //for (size_t i = 0; i < ArgsCopy.size() - 1; i++) {
+    //  char *s = new char[strlen(ArgsCopy.at(i).c_str()) + 1];
+    //  strcpy(s, ArgsCopy.at(i).c_str());
+    //  Argv.push_back(s);
+    //}
+
+    //char *s = new char[strlen(ArgsCopy.at(ArgsCopy.size() - 1).c_str()) + 1];
+    //strcpy(s, ArgsCopy.at(ArgsCopy.size() - 1).c_str());
+    //Argv.push_back(s);
     Argv.push_back(nullptr);
   } else {
     // If the command is too large, we need to put arguments in a response file.

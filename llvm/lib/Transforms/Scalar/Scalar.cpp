@@ -20,6 +20,7 @@
 #include "llvm/Analysis/ScopedNoAliasAA.h"
 #include "llvm/Analysis/TypeBasedAliasAnalysis.h"
 #include "llvm/Analysis/UnsequencedAliasAnalysis.h"
+#include "llvm/Analysis/SemanticAliasAnalysis.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Verifier.h"
@@ -306,6 +307,11 @@ void LLVMAddUnifyFunctionExitNodesPass(LLVMPassManagerRef PM) {
 void LLVMAddUnsequencedAliasAnalysisPass(LLVMPassManagerRef PM) {
   unwrap(PM)->add(createUnseqAAWrapperPass());
 }
+
+void LLVMAddSemanticAliasAnalysisPass(LLVMPassManagerRef PM) {
+  unwrap(PM)->add(createSemanticAAWrapperPass());
+}
+
 
 void LLVMAddRemoveAliasPredicatesPass(LLVMPassManagerRef PM) {
     unwrap(PM)->add(createRemoveAliasPredicatesPass());

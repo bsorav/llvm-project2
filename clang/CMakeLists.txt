@@ -437,6 +437,7 @@ endif()
 
 include(CMakeParseArguments)
 include(AddClang)
+include(Eqchecker)
 
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 

@@ -31,6 +31,8 @@
 #include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
 
+#include "Superopt/sym_exec_llvm.h"
+
 #define DEBUG_TYPE "objc-arc-aa"
 
 using namespace llvm;
@@ -39,6 +41,8 @@ using namespace llvm::objcarc;
 AliasResult ObjCARCAAResult::alias(const MemoryLocation &LocA,
                                    const MemoryLocation &LocB,
                                    AAQueryInfo &AAQI) {
+  DYN_DEBUG2(aliasAnalysis, std::cout << "ObjCARCAAResult::" << __func__ << " " << __LINE__ << ": LocA = " << sym_exec_common::get_value_name(*LocA.Ptr) << "\n");
+  DYN_DEBUG2(aliasAnalysis, std::cout << "ObjCARCAAResult::" << __func__ << " " << __LINE__ << ": LocB = " << sym_exec_common::get_value_name(*LocB.Ptr) << "\n");
   if (!EnableARCOpts)
     return AAResultBase::alias(LocA, LocB, AAQI);
 

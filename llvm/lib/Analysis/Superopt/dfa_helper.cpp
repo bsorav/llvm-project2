@@ -67,10 +67,13 @@ function2tfg(Function *F, Module *M, map<shared_ptr<tfg_edge const>, Instruction
   ValueToValueMapTy VMap;
   //unique_ptr<Module> Mcopy = CloneModule(*M, VMap);
   sym_exec_llvm se(ctx, M, *F, false, BYTE_LEN, DWORD_LEN);
-  unique_ptr<tfg_llvm_t> ret = se.get_tfg(nullptr, nullptr, eimap);
+  unique_ptr<tfg_llvm_t> ret = se.get_tfg(nullptr, nullptr, nullptr, eimap);
   pc start_pc = se.get_start_pc();
   ret->add_extra_node_at_start_pc(start_pc);
-  //cout << ret->tfg_to_string_for_eq() << "\n";
+  DYN_DEBUG(function2tfg,
+    cout << "returning tfg for function " << F->getName().str() << ":\n";
+    ret->graph_to_stream(cout);
+  );
   return ret;
 }
 

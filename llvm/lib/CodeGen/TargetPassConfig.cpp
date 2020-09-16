@@ -23,6 +23,7 @@
 #include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/Analysis/TypeBasedAliasAnalysis.h"
 #include "llvm/Analysis/UnsequencedAliasAnalysis.h"
+#include "llvm/Analysis/SemanticAliasAnalysis.h"
 #include "llvm/CodeGen/CSEConfigBase.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
 #include "llvm/CodeGen/MachinePassRegistry.h"
@@ -412,7 +413,11 @@ TargetPassConfig::TargetPassConfig(LLVMTargetMachine &TM, PassManagerBase &pm)
   // Also register alias analysis passes required by codegen passes.
   initializeBasicAAWrapperPassPass(*PassRegistry::getPassRegistry());
   initializeUnseqAAWrapperPassPass(*PassRegistry::getPassRegistry());
+  initializeSemanticAAWrapperPassPass(*PassRegistry::getPassRegistry());
   initializeAAResultsWrapperPassPass(*PassRegistry::getPassRegistry());
+
+  if (StringRef(PrintMachineInstrs.getValue()).equals(""))
+    TM.Options.PrintMachineCode = true;
 
   if (EnableIPRA.getNumOccurrences())
     TM.Options.EnableIPRA = EnableIPRA;
@@ -632,6 +637,31 @@ void TargetPassConfig::addMachinePostPasses(const std::string &Banner,
 /// Add common target configurable passes that perform LLVM IR to IR transforms
 /// following machine independent optimization.
 void TargetPassConfig::addIRPasses() {
+  switch (UseCFLAA) {
+  case CFLAAType::Steensgaard:
+    addPass(createCFLSteensAAWrapperPass());
+    break;
+  case CFLAAType::Andersen:
+    addPass(createCFLAndersAAWrapperPass());
+    break;
+  case CFLAAType::Both:
+    addPass(createCFLAndersAAWrapperPass());
+    addPass(createCFLSteensAAWrapperPass());
+    break;
+  default:
+    break;
+  }
+
+  // Basic AliasAnalysis support.
+  // Add TypeBasedAliasAnalysis before BasicAliasAnalysis so that
+  // BasicAliasAnalysis wins if they disagree. This is intended to help
+  // support "obvious" type-punning idioms.
+  addPass(createTypeBasedAAWrapperPass());
+  addPass(createScopedNoAliasAAWrapperPass());
+  addPass(createBasicAAWrapperPass());
+  addPass(createUnseqAAWrapperPass());
+  addPass(createSemanticAAWrapperPass());
+
   // Before running any passes, run the verifier to determine if the input
   // coming from the front-end and/or optimizer is valid.
   if (!DisableVerify)

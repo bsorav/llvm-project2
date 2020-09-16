@@ -118,3 +118,4 @@ if(CLANG_ORDER_FILE AND
     set_target_properties(clang PROPERTIES LINK_DEPENDS ${CLANG_ORDER_FILE})
   endif()
 endif()
+target_link_libraries(clang PRIVATE ${SUPEROPT_LIBS})

@@ -118,6 +118,7 @@ add_llvm_component_library(LLVMAnalysis
   TypeMetadataUtils.cpp
   ScopedNoAliasAA.cpp
   UnsequencedAliasAnalysis.cpp
+  SemanticAliasAnalysis.cpp
   ValueLattice.cpp
   ValueLatticeUtils.cpp
   ValueTracking.cpp

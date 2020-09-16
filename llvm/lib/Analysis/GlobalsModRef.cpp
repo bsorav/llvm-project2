@@ -30,6 +30,8 @@
 #include "llvm/Pass.h"
 #include "llvm/Support/CommandLine.h"
 
+#include "Superopt/sym_exec_llvm.h"
+
 using namespace llvm;
 
 #define DEBUG_TYPE "globalsmodref-aa"
@@ -825,6 +827,10 @@ bool GlobalsAAResult::invalidate(Module &, const PreservedAnalyses &PA,
 AliasResult GlobalsAAResult::alias(const MemoryLocation &LocA,
                                    const MemoryLocation &LocB,
                                    AAQueryInfo &AAQI) {
+
+  DYN_DEBUG2(aliasAnalysis, std::cout << "GlobalsAAResult::" << __func__ << " " << __LINE__ << ": LocA = " << sym_exec_common::get_value_name(*LocA.Ptr) << "\n");
+  DYN_DEBUG2(aliasAnalysis, std::cout << "GlobalsAAResult::" << __func__ << " " << __LINE__ << ": LocB = " << sym_exec_common::get_value_name(*LocB.Ptr) << "\n");
+
   // Get the base object these pointers point to.
   const Value *UV1 = getUnderlyingObject(LocA.Ptr);
   const Value *UV2 = getUnderlyingObject(LocB.Ptr);
