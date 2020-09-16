@@ -416,8 +416,8 @@ TargetPassConfig::TargetPassConfig(LLVMTargetMachine &TM, PassManagerBase &pm)
   initializeSemanticAAWrapperPassPass(*PassRegistry::getPassRegistry());
   initializeAAResultsWrapperPassPass(*PassRegistry::getPassRegistry());
 
-  if (StringRef(PrintMachineInstrs.getValue()).equals(""))
-    TM.Options.PrintMachineCode = true;
+  //if (StringRef(PrintMachineInstrs.getValue()).equals(""))
+  //  TM.Options.PrintMachineCode = true;
 
   if (EnableIPRA.getNumOccurrences())
     TM.Options.EnableIPRA = EnableIPRA;
