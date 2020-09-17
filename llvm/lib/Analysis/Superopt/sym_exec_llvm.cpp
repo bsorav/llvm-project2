@@ -1407,6 +1407,9 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, shar
       tie(varsize_expr, state_assumes) = get_expr_adding_edges_for_intermediate_vals(*ArraySize/*, ""*/, state_in, state_assumes, from_node/*, pc_to, B, F*/, t, value_to_name_map);
       local_size_expr = m_ctx->mk_bvmul(varsize_expr, m_ctx->mk_bv_const(varsize_expr->get_sort()->get_size(), local_size));
       ASSERT(local_size_expr->get_sort()->get_size() == get_word_length());
+      // add size > 0 assume
+      expr_ref const& size_is_positive_assume = m_ctx->mk_bvsgt(varsize_expr, m_ctx->mk_zerobv(local_size_expr->get_sort()->get_size())); // XXX shall we check for integer overflow during (varsize_expr * local_size) as well?
+      state_assumes.insert(size_is_positive_assume);
     } else {
       local_size_expr = m_ctx->mk_bv_const(get_word_length(), local_size);
     }
