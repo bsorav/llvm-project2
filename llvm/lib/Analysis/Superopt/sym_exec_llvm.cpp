@@ -282,18 +282,18 @@ sort_ref sym_exec_common::get_fun_type_sort(/*const llvm::Type* t, */sort_ref re
   /*else
     unreachable("type unhandled");*/
 }
-
-sort_ref sym_exec_mir::get_mir_type_sort(const MachineOperand::MachineOperandType ty) const
-{
-  ASSERT(   false
-         || ty == MachineOperand::MO_Register
-         || ty == MachineOperand::MO_Immediate
-         || ty == MachineOperand::MO_CImmediate
-         || ty == MachineOperand::MO_FPImmediate
-  );
-  unsigned size = DWORD_LEN /*XXX: ty.getSizeInBits()*/;
-  return m_ctx->mk_bv_sort(size);
-}
+//
+//sort_ref sym_exec_mir::get_mir_type_sort(const MachineOperand::MachineOperandType ty) const
+//{
+//  ASSERT(   false
+//         || ty == MachineOperand::MO_Register
+//         || ty == MachineOperand::MO_Immediate
+//         || ty == MachineOperand::MO_CImmediate
+//         || ty == MachineOperand::MO_FPImmediate
+//  );
+//  unsigned size = DWORD_LEN /*XXX: ty.getSizeInBits()*/;
+//  return m_ctx->mk_bv_sort(size);
+//}
 
 vector<sort_ref> sym_exec_common::get_type_sort_vec(llvm::Type* t, DataLayout const &dl) const
 {
@@ -993,7 +993,7 @@ sym_exec_llvm::apply_memcpy_function(const CallInst* c, expr_ref fun_name_expr, 
     }
 
     for (int i = 0; i < count; i += memcpy_align_int) {
-      expr_ref offset = m_ctx->mk_bv_const(DWORD_LEN, i);
+      expr_ref offset = m_ctx->mk_bv_const(get_word_length(), i);
       //cout << __func__ << " " << __LINE__ << ": count = " << count << ", memcpy_align_int = " << memcpy_align_int << ", i = " << i << endl;
       expr_ref inbytes = m_ctx->mk_select(state_get_expr(state_out, m_mem_reg, this->get_mem_sort()), ml_top, m_ctx->mk_bvadd(memcpy_src_expr, offset), memcpy_align_int, false/*, comment_t()*/);
       expr_ref out_mem = state_get_expr(state_out, m_mem_reg, this->get_mem_sort());
@@ -1029,7 +1029,7 @@ sym_exec_llvm::get_callee_summary(Function *F, string const &fun_name/*, map<sym
   }
   //cout << __func__ << " " << __LINE__ << endl;
   context *ctx = g_ctx; //new context(context::config(600, 600));
-  ctx->parse_consts_db(CONSTS_DB_FILENAME);
+  //ctx->parse_consts_db(CONSTS_DB_FILENAME);
   //ctx->parse_consts_db("~/superopt/consts_db.in"); //XXX: fixme
 
   cout << __func__ << " " << __LINE__ << ": getting callee summary for " << fun_name << ": function_call_chain.size() = " << function_call_chain.size() << ", chain:";
@@ -1098,7 +1098,7 @@ sym_exec_llvm::apply_general_function(const CallInst* c, expr_ref fun_name_expr,
   m_memlabel_varnum++;
 
   expr_ref mem = state_get_expr(state_in, m_mem_reg, this->get_mem_sort());
-  expr_ref zerobv = m_ctx->mk_zerobv(DWORD_LEN);
+  //expr_ref zerobv = m_ctx->mk_zerobv(DWORD_LEN);
   args.push_back(ml_read_expr);
   args_type.push_back(ml_read_expr->get_sort());
   args.push_back(ml_write_expr);
@@ -1491,7 +1491,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, shar
     } else {
       fun_name = calleeF->getName().str();
       fun_name = string(LLVM_FUNCTION_NAME_PREFIX) + fun_name;
-      fun_expr = m_ctx->mk_var(fun_name, m_ctx->mk_bv_sort(DWORD_LEN));
+      fun_expr = m_ctx->mk_var(fun_name, m_ctx->mk_bv_sort(get_word_length()));
     }
     if (   fun_name == LLVM_FUNCTION_NAME_PREFIX G_LLVM_DBG_DECLARE_FUNCTION
         || fun_name == LLVM_FUNCTION_NAME_PREFIX G_LLVM_DBG_VALUE_FUNCTION
@@ -1504,7 +1504,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, shar
     }
     if (fun_name == string(LLVM_FUNCTION_NAME_PREFIX) + cur_function_name) {
       fun_name = LLVM_FUNCTION_NAME_PREFIX G_SELFCALL_IDENTIFIER;
-      fun_expr = m_ctx->mk_var(fun_name, m_ctx->mk_bv_sort(DWORD_LEN));
+      fun_expr = m_ctx->mk_var(fun_name, m_ctx->mk_bv_sort(get_word_length()));
     }
     string memcpy_fn = LLVM_FUNCTION_NAME_PREFIX G_LLVM_MEMCPY_FUNCTION;
     unordered_set<expr_ref> succ_assumes;
@@ -1933,7 +1933,7 @@ sym_exec_llvm::exec_gen_expr(const llvm::Instruction& I/*, string Iname*/, const
       shared_ptr<tfg_edge const> e = mk_tfg_edge(mk_itfg_edge(cur_pc, intermediate_node->get_pc(), state_to_intermediate_val, expr_true(m_ctx)/*, t.get_start_state()*/, assumes, this->instruction_to_te_comment(I, from_node->get_pc()/*, bbo*/)));
       t.add_edge(e);
 
-      cur_expr = mk_fresh_expr(total_offset_name, G_INPUT_KEYWORD, m_ctx->mk_bv_sort(DWORD_LEN));
+      cur_expr = mk_fresh_expr(total_offset_name, G_INPUT_KEYWORD, m_ctx->mk_bv_sort(get_word_length()));
       cur_pc = intermediate_node->get_pc();
     }
 
@@ -1946,7 +1946,7 @@ sym_exec_llvm::exec_gen_expr(const llvm::Instruction& I/*, string Iname*/, const
     shared_ptr<tfg_edge const> e = mk_tfg_edge(mk_itfg_edge(cur_pc, intermediate_node->get_pc(), state_to_intermediate_val, expr_true(m_ctx)/*, t.get_start_state()*/, {}, this->instruction_to_te_comment(I, from_node->get_pc()/*, bbo*/)));
     t.add_edge(e);
 
-    cur_expr = mk_fresh_expr(total_offset_name, G_INPUT_KEYWORD, m_ctx->mk_bv_sort(DWORD_LEN));
+    cur_expr = mk_fresh_expr(total_offset_name, G_INPUT_KEYWORD, m_ctx->mk_bv_sort(get_word_length()));
     cur_pc = intermediate_node->get_pc();
 
     from_node = t.find_node(cur_pc);
@@ -2633,7 +2633,11 @@ sym_exec_llvm::get_preprocessed_tfg(Function const &f, Module const *M, string c
   //map<symbol_id_t, vector<char>> const &string_contents = symbol_map_and_string_contents.second;
   //consts_struct_t const& cs = ctx->get_consts_struct();
 
-  sym_exec_llvm se(ctx/*, cs*/, M, f/*, fun_names, symbol_map, string_contents*/, gen_callee_summary, BYTE_LEN, DWORD_LEN);
+  const DataLayout &dl = M->getDataLayout();
+  unsigned pointer_size = dl.getPointerSize();
+  //cout << __func__ << " " << __LINE__ << ": pointer_size = " << pointer_size << endl;
+  ASSERT(pointer_size == DWORD_LEN/BYTE_LEN || pointer_size == QWORD_LEN/BYTE_LEN);
+  sym_exec_llvm se(ctx/*, cs*/, M, f/*, fun_names, symbol_map, string_contents*/, gen_callee_summary, BYTE_LEN, pointer_size * BYTE_LEN);
 
   list<string> sorted_bbl_indices;
   for (BasicBlock const& BB: f) {

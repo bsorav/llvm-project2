@@ -182,8 +182,15 @@ main(int argc, char **argv)
 
   //context *ctx = new context(context::config(600, 600/*, true, true, true*/));
   context *ctx = g_ctx;
-  ctx->parse_consts_db(CONSTS_DB_FILENAME);
-  consts_struct_t &cs = ctx->get_consts_struct();
+  DataLayout const& dl = M1->getDataLayout();
+  unsigned pointer_size = dl.getPointerSize();
+  if (pointer_size == QWORD_LEN/BYTE_LEN) {
+    ctx->parse_consts_db(SUPEROPTDBS_DIR "/../etfg_x64/consts_db");
+  } else if (pointer_size == DWORD_LEN/BYTE_LEN) {
+    ctx->parse_consts_db(SUPEROPTDBS_DIR "/../etfg_i386/consts_db");
+  } else {
+    NOT_REACHED();
+  }
 
   ofstream outputStream;
   outputStream.open(OutputFilename, ios_base::out | ios_base::trunc);
