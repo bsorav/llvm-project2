@@ -7,7 +7,7 @@ set(OPT "-O3")
 set(LINK_FLAG "")
 set(DEFINES "${DEFINES} -DELFIO_HPP") #to disable including /usr/include/elf.h
 set(SUPEROPT_DIR "${LLVM_BINARY_DIR}/../../superopt")
-set(DEFINES "-DARCH_SRC=ARCH_ETFG -DARCH_DST=ARCH_X64 -DSRC_DST=\\\"etfg_X64\\\" -DSUPEROPT_DIR=\"\\\"${SUPEROPT_DIR}\\\"\"")
+set(DEFINES "-DARCH_SRC=ARCH_ETFG -DARCH_DST=ARCH_X64 -DSRC_DST=\\\"etfg_x64\\\" -DSUPEROPT_DIR=\"\\\"${SUPEROPT_DIR}\\\"\"")
 set(SUPEROPT_RELEVANT_ABUILD "etfg_x64")
 set(EQ_BINARY_DIR ${SUPEROPT_DIR}/build/${SUPEROPT_RELEVANT_ABUILD})
 set(THIRD_PARTY_DIR "${SUPEROPT_DIR}/build/third_party")

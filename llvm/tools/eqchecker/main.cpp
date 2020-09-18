@@ -126,7 +126,6 @@ main(int argc, char **argv)
   // Print a stack trace if we signal out.
   sys::PrintStackTraceOnErrorSignal(argv[0]);
   PrettyStackTraceProgram X(argc, argv);
-  g_ctx_init();
 
   //LLVMContext &Context = getGlobalContext();
   LLVMContext Context;
@@ -181,9 +180,11 @@ main(int argc, char **argv)
   }*/
 
   //context *ctx = new context(context::config(600, 600/*, true, true, true*/));
+  g_ctx_init(false);
   context *ctx = g_ctx;
   DataLayout const& dl = M1->getDataLayout();
   unsigned pointer_size = dl.getPointerSize();
+  cout << __func__ << " " << __LINE__ << ": pointer_size = " << pointer_size << endl;
   if (pointer_size == QWORD_LEN/BYTE_LEN) {
     ctx->parse_consts_db(SUPEROPTDBS_DIR "/../etfg_x64/consts_db");
   } else if (pointer_size == DWORD_LEN/BYTE_LEN) {
