@@ -124,6 +124,10 @@ private:
   void
   process_phi_nodes(tfg &t, map<llvm_value_id_t, string_ref>* value_to_name_map, const llvm::BasicBlock* B_from, const pc& p_to, shared_ptr<tfg_node> const &from_node, expr_ref edgecond, unordered_set<expr_ref> const& assumes, te_comment_t const& te_comment, llvm::Instruction * I, const llvm::Function& F, map<shared_ptr<tfg_edge const>, llvm::Instruction *>& eimap);
 
+  
+  shared_ptr<tfg_node>
+  process_phi_nodes(tfg &t, vector<const llvm::Instruction*>& instructions, map<llvm_value_id_t, string_ref>* value_to_name_map, const llvm::BasicBlock* B_from, const pc& p_to, shared_ptr<tfg_node> const &from_node, expr_ref edgecond, unordered_set<expr_ref> const& assumes, te_comment_t const& te_comment, llvm::Instruction * I, const llvm::Function& F, map<shared_ptr<tfg_edge const>, llvm::Instruction *>& eimap, bool split);
+  
   //pair<shared_ptr<tfg_node>, map<std::string, sort_ref>>
   void
   process_cft(tfg &t, map<llvm_value_id_t, string_ref>* value_to_name_map, shared_ptr<tfg_node> const &from_node, pc const &pc_to, expr_ref target, expr_ref to_condition, state const &state_to, unordered_set<expr_ref> const& assumes, te_comment_t const& te_comment, llvm::Instruction * I, const llvm::BasicBlock& B, const llvm::Function& F, map<shared_ptr<tfg_edge const>, llvm::Instruction *>& eimap);
@@ -178,6 +182,8 @@ private:
   void populate_bbl_order_map();
 
   static map<nextpc_id_t, callee_summary_t> get_callee_summaries_for_tfg(map<nextpc_id_t, string> const &nextpc_map, map<string, callee_summary_t> const &callee_summaries);
+
+  bool isSplitPhiNodeNeeded(llvm::Instruction const &I, string &varname);
 
   //const std::unique_ptr<llvm::Module>& m_module;
   llvm::Module const *m_module;
