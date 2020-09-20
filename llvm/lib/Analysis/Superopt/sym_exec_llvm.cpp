@@ -2305,7 +2305,7 @@ sym_exec_common::get_next_intermediate_subsubindex_pc_node(tfg &t, shared_ptr<tf
 }
 
 shared_ptr<tfg_node>
-sym_exec_llvm::process_phi_nodes(tfg &t, vector<const llvm::Instruction*>& instructions, map<llvm_value_id_t, string_ref>* value_to_name_map, const llvm::BasicBlock* B_from, const pc& pc_to, shared_ptr<tfg_node> const &from_node, expr_ref edgecond, unordered_set<expr_ref> const& assumes, te_comment_t const& te_comment, Instruction * I, const llvm::Function& F, map<shared_ptr<tfg_edge const>, Instruction *>& eimap, bool split)
+sym_exec_llvm::process_phi_nodes(tfg &t, vector<const llvm::Instruction*>& instructions, map<llvm_value_id_t, string_ref>* value_to_name_map, const llvm::BasicBlock* B_from, const pc& pc_to, shared_ptr<tfg_node> const &from_node, expr_ref edgecond, unordered_set<expr_ref> const& assumes, te_comment_t const& te_comment, Instruction * I, const llvm::Function& F, map<shared_ptr<tfg_edge const>, Instruction *>& eimap, bool splitNode)
 {
   DYN_DEBUG(llvm2tfg, cout << __func__ << " " << __LINE__ << " " << get_timestamp(as1, sizeof as1) << ": searching for BB representing " << pc_to.to_string() << endl);
   const llvm::BasicBlock* B_to = 0;
@@ -2328,7 +2328,6 @@ sym_exec_llvm::process_phi_nodes(tfg &t, vector<const llvm::Instruction*>& instr
   DYN_DEBUG(llvm2tfg, cout << __func__ << " " << __LINE__ << " " << get_timestamp(as1, sizeof as1) << ": B_to->getInstList().size() = " << B_to->getInstList().size() << endl);
   map<string, sort_ref> changed_varnames;
   int inum = 0;
-  bool splitNode = false;
 
   for (const llvm::Instruction* IPtr : instructions) {
     string varname;
@@ -2341,7 +2340,6 @@ sym_exec_llvm::process_phi_nodes(tfg &t, vector<const llvm::Instruction*>& instr
     state state_out;
     unordered_set<expr_ref> state_assumes;
     expr_ref val;
-    splitNode |= isSplitPhiNodeNeeded(I, varname);
     tie(val, state_assumes) = phiInstructionGetIncomingBlockValue(I/*, t.get_start_state()*/, pc_to_phi_node/*, pc_to*/, B_from, F, t, value_to_name_map);
     DYN_DEBUG(llvm2tfg, cout << __func__ << " " << __LINE__ << " " << get_timestamp(as1, sizeof as1) << ": found phi instruction: from_node = " << from_node->get_pc() << ": pc_to_phi_node = " << pc_to_phi_node->get_pc() << endl);
     //expr_ref e = get_expr_adding_edges_for_intermediate_vals(*val/*phi->getIncomingValue(i)*/, "", t.get_start_state(), pc_to_phi_node, pc_to, *B_from, F, t);
@@ -3094,6 +3092,8 @@ sym_exec_llvm::getParent(const Value *V) {
 bool
 sym_exec_llvm::isSplitPhiNodeNeeded(llvm::Instruction const &I, string &varname)
 {
-  return false;
+  static bool ret = false;
+  ret = !ret;
+  return ret;
 }
 
