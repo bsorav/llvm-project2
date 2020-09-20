@@ -184,7 +184,7 @@ main(int argc, char **argv)
   context *ctx = g_ctx;
   DataLayout const& dl = M1->getDataLayout();
   unsigned pointer_size = dl.getPointerSize();
-  cout << __func__ << " " << __LINE__ << ": pointer_size = " << pointer_size << endl;
+  //cout << __func__ << " " << __LINE__ << ": pointer_size = " << pointer_size << endl;
   if (pointer_size == QWORD_LEN/BYTE_LEN) {
     ctx->parse_consts_db(SUPEROPTDBS_DIR "/../etfg_x64/consts_db");
   } else if (pointer_size == DWORD_LEN/BYTE_LEN) {
