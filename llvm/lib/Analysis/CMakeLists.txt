@@ -139,4 +139,5 @@ add_llvm_component_library(LLVMAnalysis
   )
 #add_subdirectory(Superopt)
 
-target_link_libraries(LLVMAnalysis PRIVATE ${SUPEROPT_LIBS})
+add_superopt_libs(slibs)
+target_link_libraries(LLVMAnalysis PRIVATE ${slibs})

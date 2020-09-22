@@ -11,4 +11,5 @@ add_llvm_tool(harvest-dwarf
   main.cpp
   )
 
-target_link_libraries(harvest-dwarf PRIVATE ${SUPEROPT_LIBS})
+add_superopt_libs(slibs)
+target_link_libraries(harvest-dwarf PRIVATE ${slibs})

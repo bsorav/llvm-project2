@@ -45,4 +45,7 @@ if(LLVM_BUILD_EXAMPLES)
     target_link_libraries(opt PRIVATE ExampleIRTransforms)
 endif(LLVM_BUILD_EXAMPLES)
 
-target_link_libraries(opt PRIVATE LLVMAnalysis ${SUPEROPT_LIBS})
+add_superopt_libs(slibs)
+#message(STATUS "slibs=${slibs}")
+
+target_link_libraries(opt PRIVATE LLVMAnalysis ${slibs})
