@@ -1861,7 +1861,16 @@ sym_exec_llvm::exec_gen_expr(const llvm::Instruction& I/*, string Iname*/, const
       Type* typ = itype.getIndexedType();
 
       expr_ref index = args[index_counter];
-      assert(index->is_bv_sort() && index->get_sort()->get_size() == get_word_length());
+      assert(index->is_bv_sort());
+      if (index->get_sort()->get_size() > get_word_length()) {
+        cout << _FNLN_ << ": index =\n" << m_ctx->expr_to_string_table(index) << endl;
+        cout << _FNLN_ << ": get_word_length() = " << get_word_length() << endl;
+      }
+      assert(index->get_sort()->get_size() <= get_word_length());
+      if (index->get_sort()->get_size() < get_word_length()) {
+        index = m_ctx->mk_bvzero_ext(index, get_word_length() - index->get_sort()->get_size());
+      }
+      ASSERT(index->get_sort()->get_size() == get_word_length());
       expr_ref offset_expr;
       unordered_set<expr_ref> assumes = state_assumes;
 
