@@ -428,7 +428,7 @@ sym_exec_llvm::gep_instruction_get_intermediate_value_name(Instruction const& I/
   if (intermediate_value_num == 0) {
     ss << base_name << "." << LLVM_INTERMEDIATE_VALUE_KEYWORD << "." << GEPOFFSET_KEYWORD << "." << index_counter << "." << "offset";
   } else {
-    ss << base_name << "." GEPOFFSET_KEYWORD << "." << index_counter << "." << "total_offset";
+    ss << base_name << "." GEPOFFSET_KEYWORD << "." << index_counter << "." << GEPTOTALOFFSET_KEYWORD;
   }
   //m_state_templ.push_back(make_pair(ss.str(), m_ctx->mk_bv_sort(DWORD_LEN)));
   return ss.str();
@@ -1400,6 +1400,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, shar
 
     ostringstream ss2;
     ss2 << G_LOCAL_SIZE_KEYWORD << '.' << local_id;
+    string const& local_size_str = ss2.str();
     expr_ref local_size_expr;
     if (is_varsize) {
       expr_ref varsize_expr;
@@ -1410,13 +1411,16 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, shar
       // add size > 0 assume
       expr_ref const& size_is_positive_assume = m_ctx->mk_bvsgt(varsize_expr, m_ctx->mk_zerobv(local_size_expr->get_sort()->get_size())); // XXX shall we check for integer overflow during (varsize_expr * local_size) as well?
       state_assumes.insert(size_is_positive_assume);
+      // add (local_size.<id> == <expr>) global assume; as the <expr> is SSA we don't need to be careful about PCs/order
+      predicate_ref local_size_assume = predicate::mk_predicate_ref(precond_t(), m_ctx->mk_eq(m_ctx->get_input_expr_for_key(mk_string_ref(local_size_str), local_size_expr->get_sort()), local_size_expr), expr_true(m_ctx), local_size_str + string("-assume"));
+      t.add_global_assume(local_size_assume);
     } else {
       local_size_expr = m_ctx->mk_bv_const(get_word_length(), local_size);
     }
 
     state_set_expr(state_out, m_mem_reg, m_ctx->mk_alloca(state_get_expr(state_in, m_mem_reg, this->get_mem_sort()), ml_local, local_addr, local_size_expr));
     state_set_expr(state_out, name, local_addr);
-    state_set_expr(state_out, ss2.str(), local_size_expr);
+    state_set_expr(state_out, local_size_str, local_size_expr);
     break;
   }
   case Instruction::Store:

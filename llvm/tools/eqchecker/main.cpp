@@ -183,7 +183,6 @@ main(int argc, char **argv)
   //context *ctx = new context(context::config(600, 600/*, true, true, true*/));
   context *ctx = g_ctx;
   ctx->parse_consts_db(CONSTS_DB_FILENAME);
-  consts_struct_t &cs = ctx->get_consts_struct();
 
   ofstream outputStream;
   outputStream.open(OutputFilename, ios_base::out | ios_base::trunc);
