@@ -74,6 +74,10 @@ DryRun("dry-run", cl::desc("<dry-run. only print the function names and their si
 static cl::opt<std::string>
 DynDebug("dyn_debug", cl::desc("<debug.  enable dynamic debugging for debug-class(es).  Expects comma-separated list of debug-classes with optional level e.g. -debug=compute_liveness,sprels,alias_analysis=2"), cl::init(""));
 
+static cl::opt<std::string>
+XmlOutputFormat("xml-output-format", cl::desc("<xml-output-format.  Format to use during xml printing.  [html|text-color|text-nocolor]"), cl::init("text-color"));
+
+
 //static void diagnosticHandler(const DiagnosticInfo &DI, void *Context) {
 //  assert(DI.getSeverity() == DS_Error && "Only expecting errors");
 //
@@ -137,6 +141,8 @@ main(int argc, char **argv)
 
   eqspace::init_dyn_debug_from_string(DynDebug);
   CPP_DBG_EXEC(DYN_DEBUG, eqspace::print_debug_class_levels());
+
+  context::xml_output_format_t xml_output_format = context::xml_output_format_from_string(XmlOutputFormat);
 
   CPP_DBG_EXEC(LLVM2TFG, errs() << "doing functions:" << FunNames << "\n");
   CPP_DBG_EXEC(LLVM2TFG, errs() << "output filename:" << OutputFilename << "\n");
@@ -207,7 +213,7 @@ main(int argc, char **argv)
     return 0;
   }
 
-  map<string, pair<callee_summary_t, unique_ptr<tfg_llvm_t>>> function_tfg_map = sym_exec_llvm::get_function_tfg_map(M1.get(), FunNamesVec, DisableModelingOfUninitVarUB ? true : false, ctx);
+  map<string, pair<callee_summary_t, unique_ptr<tfg_llvm_t>>> function_tfg_map = sym_exec_llvm::get_function_tfg_map(M1.get(), FunNamesVec, DisableModelingOfUninitVarUB ? true : false, ctx, nullptr, xml_output_format);
 
   string llvm_header = M1->get_llvm_header_as_string();
   list<string> type_decls = M1->get_type_declarations_as_string();
