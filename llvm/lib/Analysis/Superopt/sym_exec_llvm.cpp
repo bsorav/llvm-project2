@@ -1412,9 +1412,10 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, shar
       expr_ref const& size_is_positive_assume = m_ctx->mk_bvsgt(varsize_expr, m_ctx->mk_zerobv(local_size_expr->get_sort()->get_size())); // XXX shall we check for integer overflow during (varsize_expr * local_size) as well?
       state_assumes.insert(size_is_positive_assume);
       // add (local_size.<id> == <expr>) global assume; as the <expr> is SSA we don't need to be careful about PCs/order
-      predicate_ref local_size_assume = predicate::mk_predicate_ref(precond_t(), m_ctx->mk_eq(m_ctx->get_input_expr_for_key(mk_string_ref(local_size_str), local_size_expr->get_sort()), local_size_expr), expr_true(m_ctx), local_size_str + string("-assume"));
-      t.add_global_assume(local_size_assume);
-    } else {
+      expr_ref local_size_eq = m_ctx->mk_eq(m_ctx->get_input_expr_for_key(mk_string_ref(local_size_str), local_size_expr->get_sort()), local_size_expr);
+      state_assumes.insert(local_size_eq);
+    }
+    else {
       local_size_expr = m_ctx->mk_bv_const(get_word_length(), local_size);
     }
 
