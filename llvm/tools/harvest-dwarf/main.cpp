@@ -250,6 +250,7 @@ DWARFExpression_to_eqspace_expr::handle_op(DWARFExpression::Operation &op)
     case llvm::dwarf::DW_OP_minus:
     case llvm::dwarf::DW_OP_mul:
     case llvm::dwarf::DW_OP_shl:
+    case llvm::dwarf::DW_OP_shra:
     case llvm::dwarf::DW_OP_and:
     case llvm::dwarf::DW_OP_xor:
     case llvm::dwarf::DW_OP_eq:
@@ -267,6 +268,8 @@ DWARFExpression_to_eqspace_expr::handle_op(DWARFExpression::Operation &op)
         res = g_ctx->mk_bvmul(op1, op2);
       } else if (opcode == llvm::dwarf::DW_OP_shl) {
         res = g_ctx->mk_bvexshl(op1, op2);
+      } else if (opcode == llvm::dwarf::DW_OP_shra) {
+        res = g_ctx->mk_bvexashr(op1, op2);
       } else if (opcode == llvm::dwarf::DW_OP_and) {
         res = g_ctx->mk_bvand(op1, op2);
       } else if (opcode == llvm::dwarf::DW_OP_xor) {
