@@ -1325,7 +1325,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, shar
       control_flow_transfer cft(from_node->get_pc(), get_pc_from_bbindex_and_insn_id(get_basicblock_index(*Case.getCaseSuccessor()), 0), cond, CaseAssumes);
       cfts.push_back(cft);
       matched_any_cond.push_back(cond);
-      //cout << __func__ << " " << __LINE__ << ": cft cond = " << expr_string(cond) << ", dest = " << get_basicblock_name(*i.getCaseSuccessor()) << endl;
+      //cout << __func__ << " " << __LINE__ << ": cft cond = " << expr_string(cond) << ", src = " << cft.get_from_pc() << ", dest = " << cft.get_to_pc() << endl;
     }
     expr_ref remaining_cond;
     if (matched_any_cond.size() == 0) {
@@ -1338,7 +1338,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, shar
     control_flow_transfer cft(from_node->get_pc(), get_pc_from_bbindex_and_insn_id(get_basicblock_index(*SI->getDefaultDest()), 0), remaining_cond);
     cfts.push_back(cft);
     cfts = expand_switch(t, from_node, cfts, state_out, cond_assumes, te_comment, (Instruction *)&I, B, F, eimap);
-    //cft_processing_needed = false;
+    //cout << __func__ << " " << __LINE__ << ": cft cond = " << expr_string(cft.get_condition()) << ", src = " << cft.get_from_pc() << ", dest = " << cft.get_to_pc() << endl;
     break;
   }
   case Instruction::Ret:
@@ -2166,47 +2166,51 @@ sym_exec_llvm::expand_switch(tfg &t, shared_ptr<tfg_node> const &from_node, vect
   unordered_set<expr_ref> cond_assumes = assumes;
   vector<control_flow_transfer> new_cfts;
   pc from_pc = from_node->get_pc();
-  pc cur_pc = from_pc;
+  shared_ptr<tfg_node> cur_node = from_node;
   size_t varnum = 0;
   for (size_t i = 0; i < cfts.size() - 1; i++) {
     const auto &cft = cfts.at(i);
     ASSERT(cft.get_target() == nullptr);
     ASSERT(cft.get_from_pc() == from_pc);
+
     pc to_pc = cft.get_to_pc();
     expr_ref const& edgecond = cft.get_condition();
     unordered_set<expr_ref> assumes = cft.get_assumes();
     unordered_set_union(assumes, cond_assumes);
-    pc new_cur_pc1 = cur_pc.increment_subindex();
-    pc new_cur_pc2 = new_cur_pc1.increment_subindex();
-    new_cur_pc1.set_subsubindex(PC_SUBSUBINDEX_SWITCH_INTERMEDIATE);
-    new_cur_pc2.set_subsubindex(PC_SUBSUBINDEX_SWITCH_INTERMEDIATE);
+
+    shared_ptr<tfg_node> intermediate_node = get_next_intermediate_subsubindex_pc_node(t, cur_node);
+    shared_ptr<tfg_node> next_case_node = get_next_intermediate_subsubindex_pc_node(t, intermediate_node);
+    pc const& intermediate_pc = intermediate_node->get_pc();
+    pc const& next_case_pc = next_case_node->get_pc();
     stringstream ss;
     ss << G_SRC_KEYWORD "." G_LLVM_PREFIX "-" LLVM_SWITCH_TMPVAR_PREFIX << varnum;
     varnum++;
     string new_varname = ss.str();
     state state_to_newvar;
     state_set_expr(state_to_newvar, new_varname, edgecond);
-    shared_ptr<tfg_edge const> e1 = mk_tfg_edge(mk_itfg_edge(cur_pc, new_cur_pc1, state_to_newvar, expr_true(m_ctx)/*, t.get_start_state()*/, assumes, te_comment));
-
-    //expr_ref new_var = state_get_expr(t.get_start_state(), new_varname, m_ctx->mk_bool_sort());
+    // edge for setting switch tmpvar
+    shared_ptr<tfg_edge const> e1 = mk_tfg_edge(mk_itfg_edge(cur_node->get_pc(), intermediate_pc, state_to_newvar, expr_true(m_ctx)/*, t.get_start_state()*/, assumes, te_comment));
     expr_ref new_var = get_input_expr(new_varname, m_ctx->mk_bool_sort());
-    new_cfts.push_back(control_flow_transfer(new_cur_pc1, to_pc, new_var));
-    shared_ptr<tfg_edge const> e3 = mk_tfg_edge(mk_itfg_edge(new_cur_pc1, new_cur_pc2, state_to, m_ctx->mk_not(new_var)/*, t.get_start_state()*/, {}, te_comment));
-    if (!t.find_node(new_cur_pc1)) {
-      t.add_node(make_shared<tfg_node>(new_cur_pc1));
-    }
-    if (!t.find_node(new_cur_pc2)) {
-      t.add_node(make_shared<tfg_node>(new_cur_pc2));
-    }
+    //new_cfts.push_back(control_flow_transfer(intermediate_pc, to_pc, new_var));
+    // edge for case jump
+    shared_ptr<tfg_edge const> ep = mk_tfg_edge(mk_itfg_edge(intermediate_pc, to_pc, state_to, new_var/*, t.get_start_state()*/, {}, te_comment));
+    // edge for ~case jump
+    shared_ptr<tfg_edge const> enp = mk_tfg_edge(mk_itfg_edge(intermediate_pc, next_case_pc, state_to, m_ctx->mk_not(new_var)/*, t.get_start_state()*/, {}, te_comment));
+    if (!t.find_node(to_pc)) { t.add_node(make_shared<tfg_node>(to_pc)); }
     t.add_edge(e1);
-    eimap.insert(make_pair(e3, I));
-    t.add_edge(e3);
-    cur_pc = new_cur_pc2;
+    t.add_edge(ep);
+    t.add_edge(enp);
+    eimap.insert(make_pair(ep, I));
+    cur_node = next_case_node;
     cond_assumes = {};
+    //cout << __func__ << ':' << __LINE__ << ": Added edge e1 = " << e1->to_string() << endl;
+    //cout << __func__ << ':' << __LINE__ << ": Added edge ep = " << ep->to_string() << endl;
+    //cout << __func__ << ':' << __LINE__ << ": Added edge enp = " << enp->to_string() << endl;
   }
   const auto &cft = cfts.at(cfts.size() - 1);
+  ASSERT(cft.get_from_pc() == from_pc);
   pc to_pc = cft.get_to_pc();
-  control_flow_transfer new_cft(cur_pc, to_pc, expr_true(m_ctx), cond_assumes);
+  control_flow_transfer new_cft(cur_node->get_pc(), to_pc, expr_true(m_ctx), cond_assumes);
   new_cfts.push_back(new_cft);
   return new_cfts;
 }
