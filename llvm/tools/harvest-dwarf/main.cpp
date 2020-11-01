@@ -88,10 +88,13 @@ private:
   eqspace::expr_ref signed_const_to_bvconst(int64_t cval) const;
   eqspace::expr_ref unsigned_const_to_bvconst(uint64_t cval) const;
 
+  void dump_stack_and_expr() const;
+
   DWARFExpression const& m_dwarf_expr;
   eqspace::expr_ref const& m_frame_base;
   raw_ostream& m_OS;
   std::stack<eqspace::expr_ref> m_stk;
+  std::list<eqspace::expr_ref> m_location_desc;
   unsigned m_bvsort_size;
   expr_ref m_memvar;
 };
@@ -105,7 +108,21 @@ DWARFExpression_to_eqspace_expr::convert()
       return nullptr;
     }
   }
-  if (m_stk.size() != 1) {
+  if (m_location_desc.size()) {
+    ASSERTCHECK(m_stk.empty(), dump_stack_and_expr());
+    if (m_location_desc.size() > 1) {
+      m_stk.push(expr_bvconcat(m_location_desc));
+    } else {
+      m_stk.push(m_location_desc.front());
+    }
+  }
+  ASSERTCHECK((m_stk.size() == 1), dump_stack_and_expr());
+  return m_stk.top();
+}
+
+void
+DWARFExpression_to_eqspace_expr::dump_stack_and_expr() const
+{
     auto cp_stk = m_stk;
     while (!cp_stk.empty()) {
       auto v = cp_stk.top(); cp_stk.pop();
@@ -114,9 +131,6 @@ DWARFExpression_to_eqspace_expr::convert()
     m_OS << "\nDWARFExpression = ";
     m_dwarf_expr.print(m_OS, nullptr, nullptr);
     m_OS << '\n';
-  }
-  assert(m_stk.size() == 1);
-  return m_stk.top();
 }
 
 eqspace::expr_ref
@@ -311,17 +325,23 @@ DWARFExpression_to_eqspace_expr::handle_op(DWARFExpression::Operation &op)
       m_stk.push(res);
       break;
     }
-    //case llvm::dwarf::DW_OP_piece: {
-    //  break;
-    //}
+    case llvm::dwarf::DW_OP_piece: {
+      uint64_t piece_size = op.getRawOperand(0);
+      eqspace::expr_ref val = m_stk.top();
+      m_stk.pop();
+      // XXX endianness matters here
+      eqspace::expr_ref res = g_ctx->mk_bvextract(val, piece_size*8-1, 0);
+      m_location_desc.push_front(res);
+      break;
+    }
     case llvm::dwarf::DW_OP_bit_piece: {
       uint64_t piece_size = op.getRawOperand(0);
       uint64_t offset     = op.getRawOperand(1);
-      // we store location descriptions in the stack (which may not be the right(tm) choice here)
       eqspace::expr_ref val = m_stk.top();
       m_stk.pop();
+      // XXX endinness matters here
       eqspace::expr_ref res = g_ctx->mk_bvextract(val, offset+piece_size-1, offset);
-      m_stk.push(res);
+      m_location_desc.push_front(res);
       break;
     }
     case llvm::dwarf::DW_OP_call_frame_cfa: {
