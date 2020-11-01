@@ -142,6 +142,10 @@ DWARFExpression_to_eqspace_expr::dwarf_reg_to_var(unsigned dwarfregnum) const
       std::ostringstream os;
       os << G_INPUT_KEYWORD << '.' << G_DST_KEYWORD << '.' << eqspace::state::reg_name(I386_EXREG_GROUP_GPRS, dwarfregnum);
       return g_ctx->mk_var(os.str(), g_ctx->mk_bv_sort(m_bvsort_size));
+    } else if (dwarfregnum >= 21 && dwarfregnum <= 28) {
+      std::ostringstream os;
+      os << G_INPUT_KEYWORD << '.' << G_DST_KEYWORD << '.' << eqspace::state::reg_name(I386_EXREG_GROUP_XMM, dwarfregnum-21);
+      return g_ctx->mk_var(os.str(), g_ctx->mk_bv_sort(m_bvsort_size));
     } else {
       m_OS << format("\nregister mapping not defined for register num %d\n", dwarfregnum);
       m_OS.flush();
