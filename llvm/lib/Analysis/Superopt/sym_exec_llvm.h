@@ -170,7 +170,7 @@ private:
   void add_edges(const llvm::BasicBlock& B, tfg_llvm_t& t, const llvm::Function& F, map<string, pair<callee_summary_t, unique_ptr<tfg_llvm_t>>> *function_tfg_map, map<llvm_value_id_t, string_ref>* value_to_name_map, set<string> const *function_call_chain, map<shared_ptr<tfg_edge const>, llvm::Instruction *>& eimap, context::xml_output_format_t xml_output_format);
 
   void parse_dbg_value_intrinsic(llvm::Instruction const& I, tfg_llvm_t& t, pc const& pc_from) const;
-  void parse_dbg_declare_intrinsic(llvm::Instruction const& I, tfg_llvm_t& t) const;
+  void parse_dbg_declare_intrinsic(llvm::Instruction const& I, tfg_llvm_t& t, pc const& pc_from) const;
   void parse_dbg_label_intrinsic(llvm::Instruction const& I, tfg_llvm_t& t) const;
   //shared_ptr<tfg_node> get_next_intermediate_subsubindex_pc_node(tfg &t, shared_ptr<tfg_node> const &from_node);
 

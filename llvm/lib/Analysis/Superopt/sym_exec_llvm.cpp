@@ -2225,7 +2225,7 @@ sym_exec_llvm::process_cfts(tfg &t, map<llvm_value_id_t, string_ref>* value_to_n
 }
 
 void
-sym_exec_llvm::parse_dbg_declare_intrinsic(Instruction const& I, tfg_llvm_t& t) const
+sym_exec_llvm::parse_dbg_declare_intrinsic(Instruction const& I, tfg_llvm_t& t, pc const& pc_from) const
 {
   const CallInst& CI = cast<CallInst>(I);
   const DbgDeclareInst &DI = cast<DbgDeclareInst>(CI);
@@ -2246,7 +2246,7 @@ sym_exec_llvm::parse_dbg_declare_intrinsic(Instruction const& I, tfg_llvm_t& t) 
   string llvm_varname = get_value_name(*Address);
   DYN_DEBUG(dbg_declare_intrinsic, std::cout << "DI.getVariable().getName() = " << source_varname << "\n");
   DYN_DEBUG(dbg_declare_intrinsic, std::cout << "value_name = " << llvm_varname << "\n");
-  t.tfg_llvm_add_source_declaration_to_llvm_varname_mapping(source_varname, llvm_varname);
+  t.tfg_llvm_add_source_declaration_to_llvm_varname_mapping_at_pc(source_varname, llvm_varname, pc_from);
 }
 
 void
@@ -2288,7 +2288,7 @@ sym_exec_llvm::add_edges(const llvm::BasicBlock& B, tfg_llvm_t& t, const llvm::F
     pc pc_from = get_pc_from_bbindex_and_insn_id(get_basicblock_index(B), insn_id);
 
     if (isa<CallInst>(I) && cast<CallInst>(I).getIntrinsicID() == Intrinsic::dbg_declare) {//declare will be replaced with addr in future revisions; so watch out for this change
-      this->parse_dbg_declare_intrinsic(I, t);
+      this->parse_dbg_declare_intrinsic(I, t, pc_from);
       continue;
     }
 
