@@ -226,6 +226,10 @@ DWARFExpression_to_eqspace_expr::handle_op(DWARFExpression::Operation &op)
       // this is suppposed to be the last op of the expression
       assert(m_stk.size());
       break;
+    case llvm::dwarf::DW_OP_dup:
+      m_stk.push(m_stk.top());
+      assert(m_stk.size());
+      break;
     case llvm::dwarf::DW_OP_deref: {
       eqspace::expr_ref addr = m_stk.top();
       m_stk.pop();
@@ -284,13 +288,22 @@ DWARFExpression_to_eqspace_expr::handle_op(DWARFExpression::Operation &op)
       m_stk.push(res);
       break;
     }
+    case llvm::dwarf::DW_OP_not: {
+      eqspace::expr_ref op = m_stk.top();
+      m_stk.pop();
+      eqspace::expr_ref res = g_ctx->mk_bvnot(op);
+      m_stk.push(res);
+      break;
+    }
     case llvm::dwarf::DW_OP_plus:
     case llvm::dwarf::DW_OP_minus:
     case llvm::dwarf::DW_OP_mul:
     case llvm::dwarf::DW_OP_mod:
     case llvm::dwarf::DW_OP_shl:
+    case llvm::dwarf::DW_OP_shr:
     case llvm::dwarf::DW_OP_shra:
     case llvm::dwarf::DW_OP_and:
+    case llvm::dwarf::DW_OP_or:
     case llvm::dwarf::DW_OP_xor:
     case llvm::dwarf::DW_OP_eq:
     case llvm::dwarf::DW_OP_gt: {
@@ -311,10 +324,14 @@ DWARFExpression_to_eqspace_expr::handle_op(DWARFExpression::Operation &op)
         res = g_ctx->mk_bvurem(op1, op2);
       } else if (opcode == llvm::dwarf::DW_OP_shl) {
         res = g_ctx->mk_bvexshl(op1, op2);
+      } else if (opcode == llvm::dwarf::DW_OP_shr) {
+        res = g_ctx->mk_bvexlshr(op1, op2);
       } else if (opcode == llvm::dwarf::DW_OP_shra) {
         res = g_ctx->mk_bvexashr(op1, op2);
       } else if (opcode == llvm::dwarf::DW_OP_and) {
         res = g_ctx->mk_bvand(op1, op2);
+      } else if (opcode == llvm::dwarf::DW_OP_or) {
+        res = g_ctx->mk_bvor(op1, op2);
       } else if (opcode == llvm::dwarf::DW_OP_xor) {
         res = g_ctx->mk_bvxor(op1, op2);
       } else if (opcode == llvm::dwarf::DW_OP_eq) {
