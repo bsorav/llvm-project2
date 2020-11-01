@@ -196,7 +196,6 @@ DWARFExpression_to_eqspace_expr::handle_op(DWARFExpression::Operation &op)
       break;
     }
     case llvm::dwarf::DW_OP_fbreg: {
-      // signed offset from frame_base which we assume to be input_stack_pointer_const
       assert(this->m_frame_base);
       eqspace::expr_ref regvar = this->m_frame_base;
       eqspace::expr_ref offset = this->signed_const_to_bvconst(op.getRawOperand(0));
@@ -213,6 +212,17 @@ DWARFExpression_to_eqspace_expr::handle_op(DWARFExpression::Operation &op)
       eqspace::expr_ref addr = m_stk.top();
       m_stk.pop();
       eqspace::expr_ref res  = g_ctx->mk_select(m_memvar, memlabel_t::memlabel_top(), addr, m_bvsort_size/8, false);
+      m_stk.push(res);
+      break;
+    }
+    case llvm::dwarf::DW_OP_deref_size: {
+      eqspace::expr_ref addr = m_stk.top();
+      m_stk.pop();
+      unsigned size = op.getRawOperand(0);
+      eqspace::expr_ref res  = g_ctx->mk_select(m_memvar, memlabel_t::memlabel_top(), addr, size, false);
+      if (size*8 < m_bvsort_size) {
+        res = g_ctx->mk_bvzero_ext(res, m_bvsort_size - size*8);
+      }
       m_stk.push(res);
       break;
     }
@@ -246,9 +256,20 @@ DWARFExpression_to_eqspace_expr::handle_op(DWARFExpression::Operation &op)
       m_stk.push(res);
       break;
     }
+    case llvm::dwarf::DW_OP_plus_uconst: {
+      // the type of operand is to be matched against stack top;
+      // we skip it for now TODO
+      eqspace::expr_ref op1 = m_stk.top();
+      m_stk.pop();
+      eqspace::expr_ref op2 = this->unsigned_const_to_bvconst(op.getRawOperand(0));
+      eqspace::expr_ref res = g_ctx->mk_bvadd(op1, op2);
+      m_stk.push(res);
+      break;
+    }
     case llvm::dwarf::DW_OP_plus:
     case llvm::dwarf::DW_OP_minus:
     case llvm::dwarf::DW_OP_mul:
+    case llvm::dwarf::DW_OP_mod:
     case llvm::dwarf::DW_OP_shl:
     case llvm::dwarf::DW_OP_shra:
     case llvm::dwarf::DW_OP_and:
@@ -266,6 +287,10 @@ DWARFExpression_to_eqspace_expr::handle_op(DWARFExpression::Operation &op)
         res = g_ctx->mk_bvsub(op1, op2);
       } else if (opcode == llvm::dwarf::DW_OP_mul) {
         res = g_ctx->mk_bvmul(op1, op2);
+      } else if (opcode == llvm::dwarf::DW_OP_mod) {
+        // the standard's terminology is "modulo" which I am assuming to be
+        // unsigned remainder
+        res = g_ctx->mk_bvurem(op1, op2);
       } else if (opcode == llvm::dwarf::DW_OP_shl) {
         res = g_ctx->mk_bvexshl(op1, op2);
       } else if (opcode == llvm::dwarf::DW_OP_shra) {
