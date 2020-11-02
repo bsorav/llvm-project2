@@ -87,6 +87,7 @@ void llvm::initializeScalarOpts(PassRegistry &Registry) {
   initializeLowerExpectIntrinsicPass(Registry);
   initializeLowerGuardIntrinsicLegacyPassPass(Registry);
   initializeLowerMatrixIntrinsicsLegacyPassPass(Registry);
+  initializeLowerMatrixIntrinsicsMinimalLegacyPassPass(Registry);
   initializeLowerWidenableConditionLegacyPassPass(Registry);
   initializeMemCpyOptLegacyPassPass(Registry);
   initializeMergeICmpsLegacyPassPass(Registry);
@@ -143,7 +144,7 @@ void LLVMAddAlignmentFromAssumptionsPass(LLVMPassManagerRef PM) {
 }
 
 void LLVMAddCFGSimplificationPass(LLVMPassManagerRef PM) {
-  unwrap(PM)->add(createCFGSimplificationPass(1, false, false, true));
+  unwrap(PM)->add(createCFGSimplificationPass());
 }
 
 void LLVMAddDeadStoreEliminationPass(LLVMPassManagerRef PM) {
