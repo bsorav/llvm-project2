@@ -2218,6 +2218,17 @@ sym_exec_llvm::add_edges(const llvm::BasicBlock& B, tfg_llvm_t& t, const llvm::F
   //errs() << "Doing BB: " << get_basicblock_name(B) << "\n";
   size_t insn_id = 0;
 
+  state state_start;
+  state_set_expr(state_start, string(G_SRC_KEYWORD "." G_LLVM_PREFIX) + "-" +  get_basicblock_name(B), m_ctx->mk_bool_true());
+  pc pc_from = get_pc_from_bbindex_and_insn_id(get_basicblock_index(B), insn_id++);
+  shared_ptr<tfg_node> from_node = make_shared<tfg_node>(pc_from);
+  if (!t.find_node(pc_from)) {
+    t.add_node(from_node);
+  }
+  pc pc_to = get_pc_from_bbindex_and_insn_id(get_basicblock_index(B), insn_id);
+  int from_subindex = pc_from.get_subindex();
+  auto e = mk_tfg_edge(mk_itfg_edge(pc_from, pc_to, state_start, expr_true(m_ctx), {}, te_comment_t(false, from_subindex, get_basicblock_name(B))));
+  t.add_edge(e);
   for (const Instruction& I : B) {
     if (isa<PHINode const>(I)) {
       continue;
