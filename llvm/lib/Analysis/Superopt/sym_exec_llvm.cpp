@@ -1180,6 +1180,27 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, shar
   //cout << __func__ << " " << __LINE__ << ": t.incoming =\n" << t.incoming_sizes_to_string() << endl;
   switch(I.getOpcode())
   {
+  case Instruction::PHI:
+  {
+    state state_out;
+    const PHINode* phi = dyn_cast<const PHINode>(&I);
+    string varname;
+    instructionIsPhiNode(I, varname);
+    expr_vector args;
+
+    for (unsigned i = 0; i < phi->getNumIncomingValues(); ++i) {
+      expr_ref e;
+      unordered_set<expr_ref> assumes;
+      auto block = phi->getIncomingBlock(i);
+      string var_block = string(G_SRC_KEYWORD "." G_LLVM_PREFIX) + "-" +  get_basicblock_name(B);
+      auto cur_expr = mk_fresh_expr(var_block, G_INPUT_KEYWORD, m_ctx->mk_bool_sort());
+      args.push_back(cur_expr);
+      tie(e, assumes) = get_expr_adding_edges_for_intermediate_vals(*phi->getIncomingValue(i)/*, ""*/, state()/*t.get_start_state()*/, assumes, from_node/*, pc_to, *B_from, F*/, t, value_to_name_map);
+      args.push_back(e);
+    }
+    state_set_expr(state_out, varname, m_ctx->mk_phi(args));
+    break;
+  }
   case Instruction::Br:
   {
     const BranchInst* i =  cast<const BranchInst>(&I);
@@ -2230,9 +2251,9 @@ sym_exec_llvm::add_edges(const llvm::BasicBlock& B, tfg_llvm_t& t, const llvm::F
   auto e = mk_tfg_edge(mk_itfg_edge(pc_from, pc_to, state_start, expr_true(m_ctx), {}, te_comment_t(false, from_subindex, get_basicblock_name(B))));
   t.add_edge(e);
   for (const Instruction& I : B) {
-    if (isa<PHINode const>(I)) {
-      continue;
-    }
+//    if (isa<PHINode const>(I)) {
+//      continue;
+//    }
     if (   false
         || (isa<CallInst>(I) && cast<CallInst>(I).getIntrinsicID() == Intrinsic::dbg_value)
         || (isa<CallInst>(I) && cast<CallInst>(I).getIntrinsicID() == Intrinsic::dbg_addr)
