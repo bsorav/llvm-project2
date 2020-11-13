@@ -1,5 +1,8 @@
 find_package(Boost REQUIRED iostreams serialization)
 
+#set(ARCH_SRC "etfg" CACHE STRING)
+#set(ARCH_DST "x64" CACHE STRING)
+
 set(PROFILE_FLAG "")
 set(DEBUG_FLAG "-g")
 set(OPT "-O3")
@@ -7,10 +10,14 @@ set(OPT "-O3")
 set(LINK_FLAG "")
 set(DEFINES "${DEFINES} -DELFIO_HPP") #to disable including /usr/include/elf.h
 set(SUPEROPT_DIR "${LLVM_BINARY_DIR}/../../superopt")
-set(DEFINES "-DARCH_SRC=ARCH_ETFG -DARCH_DST=ARCH_X64 -DSRC_DST=\\\"etfg_x64\\\" -DSUPEROPT_DIR=\"\\\"${SUPEROPT_DIR}\\\"\"")
-set(SUPEROPT_RELEVANT_ABUILD "etfg_x64")
+string(TOUPPER "${ARCH_SRC}" ARCH_SRC_S)
+string(TOUPPER "${ARCH_DST}" ARCH_DST_S)
+set(SUPEROPT_RELEVANT_ABUILD "${ARCH_SRC}_${ARCH_DST}")
+set(DEFINES "-DARCH_SRC=ARCH_${ARCH_SRC_S} -DARCH_DST=ARCH_${ARCH_DST_S} -DSRC_DST=\\\"${SUPEROPT_RELEVANT_ABUILD}\\\" -DSUPEROPT_DIR=\"\\\"${SUPEROPT_DIR}\\\"\"")
 set(EQ_BINARY_DIR ${SUPEROPT_DIR}/build/${SUPEROPT_RELEVANT_ABUILD})
 set(THIRD_PARTY_DIR "${SUPEROPT_DIR}/build/third_party")
+#message(STATUS "eqchecker cmake_c_flags = ${CMAKE_C_FLAGS}")
+#message(STATUS "eqchecker cmake_cxx_flags = ${CMAKE_CXX_FLAGS}")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${DEBUG_FLAG} ${PROFILE_FLAG} ${OPT} ${LINK_FLAG} ${DEFINES}")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${DEBUG_FLAG} ${PROFILE_FLAG} ${OPT} ${LINK_FLAG} ${DEFINES}")
 

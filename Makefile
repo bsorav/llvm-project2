@@ -7,13 +7,21 @@ endif
 
 all::
 	ninja -C build llc clang opt llvm-config llvm-dis llvm-link llvm-as llvm2tfg harvest-dwarf LLVMSuperopt.so LLVMLockstep.so UnsequencedAliasVisitor.so
-
+	ninja -C build32 harvest-dwarf
+	
 install::
 	#https://llvm.org/docs/GettingStarted.html
 	mkdir -p build
-	cd build && cmake $(DISTCC_OPTS) -G Ninja -DCMAKE_BUILD_TYPE=DEBUG -DLLVM_ENABLE_BINDINGS=OFF -DLLVM_ENABLE_FFI=ON -DLLVM_USE_LINKER=gold -DLLVM_PARALLEL_LINK_JOBS=1 -DLLVM_ENABLE_PROJECTS="clang;clang-tools-extra" -DLLVM_TARGETS_TO_BUILD="X86" -DCLANG_BUILD_EXAMPLES=1 ../llvm && cd ..
+	cd build && cmake $(DISTCC_OPTS) -G Ninja -DCMAKE_BUILD_TYPE=DEBUG -DLLVM_ENABLE_BINDINGS=OFF -DLLVM_ENABLE_FFI=ON -DLLVM_USE_LINKER=gold -DLLVM_PARALLEL_LINK_JOBS=1 -DLLVM_ENABLE_PROJECTS="clang;clang-tools-extra" -DLLVM_TARGETS_TO_BUILD="X86" -DCLANG_BUILD_EXAMPLES=1 -DARCH_SRC="etfg" -DARCH_DST="x64" ../llvm && cd ..
+
+install32::
+	mkdir -p build32
+	cd build32 && cmake $(DISTCC_OPTS) -G Ninja -DCMAKE_BUILD_TYPE=DEBUG -DLLVM_ENABLE_BINDINGS=OFF -DLLVM_ENABLE_FFI=ON -DLLVM_USE_LINKER=gold -DLLVM_PARALLEL_LINK_JOBS=1 -DLLVM_TARGETS_TO_BUILD="X86" -DARCH_SRC="etfg" -DARCH_DST="i386" ../llvm && cd ..
 
 llvm2tfg:
 	ninja -l1 -C build llvm2tfg
 
-.PHONY: all install llvm2tfg
+harvest-dwarf:
+	ninja -l1 -C build32 harvest-dwarf
+
+.PHONY: all install llvm2tfg harvest-dwarf
