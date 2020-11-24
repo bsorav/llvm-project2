@@ -1182,7 +1182,6 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, shar
   {
   case Instruction::PHI:
   {
-    state state_out;
     const PHINode* phi = dyn_cast<const PHINode>(&I);
     string varname;
     instructionIsPhiNode(I, varname);
@@ -1192,7 +1191,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, shar
       expr_ref e;
       unordered_set<expr_ref> assumes;
       auto block = phi->getIncomingBlock(i);
-      string var_block = string(G_SRC_KEYWORD "." G_LLVM_PREFIX) + "-" +  get_basicblock_name(B);
+      string var_block = string(G_SRC_KEYWORD "." G_LLVM_PREFIX) + "-" +  get_basicblock_name(*block);
       auto cur_expr = mk_fresh_expr(var_block, G_INPUT_KEYWORD, m_ctx->mk_bool_sort());
       args.push_back(cur_expr);
       tie(e, assumes) = get_expr_adding_edges_for_intermediate_vals(*phi->getIncomingValue(i)/*, ""*/, state()/*t.get_start_state()*/, assumes, from_node/*, pc_to, *B_from, F*/, t, value_to_name_map);
