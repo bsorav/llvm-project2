@@ -23,6 +23,7 @@
 #include "expr/context.h"
 #include "expr/expr.h"
 #include "expr/state.h"
+#include "gsupport/esp_version.h"
 
 using namespace llvm;
 using namespace llvm::object;
@@ -371,7 +372,7 @@ DWARFExpression_to_eqspace_expr::handle_op(DWARFExpression::Operation &op)
       //   pointer at the call site in the previous frame (which may be different from its value
       //   on entry to the current frame)
       // This is usually just (input stack pointer + address size in bytes) i.e. esp before call insn
-      eqspace::expr_ref res = g_ctx->mk_bvadd(g_ctx->get_esp_version_at_entry(),
+      eqspace::expr_ref res = g_ctx->mk_bvadd(get_esp_version_at_entry(g_ctx),
                                               g_ctx->mk_bv_const(m_bvsort_size, (int)m_bvsort_size/8));
       m_stk.push(res);
       break;
