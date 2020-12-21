@@ -35,17 +35,21 @@ using namespace llvm;
 
 #include <iostream>
 #include <fstream>
-#include "sym_exec_llvm.h"
-#include "expr/consts_struct.h"
-#include "expr/expr.h"
-#include "eq/eqcheck.h"
-#include "tfg/tfg_llvm.h"
-#include "ptfg/llptfg.h"
-#include "ptfg/function_signature.h"
 
 #include "support/timers.h"
 #include "support/dyn_debug.h"
 #include "support/globals.h"
+
+#include "expr/consts_struct.h"
+#include "expr/expr.h"
+
+#include "tfg/tfg_llvm.h"
+
+#include "eq/eqcheck.h"
+#include "ptfg/llptfg.h"
+#include "ptfg/function_signature.h"
+
+#include "sym_exec_llvm.h"
 
 using namespace eqspace;
 
@@ -216,12 +220,17 @@ main(int argc, char **argv)
     return 0;
   }
 
-  map<string, unique_ptr<tfg_llvm_t>> src_function_tfg_map;
-  //if (src_etfg_filename != "") {
-  //  src_function_tfg_map = read_function_tfg_map(src_etfg_filename, ctx);
-  //}
+  shared_ptr<llptfg_t const> src_llptfg;
+  if (src_etfg_filename != "") {
+    ifstream in_src(src_etfg_filename);
+    if (!in_src.is_open()) {
+      cout << __func__ << " " << __LINE__ << ": parsing failed" << endl;
+      NOT_REACHED();
+    }
+    src_llptfg = make_shared<llptfg_t const>(in_src, ctx);
+  }
 
-  map<string, pair<callee_summary_t, unique_ptr<tfg_llvm_t>>> function_tfg_map = sym_exec_llvm::get_function_tfg_map(M1.get(), FunNamesVec, DisableModelingOfUninitVarUB ? true : false, ctx, src_function_tfg_map, nullptr, xml_output_format);
+  map<string, pair<callee_summary_t, unique_ptr<tfg_llvm_t>>> function_tfg_map = sym_exec_llvm::get_function_tfg_map(M1.get(), FunNamesVec, DisableModelingOfUninitVarUB ? true : false, ctx, src_llptfg, nullptr, xml_output_format);
 
   string llvm_header = M1->get_llvm_header_as_string();
   list<string> type_decls = M1->get_type_declarations_as_string();
