@@ -2541,7 +2541,7 @@ sym_exec_llvm::get_callee_summaries_for_tfg(map<nextpc_id_t, string> const &next
 }
 
 void
-sym_exec_llvm::sym_exec_preprocess_tfg(string const &name, tfg_llvm_t& t_src, map<string, pair<callee_summary_t, unique_ptr<tfg_llvm_t>>> &function_tfg_map, list<string> const& sorted_bbl_indices, context::xml_output_format_t xml_output_format)
+sym_exec_llvm::sym_exec_preprocess_tfg(string const &name, tfg_llvm_t& t_src, map<string, pair<callee_summary_t, unique_ptr<tfg_llvm_t>>> &function_tfg_map, list<string> const& sorted_bbl_indices, tfg_llvm_t const* src_llvm_tfg, context::xml_output_format_t xml_output_format)
 {
   autostop_timer func_timer(__func__);
   context* ctx = this->get_context();
@@ -2558,7 +2558,7 @@ sym_exec_llvm::sym_exec_preprocess_tfg(string const &name, tfg_llvm_t& t_src, ma
   t_src.set_string_contents_for_touched_symbols_at_zero_offset(*m_string_contents, m_touched_symbols);
   t_src.remove_function_name_from_symbols(name);
   t_src.populate_exit_return_values_for_llvm_method();
-  t_src.canonicalize_llvm_nextpcs();
+  t_src.canonicalize_llvm_nextpcs(src_llvm_tfg);
   t_src.tfg_llvm_interpret_intrinsic_fcalls();
 
   map<nextpc_id_t, callee_summary_t> nextpc_id_csum = sym_exec_llvm::get_callee_summaries_for_tfg(t_src.get_nextpc_map(), m_callee_summaries);
@@ -2607,7 +2607,7 @@ sym_exec_llvm::get_preprocessed_tfg_common(string const &name, tfg_llvm_t const*
   function_call_chain.insert(name);
   map<shared_ptr<tfg_edge const>, Instruction *> eimap;
   unique_ptr<tfg_llvm_t> t_src = this->get_tfg(src_llvm_tfg, &function_tfg_map, value_to_name_map, &function_call_chain, eimap, xml_output_format);
-  this->sym_exec_preprocess_tfg(name, *t_src, function_tfg_map, sorted_bbl_indices, xml_output_format);
+  this->sym_exec_preprocess_tfg(name, *t_src, function_tfg_map, sorted_bbl_indices, src_llvm_tfg, xml_output_format);
   DYN_DEBUG(llvm2tfg,
     errs() << "Doing done: " << name << "\n";
     errs().flush();
@@ -2683,6 +2683,31 @@ sym_exec_common::get_fun_names(llvm::Module const *M)
   return fun_names;
 }
 
+symbol_id_t
+sym_exec_common::get_symbol_id_for_name(string const& name, tfg_llvm_t const* src_llvm_tfg, symbol_id_t input_symbol_id)
+{
+  if (!src_llvm_tfg) {
+    return input_symbol_id;
+  }
+  graph_symbol_map_t const& symbol_map = src_llvm_tfg->get_symbol_map();
+  map<symbol_id_t, graph_symbol_t> const& smap = symbol_map.get_map();
+
+  symbol_id_t max_sym_id = -1;
+  for (auto const& id_sym : smap) {
+    symbol_id_t sym_id = id_sym.first;
+    graph_symbol_t const& sym = id_sym.second;
+    if (sym.get_name()->get_str() == name) {
+      return sym_id;
+    }
+    max_sym_id = max(sym_id, max_sym_id);
+  }
+  if (symbol_map.count(input_symbol_id)) {
+    return max_sym_id + 1;
+  } else {
+    return input_symbol_id;
+  }
+}
+
 pair<graph_symbol_map_t, map<pair<symbol_id_t, offset_t>, vector<char>>>
 sym_exec_common::get_symbol_map_and_string_contents(Module const *M, list<pair<string, unsigned>> const &fun_names, tfg_llvm_t const* src_llvm_tfg)
 {
@@ -2712,6 +2737,7 @@ sym_exec_common::get_symbol_map_and_string_contents(Module const *M, list<pair<s
     symbol_size = dl.getTypeAllocSize(ElTy);
     symbol_alignment = dl.getPreferredAlignment(cv);
     symbol_is_constant = cv->isConstant();
+    symbol_id = get_symbol_id_for_name(name, src_llvm_tfg, symbol_id);
     //cout << __func__ << " " << __LINE__ << ": symbol_is_constant = " << symbol_is_constant << endl;
     smap.insert(make_pair(symbol_id, graph_symbol_t(mk_string_ref(name), symbol_size, symbol_alignment, symbol_is_constant)));
     if (symbol_is_constant && cv->hasInitializer()) {
@@ -2752,6 +2778,7 @@ sym_exec_common::get_symbol_map_and_string_contents(Module const *M, list<pair<s
     symbol_id++;
   }
   for (const auto &fun_name : fun_names) {
+    symbol_id = get_symbol_id_for_name(fun_name.first, src_llvm_tfg, symbol_id);
     smap.insert(make_pair(symbol_id, graph_symbol_t(mk_string_ref(fun_name.first), fun_name.second, ALIGNMENT_FOR_FUNCTION_SYMBOL, false)));
     symbol_id++;
   }
@@ -3133,7 +3160,7 @@ sym_exec_llvm::get_llvm_value_id_for_value(Value const* v)
     raw_string_ostream ss(valname);
     ss << *I;
     I->deleteValue();
-  } else { 
+  } else {
     valname = sym_exec_common::get_value_name(*v);
   }
   llvm::Function const* F = sym_exec_llvm::getParent(v);

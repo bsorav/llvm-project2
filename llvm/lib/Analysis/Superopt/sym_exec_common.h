@@ -63,6 +63,7 @@ public:
   context *get_context() const { return m_ctx; }
   list<pair<string, unsigned>> const &get_fun_names() const { return *m_fun_names; }
   bool gen_callee_summary() const { return m_gen_callee_summary; }
+  static symbol_id_t get_symbol_id_for_name(string const& name, tfg_llvm_t const* src_llvm_tfg, symbol_id_t input_symbol_id);
 
 protected:
   te_comment_t phi_node_to_te_comment(/*bbl_order_descriptor_t const& bbo, */int inum, llvm::Instruction const& I) const;

@@ -62,7 +62,7 @@ public:
   pc get_start_pc() const;
 
   unordered_set<expr_ref> gen_arg_assumes() const;
-  void sym_exec_preprocess_tfg(string const &name, tfg_llvm_t &t_src, map<string, pair<callee_summary_t, unique_ptr<tfg_llvm_t>>> &function_tfg_map, list<string> const& sorted_bbl_indices, context::xml_output_format_t xml_output_format);
+  void sym_exec_preprocess_tfg(string const &name, tfg_llvm_t &t_src, map<string, pair<callee_summary_t, unique_ptr<tfg_llvm_t>>> &function_tfg_map, list<string> const& sorted_bbl_indices, tfg_llvm_t const* src_llvm_tfg, context::xml_output_format_t xml_output_format);
 
   static unique_ptr<tfg_llvm_t> get_preprocessed_tfg(const llvm::Function& F, llvm::Module const *M, string const &name, context *ctx, tfg_llvm_t const* src_llvm_tfg, map<string, pair<callee_summary_t, unique_ptr<tfg_llvm_t>>> &function_tfg_map, map<llvm_value_id_t, string_ref>* value_to_name_map, set<string> function_call_chain, bool gen_callee_summary, bool DisableModelingOfUninitVarUB, context::xml_output_format_t xml_output_format);
 
