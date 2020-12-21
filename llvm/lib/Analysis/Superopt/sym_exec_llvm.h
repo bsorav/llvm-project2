@@ -59,7 +59,7 @@ public:
   //sort_ref get_mem_range() const;
 
   unique_ptr<tfg_llvm_t> get_tfg(map<string, pair<callee_summary_t, unique_ptr<tfg_llvm_t>>> *function_tfg_map, map<llvm_value_id_t, string_ref>* value_to_name_map, set<string> const *function_call_chain, map<shared_ptr<tfg_edge const>, llvm::Instruction *>& eimap, context::xml_output_format_t xml_output_format);
-  virtual pc get_start_pc() const override;
+  pc get_start_pc() const;
 
   unordered_set<expr_ref> gen_arg_assumes() const;
   void sym_exec_preprocess_tfg(string const &name, tfg_llvm_t &t_src, map<string, pair<callee_summary_t, unique_ptr<tfg_llvm_t>>> &function_tfg_map, list<string> const& sorted_bbl_indices, context::xml_output_format_t xml_output_format);
@@ -76,15 +76,15 @@ public:
   //map<symbol_id_t, tuple<string, size_t, bool>> const &get_symbol_map() { return m_symbol_map; }
   //static string get_value_name(const llvm::Value& v);
   //virtual void process_phi_nodes(tfg &t, const llvm::BasicBlock* B_from, const pc& p_to, shared_ptr<tfg_node> const &from_node, const llvm::Function& F, expr_ref edgecond) override;
-  static map<string, pair<callee_summary_t, unique_ptr<tfg_llvm_t>>> get_function_tfg_map(llvm::Module* M, set<string> FunNamesVec, bool DisableModelingOfUninitVarUB, context* ctx, map<llvm_value_id_t, string_ref>* value_to_name_map = nullptr, context::xml_output_format_t xml_output_format = context::XML_OUTPUT_FORMAT_TEXT_NOCOLOR);
+  static map<string, pair<callee_summary_t, unique_ptr<tfg_llvm_t>>> get_function_tfg_map(llvm::Module* M, set<string> FunNamesVec, bool DisableModelingOfUninitVarUB, context* ctx, map<string, unique_ptr<tfg_llvm_t>> const& src_function_tfg_map, map<llvm_value_id_t, string_ref>* value_to_name_map = nullptr, context::xml_output_format_t xml_output_format = context::XML_OUTPUT_FORMAT_TEXT_NOCOLOR);
 
 private:
   //virtual expr_ref phiInstructionGetIncomingBlockValue(llvm::Instruction const &I/*, state const &start_state*/, shared_ptr<tfg_node> &pc_to_phi_node, pc const &pc_to, llvm::BasicBlock const *B_from, llvm::Function const &F, tfg &t) override;
   pair<expr_ref,unordered_set<expr_ref>> phiInstructionGetIncomingBlockValue(llvm::Instruction const &I, shared_ptr<tfg_node> &pc_to_phi_node/*, pc const &pc_to*/, llvm::BasicBlock const *B_from, llvm::Function const &F, tfg &t, map<llvm_value_id_t, string_ref>* value_to_name_map);
-  virtual string functionGetName(llvm::Function const &F) const override;
-  virtual string get_basicblock_index(llvm::BasicBlock const &F) const override;
+  string functionGetName(llvm::Function const &F) const;
+  string get_basicblock_index(llvm::BasicBlock const &F) const;
   //virtual string get_basicblock_name(llvm::BasicBlock const &F) const override;
-  virtual bool instructionIsPhiNode(llvm::Instruction const &I, string &varname) const override;
+  bool instructionIsPhiNode(llvm::Instruction const &I, string &varname) const;
 
   //static string gep_name_prefix(string const &name, pc const &from_pc, pc const &pc_to, int argnum);
   //expr_ref __get_expr_adding_edges_for_intermediate_vals_helper(const llvm::Value& v, string vname, const state& state_in, shared_ptr<tfg_node> *from_node, pc const &pc_to, llvm::BasicBlock const *B, llvm::Function const *F, tfg& t);

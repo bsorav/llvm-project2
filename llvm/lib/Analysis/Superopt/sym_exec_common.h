@@ -44,7 +44,7 @@ public:
   sort_ref get_mem_sort() const;
 
   //virtual unique_ptr<tfg_llvm_t> get_tfg(map<string, pair<callee_summary_t, unique_ptr<tfg_llvm_t>>> *function_tfg_map, set<string> const *function_call_chain, map<shared_ptr<tfg_edge const>, llvm::Instruction *>& eimap) = 0;
-  virtual pc get_start_pc() const = 0;
+  //virtual pc get_start_pc() const = 0;
 
   void get_tfg_common(tfg &t);
 
@@ -92,26 +92,26 @@ protected:
   //{
   //  NOT_REACHED(); //should be either overwritten or never called
   //}
-  virtual expr_ref phiInstructionGetIncomingBlockValue(llvm::MachineInstr const &I/*, state const &start_state*/, shared_ptr<tfg_node> &pc_to_phi_node, pc const &pc_to, llvm::MachineBasicBlock const *B_from, llvm::MachineFunction const &F, tfg &t)
-  {
-    NOT_REACHED(); //should be either overwritten or never called
-  }
-  virtual string functionGetName(llvm::Function const &F) const
-  {
-    NOT_REACHED();
-  }
-  virtual string functionGetName(llvm::MachineFunction const &F) const
-  {
-    NOT_REACHED();
-  }
-  virtual string get_basicblock_index(llvm::BasicBlock const &F) const
-  {
-    NOT_REACHED();
-  }
-  virtual string get_basicblock_index(llvm::MachineBasicBlock const &F) const
-  {
-    NOT_REACHED();
-  }
+  //virtual expr_ref phiInstructionGetIncomingBlockValue(llvm::MachineInstr const &I/*, state const &start_state*/, shared_ptr<tfg_node> &pc_to_phi_node, pc const &pc_to, llvm::MachineBasicBlock const *B_from, llvm::MachineFunction const &F, tfg &t)
+  //{
+  //  NOT_REACHED(); //should be either overwritten or never called
+  //}
+  //virtual string functionGetName(llvm::Function const &F) const
+  //{
+  //  NOT_REACHED();
+  //}
+  //virtual string functionGetName(llvm::MachineFunction const &F) const
+  //{
+  //  NOT_REACHED();
+  //}
+  //virtual string get_basicblock_index(llvm::BasicBlock const &F) const
+  //{
+  //  NOT_REACHED();
+  //}
+  //virtual string get_basicblock_index(llvm::MachineBasicBlock const &F) const
+  //{
+  //  NOT_REACHED();
+  //}
   //virtual string get_basicblock_name(llvm::BasicBlock const &F) const
   //{
   //  NOT_REACHED();
@@ -120,14 +120,14 @@ protected:
   //{
   //  NOT_REACHED();
   //}
-  virtual bool instructionIsPhiNode(llvm::Instruction const &I, string &varname) const
-  {
-    NOT_REACHED();
-  }
-  virtual bool instructionIsPhiNode(llvm::MachineInstr const &I, string &varname) const
-  {
-    NOT_REACHED();
-  }
+  //virtual bool instructionIsPhiNode(llvm::Instruction const &I, string &varname) const
+  //{
+  //  NOT_REACHED();
+  //}
+  //virtual bool instructionIsPhiNode(llvm::MachineInstr const &I, string &varname) const
+  //{
+  //  NOT_REACHED();
+  //}
 
   static string gep_name_prefix(string const &name, pc const &from_pc, pc const &pc_to, int argnum);
   //expr_ref __get_expr_adding_edges_for_intermediate_vals_helper(const llvm::Value& v, string vname, const state& state_in, shared_ptr<tfg_node> *from_node, pc const &pc_to, llvm::BasicBlock const *B, llvm::Function const *F, tfg *t);

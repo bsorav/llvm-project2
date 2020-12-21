@@ -63,6 +63,9 @@ static cl::opt<std::string>
 OutputFilename("o", cl::desc("<output>"), cl::init("out.etfg"));
 
 static cl::opt<std::string>
+src_etfg_filename("src-etfg", cl::desc("source ETFG filename (so that the symbol ids and local ids can be consistent between the generated ETFG and the src-etfg"), cl::init(""));
+
+static cl::opt<std::string>
 xml_output_file("xml-output", cl::desc("<xml output>"), cl::init(""));
 
 static cl::opt<bool>
@@ -213,7 +216,12 @@ main(int argc, char **argv)
     return 0;
   }
 
-  map<string, pair<callee_summary_t, unique_ptr<tfg_llvm_t>>> function_tfg_map = sym_exec_llvm::get_function_tfg_map(M1.get(), FunNamesVec, DisableModelingOfUninitVarUB ? true : false, ctx, nullptr, xml_output_format);
+  map<string, unique_ptr<tfg_llvm_t>> src_function_tfg_map;
+  //if (src_etfg_filename != "") {
+  //  src_function_tfg_map = read_function_tfg_map(src_etfg_filename, ctx);
+  //}
+
+  map<string, pair<callee_summary_t, unique_ptr<tfg_llvm_t>>> function_tfg_map = sym_exec_llvm::get_function_tfg_map(M1.get(), FunNamesVec, DisableModelingOfUninitVarUB ? true : false, ctx, src_function_tfg_map, nullptr, xml_output_format);
 
   string llvm_header = M1->get_llvm_header_as_string();
   list<string> type_decls = M1->get_type_declarations_as_string();

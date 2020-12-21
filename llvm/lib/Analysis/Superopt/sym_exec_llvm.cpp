@@ -3057,7 +3057,7 @@ sym_exec_llvm::get_basicblock_index(const llvm::BasicBlock &v) const
 }
 
 map<string, pair<callee_summary_t, unique_ptr<tfg_llvm_t>>>
-sym_exec_llvm::get_function_tfg_map(Module* M, set<string> FunNamesVec, bool DisableModelingOfUninitVarUB, context* ctx, map<llvm_value_id_t, string_ref>* value_to_name_map, context::xml_output_format_t xml_output_format)
+sym_exec_llvm::get_function_tfg_map(Module* M, set<string> FunNamesVec, bool DisableModelingOfUninitVarUB, context* ctx, map<string, unique_ptr<tfg_llvm_t>> const& src_function_tfg_map, map<llvm_value_id_t, string_ref>* value_to_name_map, context::xml_output_format_t xml_output_format)
 {
   map<string, pair<callee_summary_t, unique_ptr<tfg_llvm_t>>> function_tfg_map;
 
@@ -3101,7 +3101,7 @@ sym_exec_llvm::get_function_tfg_map(Module* M, set<string> FunNamesVec, bool Dis
     callee_summary_t csum = t_src->get_summary_for_calling_functions();
     function_tfg_map.insert(make_pair(fname, make_pair(csum, std::move(t_src))));
   }
-  DYN_DEBUG(get_function_tfg_map,
+  DYN_DEBUG(get_function_tfg_map_debug,
     for (auto const& p : function_tfg_map) {
       cout << __func__ << " " << __LINE__ << ": TFG for " << p.first << ":\n";
       p.second.second->graph_to_stream(cout); cout << endl;
