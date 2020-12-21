@@ -56,9 +56,9 @@ public:
   graph_symbol_map_t const &get_symbol_map() { return *m_symbol_map; }
   static string get_value_name(const llvm::Value& v);
   static list<pair<string, unsigned>> get_fun_names(llvm::Module const *M);
-  static pair<graph_symbol_map_t, map<pair<symbol_id_t, offset_t>, vector<char>>> get_symbol_map_and_string_contents(llvm::Module const *M, list<pair<string, unsigned>> const &fun_names);
-  static graph_symbol_map_t get_symbol_map(llvm::Module const *M);
-  static map<pair<symbol_id_t, offset_t>, vector<char>> get_string_contents(llvm::Module const *M);
+  static pair<graph_symbol_map_t, map<pair<symbol_id_t, offset_t>, vector<char>>> get_symbol_map_and_string_contents(llvm::Module const *M, list<pair<string, unsigned>> const &fun_names, tfg_llvm_t const* src_llvm_tfg);
+  static graph_symbol_map_t get_symbol_map(llvm::Module const *M, tfg_llvm_t const* src_llvm_tfg);
+  static map<pair<symbol_id_t, offset_t>, vector<char>> get_string_contents(llvm::Module const *M, tfg_llvm_t const* src_llvm_tfg);
   static unsigned get_num_insn(const llvm::Function& f);
   context *get_context() const { return m_ctx; }
   list<pair<string, unsigned>> const &get_fun_names() const { return *m_fun_names; }

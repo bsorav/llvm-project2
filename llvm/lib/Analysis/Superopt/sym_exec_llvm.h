@@ -41,8 +41,8 @@
 class sym_exec_llvm : public sym_exec_common
 {
 public:
-  sym_exec_llvm(context* ctx/*, consts_struct_t const &cs*/, llvm::Module const *module, const llvm::Function& F/*, list<pair<string, unsigned>> const &fun_names, graph_symbol_map_t const &symbol_map, map<symbol_id_t, vector<char>> const &string_contents*/, bool gen_callee_summary, unsigned memory_addressable_size, unsigned word_length) :
-    sym_exec_common(ctx/*, cs*/, make_shared<list<pair<string, unsigned>> const>(sym_exec_common::get_fun_names(module)), make_shared<graph_symbol_map_t const>(sym_exec_common::get_symbol_map(module)), make_shared<map<pair<symbol_id_t, offset_t>, vector<char>> const>(sym_exec_common::get_string_contents(module)), gen_callee_summary, memory_addressable_size, word_length),
+  sym_exec_llvm(context* ctx, llvm::Module const *module, const llvm::Function& F, tfg_llvm_t const* src_llvm_tfg, bool gen_callee_summary, unsigned memory_addressable_size, unsigned word_length) :
+    sym_exec_common(ctx, make_shared<list<pair<string, unsigned>> const>(sym_exec_common::get_fun_names(module)), make_shared<graph_symbol_map_t const>(sym_exec_common::get_symbol_map(module, src_llvm_tfg)), make_shared<map<pair<symbol_id_t, offset_t>, vector<char>> const>(sym_exec_common::get_string_contents(module, src_llvm_tfg)), gen_callee_summary, memory_addressable_size, word_length),
     m_module(module), m_function(F)
   {}
   virtual ~sym_exec_llvm() {}

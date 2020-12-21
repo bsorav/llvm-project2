@@ -14,7 +14,7 @@
 #include "ptfg/llptfg.h"
 
 #include "sym_exec_llvm.h"
-#include "sym_exec_mir.h"
+//#include "sym_exec_mir.h"
 #include "dfa_helper.h"
 
 using namespace llvm;
@@ -71,24 +71,24 @@ sym_exec_common::get_value_name(const Value& v)
 //  //return m_ctx->mk_var(name, m_ctx->mk_bv_sort(DWORD_LEN));
 //}
 
-expr_ref
-sym_exec_mir::mir_get_value_expr(MachineOperand const &v)
-{
-  NOT_IMPLEMENTED();
-  //if (v.getType() == MachineOperand::MO_GlobalAddress) {
-  //  string name = this->get_value_name(*v.getGlobal());
-  //  ASSERT(name.substr(0, strlen(LLVM_GLOBAL_VARNAME_PREFIX)) == LLVM_GLOBAL_VARNAME_PREFIX);
-  //  name = name.substr(strlen(LLVM_GLOBAL_VARNAME_PREFIX));
-  //  sort_ref sr = get_value_type(*v.getGlobal());
-  //  return get_symbol_expr_for_global_var(name, sr);
-  //  //errs() << ": parsing global address: " << v << "\n";
-  //} else if (v.getType() == MachineOperand::MO_FrameIndex) {
-  //  NOT_IMPLEMENTED();
-  //  //return get_mir_frameindex_var_expr(v.GetIndex());
-  //} else {
-  //  NOT_IMPLEMENTED();
-  //}
-}
+//expr_ref
+//sym_exec_mir::mir_get_value_expr(MachineOperand const &v)
+//{
+//  NOT_IMPLEMENTED();
+//  //if (v.getType() == MachineOperand::MO_GlobalAddress) {
+//  //  string name = this->get_value_name(*v.getGlobal());
+//  //  ASSERT(name.substr(0, strlen(LLVM_GLOBAL_VARNAME_PREFIX)) == LLVM_GLOBAL_VARNAME_PREFIX);
+//  //  name = name.substr(strlen(LLVM_GLOBAL_VARNAME_PREFIX));
+//  //  sort_ref sr = get_value_type(*v.getGlobal());
+//  //  return get_symbol_expr_for_global_var(name, sr);
+//  //  //errs() << ": parsing global address: " << v << "\n";
+//  //} else if (v.getType() == MachineOperand::MO_FrameIndex) {
+//  //  NOT_IMPLEMENTED();
+//  //  //return get_mir_frameindex_var_expr(v.GetIndex());
+//  //} else {
+//  //  NOT_IMPLEMENTED();
+//  //}
+//}
 
 //void sym_exec_mir::exec_mir(const state& state_in, const llvm::MachineInstr& I/*, state& state_out, vector<control_flow_transfer>& cfts, bool &expand_switch_flag, unordered_set<predicate> &assumes*/, shared_ptr<tfg_node> from_node, llvm::MachineBasicBlock const &B, size_t next_insn_id, tfg &t, map<string, pair<callee_summary_t, unique_ptr<tfg>>> &function_tfg_map, set<string> const &function_call_chain)
 //{
@@ -135,15 +135,15 @@ sym_exec_mir::mir_get_value_expr(MachineOperand const &v)
 //#endif
 //}
 
-string
-sym_exec_mir::get_basicblock_index(const llvm::MachineBasicBlock &v) const
-{
-  string s = get_machine_basicblock_name(v);
-  ASSERT(m_basicblock_idx_map.count(s));
-  ASSERT(s.substr(0, 1) == "%");
-  string s1 = s.substr(1);
-  return s1;
-}
+//string
+//sym_exec_mir::get_basicblock_index(const llvm::MachineBasicBlock &v) const
+//{
+//  string s = get_machine_basicblock_name(v);
+//  ASSERT(m_basicblock_idx_map.count(s));
+//  ASSERT(s.substr(0, 1) == "%");
+//  string s1 = s.substr(1);
+//  return s1;
+//}
 
 expr_ref
 sym_exec_common::get_symbol_expr_for_global_var(string const &name, sort_ref const &sr)
@@ -699,19 +699,19 @@ void sym_exec_llvm::set_expr(string const &name/*, const llvm::Value& v*/, expr_
   state_set_expr(st, name, expr);
 }
 
-void sym_exec_mir::mir_set_expr(const llvm::MachineOperand& v, expr_ref expr, state& st)
-{
-  NOT_IMPLEMENTED();
-  //string name;
-  //raw_string_ostream ss(name);
-  //v.print(ss);
-  //ss.flush();
-  //MachineOperand::MachineOperandType type = v.getType();
-  //sort_ref s = get_mir_type_sort(type);
-
-  //m_state_templ.push_back({name, s});
-  //state_set_expr(st, name, expr);
-}
+//void sym_exec_mir::mir_set_expr(const llvm::MachineOperand& v, expr_ref expr, state& st)
+//{
+//  NOT_IMPLEMENTED();
+//  //string name;
+//  //raw_string_ostream ss(name);
+//  //v.print(ss);
+//  //ss.flush();
+//  //MachineOperand::MachineOperandType type = v.getType();
+//  //sort_ref s = get_mir_type_sort(type);
+//
+//  //m_state_templ.push_back({name, s});
+//  //state_set_expr(st, name, expr);
+//}
 
 
 
@@ -2647,7 +2647,7 @@ sym_exec_llvm::get_preprocessed_tfg(Function const &f, Module const *M, string c
   unsigned pointer_size = dl.getPointerSize();
   //cout << __func__ << " " << __LINE__ << ": pointer_size = " << pointer_size << endl;
   ASSERT(pointer_size == DWORD_LEN/BYTE_LEN || pointer_size == QWORD_LEN/BYTE_LEN);
-  sym_exec_llvm se(ctx/*, cs*/, M, f/*, fun_names, symbol_map, string_contents*/, gen_callee_summary, BYTE_LEN, pointer_size * BYTE_LEN);
+  sym_exec_llvm se(ctx, M, f, src_llvm_tfg, gen_callee_summary, BYTE_LEN, pointer_size * BYTE_LEN);
 
   list<string> sorted_bbl_indices;
   for (BasicBlock const& BB: f) {
@@ -2684,7 +2684,7 @@ sym_exec_common::get_fun_names(llvm::Module const *M)
 }
 
 pair<graph_symbol_map_t, map<pair<symbol_id_t, offset_t>, vector<char>>>
-sym_exec_common::get_symbol_map_and_string_contents(Module const *M, list<pair<string, unsigned>> const &fun_names)
+sym_exec_common::get_symbol_map_and_string_contents(Module const *M, list<pair<string, unsigned>> const &fun_names, tfg_llvm_t const* src_llvm_tfg)
 {
   graph_symbol_map_t smap;
   map<pair<symbol_id_t, offset_t>, vector<char>> scontents;
@@ -2759,20 +2759,20 @@ sym_exec_common::get_symbol_map_and_string_contents(Module const *M, list<pair<s
 }
 
 graph_symbol_map_t
-sym_exec_common::get_symbol_map(Module const *M)
+sym_exec_common::get_symbol_map(Module const *M, tfg_llvm_t const* src_llvm_tfg)
 {
   list<pair<string, unsigned>> fun_names = get_fun_names(M);
 
-  pair<graph_symbol_map_t, map<pair<symbol_id_t, offset_t>, vector<char>>> pr = get_symbol_map_and_string_contents(M, fun_names);
+  pair<graph_symbol_map_t, map<pair<symbol_id_t, offset_t>, vector<char>>> pr = get_symbol_map_and_string_contents(M, fun_names, src_llvm_tfg);
   return pr.first;
 }
 
 map<pair<symbol_id_t, offset_t>, vector<char>>
-sym_exec_common::get_string_contents(Module const *M)
+sym_exec_common::get_string_contents(Module const *M, tfg_llvm_t const* src_llvm_tfg)
 {
   list<pair<string, unsigned>> fun_names = get_fun_names(M);
 
-  pair<graph_symbol_map_t, map<pair<symbol_id_t, offset_t>, vector<char>>> pr = get_symbol_map_and_string_contents(M, fun_names);
+  pair<graph_symbol_map_t, map<pair<symbol_id_t, offset_t>, vector<char>>> pr = get_symbol_map_and_string_contents(M, fun_names, src_llvm_tfg);
   return pr.second;
 }
 
@@ -2792,100 +2792,100 @@ sym_exec_llvm::get_start_pc() const
   return this->get_pc_from_bbindex_and_insn_id(get_basicblock_index(*m_function.begin()), 0);
 }
 
-void
-sym_exec_mir::populate_state_template_for_mf(MachineFunction const &mf)
-{
-  NOT_REACHED();
-#if 0
-  argnum_t argnum = 0;
-  MachineFrameInfo const &MFI = mf.getFrameInfo();
-  int FI = MFI.getObjectIndexBegin();
-  for (; MFI.isFixedObjectIndex(FI); ++FI) {
-    //int64_t ObjBegin = MFI.getObjectOffset(FI);
-    //int64_t ObjEnd = ObjBegin + MFI.getObjectSize(FI);
-    //if (ObjBegin <= PartBegin && PartEnd <= ObjEnd)
-    //  break;
-    stringstream ss;
-    ss << MIR_FIXED_STACK_SLOT_PREFIX "." << argnum;
-    string argname = ss.str();
-    sort_ref s = m_ctx->mk_bv_sort(DWORD_LEN);
-    expr_ref argvar = m_ctx->mk_var(string(G_INPUT_KEYWORD) + "." + argname, s);
-    m_arguments[argname] = make_pair(argnum, argvar);
-    //cout << __func__ << " " << __LINE__ << ": adding " << argname << endl;
-    m_state_templ.push_back({argname, s});
-    argnum++;
-  }
-
-  MachineConstantPool const *MCP = mf.getConstantPool();
-  for (unsigned i = 0; i != MCP->getConstants().size(); i++) {
-    NOT_IMPLEMENTED();
-  }
-  TargetInstrInfo const &TII = *mf.getSubtarget().getInstrInfo();
-  const MachineRegisterInfo &MRI = mf.getRegInfo();
-
-
-  for (const MachineBasicBlock& B : mf) {
-    m_basicblock_idx_map[get_machine_basicblock_name(B)] = B.getNumber() + 1;  //bbnum == 0 is reserved
-    //bbnum++;
-    int insn_id = 0;
-    for(const MachineInstr& I : B)
-    {
-      if (I.getOpcode() != TargetOpcode::PHI) {//!isa<const PHINode>(I)
-        insn_id++;
-      }
-      if (TII.getName(I.getOpcode()) != MIR_RET_NODE_OPCODE) {//isa<ReturnInst>(I)
-      //if (I.getOpcode() == X86::RET)
-        m_ret_reg = G_LLVM_RETURN_REGISTER_NAME;
-        //return_reg_sort = get_value_type(*ret_val);
-        sort_ref return_reg_sort;
-        return_reg_sort = m_ctx->mk_bv_sort(DWORD_LEN);
-        //cout << __func__ << " " << __LINE__ << ": adding " << m_ret_reg << endl;
-        m_state_templ.push_back({m_ret_reg, return_reg_sort});
-        continue;
-      }
-      /*if (isa<SwitchInst>(I)) { //XXX: TODO
-        const SwitchInst* SI =  cast<const SwitchInst>(&I);
-        size_t varnum = 0;
-        for (SwitchInst::ConstCaseIt i = SI->case_begin(), e = SI->case_end(); i != e; ++i) {
-          stringstream ss;
-          ss << LLVM_SWITCH_TMPVAR_PREFIX << varnum;
-          varnum++;
-          m_state_templ.push_back({ss.str(), m_ctx->mk_bool_sort()});
-        }
-        continue;
-      }*/
-
-      for (unsigned StartOp = 0; StartOp < I.getNumOperands(); StartOp++) {
-        MachineOperand const &MO = I.getOperand(StartOp);
-        if (!MO.isReg() || !MO.isDef() || MO.isImplicit()) {
-          continue;
-        }
-        unsigned Reg = MO.getReg();
-        if (TargetRegisterInfo::isVirtualRegister(Reg)) {
-          string name = MRI.getVRegName(Reg);
-          if (name != "") {
-            name = string("%") + name;
-          } else {
-            stringstream ss;
-            ss << "%" << TargetRegisterInfo::virtReg2Index(Reg);
-            name = ss.str();
-          }
-          LLT type = MRI.getType(Reg);
-          //sort_ref s = get_value_type(I);
-          sort_ref s = m_ctx->mk_bv_sort(DWORD_LEN);
-          //cout << __func__ << " " << __LINE__ << ": adding " << name << endl;
-          m_state_templ.push_back({name, s});
-          //if (TII.getName(I.getOpcode()) != MIR_PHI_NODE_OPCODE)
-          if (I.getOpcode() != TargetOpcode::PHI) {
-            m_state_templ.push_back({name + PHI_NODE_TMPVAR_SUFFIX, s});
-          }
-        }
-      }
-    }
-  }
-  populate_state_template_common();
-#endif
-}
+//void
+//sym_exec_mir::populate_state_template_for_mf(MachineFunction const &mf)
+//{
+//  NOT_REACHED();
+//#if 0
+//  argnum_t argnum = 0;
+//  MachineFrameInfo const &MFI = mf.getFrameInfo();
+//  int FI = MFI.getObjectIndexBegin();
+//  for (; MFI.isFixedObjectIndex(FI); ++FI) {
+//    //int64_t ObjBegin = MFI.getObjectOffset(FI);
+//    //int64_t ObjEnd = ObjBegin + MFI.getObjectSize(FI);
+//    //if (ObjBegin <= PartBegin && PartEnd <= ObjEnd)
+//    //  break;
+//    stringstream ss;
+//    ss << MIR_FIXED_STACK_SLOT_PREFIX "." << argnum;
+//    string argname = ss.str();
+//    sort_ref s = m_ctx->mk_bv_sort(DWORD_LEN);
+//    expr_ref argvar = m_ctx->mk_var(string(G_INPUT_KEYWORD) + "." + argname, s);
+//    m_arguments[argname] = make_pair(argnum, argvar);
+//    //cout << __func__ << " " << __LINE__ << ": adding " << argname << endl;
+//    m_state_templ.push_back({argname, s});
+//    argnum++;
+//  }
+//
+//  MachineConstantPool const *MCP = mf.getConstantPool();
+//  for (unsigned i = 0; i != MCP->getConstants().size(); i++) {
+//    NOT_IMPLEMENTED();
+//  }
+//  TargetInstrInfo const &TII = *mf.getSubtarget().getInstrInfo();
+//  const MachineRegisterInfo &MRI = mf.getRegInfo();
+//
+//
+//  for (const MachineBasicBlock& B : mf) {
+//    m_basicblock_idx_map[get_machine_basicblock_name(B)] = B.getNumber() + 1;  //bbnum == 0 is reserved
+//    //bbnum++;
+//    int insn_id = 0;
+//    for(const MachineInstr& I : B)
+//    {
+//      if (I.getOpcode() != TargetOpcode::PHI) {//!isa<const PHINode>(I)
+//        insn_id++;
+//      }
+//      if (TII.getName(I.getOpcode()) != MIR_RET_NODE_OPCODE) {//isa<ReturnInst>(I)
+//      //if (I.getOpcode() == X86::RET)
+//        m_ret_reg = G_LLVM_RETURN_REGISTER_NAME;
+//        //return_reg_sort = get_value_type(*ret_val);
+//        sort_ref return_reg_sort;
+//        return_reg_sort = m_ctx->mk_bv_sort(DWORD_LEN);
+//        //cout << __func__ << " " << __LINE__ << ": adding " << m_ret_reg << endl;
+//        m_state_templ.push_back({m_ret_reg, return_reg_sort});
+//        continue;
+//      }
+//      /*if (isa<SwitchInst>(I)) { //XXX: TODO
+//        const SwitchInst* SI =  cast<const SwitchInst>(&I);
+//        size_t varnum = 0;
+//        for (SwitchInst::ConstCaseIt i = SI->case_begin(), e = SI->case_end(); i != e; ++i) {
+//          stringstream ss;
+//          ss << LLVM_SWITCH_TMPVAR_PREFIX << varnum;
+//          varnum++;
+//          m_state_templ.push_back({ss.str(), m_ctx->mk_bool_sort()});
+//        }
+//        continue;
+//      }*/
+//
+//      for (unsigned StartOp = 0; StartOp < I.getNumOperands(); StartOp++) {
+//        MachineOperand const &MO = I.getOperand(StartOp);
+//        if (!MO.isReg() || !MO.isDef() || MO.isImplicit()) {
+//          continue;
+//        }
+//        unsigned Reg = MO.getReg();
+//        if (TargetRegisterInfo::isVirtualRegister(Reg)) {
+//          string name = MRI.getVRegName(Reg);
+//          if (name != "") {
+//            name = string("%") + name;
+//          } else {
+//            stringstream ss;
+//            ss << "%" << TargetRegisterInfo::virtReg2Index(Reg);
+//            name = ss.str();
+//          }
+//          LLT type = MRI.getType(Reg);
+//          //sort_ref s = get_value_type(I);
+//          sort_ref s = m_ctx->mk_bv_sort(DWORD_LEN);
+//          //cout << __func__ << " " << __LINE__ << ": adding " << name << endl;
+//          m_state_templ.push_back({name, s});
+//          //if (TII.getName(I.getOpcode()) != MIR_PHI_NODE_OPCODE)
+//          if (I.getOpcode() != TargetOpcode::PHI) {
+//            m_state_templ.push_back({name + PHI_NODE_TMPVAR_SUFFIX, s});
+//          }
+//        }
+//      }
+//    }
+//  }
+//  populate_state_template_common();
+//#endif
+//}
 
 //void sym_exec_mir::add_edges_for_mir(const llvm::MachineBasicBlock& B, tfg& t, const llvm::MachineFunction& F, map<string, pair<callee_summary_t, unique_ptr<tfg>>> &function_tfg_map, set<string> const &function_call_chain)
 //{
@@ -2961,19 +2961,19 @@ sym_exec_common::get_tfg_common(tfg &t)
 //*/
 //}
 
-pc
-sym_exec_mir::get_start_pc() const
-{
-  return this->get_pc_from_bbindex_and_insn_id(get_basicblock_index(*m_machine_function.begin()), 0);
-}
+//pc
+//sym_exec_mir::get_start_pc() const
+//{
+//  return this->get_pc_from_bbindex_and_insn_id(get_basicblock_index(*m_machine_function.begin()), 0);
+//}
 
-string
-sym_exec_mir::get_machine_basicblock_name(MachineBasicBlock const &mb) const
-{
-  stringstream ss;
-  ss << "%bb." << mb.getNumber() + 1;
-  return ss.str();
-}
+//string
+//sym_exec_mir::get_machine_basicblock_name(MachineBasicBlock const &mb) const
+//{
+//  stringstream ss;
+//  ss << "%bb." << mb.getNumber() + 1;
+//  return ss.str();
+//}
 
 pair<expr_ref, unordered_set<expr_ref>>
 sym_exec_llvm::phiInstructionGetIncomingBlockValue(llvm::Instruction const &I, shared_ptr<tfg_node> &pc_to_phi_node/*, pc const &pc_to*/, llvm::BasicBlock const *B_from, llvm::Function const &F, tfg &t, map<llvm_value_id_t, string_ref>* value_to_name_map)
