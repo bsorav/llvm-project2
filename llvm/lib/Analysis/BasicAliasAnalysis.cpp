@@ -846,8 +846,8 @@ static bool notDifferentParent(const Value *O1, const Value *O2) {
 AliasResult BasicAAResult::alias(const MemoryLocation &LocA,
                                  const MemoryLocation &LocB,
                                  AAQueryInfo &AAQI) {
-  DYN_DEBUG2(aliasAnalysis, std::cout << "BasicAAResult::" << __func__ << " " << __LINE__ << ": LocA = " << sym_exec_common::get_value_name(*LocA.Ptr) << "\n");
-  DYN_DEBUG2(aliasAnalysis, std::cout << "BasicAAResult::" << __func__ << " " << __LINE__ << ": LocB = " << sym_exec_common::get_value_name(*LocB.Ptr) << "\n");
+  DYN_DEBUG2(aliasAnalysis, std::cout << "BasicAAResult::" << __func__ << " " << __LINE__ << ": LocA = " << sym_exec_common::get_value_name_using_srcdst_keyword(*LocA.Ptr, G_SRC_KEYWORD) << "\n");
+  DYN_DEBUG2(aliasAnalysis, std::cout << "BasicAAResult::" << __func__ << " " << __LINE__ << ": LocB = " << sym_exec_common::get_value_name_using_srcdst_keyword(*LocB.Ptr, G_SRC_KEYWORD) << "\n");
   assert(notDifferentParent(LocA.Ptr, LocB.Ptr) &&
          "BasicAliasAnalysis doesn't support interprocedural queries.");
 
@@ -1914,8 +1914,8 @@ AliasResult BasicAAResult::aliasCheck(const Value *V1, LocationSize V1Size,
                                       LocationSize V2Size, AAMDNodes V2AAInfo,
                                       AAQueryInfo &AAQI, const Value *O1,
                                       const Value *O2) {
-  DYN_DEBUG2(aliasAnalysis, std::cout << "BasicAAResult::" << __func__ << " " << __LINE__ << ": V1 = " << sym_exec_common::get_value_name(*V1) << "\n");
-  DYN_DEBUG2(aliasAnalysis, std::cout << "BasicAAResult::" << __func__ << " " << __LINE__ << ": V2 = " << sym_exec_common::get_value_name(*V2) << "\n");
+  DYN_DEBUG2(aliasAnalysis, std::cout << "BasicAAResult::" << __func__ << " " << __LINE__ << ": V1 = " << sym_exec_common::get_value_name_using_srcdst_keyword(*V1, G_SRC_KEYWORD) << "\n");
+  DYN_DEBUG2(aliasAnalysis, std::cout << "BasicAAResult::" << __func__ << " " << __LINE__ << ": V2 = " << sym_exec_common::get_value_name_using_srcdst_keyword(*V2, G_SRC_KEYWORD) << "\n");
   // If either of the memory references is empty, it doesn't matter what the
   // pointer values are.
   if (V1Size.isZero() || V2Size.isZero()) {

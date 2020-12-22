@@ -828,8 +828,8 @@ AliasResult GlobalsAAResult::alias(const MemoryLocation &LocA,
                                    const MemoryLocation &LocB,
                                    AAQueryInfo &AAQI) {
 
-  DYN_DEBUG2(aliasAnalysis, std::cout << "GlobalsAAResult::" << __func__ << " " << __LINE__ << ": LocA = " << sym_exec_common::get_value_name(*LocA.Ptr) << "\n");
-  DYN_DEBUG2(aliasAnalysis, std::cout << "GlobalsAAResult::" << __func__ << " " << __LINE__ << ": LocB = " << sym_exec_common::get_value_name(*LocB.Ptr) << "\n");
+  DYN_DEBUG2(aliasAnalysis, std::cout << "GlobalsAAResult::" << __func__ << " " << __LINE__ << ": LocA = " << sym_exec_common::get_value_name_using_srcdst_keyword(*LocA.Ptr, G_SRC_KEYWORD) << "\n");
+  DYN_DEBUG2(aliasAnalysis, std::cout << "GlobalsAAResult::" << __func__ << " " << __LINE__ << ": LocB = " << sym_exec_common::get_value_name_using_srcdst_keyword(*LocB.Ptr, G_SRC_KEYWORD) << "\n");
 
   // Get the base object these pointers point to.
   const Value *UV1 = getUnderlyingObject(LocA.Ptr);

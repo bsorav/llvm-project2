@@ -42,7 +42,13 @@ string prefix_identifier(const string& id, const string& prefix)
 }
 
 string
-sym_exec_common::get_value_name(const Value& v)
+sym_exec_common::get_value_name(const Value& v) const
+{
+  return get_value_name_using_srcdst_keyword(v, m_srcdst_keyword);
+}
+
+string
+sym_exec_common::get_value_name_using_srcdst_keyword(const Value& v, string const& srcdst_keyword)
 {
   //errs() << "get_value_name: " << v << " ---- ";
   assert(!v.getType()->isVoidTy());
@@ -60,7 +66,7 @@ sym_exec_common::get_value_name(const Value& v)
   if (ret.substr(0, 1) == "@") {
     return ret; //ret.substr(1);
   } else {
-    return string(G_SRC_KEYWORD "." G_LLVM_PREFIX) + "-" + ret;
+    return srcdst_keyword + string("." G_LLVM_PREFIX) + "-" + ret;
   }
 }
 
@@ -407,23 +413,23 @@ expr_ref sym_exec_common::mk_fresh_expr(const string& name, const string& prefix
 }
 
 string
-sym_exec_llvm::llvm_instruction_get_md5sum_name(Instruction const& I)
+sym_exec_llvm::llvm_instruction_get_md5sum_name(Instruction const& I) const
 {
   string istr;
   raw_string_ostream rso(istr);
   rso << I;
-  return string(G_SRC_KEYWORD "." G_LLVM_PREFIX "-%") + md5_checksum(istr);
+  return m_srcdst_keyword + string("." G_LLVM_PREFIX "-%") + md5_checksum(istr);
 }
 
 string
-sym_exec_llvm::constexpr_instruction_get_name(Instruction const& I)
+sym_exec_llvm::constexpr_instruction_get_name(Instruction const& I) const
 {
   string base_name = llvm_instruction_get_md5sum_name(I);
   return base_name + "." + CONSTEXPR_KEYWORD;
 }
 
 string
-sym_exec_llvm::gep_instruction_get_intermediate_value_name(Instruction const& I/*string base_name*/, unsigned index_counter, int intermediate_value_num)
+sym_exec_llvm::gep_instruction_get_intermediate_value_name(Instruction const& I/*string base_name*/, unsigned index_counter, int intermediate_value_num) const
 {
   string base_name = llvm_instruction_get_md5sum_name(I);
   stringstream ss;
@@ -457,10 +463,10 @@ sym_exec_llvm::add_gep_intermediate_vals(Instruction const &I, string const &nam
 }*/
 
 string
-sym_exec_common::gep_name_prefix(string const &name, pc const &from_pc, pc const &to_pc, int argnum)
+sym_exec_common::gep_name_prefix(string const &name, pc const &from_pc, pc const &to_pc, int argnum) const
 {
   stringstream ss;
-  ss << G_SRC_KEYWORD "." G_LLVM_PREFIX "-%" << name << "." << argnum << "." << from_pc.to_string() << "." << to_pc.to_string();
+  ss << m_srcdst_keyword << "." G_LLVM_PREFIX "-%" << name << "." << argnum << "." << from_pc.to_string() << "." << to_pc.to_string();
   return ss.str();
 }
 
@@ -1313,9 +1319,9 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, shar
     }
     for (size_t i = 0; i < LLVM_NUM_CALLEE_SAVE_REGS; i++) {
       stringstream ss;
-      ss << G_INPUT_KEYWORD "." G_SRC_KEYWORD "." LLVM_CALLEE_SAVE_REGNAME << "." << i;
+      ss << G_INPUT_KEYWORD "." << m_srcdst_keyword << "." LLVM_CALLEE_SAVE_REGNAME << "." << i;
       expr_ref csreg = m_ctx->mk_var(ss.str(), m_ctx->mk_bv_sort(ETFG_EXREG_LEN(ETFG_EXREG_GROUP_GPRS)));
-      state_set_expr(state_out, G_SRC_KEYWORD "." G_LLVM_HIDDEN_REGISTER_NAME, m_ctx->mk_bvxor(state_get_expr(state_out, G_SRC_KEYWORD "." G_LLVM_HIDDEN_REGISTER_NAME, csreg->get_sort()), csreg));
+      state_set_expr(state_out, m_srcdst_keyword + ("." G_LLVM_HIDDEN_REGISTER_NAME), m_ctx->mk_bvxor(state_get_expr(state_out, m_srcdst_keyword + "." G_LLVM_HIDDEN_REGISTER_NAME, csreg->get_sort()), csreg));
     }
     control_flow_transfer cft(from_node->get_pc(), pc(pc::exit), m_ctx->mk_bool_true(), m_cs.get_retaddr_const(), {});
     cfts.push_back(cft);
@@ -2128,7 +2134,7 @@ sym_exec_llvm::expand_switch(tfg &t, shared_ptr<tfg_node> const &from_node, vect
     new_cur_pc1.set_subsubindex(PC_SUBSUBINDEX_SWITCH_INTERMEDIATE);
     new_cur_pc2.set_subsubindex(PC_SUBSUBINDEX_SWITCH_INTERMEDIATE);
     stringstream ss;
-    ss << G_SRC_KEYWORD "." G_LLVM_PREFIX "-" LLVM_SWITCH_TMPVAR_PREFIX << varnum;
+    ss << m_srcdst_keyword << "." G_LLVM_PREFIX "-" LLVM_SWITCH_TMPVAR_PREFIX << varnum;
     varnum++;
     string new_varname = ss.str();
     state state_to_newvar;
@@ -2171,7 +2177,7 @@ sym_exec_llvm::process_cft(tfg &t, map<llvm_value_id_t, string_ref>* value_to_na
     t.add_node(shared_ptr<tfg_node>(new tfg_node(pc_to)));
   }
   if (target) {
-    state_set_expr(state_to_cft, G_SRC_KEYWORD "." LLVM_STATE_INDIR_TARGET_KEY_ID, target);
+    state_set_expr(state_to_cft, m_srcdst_keyword + "." LLVM_STATE_INDIR_TARGET_KEY_ID, target);
     auto e = mk_tfg_edge(mk_itfg_edge(from_pc, pc_to, state_to_cft, to_condition/*, t.get_start_state()*/, assumes, te_comment));
     eimap.insert(make_pair(e, I));
     t.add_edge(e);
@@ -2726,7 +2732,7 @@ sym_exec_common::get_symbol_map_and_string_contents(Module const *M, list<pair<s
     unsigned symbol_alignment = 0;
     bool symbol_is_constant = false;
     assert(g.hasName());
-    string name = sym_exec_llvm::get_value_name(g);
+    string name = sym_exec_llvm::get_value_name_using_srcdst_keyword(g, G_SRC_KEYWORD);
     ASSERT(name.substr(0, strlen(LLVM_GLOBAL_VARNAME_PREFIX)) == LLVM_GLOBAL_VARNAME_PREFIX);
     name = name.substr(strlen(LLVM_GLOBAL_VARNAME_PREFIX));
     //cout << __func__ << " " << __LINE__ << ": symbol_id = " << symbol_id << endl;
@@ -3161,7 +3167,7 @@ sym_exec_llvm::get_llvm_value_id_for_value(Value const* v)
     ss << *I;
     I->deleteValue();
   } else {
-    valname = sym_exec_common::get_value_name(*v);
+    valname = sym_exec_common::get_value_name_using_srcdst_keyword(*v, G_SRC_KEYWORD);
   }
   llvm::Function const* F = sym_exec_llvm::getParent(v);
   string fname = F ? F->getName().str() : FNAME_GLOBAL_SPACE;

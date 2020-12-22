@@ -42,7 +42,7 @@ class sym_exec_llvm : public sym_exec_common
 {
 public:
   sym_exec_llvm(context* ctx, llvm::Module const *module, const llvm::Function& F, tfg_llvm_t const* src_llvm_tfg, bool gen_callee_summary, unsigned memory_addressable_size, unsigned word_length) :
-    sym_exec_common(ctx, make_shared<list<pair<string, unsigned>> const>(sym_exec_common::get_fun_names(module)), make_shared<graph_symbol_map_t const>(sym_exec_common::get_symbol_map(module, src_llvm_tfg)), make_shared<map<pair<symbol_id_t, offset_t>, vector<char>> const>(sym_exec_common::get_string_contents(module, src_llvm_tfg)), gen_callee_summary, memory_addressable_size, word_length),
+    sym_exec_common(ctx, make_shared<list<pair<string, unsigned>> const>(sym_exec_common::get_fun_names(module)), make_shared<graph_symbol_map_t const>(sym_exec_common::get_symbol_map(module, src_llvm_tfg)), make_shared<map<pair<symbol_id_t, offset_t>, vector<char>> const>(sym_exec_common::get_string_contents(module, src_llvm_tfg)), gen_callee_summary, memory_addressable_size, word_length, src_llvm_tfg ? G_DST_KEYWORD : G_SRC_KEYWORD),
     m_module(module), m_function(F)
   {}
   virtual ~sym_exec_llvm() {}
@@ -91,10 +91,10 @@ private:
   //pair<expr_ref,unordered_set<expr_ref>> __get_expr_adding_edges_for_intermediate_vals_helper(const llvm::Value& v/*, string vname*/, const state& state_in, unordered_set<expr_ref> const& state_assumes, shared_ptr<tfg_node> *from_node, pc const &pc_to, llvm::BasicBlock const *B, llvm::Function const *F, tfg& t, map<llvm_value_id_t, string_ref>* value_to_name_map);
   //bool function_belongs_to_program(string const &fun_name) const;
   //string gep_instruction_get_intermediate_value_name(string base_name, unsigned index_counter, int intermediate_value_num);
-  static string llvm_instruction_get_md5sum_name(llvm::Instruction const& I);
+  string llvm_instruction_get_md5sum_name(llvm::Instruction const& I) const;
 
-  string gep_instruction_get_intermediate_value_name(llvm::Instruction const& I/*string base_name*/, unsigned index_counter, int intermediate_value_num);
-  string constexpr_instruction_get_name(llvm::Instruction const& I);
+  string gep_instruction_get_intermediate_value_name(llvm::Instruction const& I/*string base_name*/, unsigned index_counter, int intermediate_value_num) const;
+  string constexpr_instruction_get_name(llvm::Instruction const& I) const;
 
   //llvm::BasicBlock const *get_basic_block_for_pc(const llvm::Function& F, pc const &p);
 

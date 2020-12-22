@@ -50,7 +50,7 @@ SemanticAAResult::memory_location_get_name(MemoryLocation const& l) const
   if (m_value_to_name_map && m_value_to_name_map->count(llvm_value_id)) {
     return m_value_to_name_map->at(llvm_value_id)->get_str();
   }
-  return sym_exec_common::get_value_name(*l.Ptr);
+  return sym_exec_common::get_value_name_using_srcdst_keyword(*l.Ptr, G_SRC_KEYWORD);
 }
 
 
