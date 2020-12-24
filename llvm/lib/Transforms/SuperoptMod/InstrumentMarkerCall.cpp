@@ -117,7 +117,7 @@ public:
     if (m_is_phi) {
       return string("PHI ") + get_basicblock_name(*m_BB);
     } else {
-      return sym_exec_common::get_value_name_using_srdst_keyword(*m_I, G_SRC_KEYWORD);
+      return sym_exec_common::get_value_name_using_srcdst_keyword(*m_I, G_SRC_KEYWORD);
     }
   }
   BasicBlock *getBB() const { return m_BB; }
@@ -162,7 +162,7 @@ public:
     } else {
       stringstream ss;
       for (auto const& m : m_map) {
-        ss << sym_exec_common::get_value_name_using_srdst_keyword(*m.first, G_SRC_KEYWORD) << " -> " << m.second.to_string() << "\n";
+        ss << sym_exec_common::get_value_name_using_srcdst_keyword(*m.first, G_SRC_KEYWORD) << " -> " << m.second.to_string() << "\n";
       }
       return ss.str();
     }
