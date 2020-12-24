@@ -2295,12 +2295,14 @@ sym_exec_llvm::add_edges(const llvm::BasicBlock& B, tfg_llvm_t const* src_llvm_t
     pc pc_from = get_pc_from_bbindex_and_insn_id(get_basicblock_index(B), insn_id);
 
     if (isa<CallInst>(I) && cast<CallInst>(I).getIntrinsicID() == Intrinsic::dbg_declare) {//declare will be replaced with addr in future revisions; so watch out for this change
-      this->parse_dbg_declare_intrinsic(I, t, pc_from);
+      pc pc_from_for_dbg_parsing(pc_from.get_type(), pc_from.get_index(), pc_from.get_subindex(), 0);
+      this->parse_dbg_declare_intrinsic(I, t, pc_from_for_dbg_parsing);
       continue;
     }
 
     if (isa<CallInst>(I) && cast<CallInst>(I).getIntrinsicID() == Intrinsic::dbg_value) {
-      this->parse_dbg_value_intrinsic(I, t, pc_from);
+      pc pc_from_for_dbg_parsing(pc_from.get_type(), pc_from.get_index(), pc_from.get_subindex(), 0);
+      this->parse_dbg_value_intrinsic(I, t, pc_from_for_dbg_parsing);
       continue;
     }
 
