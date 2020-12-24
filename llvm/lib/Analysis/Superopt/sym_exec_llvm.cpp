@@ -2249,7 +2249,7 @@ sym_exec_llvm::parse_dbg_declare_intrinsic(Instruction const& I, tfg_llvm_t& t, 
     DYN_DEBUG(dbg_declare_intrinsic, dbgs() << "Dropping debug info for " << DI << " because it is NOT an alloca\n");
     return;
   }
-  string source_varname = DI.getVariable()->getName().str();
+  string source_varname = DI.getVariable()->getName().str() + (m_srcdst_keyword == G_DST_KEYWORD ? "'" : "");
   string llvm_varname = get_value_name(*Address);
   DYN_DEBUG(dbg_declare_intrinsic, std::cout << "DI.getVariable().getName() = " << source_varname << "\n");
   DYN_DEBUG(dbg_declare_intrinsic, std::cout << "value_name = " << llvm_varname << "\n");
@@ -2269,7 +2269,7 @@ sym_exec_llvm::parse_dbg_value_intrinsic(Instruction const& I, tfg_llvm_t& t, pc
     return;
   }
   string llvm_varname = string(G_INPUT_KEYWORD ".") + get_value_name(*v);
-  string source_varname = DI.getVariable()->getName().str();
+  string source_varname = DI.getVariable()->getName().str() + (m_srcdst_keyword == G_DST_KEYWORD ? "'" : "");
   DIExpression* die = DI.getExpression(); //not used so far
   t.tfg_llvm_add_source_to_llvm_varname_mapping_at_pc(source_varname, llvm_varname, pc_from);
 }
