@@ -2084,7 +2084,7 @@ sym_exec_llvm::get_tfg(tfg_llvm_t const* src_llvm_tfg, map<string, pair<callee_s
   state start_state;
   get_state_template(pc::start(), start_state);
   stringstream ss;
-  ss << "llvm." << functionGetName(F);
+  ss << m_srcdst_keyword << "." G_LLVM_PREFIX "." << functionGetName(F);
   unique_ptr<tfg_llvm_t> t = make_unique<tfg_llvm_t>(ss.str(), m_ctx);
   ASSERT(t);
   t->set_start_state(start_state);
