@@ -117,7 +117,7 @@ public:
     if (m_is_phi) {
       return string("PHI ") + get_basicblock_name(*m_BB);
     } else {
-      return sym_exec_common::get_value_name(*m_I);
+      return sym_exec_common::get_value_name_using_srcdst_keyword(*m_I, G_SRC_KEYWORD);
     }
   }
   BasicBlock *getBB() const { return m_BB; }
@@ -162,7 +162,7 @@ public:
     } else {
       stringstream ss;
       for (auto const& m : m_map) {
-        ss << sym_exec_common::get_value_name(*m.first) << " -> " << m.second.to_string() << "\n";
+        ss << sym_exec_common::get_value_name_using_srcdst_keyword(*m.first, G_SRC_KEYWORD) << " -> " << m.second.to_string() << "\n";
       }
       return ss.str();
     }
@@ -217,12 +217,12 @@ public:
         dbgs() << __func__ << " " << __LINE__ << ": DFA initialized\n";
         dbgs() << "from_values =";
         for (auto f : from) {
-          dbgs() << " " << sym_exec_common::get_value_name(*f);
+          dbgs() << " " << sym_exec_common::get_value_name_using_srcdst_keyword(*f, G_SRC_KEYWORD);
         }
         dbgs() << "\n";
         dbgs() << "to_values =";
         for (auto f : to) {
-          dbgs() << " " << sym_exec_common::get_value_name(*f);
+          dbgs() << " " << sym_exec_common::get_value_name_using_srcdst_keyword(*f, G_SRC_KEYWORD);
         }
         dbgs() << "\n";
     );
@@ -241,19 +241,19 @@ public:
       Instruction* I = m_eimap.at(e);
       CPP_DBG_EXEC(INSTRUMENT_MARKER_CALL,
           if (!I->getType()->isVoidTy()) {
-            dbgs() << __func__ << " " << __LINE__ << ": I = " << sym_exec_common::get_value_name(*I) << "\n";
+            dbgs() << __func__ << " " << __LINE__ << ": I = " << sym_exec_common::get_value_name_using_srcdst_keyword(*I, G_SRC_KEYWORD) << "\n";
           }
       );
       if (vector_contains(m_from, (Value *)I)) {
         CPP_DBG_EXEC(INSTRUMENT_MARKER_CALL,
-            dbgs() << __func__ << " " << __LINE__ << ": adding " << sym_exec_common::get_value_name(*I) << " (identity mapping)\n";
+            dbgs() << __func__ << " " << __LINE__ << ": adding " << sym_exec_common::get_value_name_using_srcdst_keyword(*I, G_SRC_KEYWORD) << " (identity mapping)\n";
         );
         in_xfer.add(I, I);
       } else if (vector_contains(m_to, I)) {
         size_t i = vector_find(m_to, I);
         in_xfer.add(m_from.at(i), m_to.at(i));
         CPP_DBG_EXEC(INSTRUMENT_MARKER_CALL,
-            dbgs() << __func__ << " " << __LINE__ << ": i = " << i << ", adding " << sym_exec_common::get_value_name(*m_from.at(i)) << " -> " << sym_exec_common::get_value_name(*m_to.at(i)) << "\n";
+            dbgs() << __func__ << " " << __LINE__ << ": i = " << i << ", adding " << sym_exec_common::get_value_name_using_srcdst_keyword(*m_from.at(i), G_SRC_KEYWORD) << " -> " << sym_exec_common::get_value_name_using_srcdst_keyword(*m_to.at(i), G_SRC_KEYWORD) << "\n";
         );
       }
     }
@@ -339,7 +339,7 @@ public:
           }
           Value *o = phi->getIncomingValue(i);
           if (isa<const Argument>(o) || isa<const Instruction>(o)) {
-            CPP_DBG_EXEC2(LLVM_LIVENESS, cout << __func__ << " " << __LINE__ << ": adding value " << sym_exec_common::get_value_name(*o) << endl);
+            CPP_DBG_EXEC2(LLVM_LIVENESS, cout << __func__ << " " << __LINE__ << ": adding value " << sym_exec_common::get_value_name_using_srcdst_keyword(*o, G_SRC_KEYWORD) << endl);
             in_xferred.add(o);
           }
         }
@@ -347,13 +347,13 @@ public:
         for (int i = 0; i < I->getNumOperands(); i++) {
           Value *o = I->getOperand(i);
           if (isa<const Argument>(o) || isa<const Instruction>(o)) {
-            CPP_DBG_EXEC2(LLVM_LIVENESS, cout << __func__ << " " << __LINE__ << ": adding value " << sym_exec_common::get_value_name(*o) << endl);
+            CPP_DBG_EXEC2(LLVM_LIVENESS, cout << __func__ << " " << __LINE__ << ": adding value " << sym_exec_common::get_value_name_using_srcdst_keyword(*o, G_SRC_KEYWORD) << endl);
             in_xferred.add(o);
           }
         }
       }
       if (!I->getType()->isVoidTy()) {
-        CPP_DBG_EXEC2(LLVM_LIVENESS, cout << __func__ << " " << __LINE__ << ": removing value " << sym_exec_common::get_value_name(*I) << endl);
+        CPP_DBG_EXEC2(LLVM_LIVENESS, cout << __func__ << " " << __LINE__ << ": removing value " << sym_exec_common::get_value_name_using_srcdst_keyword(*I, G_SRC_KEYWORD) << endl);
         in_xferred.remove(I);
       }
     }
@@ -829,7 +829,7 @@ InstrumentMarkerCall::addPhiNodesToBBForValues(BasicBlock* BB, set<Value*> const
           phiInstruction->addIncoming(iv.second, (BasicBlock*)iv.first);
         }
         CPP_DBG_EXEC(INSTRUMENT_MARKER_CALL,
-           dbgs() << __func__ << " " << __LINE__ << ": Inserting " << get_basicblock_name(*BB) << " -> (" << sym_exec_common::get_value_name(*v) << " -> " << sym_exec_common::get_value_name(*phiInstruction) << ") to nodesMap\n";
+           dbgs() << __func__ << " " << __LINE__ << ": Inserting " << get_basicblock_name(*BB) << " -> (" << sym_exec_common::get_value_name_using_srcdst_keyword(*v, G_SRC_KEYWORD) << " -> " << sym_exec_common::get_value_name_using_srcdst_keyword(*phiInstruction, G_SRC_KEYWORD) << ") to nodesMap\n";
         );
         nodesMap[BB].insert(make_pair(v, phiInstruction));
       }
@@ -1042,9 +1042,9 @@ InstrumentMarkerCall::markerPresentInBasicBlock(Function *F, BasicBlock *BB)
       continue;
     }
     Value const *Addr = l->getPointerOperand();
-    CPP_DBG_EXEC(INSTRUMENT_MARKER_CALL, dbgs() << __func__ << " " << __LINE__ << ": Addr = " << sym_exec_common::get_value_name(*Addr) << "\n");
-    CPP_DBG_EXEC(INSTRUMENT_MARKER_CALL, dbgs() << __func__ << " " << __LINE__ << ": m_markerF = " << (m_markerF ? sym_exec_common::get_value_name(*m_markerF) : "null") << "\n");
-    if (sym_exec_common::get_value_name(*Addr) == string("@") + QCC_MARKER_PREFIX "F") {
+    CPP_DBG_EXEC(INSTRUMENT_MARKER_CALL, dbgs() << __func__ << " " << __LINE__ << ": Addr = " << sym_exec_common::get_value_name_using_srcdst_keyword(*Addr, G_SRC_KEYWORD) << "\n");
+    CPP_DBG_EXEC(INSTRUMENT_MARKER_CALL, dbgs() << __func__ << " " << __LINE__ << ": m_markerF = " << (m_markerF ? sym_exec_common::get_value_name_using_srcdst_keyword(*m_markerF, G_SRC_KEYWORD) : "null") << "\n");
+    if (sym_exec_common::get_value_name_using_srcdst_keyword(*Addr, G_SRC_KEYWORD) == string("@") + QCC_MARKER_PREFIX "F") {
       return true;
     }
   }
@@ -1139,7 +1139,7 @@ InstrumentMarkerCall::get_live_values(unique_ptr<tfg_llvm_t> const& t, map<share
       for (auto const& pl : live_vals) {
         cout << pl.first.to_string() << " : ";
         for (auto const& v : pl.second.get_vals()) {
-          cout << " " << sym_exec_common::get_value_name(*v);
+          cout << " " << sym_exec_common::get_value_name_using_srcdst_keyword(*v, G_SRC_KEYWORD);
         }
         cout << endl;
       }

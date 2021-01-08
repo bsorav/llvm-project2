@@ -13,8 +13,8 @@ AliasResult UnseqAAResult::alias(const MemoryLocation &LocA,
                                  const MemoryLocation &LocB,
                                  AAQueryInfo &AAQI) {
 
-  DYN_DEBUG2(aliasAnalysis, std::cout << "UnseqAAResult::" << __func__ << " " << __LINE__ << ": LocA = " << sym_exec_common::get_value_name(*LocA.Ptr) << "\n");
-  DYN_DEBUG2(aliasAnalysis, std::cout << "UnseqAAResult::" << __func__ << " " << __LINE__ << ": LocB = " << sym_exec_common::get_value_name(*LocB.Ptr) << "\n");
+  DYN_DEBUG2(aliasAnalysis, std::cout << "UnseqAAResult::" << __func__ << " " << __LINE__ << ": LocA = " << sym_exec_common::get_value_name_using_srcdst_keyword(*LocA.Ptr, G_SRC_KEYWORD) << "\n");
+  DYN_DEBUG2(aliasAnalysis, std::cout << "UnseqAAResult::" << __func__ << " " << __LINE__ << ": LocB = " << sym_exec_common::get_value_name_using_srcdst_keyword(*LocB.Ptr, G_SRC_KEYWORD) << "\n");
   // Check if there is a predicate corresponding to LocA and LocB
   if ((predicates.count(LocA.Ptr) && predicates[LocA.Ptr].count(LocB.Ptr)) ||
       (predicates.count(LocB.Ptr) && predicates[LocB.Ptr].count(LocA.Ptr))) {

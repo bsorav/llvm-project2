@@ -135,28 +135,28 @@ AAResults::performSemanticAACheck(const MemoryLocation &LocA, const MemoryLocati
   if (semanticAA_result == MayAlias && otherAA_result != MayAlias) {
     string s;
     raw_string_ostream rso(s);
-    rso << "WARNING: Syntactic alias analysis returning " << otherAA_result << " but Semantic alias analysis returning MayAlias. Function '" << function_name << "', LocA = " << sym_exec_common::get_value_name(*LocA.Ptr) << " (size " << (LocA.Size.isPrecise() ? LocA.Size.getValue() : (uint64_t)-1) << "), LocB = " << sym_exec_common::get_value_name(*LocB.Ptr) << " (size " << (LocB.Size.isPrecise() ? LocB.Size.getValue() : (uint64_t)-1) << ")\n";
+    rso << "WARNING: Syntactic alias analysis returning " << otherAA_result << " but Semantic alias analysis returning MayAlias. Function '" << function_name << "', LocA = " << sym_exec_common::get_value_name_using_srcdst_keyword(*LocA.Ptr, G_SRC_KEYWORD) << " (size " << (LocA.Size.isPrecise() ? LocA.Size.getValue() : (uint64_t)-1) << "), LocB = " << sym_exec_common::get_value_name_using_srcdst_keyword(*LocB.Ptr, G_SRC_KEYWORD) << " (size " << (LocB.Size.isPrecise() ? LocB.Size.getValue() : (uint64_t)-1) << ")\n";
     std::cout << rso.str();
   } else if (semanticAA_result != MayAlias && otherAA_result == MayAlias) {
     string s;
     raw_string_ostream rso(s);
-    rso << "NICE! Syntactic alias analysis returning " << otherAA_result << " but Semantic alias analysis returning " << semanticAA_result << ". Function '" << function_name << "', LocA = " << sym_exec_common::get_value_name(*LocA.Ptr) << " (size " << (LocA.Size.isPrecise() ? LocA.Size.getValue() : (uint64_t)-1) << "), LocB = " << sym_exec_common::get_value_name(*LocB.Ptr) << " (size " << (LocB.Size.isPrecise() ? LocB.Size.getValue() : (uint64_t)-1) << ")\n";
+    rso << "NICE! Syntactic alias analysis returning " << otherAA_result << " but Semantic alias analysis returning " << semanticAA_result << ". Function '" << function_name << "', LocA = " << sym_exec_common::get_value_name_using_srcdst_keyword(*LocA.Ptr, G_SRC_KEYWORD) << " (size " << (LocA.Size.isPrecise() ? LocA.Size.getValue() : (uint64_t)-1) << "), LocB = " << sym_exec_common::get_value_name_using_srcdst_keyword(*LocB.Ptr, G_SRC_KEYWORD) << " (size " << (LocB.Size.isPrecise() ? LocB.Size.getValue() : (uint64_t)-1) << ")\n";
     std::cout << rso.str();
   }
 }
 
 AliasResult AAResults::alias(const MemoryLocation &LocA,
                              const MemoryLocation &LocB, AAQueryInfo &AAQI) {
-  DYN_DEBUG(aliasAnalysis, std::cout << "AAResults::" << __func__ << " " << __LINE__ << ": LocA = " << sym_exec_common::get_value_name(*LocA.Ptr) << " (size " << (LocA.Size.isPrecise() ? LocA.Size.getValue() : (uint64_t)-1) << "), LocB = " << sym_exec_common::get_value_name(*LocB.Ptr) << " (size " << (LocB.Size.isPrecise() ? LocB.Size.getValue() : (uint64_t)-1) << ")\n");
+  DYN_DEBUG(aliasAnalysis, std::cout << "AAResults::" << __func__ << " " << __LINE__ << ": LocA = " << sym_exec_common::get_value_name_using_srcdst_keyword(*LocA.Ptr, G_SRC_KEYWORD) << " (size " << (LocA.Size.isPrecise() ? LocA.Size.getValue() : (uint64_t)-1) << "), LocB = " << sym_exec_common::get_value_name_using_srcdst_keyword(*LocB.Ptr, G_SRC_KEYWORD) << " (size " << (LocB.Size.isPrecise() ? LocB.Size.getValue() : (uint64_t)-1) << ")\n");
   for (const auto &AA : AAs) {
     auto Result = AA->alias(LocA, LocB, AAQI);
     if (Result != MayAlias) {
-      DYN_DEBUG(aliasAnalysis, std::cout << "AAResults::" << __func__ << " " << __LINE__ << ": Result = " << Result << ". LocA = " << sym_exec_common::get_value_name(*LocA.Ptr) << ", LocB = " << sym_exec_common::get_value_name(*LocB.Ptr) << "\n");
+      DYN_DEBUG(aliasAnalysis, std::cout << "AAResults::" << __func__ << " " << __LINE__ << ": Result = " << Result << ". LocA = " << sym_exec_common::get_value_name_using_srcdst_keyword(*LocA.Ptr, G_SRC_KEYWORD) << ", LocB = " << sym_exec_common::get_value_name_using_srcdst_keyword(*LocB.Ptr, G_SRC_KEYWORD) << "\n");
       DYN_DEBUG_MUTE(checkSemanticAA, performSemanticAACheck(LocA, LocB, AAQI));
       return Result;
     }
   }
-  DYN_DEBUG(aliasAnalysis, std::cout << "AAResults::" << __func__ << " " << __LINE__ << ": Result = MayAlias. LocA = " << sym_exec_common::get_value_name(*LocA.Ptr) << ", LocB = " << sym_exec_common::get_value_name(*LocB.Ptr) << "\n");
+  DYN_DEBUG(aliasAnalysis, std::cout << "AAResults::" << __func__ << " " << __LINE__ << ": Result = MayAlias. LocA = " << sym_exec_common::get_value_name_using_srcdst_keyword(*LocA.Ptr, G_SRC_KEYWORD) << ", LocB = " << sym_exec_common::get_value_name_using_srcdst_keyword(*LocB.Ptr, G_SRC_KEYWORD) << "\n");
   return MayAlias;
 }
 

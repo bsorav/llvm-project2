@@ -23,8 +23,8 @@
 class sym_exec_common
 {
 public:
-  sym_exec_common(context* ctx/*, consts_struct_t const &cs*/, shared_ptr<list<pair<string, unsigned>> const> fun_names, shared_ptr<graph_symbol_map_t const> symbol_map, shared_ptr<map<pair<symbol_id_t, offset_t>, vector<char>> const> string_contents, bool gen_callee_summary, unsigned memory_addressable_size, unsigned word_length) :
-    m_ctx(ctx), m_cs(ctx->get_consts_struct()), m_fun_names(fun_names), m_symbol_map(symbol_map), m_string_contents(string_contents), m_gen_callee_summary(gen_callee_summary), m_memory_addressable_size(memory_addressable_size), m_word_length(word_length), m_mem_reg(G_SRC_KEYWORD "." LLVM_MEM_SYMBOL)/*, m_io_reg(LLVM_IO_SYMBOL)*/, m_local_num(graph_locals_map_t::first_non_arg_local()), m_memlabel_varnum(0)
+  sym_exec_common(context* ctx/*, consts_struct_t const &cs*/, shared_ptr<list<pair<string, unsigned>> const> fun_names, shared_ptr<graph_symbol_map_t const> symbol_map, shared_ptr<map<pair<symbol_id_t, offset_t>, vector<char>> const> string_contents, bool gen_callee_summary, unsigned memory_addressable_size, unsigned word_length, string const& srcdst_keyword) :
+    m_ctx(ctx), m_cs(ctx->get_consts_struct()), m_fun_names(fun_names), m_symbol_map(symbol_map), m_string_contents(string_contents), m_gen_callee_summary(gen_callee_summary), m_memory_addressable_size(memory_addressable_size), m_word_length(word_length), m_mem_reg(srcdst_keyword + "." LLVM_MEM_SYMBOL)/*, m_io_reg(LLVM_IO_SYMBOL)*/, m_local_num(graph_locals_map_t::first_non_arg_local()), m_memlabel_varnum(0), m_srcdst_keyword(srcdst_keyword)
   {
     //list<pair<string, unsigned>> fun_names;
     //sym_exec_common::get_fun_names(M, m_fun_names);
@@ -44,7 +44,7 @@ public:
   sort_ref get_mem_sort() const;
 
   //virtual unique_ptr<tfg_llvm_t> get_tfg(map<string, pair<callee_summary_t, unique_ptr<tfg_llvm_t>>> *function_tfg_map, set<string> const *function_call_chain, map<shared_ptr<tfg_edge const>, llvm::Instruction *>& eimap) = 0;
-  virtual pc get_start_pc() const = 0;
+  //virtual pc get_start_pc() const = 0;
 
   void get_tfg_common(tfg &t);
 
@@ -54,15 +54,17 @@ public:
 
   map<local_id_t, graph_local_t> const &get_local_refs() { return m_local_refs; }
   graph_symbol_map_t const &get_symbol_map() { return *m_symbol_map; }
-  static string get_value_name(const llvm::Value& v);
+  string get_value_name(const llvm::Value& v) const;
+  static string get_value_name_using_srcdst_keyword(const llvm::Value& v, string const& srcdst_keyword);
   static list<pair<string, unsigned>> get_fun_names(llvm::Module const *M);
-  static pair<graph_symbol_map_t, map<pair<symbol_id_t, offset_t>, vector<char>>> get_symbol_map_and_string_contents(llvm::Module const *M, list<pair<string, unsigned>> const &fun_names);
-  static graph_symbol_map_t get_symbol_map(llvm::Module const *M);
-  static map<pair<symbol_id_t, offset_t>, vector<char>> get_string_contents(llvm::Module const *M);
+  static pair<graph_symbol_map_t, map<pair<symbol_id_t, offset_t>, vector<char>>> get_symbol_map_and_string_contents(llvm::Module const *M, list<pair<string, unsigned>> const &fun_names, tfg_llvm_t const* src_llvm_tfg);
+  static graph_symbol_map_t get_symbol_map(llvm::Module const *M, tfg_llvm_t const* src_llvm_tfg);
+  static map<pair<symbol_id_t, offset_t>, vector<char>> get_string_contents(llvm::Module const *M, tfg_llvm_t const* src_llvm_tfg);
   static unsigned get_num_insn(const llvm::Function& f);
   context *get_context() const { return m_ctx; }
   list<pair<string, unsigned>> const &get_fun_names() const { return *m_fun_names; }
   bool gen_callee_summary() const { return m_gen_callee_summary; }
+  static symbol_id_t get_symbol_id_for_name(string const& name, tfg_llvm_t const* src_llvm_tfg, symbol_id_t input_symbol_id);
 
 protected:
   te_comment_t phi_node_to_te_comment(/*bbl_order_descriptor_t const& bbo, */int inum, llvm::Instruction const& I) const;
@@ -92,26 +94,26 @@ protected:
   //{
   //  NOT_REACHED(); //should be either overwritten or never called
   //}
-  virtual expr_ref phiInstructionGetIncomingBlockValue(llvm::MachineInstr const &I/*, state const &start_state*/, shared_ptr<tfg_node> &pc_to_phi_node, pc const &pc_to, llvm::MachineBasicBlock const *B_from, llvm::MachineFunction const &F, tfg &t)
-  {
-    NOT_REACHED(); //should be either overwritten or never called
-  }
-  virtual string functionGetName(llvm::Function const &F) const
-  {
-    NOT_REACHED();
-  }
-  virtual string functionGetName(llvm::MachineFunction const &F) const
-  {
-    NOT_REACHED();
-  }
-  virtual string get_basicblock_index(llvm::BasicBlock const &F) const
-  {
-    NOT_REACHED();
-  }
-  virtual string get_basicblock_index(llvm::MachineBasicBlock const &F) const
-  {
-    NOT_REACHED();
-  }
+  //virtual expr_ref phiInstructionGetIncomingBlockValue(llvm::MachineInstr const &I/*, state const &start_state*/, shared_ptr<tfg_node> &pc_to_phi_node, pc const &pc_to, llvm::MachineBasicBlock const *B_from, llvm::MachineFunction const &F, tfg &t)
+  //{
+  //  NOT_REACHED(); //should be either overwritten or never called
+  //}
+  //virtual string functionGetName(llvm::Function const &F) const
+  //{
+  //  NOT_REACHED();
+  //}
+  //virtual string functionGetName(llvm::MachineFunction const &F) const
+  //{
+  //  NOT_REACHED();
+  //}
+  //virtual string get_basicblock_index(llvm::BasicBlock const &F) const
+  //{
+  //  NOT_REACHED();
+  //}
+  //virtual string get_basicblock_index(llvm::MachineBasicBlock const &F) const
+  //{
+  //  NOT_REACHED();
+  //}
   //virtual string get_basicblock_name(llvm::BasicBlock const &F) const
   //{
   //  NOT_REACHED();
@@ -120,16 +122,16 @@ protected:
   //{
   //  NOT_REACHED();
   //}
-  virtual bool instructionIsPhiNode(llvm::Instruction const &I, string &varname) const
-  {
-    NOT_REACHED();
-  }
-  virtual bool instructionIsPhiNode(llvm::MachineInstr const &I, string &varname) const
-  {
-    NOT_REACHED();
-  }
+  //virtual bool instructionIsPhiNode(llvm::Instruction const &I, string &varname) const
+  //{
+  //  NOT_REACHED();
+  //}
+  //virtual bool instructionIsPhiNode(llvm::MachineInstr const &I, string &varname) const
+  //{
+  //  NOT_REACHED();
+  //}
 
-  static string gep_name_prefix(string const &name, pc const &from_pc, pc const &pc_to, int argnum);
+  string gep_name_prefix(string const &name, pc const &from_pc, pc const &pc_to, int argnum) const;
   //expr_ref __get_expr_adding_edges_for_intermediate_vals_helper(const llvm::Value& v, string vname, const state& state_in, shared_ptr<tfg_node> *from_node, pc const &pc_to, llvm::BasicBlock const *B, llvm::Function const *F, tfg *t);
   bool function_belongs_to_program(string const &fun_name) const;
 
@@ -210,6 +212,7 @@ protected:
   int m_memlabel_varnum;
   //map<pc, pc> m_next_phi_pc;
   map<pc, int> m_intermediate_subsubindex_map;
+  string const m_srcdst_keyword;
 
   //map<string_ref, bbl_order_descriptor_t> m_bbl_order_map; //map from bbl name to bbl_order_descriptor_t
 };

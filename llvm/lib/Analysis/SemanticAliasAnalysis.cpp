@@ -50,7 +50,7 @@ SemanticAAResult::memory_location_get_name(MemoryLocation const& l) const
   if (m_value_to_name_map && m_value_to_name_map->count(llvm_value_id)) {
     return m_value_to_name_map->at(llvm_value_id)->get_str();
   }
-  return sym_exec_common::get_value_name(*l.Ptr);
+  return sym_exec_common::get_value_name_using_srcdst_keyword(*l.Ptr, G_SRC_KEYWORD);
 }
 
 
@@ -131,7 +131,7 @@ bool SemanticAAWrapperPass::doInitialization(Module &M)
   ASSERT(g_ctx);
 
   map<llvm_value_id_t, string_ref> value_to_name_map;
-  shared_ptr<SemanticAAResult::function_tfg_map_t const> function_tfg_map = make_shared<SemanticAAResult::function_tfg_map_t const>(sym_exec_llvm::get_function_tfg_map(&M, set<string>(), false, g_ctx, &value_to_name_map));
+  shared_ptr<SemanticAAResult::function_tfg_map_t const> function_tfg_map = make_shared<SemanticAAResult::function_tfg_map_t const>(sym_exec_llvm::get_function_tfg_map(&M, set<string>(), false, g_ctx, nullptr, &value_to_name_map));
   Result.reset(new SemanticAAResult(function_tfg_map, make_shared<map<llvm_value_id_t, string_ref> const>(value_to_name_map)));
   return false;
 }
