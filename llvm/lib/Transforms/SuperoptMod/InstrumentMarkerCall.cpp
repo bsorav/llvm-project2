@@ -91,7 +91,7 @@ public:
   distance_dfa_t(tfg const *t, map<pc, distance_t>& init_vals)
       : data_flow_analysis<pc, tfg_node, tfg_edge, distance_t, DFA_DIR>(t, init_vals)
   { }
-  virtual bool xfer_and_meet(shared_ptr<tfg_edge const> const& e, distance_t const& in, distance_t &out) override
+  virtual dfa_xfer_retval_t xfer_and_meet(shared_ptr<tfg_edge const> const& e, distance_t const& in, distance_t &out) override
   {
     distance_t in_xfer = in;
     if (e->get_to_state().contains_function_call()) {
@@ -99,7 +99,7 @@ public:
     } else {
       in_xfer.set(in_xfer.get() + 1);
     }
-    return out.meet(in_xfer);
+    return out.meet(in_xfer) ? DFA_XFER_RETVAL_CHANGED : DFA_XFER_RETVAL_UNCHANGED;
   }
 };
 
@@ -228,11 +228,11 @@ public:
     );
     ASSERT(m_from.size() == m_to.size());
   }
-  virtual bool xfer_and_meet(shared_ptr<tfg_edge const> const& e, value_version_map_t const& in, value_version_map_t &out) override
+  virtual dfa_xfer_retval_t xfer_and_meet(shared_ptr<tfg_edge const> const& e, value_version_map_t const& in, value_version_map_t &out) override
   {
     pc const& to_p = e->get_to_pc();
     if (to_p.is_exit()) {
-      return false;
+      return DFA_XFER_RETVAL_UNCHANGED;
     }
     value_version_map_t in_xfer = in;
     //dbgs() << __func__ << " " << __LINE__ << ": e = " << e->to_string() << "\n";
@@ -265,7 +265,7 @@ public:
           dbgs() << out.to_string() << "\n";
         }
     );
-    return changed;
+    return changed ? DFA_XFER_RETVAL_CHANGED : DFA_XFER_RETVAL_UNCHANGED;
   }
 };
 
@@ -317,7 +317,7 @@ public:
   liveness_dfa_t(tfg const *t, map<shared_ptr<tfg_edge const>, Instruction *> const& eimap, map<pc, liveness_val_t>& init_vals)
       : data_flow_analysis<pc, tfg_node, tfg_edge, liveness_val_t, dfa_dir_t::backward>(t, init_vals), m_eimap(eimap)
   { }
-  virtual bool xfer_and_meet(shared_ptr<tfg_edge const> const& e, liveness_val_t const& in, liveness_val_t &out) override
+  virtual dfa_xfer_retval_t xfer_and_meet(shared_ptr<tfg_edge const> const& e, liveness_val_t const& in, liveness_val_t &out) override
   {
     liveness_val_t in_xferred = in;
     CPP_DBG_EXEC2(LLVM_LIVENESS, cout << __func__ << " " << __LINE__ << ": e = " << e->to_string() << endl);
@@ -357,7 +357,7 @@ public:
         in_xferred.remove(I);
       }
     }
-    return out.meet(in_xferred);
+    return out.meet(in_xferred) ? DFA_XFER_RETVAL_CHANGED : DFA_XFER_RETVAL_UNCHANGED;
   }
 };
 
