@@ -31,17 +31,15 @@ using namespace llvm::object;
 namespace {
 
 cl::OptionCategory DwarfDumpCategory("Specific Options");
-static llvm::cl::list<std::string>
-    InputFilenames(cl::Positional, cl::desc("<input object files or .dSYM bundles>"),
-                   cl::ZeroOrMore, cl::cat(DwarfDumpCategory));
+static cl::opt<std::string>
+    InputFilename(cl::Positional, cl::desc("<input object file>"),
+                  cl::cat(DwarfDumpCategory));
 static cl::opt<std::string>
     OutputFilename("o", cl::init("-"),
                    cl::desc("Redirect output to the specified file."),
                    cl::value_desc("filename"), cl::cat(DwarfDumpCategory));
 static cl::alias OutputFilenameAlias("out-file", cl::desc("Alias for -o."),
                                  cl::aliasopt(OutputFilename));
-static cl::opt<bool> Verify("verify", cl::desc("Verify the DWARF debug info."),
-                        cl::cat(DwarfDumpCategory));
 } // namespace
 /// @}
 //===----------------------------------------------------------------------===//
@@ -51,13 +49,6 @@ static void error(StringRef Prefix, std::error_code EC) {
     return;
   WithColor::error() << Prefix << ": " << EC.message() << "\n";
   exit(1);
-}
-
-static DIDumpOptions getDumpOpts() { 
-  DIDumpOptions DumpOpts;
-  if (Verify)
-    return DumpOpts.noImplicitRecursion();
-  return DumpOpts;
 }
 
 using HandlerFn = std::function<bool(ObjectFile &, DWARFContext &DICtx,
@@ -658,43 +649,6 @@ static bool dumpObjectFile(ObjectFile &Obj, DWARFContext &DICtx,
   return true;
 }
 
-static bool verifyObjectFile(ObjectFile &Obj, DWARFContext &DICtx,
-                             const Twine &Filename, raw_ostream &OS)
-{
-  // Verify the DWARF and exit with non-zero exit status if verification
-  // fails.
-  raw_ostream &stream = OS;
-  stream << "Verifying " << Filename.str() << ":\tfile format "
-  << Obj.getFileFormatName() << "\n";
-  bool Result = DICtx.verify(stream, getDumpOpts());
-  if (Result)
-    stream << "No errors.\n";
-  else
-    stream << "Errors detected.\n";
-  return Result;
-}
-
-static bool handleBuffer(StringRef Filename, MemoryBufferRef Buffer,
-                         HandlerFn HandleObj, raw_ostream &OS);
-
-static bool handleArchive(StringRef Filename, Archive &Arch,
-                          HandlerFn HandleObj, raw_ostream &OS)
-{
-  bool Result = true;
-  Error Err = Error::success();
-  for (auto Child : Arch.children(Err)) {
-    auto BuffOrErr = Child.getMemoryBufferRef();
-    error(Filename, errorToErrorCode(BuffOrErr.takeError()));
-    auto NameOrErr = Child.getName();
-    error(Filename, errorToErrorCode(NameOrErr.takeError()));
-    std::string Name = (Filename + "(" + NameOrErr.get() + ")").str();
-    Result &= handleBuffer(Name, BuffOrErr.get(), HandleObj, OS);
-  }
-  error(Filename, errorToErrorCode(std::move(Err)));
-
-  return Result;
-}
-
 static bool handleBuffer(StringRef Filename, MemoryBufferRef Buffer,
                          HandlerFn HandleObj, raw_ostream &OS)
 {
@@ -707,13 +661,19 @@ static bool handleBuffer(StringRef Filename, MemoryBufferRef Buffer,
     WithColor::defaultErrorHandler(std::move(E));
   };
   if (auto *Obj = dyn_cast<ObjectFile>(BinOrErr->get())) {
+    unsigned pointer_size = Obj->getBytesInAddress();
+    if (pointer_size == DWORD_LEN/BYTE_LEN) {
+      g_ctx->parse_consts_db(SUPEROPTDBS_DIR "/../etfg_i386/consts_db");
+    } else if (pointer_size == QWORD_LEN/BYTE_LEN) {
+      g_ctx->parse_consts_db(SUPEROPTDBS_DIR "/../etfg_x64/consts_db");
+    } else {
+      NOT_REACHED();
+    }
     std::unique_ptr<DWARFContext> DICtx =
       DWARFContext::create(*Obj, nullptr, "", RecoverableErrorHandler);
     if (!HandleObj(*Obj, *DICtx, Filename, OS))
       Result = false;
   }
-  else if (auto *Arch = dyn_cast<Archive>(BinOrErr->get()))
-    Result = handleArchive(Filename, *Arch, HandleObj, OS);
   return Result;
 }
 
@@ -729,7 +689,7 @@ static bool handleFile(StringRef Filename, HandlerFn HandleObj,
 
 int main(int argc, char **argv)
 {
-  g_ctx_init();
+  g_ctx_init(false);
 
   InitLLVM X(argc, argv);
 
@@ -747,22 +707,9 @@ int main(int argc, char **argv)
   OutputFile.keep();
 
   // Defaults to a.out if no filenames specified.
-  if (InputFilenames.empty())
-    InputFilenames.push_back("a.out");
+  if (InputFilename.empty())
+    InputFilename = "a.out";
 
-  std::vector<std::string> Objects;
-  for (const auto &F : InputFilenames) {
-    Objects.push_back(F);
-  }
-
-  bool Success = true;
-  if (Verify) {
-    for (auto Object : Objects)
-      Success &= handleFile(Object, verifyObjectFile, OutputFile.os());
-  } else {
-    for (auto Object : Objects)
-      Success &= handleFile(Object, dumpObjectFile, OutputFile.os());
-  }
-
-  return Success ? EXIT_SUCCESS : EXIT_FAILURE;
+  return handleFile(InputFilename, dumpObjectFile, OutputFile.os()) ?
+         EXIT_SUCCESS : EXIT_FAILURE;
 }
