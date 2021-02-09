@@ -9,6 +9,7 @@
 
 #include "tfg/tfg_llvm.h"
 #include "ptfg/llvm_value_id.h"
+#include "ptfg/llptfg.h"
 
 using namespace llvm;
 
