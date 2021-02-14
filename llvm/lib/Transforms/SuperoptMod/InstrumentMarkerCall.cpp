@@ -91,7 +91,7 @@ public:
   distance_dfa_t(tfg const *t, map<pc, distance_t>& init_vals)
       : data_flow_analysis<pc, tfg_node, tfg_edge, distance_t, DFA_DIR>(t, init_vals)
   { }
-  virtual dfa_xfer_retval_t xfer_and_meet(shared_ptr<tfg_edge const> const& e, distance_t const& in, distance_t &out) override
+  virtual dfa_xfer_retval_t xfer_and_meet(dshared_ptr<tfg_edge const> const& e, distance_t const& in, distance_t &out) override
   {
     distance_t in_xfer = in;
     if (e->get_to_state().contains_function_call()) {
@@ -228,7 +228,7 @@ public:
     );
     ASSERT(m_from.size() == m_to.size());
   }
-  virtual dfa_xfer_retval_t xfer_and_meet(shared_ptr<tfg_edge const> const& e, value_version_map_t const& in, value_version_map_t &out) override
+  virtual dfa_xfer_retval_t xfer_and_meet(dshared_ptr<tfg_edge const> const& e, value_version_map_t const& in, value_version_map_t &out) override
   {
     pc const& to_p = e->get_to_pc();
     if (to_p.is_exit()) {
@@ -237,8 +237,8 @@ public:
     value_version_map_t in_xfer = in;
     //dbgs() << __func__ << " " << __LINE__ << ": e = " << e->to_string() << "\n";
     BasicBlock* toBB = getBBfromName(m_F, to_p.get_index());
-    if (m_eimap.count(e)) {
-      Instruction* I = m_eimap.at(e);
+    if (m_eimap.count(e.get_shared_ptr())) {
+      Instruction* I = m_eimap.at(e.get_shared_ptr());
       CPP_DBG_EXEC(INSTRUMENT_MARKER_CALL,
           if (!I->getType()->isVoidTy()) {
             dbgs() << __func__ << " " << __LINE__ << ": I = " << sym_exec_common::get_value_name_using_srcdst_keyword(*I, G_SRC_KEYWORD) << "\n";
@@ -317,14 +317,14 @@ public:
   liveness_dfa_t(tfg const *t, map<shared_ptr<tfg_edge const>, Instruction *> const& eimap, map<pc, liveness_val_t>& init_vals)
       : data_flow_analysis<pc, tfg_node, tfg_edge, liveness_val_t, dfa_dir_t::backward>(t, init_vals), m_eimap(eimap)
   { }
-  virtual dfa_xfer_retval_t xfer_and_meet(shared_ptr<tfg_edge const> const& e, liveness_val_t const& in, liveness_val_t &out) override
+  virtual dfa_xfer_retval_t xfer_and_meet(dshared_ptr<tfg_edge const> const& e, liveness_val_t const& in, liveness_val_t &out) override
   {
     liveness_val_t in_xferred = in;
     CPP_DBG_EXEC2(LLVM_LIVENESS, cout << __func__ << " " << __LINE__ << ": e = " << e->to_string() << endl);
     pc const& from_pc = e->get_from_pc();
     char const* from_name = from_pc.get_index();
-    if (m_eimap.count(e)) {
-      Instruction * I = m_eimap.at(e);
+    if (m_eimap.count(e.get_shared_ptr())) {
+      Instruction * I = m_eimap.at(e.get_shared_ptr());
       if (isa<PHINode const>(I)) {
         PHINode const *phi = dyn_cast<PHINode const>(I);
         ASSERT(phi);
@@ -773,7 +773,7 @@ InstrumentMarkerCall::addPhiNodesToBBForValues(BasicBlock* BB, set<Value*> const
 {
   bool changed = false;
   pc p = getPCinBBAtInum(BB, PC_SUBINDEX_FIRST_INSN_IN_BB);
-  list<shared_ptr<tfg_edge const>> incoming;
+  list<dshared_ptr<tfg_edge const>> incoming;
   t->get_edges_incoming(p, incoming);
   for (auto v : vvs) {
     ASSERT(vals.count(p));
