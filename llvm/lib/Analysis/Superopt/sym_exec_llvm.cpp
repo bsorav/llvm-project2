@@ -920,6 +920,9 @@ sym_exec_llvm::exec_gen_expr_casts(const llvm::CastInst& I, expr_ref arg, unorde
     //predicate p2(precond_t(m_ctx), m_ctx->mk_islangtype(src_expr, lt2), expr_true(m_ctx), UNDEF_BEHAVIOUR_ASSUME_BITCAST_SRC_EXPR_ISLANGTYPE, predicate::assume);
     //t.add_assume_pred(from_pc, p2);
     //assumes.insert(p2);
+    if (src_expr->is_bv_sort() && src_expr->get_sort()->get_size() == 1) {
+      src_expr = expr_bv1_to_bool(src_expr);
+    }
     return make_pair(src_expr, assumes);
   }
   case Instruction::PtrToInt:
