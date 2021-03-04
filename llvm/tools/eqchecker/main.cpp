@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "llvm/InitializePasses.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/Bitcode/BitcodeReader.h"
 #include "llvm/IR/AssemblyAnnotationWriter.h"
@@ -158,6 +159,15 @@ main(int argc, char **argv)
     g_xml_output_stream.open(xml_output_file, ios_base::app | ios_base::ate);
     ASSERT(g_xml_output_stream.is_open());
   }
+
+  PassRegistry &Registry = *PassRegistry::getPassRegistry();
+  initializeCore(Registry);
+  //initializeCoroutines(Registry);
+  //initializeScalarOpts(Registry);
+  //initializeObjCARCOpts(Registry);
+  //initializeVectorization(Registry);
+  //initializeIPO(Registry);
+  initializeAnalysis(Registry);
 
   set<string> FunNamesVec;
   size_t curpos = 0, nextpos;
