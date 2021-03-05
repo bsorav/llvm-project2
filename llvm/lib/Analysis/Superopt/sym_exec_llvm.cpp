@@ -2344,6 +2344,30 @@ sym_exec_llvm::parse_dbg_value_intrinsic(Instruction const& I, tfg_llvm_t& t, pc
   t.tfg_llvm_add_source_to_llvm_varname_mapping_at_pc(source_varname, llvm_varname, pc_from);
 }
 
+void
+sym_exec_llvm::parse_stacksave_intrinsic(Instruction const& I, tfg_llvm_t& t, pc const& pc_from) const
+{
+  const CallInst& CI = cast<CallInst>(I);
+  // llvm.stacksave returns an opaque pointer value which can be passed to
+  // stackrestore.  We track scopes using this pointer value as identifier.
+  string opaque_varname = string(G_INPUT_KEYWORD ".") + get_value_name(CI);
+  t.tfg_llvm_add_scope_begin_at_pc(opaque_varname, pc_from);
+}
+
+void
+sym_exec_llvm::parse_stackrestore_intrinsic(Instruction const& I, tfg_llvm_t& t, pc const& pc_from) const
+{
+  const CallInst& CI = cast<CallInst>(I);
+
+  Value* v = *CI.arg_operands().begin();
+  if (!v) {
+    return;
+  } else if (const auto *CI = dyn_cast<Constant>(v)) {
+    return;
+  }
+  string opaque_varname = string(G_INPUT_KEYWORD ".") + get_value_name(*v);
+  t.tfg_llvm_add_scope_end_at_pc(opaque_varname, pc_from);
+}
 
 void
 sym_exec_llvm::add_edges(const llvm::BasicBlock& B, tfg_llvm_t const* src_llvm_tfg, tfg_llvm_t& t, const llvm::Function& F, map<string, pair<callee_summary_t, unique_ptr<tfg_llvm_t>>> *function_tfg_map, map<llvm_value_id_t, string_ref>* value_to_name_map, set<string> const *function_call_chain, map<shared_ptr<tfg_edge const>, Instruction *>& eimap, context::xml_output_format_t xml_output_format)
@@ -2373,6 +2397,16 @@ sym_exec_llvm::add_edges(const llvm::BasicBlock& B, tfg_llvm_t const* src_llvm_t
     if (isa<CallInst>(I) && cast<CallInst>(I).getIntrinsicID() == Intrinsic::dbg_value) {
       pc pc_from_for_dbg_parsing(pc_from.get_type(), pc_from.get_index(), pc_from.get_subindex(), 0);
       this->parse_dbg_value_intrinsic(I, t, pc_from_for_dbg_parsing);
+      continue;
+    }
+
+    if (isa<CallInst>(I) && cast<CallInst>(I).getIntrinsicID() == Intrinsic::stacksave) {
+      this->parse_stacksave_intrinsic(I, t, pc_from);
+      continue;
+    }
+
+    if (isa<CallInst>(I) && cast<CallInst>(I).getIntrinsicID() == Intrinsic::stackrestore) {
+      this->parse_stackrestore_intrinsic(I, t, pc_from);
       continue;
     }
 
