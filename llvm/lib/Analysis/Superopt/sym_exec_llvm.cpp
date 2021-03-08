@@ -3,16 +3,20 @@
 #include <llvm/IR/InstIterator.h>
 #include <llvm/IR/DebugInfoMetadata.h>
 #include "llvm/Analysis/ScalarEvolution.h"
+#include "llvm/Analysis/ScalarEvolutionExpressions.h"
+#include "llvm/Analysis/LoopInfo.h"
 #include "llvm/Pass.h"
 #include "llvm/Transforms/Utils/Debugify.h"
 
 #include "support/dyn_debug.h"
 #include "support/globals.h"
 #include "support/dshared_ptr.h"
+#include "support/mybitset.h"
 
 #include "expr/expr.h"
 
 #include "gsupport/predicate.h"
+#include "gsupport/scev.h"
 
 #include "tfg/tfg_llvm.h"
 
@@ -25,7 +29,6 @@
 
 using namespace llvm;
 static char as1[40960];
-
 
 sort_ref sym_exec_common::get_mem_domain() const
 {
@@ -969,7 +972,7 @@ sym_exec_llvm::exec_gen_expr_casts(const llvm::CastInst& I, expr_ref arg, unorde
 }
 
 pair<unordered_set<expr_ref>,unordered_set<expr_ref>>
-sym_exec_llvm::apply_memcpy_function(const CallInst* c, expr_ref fun_name_expr, string const &fun_name, tfg_llvm_t const* src_llvm_tfg, Function *F, state const &state_in, state &state_out, unordered_set<expr_ref> const& state_assumes, string const &cur_function_name, dshared_ptr<tfg_node> &from_node/*, pc const &pc_to, llvm::BasicBlock const &B*/, llvm::Function const &curF, tfg &t, map<string, pair<callee_summary_t, unique_ptr<tfg_llvm_t>>> *function_tfg_map, map<llvm_value_id_t, string_ref>* value_to_name_map, set<string> const *function_call_chain, map<Function const*, ScalarEvolution const*> const& scev_map, context::xml_output_format_t xml_output_format)
+sym_exec_llvm::apply_memcpy_function(const CallInst* c, expr_ref fun_name_expr, string const &fun_name, tfg_llvm_t const* src_llvm_tfg, Function *F, state const &state_in, state &state_out, unordered_set<expr_ref> const& state_assumes, string const &cur_function_name, dshared_ptr<tfg_node> &from_node/*, pc const &pc_to, llvm::BasicBlock const &B*/, llvm::Function const &curF, tfg &t, map<string, pair<callee_summary_t, unique_ptr<tfg_llvm_t>>> *function_tfg_map, map<llvm_value_id_t, string_ref>* value_to_name_map, set<string> const *function_call_chain, map<string, value_scev_map_t> const& scev_map, context::xml_output_format_t xml_output_format)
 {
   const auto& memcpy_dst = c->getArgOperand(0);
   const auto& memcpy_src = c->getArgOperand(1);
@@ -1086,7 +1089,7 @@ sym_exec_llvm::function_get_num_bbls(const Function *F)
 }
 
 pair<callee_summary_t, unique_ptr<tfg_llvm_t>> const&
-sym_exec_llvm::get_callee_summary(Function *F, string const &fun_name, tfg_llvm_t const* src_llvm_tfg, map<string, pair<callee_summary_t, unique_ptr<tfg_llvm_t>>> &function_tfg_map, map<llvm_value_id_t, string_ref>* value_to_name_map, set<string> const &function_call_chain, map<Function const*, ScalarEvolution const*> const& scev_map, context::xml_output_format_t xml_output_format)
+sym_exec_llvm::get_callee_summary(Function *F, string const &fun_name, tfg_llvm_t const* src_llvm_tfg, map<string, pair<callee_summary_t, unique_ptr<tfg_llvm_t>>> &function_tfg_map, map<llvm_value_id_t, string_ref>* value_to_name_map, set<string> const &function_call_chain, map<string, value_scev_map_t> const& scev_map, context::xml_output_format_t xml_output_format)
 {
   //cout.flush();
   //cout << __func__ << " " << __LINE__ << endl;
@@ -1105,7 +1108,7 @@ sym_exec_llvm::get_callee_summary(Function *F, string const &fun_name, tfg_llvm_
     cout << " " << f;
   }
   cout << endl;
-  unique_ptr<tfg_llvm_t> t = sym_exec_llvm::get_preprocessed_tfg(*F, m_module, fun_name, ctx, src_llvm_tfg, function_tfg_map, value_to_name_map, function_call_chain, this->gen_callee_summary(), false, scev_map, xml_output_format);
+  unique_ptr<tfg_llvm_t> t = sym_exec_llvm::get_preprocessed_tfg(*F, m_module, fun_name, ctx, src_llvm_tfg, function_tfg_map, value_to_name_map, function_call_chain, this->gen_callee_summary(), false, scev_map, this->get_srcdst_keyword(), xml_output_format);
  cout << __func__ << " " << __LINE__ << ": done callee summary for " << fun_name << ": function_call_chain.size() = " << function_call_chain.size() << ", chain:";
   for (const auto &f : function_call_chain) {
     cout << " " << f;
@@ -1130,7 +1133,7 @@ sym_exec_common::function_belongs_to_program(string const &fun_name) const
 }
 
 pair<unordered_set<expr_ref>,unordered_set<expr_ref>>
-sym_exec_llvm::apply_general_function(const CallInst* c, expr_ref fun_name_expr, string const &fun_name, tfg_llvm_t const* src_llvm_tfg, Function *F, state const &state_in, state &state_out, unordered_set<expr_ref> const& state_assumes, string const &cur_function_name, dshared_ptr<tfg_node> &from_node/*, pc const &pc_to, llvm::BasicBlock const &B, llvm::Function const &curF*/, tfg &t, map<string, pair<callee_summary_t, unique_ptr<tfg_llvm_t>>> *function_tfg_map, map<llvm_value_id_t, string_ref>* value_to_name_map, set<string> const *function_call_chain, map<Function const*, ScalarEvolution const*> const& scev_map, context::xml_output_format_t xml_output_format)
+sym_exec_llvm::apply_general_function(const CallInst* c, expr_ref fun_name_expr, string const &fun_name, tfg_llvm_t const* src_llvm_tfg, Function *F, state const &state_in, state &state_out, unordered_set<expr_ref> const& state_assumes, string const &cur_function_name, dshared_ptr<tfg_node> &from_node/*, pc const &pc_to, llvm::BasicBlock const &B, llvm::Function const &curF*/, tfg &t, map<string, pair<callee_summary_t, unique_ptr<tfg_llvm_t>>> *function_tfg_map, map<llvm_value_id_t, string_ref>* value_to_name_map, set<string> const *function_call_chain, map<string, value_scev_map_t> const& scev_map, context::xml_output_format_t xml_output_format)
 {
   vector<expr_ref> args;
   vector<sort_ref> args_type;
@@ -1270,7 +1273,7 @@ sym_exec_llvm::farith_to_operation_kind(unsigned opcode, expr_vector const& args
   NOT_REACHED();
 }
 
-void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dshared_ptr<tfg_node> from_node, llvm::BasicBlock const &B, llvm::Function const &F, size_t next_insn_id, tfg_llvm_t const* src_llvm_tfg, tfg &t, map<string, pair<callee_summary_t, unique_ptr<tfg_llvm_t>>> *function_tfg_map, map<llvm_value_id_t, string_ref>* value_to_name_map, set<string> const *function_call_chain, map<shared_ptr<tfg_edge const>, Instruction *>& eimap, map<Function const*, ScalarEvolution const*> const& scev_map, context::xml_output_format_t xml_output_format)
+void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dshared_ptr<tfg_node> from_node, llvm::BasicBlock const &B, llvm::Function const &F, size_t next_insn_id, tfg_llvm_t const* src_llvm_tfg, tfg &t, map<string, pair<callee_summary_t, unique_ptr<tfg_llvm_t>>> *function_tfg_map, map<llvm_value_id_t, string_ref>* value_to_name_map, set<string> const *function_call_chain, map<shared_ptr<tfg_edge const>, Instruction *>& eimap, map<string, value_scev_map_t> const& scev_map, context::xml_output_format_t xml_output_format)
 {
   DYN_DEBUG(llvm2tfg, errs() << __func__ << " " << __LINE__ << " " << get_timestamp(as1, sizeof as1) << ": sym exec doing: " << I << "\n");
   unordered_set<expr_ref> state_assumes;
@@ -2151,8 +2154,197 @@ sym_exec_llvm::gen_align_assumes(string const &Elname, Type *ElTy, sort_ref cons
 //  }
 //}
 
+scev_op_t
+sym_exec_llvm::get_scev_op_from_scev_type(SCEVTypes scevtype)
+{
+  switch (scevtype) {
+    case scConstant: return scev_op_constant;
+    case scTruncate: return scev_op_truncate;
+    case scZeroExtend: return scev_op_zeroext;
+    case scSignExtend: return scev_op_signext;
+    case scAddRecExpr: return scev_op_addrec;
+    case scAddExpr: return scev_op_add;
+    case scMulExpr: return scev_op_mul;
+    case scUMaxExpr: return scev_op_umax;
+    case scSMaxExpr: return scev_op_smax;
+    case scUMinExpr: return scev_op_umin;
+    case scSMinExpr: return scev_op_smin;
+    case scUDivExpr: return scev_op_udiv;
+    case scUnknown: return scev_op_unknown;
+    case scCouldNotCompute: return scev_op_couldnotcompute;
+    default: NOT_REACHED();
+  }
+}
+
+scev_ref
+sym_exec_llvm::get_scev(ScalarEvolution& SE, SCEV const* scev, string const& srcdst_keyword)
+{
+  SCEVTypes scevtype = static_cast<SCEVTypes>(scev->getSCEVType());
+  switch (scevtype) {
+    case scConstant: {
+      APInt const& apint = cast<SCEVConstant>(scev)->getAPInt();
+      return mk_scev(scev_op_constant, get_mybitset_from_apint(apint, apint.getBitWidth(), false), {});
+    }
+    case scTruncate: {
+      const SCEVTruncateExpr *Trunc = cast<SCEVTruncateExpr>(scev);
+      const SCEV *Op = Trunc->getOperand();
+      //OS << "(trunc " << *Op->getType() << " " << *Op << " to "
+      //   << *Trunc->getType() << ")";
+      return mk_scev(scev_op_truncate, mybitset(), { get_scev(SE, Op, srcdst_keyword) });
+    }
+    case scZeroExtend: {
+      const SCEVZeroExtendExpr *ZExt = cast<SCEVZeroExtendExpr>(scev);
+      const SCEV *Op = ZExt->getOperand();
+      //OS << "(zext " << *Op->getType() << " " << *Op << " to "
+      //   << *ZExt->getType() << ")";
+      return mk_scev(scev_op_zeroext, mybitset(), { get_scev(SE, Op, srcdst_keyword) });
+    }
+    case scSignExtend: {
+      const SCEVSignExtendExpr *SExt = cast<SCEVSignExtendExpr>(scev);
+      const SCEV *Op = SExt->getOperand();
+      return mk_scev(scev_op_signext, mybitset(), { get_scev(SE, Op, srcdst_keyword) });
+    }
+    case scAddRecExpr: {
+      const SCEVAddRecExpr *AR = cast<SCEVAddRecExpr>(scev);
+      //OS << "{" << *AR->getOperand(0);
+      vector<scev_ref> scev_args;
+      for (unsigned i = 0, e = AR->getNumOperands(); i != e; ++i) {
+        //OS << ",+," << *AR->getOperand(i);
+        scev_args.push_back(get_scev(SE, AR->getOperand(i), srcdst_keyword));
+      }
+      //OS << "}<";
+      scev_overflow_flag_t scev_overflow_flag;
+      if (AR->hasNoUnsignedWrap()) {
+        //OS << "nuw><";
+        scev_overflow_flag.add(scev_overflow_flag_t::scev_overflow_flag_nuw);
+      }
+      if (AR->hasNoSignedWrap()) {
+        //OS << "nsw><";
+        //flag_nsw = true;
+        scev_overflow_flag.add(scev_overflow_flag_t::scev_overflow_flag_nsw);
+      }
+      if (AR->hasNoSelfWrap() &&
+          !AR->getNoWrapFlags((SCEV::NoWrapFlags)(SCEV::FlagNUW | SCEV::FlagNSW))) {
+        //OS << "nw><";
+        //flag_nw = true;
+        scev_overflow_flag.add(scev_overflow_flag_t::scev_overflow_flag_nw);
+      }
+      pc loop_pc = get_loop_pc(AR->getLoop(), srcdst_keyword);
+      return mk_scev(scev_op_addrec, mybitset(), scev_args, loop_pc, scev_overflow_flag);
+      //AR->getLoop()->getHeader()->printAsOperand(OS, /*PrintType=*/false);
+      //OS << ">";
+      //return;
+    }
+    case scAddExpr:
+    case scMulExpr:
+    case scUMaxExpr:
+    case scSMaxExpr:
+    case scUMinExpr:
+    case scSMinExpr:
+    case scUDivExpr: {
+      const SCEVNAryExpr *NAry = cast<SCEVNAryExpr>(scev);
+      vector<scev_ref> scev_args;
+      for (int i = 0; i < NAry->getNumOperands(); i++) {
+        scev_ref scev_arg = get_scev(SE, NAry->getOperand(i), srcdst_keyword);
+        scev_args.push_back(scev_arg);
+      }
+      scev_overflow_flag_t scev_overflow_flag;
+      if (NAry->getSCEVType() == scAddExpr || NAry->getSCEVType() == scMulExpr) {
+        if (NAry->hasNoUnsignedWrap()) {
+          scev_overflow_flag.add(scev_overflow_flag_t::scev_overflow_flag_nuw);
+        }
+        if (NAry->hasNoUnsignedWrap()) {
+          scev_overflow_flag.add(scev_overflow_flag_t::scev_overflow_flag_nuw);
+        }
+      }
+      return mk_scev(get_scev_op_from_scev_type(scevtype), mybitset(), scev_args, pc::start(), scev_overflow_flag);
+    }
+    case scUnknown: {
+      return mk_scev(scev_op_unknown, mybitset(), {});
+    }
+    case scCouldNotCompute: {
+      return mk_scev(scev_op_couldnotcompute, mybitset(), {});
+    }
+    default: {
+      NOT_REACHED();
+    }
+  }
+}
+
+mybitset
+sym_exec_llvm::get_mybitset_from_apint(llvm::APInt const& apint, uint32_t bitwidth, bool is_signed)
+{
+  if (bitwidth <= QWORD_LEN) {
+    if (is_signed) {
+      int64_t I = apint.getSExtValue();
+      return mybitset((long long)I, bitwidth);
+    } else {
+      uint64_t N = apint.getZExtValue();
+      return mybitset((unsigned long long)N, bitwidth);
+    }
+  } else {
+    NOT_IMPLEMENTED();
+  }
+}
+
+pair<mybitset, mybitset>
+sym_exec_llvm::get_bounds_from_range(llvm::ConstantRange const& crange, bool is_signed)
+{
+  APInt const& lower = crange.getLower();
+  APInt const& upper = crange.getUpper();
+  uint32_t bitwidth = crange.getBitWidth();
+  mybitset lmbs = get_mybitset_from_apint(lower, bitwidth, is_signed);
+  mybitset umbs = get_mybitset_from_apint(upper, bitwidth, is_signed);
+  return make_pair(lmbs, umbs);
+}
+
+scev_with_bounds_t
+sym_exec_llvm::get_scev_with_bounds(ScalarEvolution& SE, SCEV const* scev, string const& srcdst_keyword)
+{
+  pair<mybitset, mybitset> unsigned_bounds = get_bounds_from_range(SE.getUnsignedRange(scev), false);
+  pair<mybitset, mybitset> signed_bounds = get_bounds_from_range(SE.getSignedRange(scev), true);
+  scev_ref scevr = get_scev(SE, scev, srcdst_keyword);
+  return scev_with_bounds_t(scevr, unsigned_bounds.first, unsigned_bounds.second, signed_bounds.first, signed_bounds.second);
+}
+
+pc
+sym_exec_llvm::get_loop_pc(Loop const* L, string const& srcdst_keyword)
+{
+  if (!L) {
+    return pc::start();
+  }
+  BasicBlock* Header = L->getHeader();
+  ASSERT(Header);
+  return get_pc_from_bbindex_and_insn_id(sym_exec_llvm::get_basicblock_index(*Header), 0);
+}
+
+scev_toplevel_t<pc>
+sym_exec_llvm::get_scev_toplevel(Instruction& I, ScalarEvolution * scev, LoopInfo const* loopinfo, string const& srcdst_keyword)
+{
+  SCEV const* sv = scev->getSCEV(&I);
+  Loop const* L = loopinfo->getLoopFor(I.getParent());
+  SCEV const* atuse_sv = scev->getSCEVAtScope(sv, L);
+  SCEV const* atexit_sv = scev->getSCEVAtScope(sv, L);
+
+  scev_with_bounds_t val_scevb = get_scev_with_bounds(*scev, sv, srcdst_keyword);
+  scev_with_bounds_t atuse_scevb = get_scev_with_bounds(*scev, atuse_sv, srcdst_keyword);
+  pc loop_pc = get_loop_pc(L, srcdst_keyword);
+  scev_ref atexit_scev = get_scev(*scev, atexit_sv, srcdst_keyword);
+  return scev_toplevel_t<pc>(val_scevb, atuse_scevb, atexit_scev, loop_pc);
+}
+
+void
+sym_exec_llvm::sym_exec_populate_tfg_scev_map(tfg_llvm_t& t_src, value_scev_map_t const& value_scev_map) const
+{
+  for (auto const& vs : value_scev_map) {
+    string const& iname = vs.first;
+    scev_toplevel_t<pc> const& scev_toplevel = vs.second;
+    t_src.add_scev_mapping(mk_string_ref(iname), scev_toplevel);
+  }
+}
+
 unique_ptr<tfg_llvm_t>
-sym_exec_llvm::get_tfg(tfg_llvm_t const* src_llvm_tfg, map<string, pair<callee_summary_t, unique_ptr<tfg_llvm_t>>> *function_tfg_map, map<llvm_value_id_t, string_ref>* value_to_name_map, set<string> const *function_call_chain, map<shared_ptr<tfg_edge const>, Instruction *>& eimap, map<Function const*, ScalarEvolution const*> const& scev_map, context::xml_output_format_t xml_output_format)
+sym_exec_llvm::get_tfg(tfg_llvm_t const* src_llvm_tfg, map<string, pair<callee_summary_t, unique_ptr<tfg_llvm_t>>> *function_tfg_map, map<llvm_value_id_t, string_ref>* value_to_name_map, set<string> const *function_call_chain, map<shared_ptr<tfg_edge const>, Instruction *>& eimap, map<string, value_scev_map_t> const& scev_map, context::xml_output_format_t xml_output_format)
 {
   llvm::Function const &F = m_function;
   populate_state_template(F);
@@ -2182,7 +2374,7 @@ sym_exec_llvm::get_tfg(tfg_llvm_t const* src_llvm_tfg, map<string, pair<callee_s
 }
 
 pc
-sym_exec_common::get_pc_from_bbindex_and_insn_id(string const &bbindex/*llvm::BasicBlock const &B*/, size_t insn_id) const
+sym_exec_common::get_pc_from_bbindex_and_insn_id(string const &bbindex/*llvm::BasicBlock const &B*/, size_t insn_id)
 {
   pc ret(pc::insn_label, /*get_basicblock_index(B)*/bbindex.c_str()/*, m_basicblock_idx_map.at(string("%") + bbindex)*/, insn_id + PC_SUBINDEX_FIRST_INSN_IN_BB, PC_SUBSUBINDEX_DEFAULT);
   return ret;
@@ -2355,7 +2547,7 @@ sym_exec_llvm::parse_dbg_value_intrinsic(Instruction const& I, tfg_llvm_t& t, pc
 
 
 void
-sym_exec_llvm::add_edges(const llvm::BasicBlock& B, tfg_llvm_t const* src_llvm_tfg, tfg_llvm_t& t, const llvm::Function& F, map<string, pair<callee_summary_t, unique_ptr<tfg_llvm_t>>> *function_tfg_map, map<llvm_value_id_t, string_ref>* value_to_name_map, set<string> const *function_call_chain, map<shared_ptr<tfg_edge const>, Instruction *>& eimap, map<Function const*, ScalarEvolution const*> const& scev_map, context::xml_output_format_t xml_output_format)
+sym_exec_llvm::add_edges(const llvm::BasicBlock& B, tfg_llvm_t const* src_llvm_tfg, tfg_llvm_t& t, const llvm::Function& F, map<string, pair<callee_summary_t, unique_ptr<tfg_llvm_t>>> *function_tfg_map, map<llvm_value_id_t, string_ref>* value_to_name_map, set<string> const *function_call_chain, map<shared_ptr<tfg_edge const>, Instruction *>& eimap, map<string, value_scev_map_t> const& scev_map, context::xml_output_format_t xml_output_format)
 {
   //errs() << "Doing BB: " << get_basicblock_name(B) << "\n";
   size_t insn_id = 0;
@@ -2682,7 +2874,7 @@ sym_exec_llvm::gen_arg_assumes() const
 }
 
 unique_ptr<tfg_llvm_t>
-sym_exec_llvm::get_preprocessed_tfg_common(string const &name, tfg_llvm_t const* src_llvm_tfg, map<string, pair<callee_summary_t, unique_ptr<tfg_llvm_t>>> &function_tfg_map, map<llvm_value_id_t, string_ref>* value_to_name_map, set<string> function_call_chain, list<string> const& sorted_bbl_indices, bool DisableModelingOfUninitVarUB, map<Function const*, ScalarEvolution const*> const& scev_map, context::xml_output_format_t xml_output_format)
+sym_exec_llvm::get_preprocessed_tfg_common(string const &name, tfg_llvm_t const* src_llvm_tfg, map<string, pair<callee_summary_t, unique_ptr<tfg_llvm_t>>> &function_tfg_map, map<llvm_value_id_t, string_ref>* value_to_name_map, set<string> function_call_chain, list<string> const& sorted_bbl_indices, bool DisableModelingOfUninitVarUB, map<string, value_scev_map_t> const& scev_map, context::xml_output_format_t xml_output_format)
 {
   autostop_timer func_timer(__func__);
   DYN_DEBUG(llvm2tfg,
@@ -2695,6 +2887,9 @@ sym_exec_llvm::get_preprocessed_tfg_common(string const &name, tfg_llvm_t const*
   map<shared_ptr<tfg_edge const>, Instruction *> eimap;
   unique_ptr<tfg_llvm_t> t_src = this->get_tfg(src_llvm_tfg, &function_tfg_map, value_to_name_map, &function_call_chain, eimap, scev_map, xml_output_format);
   this->sym_exec_preprocess_tfg(name, *t_src, function_tfg_map, sorted_bbl_indices, src_llvm_tfg, xml_output_format);
+  if (scev_map.count(name)) {
+    this->sym_exec_populate_tfg_scev_map(*t_src, scev_map.at(name));
+  }
   DYN_DEBUG(llvm2tfg,
     errs() << "Doing done: " << name << "\n";
     errs().flush();
@@ -2718,7 +2913,7 @@ sym_exec_llvm::get_preprocessed_tfg_common(string const &name, tfg_llvm_t const*
 }
 
 unique_ptr<tfg_llvm_t>
-sym_exec_llvm::get_preprocessed_tfg(Function const &f, Module const *M, string const &name, context *ctx, tfg_llvm_t const* src_llvm_tfg, map<string, pair<callee_summary_t, unique_ptr<tfg_llvm_t>>> &function_tfg_map, map<llvm_value_id_t, string_ref>* value_to_name_map, set<string> function_call_chain, bool gen_callee_summary, bool DisableModelingOfUninitVarUB, map<Function const*, ScalarEvolution const*> const& scev_map, context::xml_output_format_t xml_output_format)
+sym_exec_llvm::get_preprocessed_tfg(Function &f, Module const *M, string const &name, context *ctx, tfg_llvm_t const* src_llvm_tfg, map<string, pair<callee_summary_t, unique_ptr<tfg_llvm_t>>> &function_tfg_map, map<llvm_value_id_t, string_ref>* value_to_name_map, set<string> function_call_chain, bool gen_callee_summary, bool DisableModelingOfUninitVarUB, map<string, value_scev_map_t> const& scev_map, string const& srcdst_keyword, context::xml_output_format_t xml_output_format)
 {
   autostop_timer func_timer(__func__);
 
@@ -2734,7 +2929,7 @@ sym_exec_llvm::get_preprocessed_tfg(Function const &f, Module const *M, string c
   unsigned pointer_size = dl.getPointerSize();
   //cout << __func__ << " " << __LINE__ << ": pointer_size = " << pointer_size << endl;
   ASSERT(pointer_size == DWORD_LEN/BYTE_LEN || pointer_size == QWORD_LEN/BYTE_LEN);
-  sym_exec_llvm se(ctx, M, f, src_llvm_tfg, gen_callee_summary, BYTE_LEN, pointer_size * BYTE_LEN);
+  sym_exec_llvm se(ctx, M, f, src_llvm_tfg, gen_callee_summary, BYTE_LEN, pointer_size * BYTE_LEN, srcdst_keyword);
 
   list<string> sorted_bbl_indices;
   for (BasicBlock const& BB: f) {
@@ -3149,7 +3344,7 @@ sym_exec_llvm::instructionIsPhiNode(llvm::Instruction const &I, string &varname)
 //}
 
 string
-sym_exec_llvm::get_basicblock_index(const llvm::BasicBlock &v) const
+sym_exec_llvm::get_basicblock_index(const llvm::BasicBlock &v)
 {
   string s = get_basicblock_name(v);
   //ASSERT(m_basicblock_idx_map.count(s));
@@ -3174,24 +3369,45 @@ sym_exec_llvm::get_basicblock_index(const llvm::BasicBlock &v) const
 struct FunctionPassPopulateTfgScev : public FunctionPass {
   static char ID;
   const PassInfo *PassInfo;
+  const class PassInfo *PassInfo_LI;
   //raw_ostream &Out;
-  map<Function const*, ScalarEvolution const*> scev_map;
+  map<string, value_scev_map_t>& scev_map;
+  string const& m_srcdst_keyword;
+  //map<Function const*, LoopInfo const*>& loopinfo_map;
   std::string PassName;
 
-  FunctionPassPopulateTfgScev(class PassInfo const *PI, map<Function const*, ScalarEvolution const*>& scev_map)
-      : FunctionPass(ID), PassInfo(PI), scev_map(scev_map) {
+  FunctionPassPopulateTfgScev(class PassInfo const *PI, class PassInfo const* PI_loopinfo, map<string, value_scev_map_t>& scev_map, string const& srcdst_keyword)
+      : FunctionPass(ID), PassInfo(PI), PassInfo_LI(PI_loopinfo), scev_map(scev_map), m_srcdst_keyword(srcdst_keyword) {
     PassName = "FunctionPass PopulateTfgScev";
   }
 
   bool runOnFunction(Function& F) override {
-    //errs() << "Printing analysis '" << PassInfo->getPassName() << "' for "
-    //    << "region: '" << R->getNameStr() << "' in function '"
-    //    << R->getEntry()->getParent()->getName() << "':\n";
     // Get pass and populate scev ...
-    ScalarEvolutionWrapperPass const& P = getAnalysisID<ScalarEvolutionWrapperPass>(PassInfo->getTypeInfo());
-    ScalarEvolution const& SE = P.getSE();
-    //SE.print(errs());
-    scev_map.insert(make_pair((Function const*)&F, &SE));
+    ScalarEvolutionWrapperPass& P = getAnalysisID<ScalarEvolutionWrapperPass>(PassInfo->getTypeInfo());
+    LoopInfoWrapperPass& LP = getAnalysisID<LoopInfoWrapperPass>(PassInfo_LI->getTypeInfo());
+    LoopInfo& LI = LP.getLoopInfo();
+    ScalarEvolution& SE = P.getSE();
+    string fname = F.getName().data();
+
+    //errs() << "Printing analysis '" << PassInfo_LI->getPassName() << "' for "
+    //    << "function: '" << F.getName() << "':\n";
+    //LI->print(errs());
+
+    //errs() << "Printing analysis '" << PassInfo->getPassName() << "' for "
+    //    << "function: '" << F.getName() << "':\n";
+    //SE->print(errs());
+
+    for (BasicBlock& B : F) {
+      for(Instruction& I : B) {
+        if (SE.isSCEVable(I.getType()) && !isa<CmpInst>(I)) {
+          string iname = sym_exec_llvm::get_value_name_using_srcdst_keyword(I, m_srcdst_keyword);
+          scev_toplevel_t<pc> st = sym_exec_llvm::get_scev_toplevel(I, &SE, &LI, m_srcdst_keyword);
+          scev_map[fname].insert(make_pair(iname, st));
+        }
+      }
+    }
+    //scev_map.insert(make_pair((Function const*)&F, SE));
+    //loopinfo_map.insert(make_pair((Function const*)&F, LI));
     return false;
   }
 
@@ -3199,25 +3415,32 @@ struct FunctionPassPopulateTfgScev : public FunctionPass {
 
   void getAnalysisUsage(AnalysisUsage &AU) const override {
     AU.addRequiredID(PassInfo->getTypeInfo());
+    AU.addRequiredID(PassInfo_LI->getTypeInfo());
     AU.setPreservesAll();
   }
 };
 
 char FunctionPassPopulateTfgScev::ID = 0;
 
-static FunctionPass *
-createFunctionPassPopulateTfgScev(const PassInfo *PI, map<Function const*, ScalarEvolution const*>& scev_map) {
-  return new FunctionPassPopulateTfgScev(PI, scev_map);
-}
+//static FunctionPass *
+//createFunctionPassPopulateTfgScev(const PassInfo *PI, map<Function const*, ScalarEvolution const*>& scev_map) {
+//  return new FunctionPassPopulateTfgScev(PI, scev_map);
+//}
 
-map<Function const*, ScalarEvolution const*>
-sym_exec_llvm::sym_exec_populate_potential_scev_relations(Module* M)
+map<string, value_scev_map_t>
+sym_exec_llvm::sym_exec_populate_potential_scev_relations(Module* M, string const& srcdst_keyword)
 {
   PassInfo const* PI = PassRegistry::getPassRegistry()->getPassInfo(StringRef("scalar-evolution"));
+  PassInfo const* PI_loopinfo = PassRegistry::getPassRegistry()->getPassInfo(StringRef("loops"));
   //errs() << __func__ << " " << __LINE__ << ": PI = " << PI << "\n";
-  Pass *P;
+  Pass *P, *P_loopinfo;
   if (PI->getNormalCtor()) {
     P = PI->getNormalCtor()();
+  } else {
+    NOT_REACHED();
+  }
+  if (PI_loopinfo->getNormalCtor()) {
+    P_loopinfo = PI_loopinfo->getNormalCtor()();
   } else {
     NOT_REACHED();
   }
@@ -3226,13 +3449,16 @@ sym_exec_llvm::sym_exec_populate_potential_scev_relations(Module* M)
   //auto Out = std::make_unique<ToolOutputFile>("-", EC,
   //                                       sys::fs::OF_None);
 
-  map<Function const*, ScalarEvolution const*> ret;
+  map<string, value_scev_map_t> scev_map;
+  //map<Function const*, LoopInfo const*> loopinfo_map;
   legacy::PassManager Passes;
   Passes.add(P);
+  Passes.add(P_loopinfo);
   //Passes.add(createRegionPassPrinter(PI, Out->os()));
-  Passes.add(createFunctionPassPopulateTfgScev(PI, ret));
+  Passes.add(new FunctionPassPopulateTfgScev(PI, PI_loopinfo, scev_map, srcdst_keyword));
+
   Passes.run(*M);
-  return ret;
+  return scev_map;
 }
 
 map<string, pair<callee_summary_t, unique_ptr<tfg_llvm_t>>>
@@ -3245,10 +3471,20 @@ sym_exec_llvm::get_function_tfg_map(Module* M, set<string> FunNamesVec, bool Dis
     M->print(dbgs(), nullptr, true);
     dbgs().flush();
   );
+  string srcdst_keyword = src_llptfg ? G_DST_KEYWORD : G_SRC_KEYWORD;
 
-  map<Function const*, ScalarEvolution const*> scev_map = sym_exec_populate_potential_scev_relations(M);
-
-  for (const Function& f : *M) {
+  map<string, value_scev_map_t> scev_map;
+  //map<Function const*, LoopInfo const*> loopinfo_map;
+  scev_map = sym_exec_populate_potential_scev_relations(M, srcdst_keyword);
+  //for (auto const& li : loopinfo_map) {
+  //  errs() << "loop info map for " << li.first->getName() << "\n";
+  //  li.second->print(errs());
+  //}
+  //for (auto const& sc : scev_map) {
+  //  errs() << "scev map for " << sc.first->getName() << "\n";
+  //  sc.second->print(errs());
+  //}
+  for (Function& f : *M) {
     if (   FunNamesVec.size() != 0
         //&& (FunNamesVec.size() != 1 || *FunNamesVec.begin() != "ALL")
         && !set_belongs(FunNamesVec, string(f.getName().data()))) {
@@ -3286,7 +3522,7 @@ sym_exec_llvm::get_function_tfg_map(Module* M, set<string> FunNamesVec, bool Dis
 
     DYN_DEBUG(llvm2tfg, cout << __func__ << " " << __LINE__ << ": Doing " << fname << endl; cout.flush());
 
-    unique_ptr<tfg_llvm_t> t_src = sym_exec_llvm::get_preprocessed_tfg(f, M, fname, ctx, src_llvm_tfg, function_tfg_map, value_to_name_map, function_call_chain, gen_callee_summary, DisableModelingOfUninitVarUB, scev_map, xml_output_format);
+    unique_ptr<tfg_llvm_t> t_src = sym_exec_llvm::get_preprocessed_tfg(f, M, fname, ctx, src_llvm_tfg, function_tfg_map, value_to_name_map, function_call_chain, gen_callee_summary, DisableModelingOfUninitVarUB, scev_map, srcdst_keyword, xml_output_format);
 
     callee_summary_t csum = t_src->get_summary_for_calling_functions();
     function_tfg_map.insert(make_pair(fname, make_pair(csum, std::move(t_src))));

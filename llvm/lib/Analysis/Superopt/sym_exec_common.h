@@ -37,6 +37,7 @@ public:
 
   //void exec(const state& state_in, const llvm::Instruction& I/*, state& state_out, vector<control_flow_transfer>& cfts, bool &expand_switch_flag, unordered_set<predicate> &assumes*/, shared_ptr<tfg_node> from_node, llvm::BasicBlock const &B, llvm::Function const &F, size_t next_insn_id, tfg &t, map<string, pair<callee_summary_t, tfg *>> &function_tfg_map, set<string> const &function_call_chain);
 
+  string const& get_srcdst_keyword() const { return m_srcdst_keyword; }
   unsigned get_word_length() const { return m_word_length; }
   unsigned get_memory_addressable_size() const { return m_memory_addressable_size; }
 
@@ -173,7 +174,7 @@ protected:
   void get_state_template(const pc& p, state& st);
   //expr_ref icmp_to_expr(llvm::ICmpInst::Predicate k, const vector<expr_ref>& args) const;
 
-  pc get_pc_from_bbindex_and_insn_id(string const &bbindex, size_t insn_id) const;
+  static pc get_pc_from_bbindex_and_insn_id(string const &bbindex, size_t insn_id);
   //pc get_pc_from_bb_and_insn_id(llvm::BasicBlock const &B, size_t insn_id);
   //vector<control_flow_transfer> expand_switch(tfg &t, shared_ptr<tfg_node> const &from_node, vector<control_flow_transfer> const &cfts, state const &state_to, const llvm::BasicBlock& B, const llvm::Function& F);
 

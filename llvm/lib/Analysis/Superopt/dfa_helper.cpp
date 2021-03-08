@@ -66,7 +66,7 @@ function2tfg(Function *F, Module *M, map<shared_ptr<tfg_edge const>, Instruction
   context *ctx = g_ctx;
   ValueToValueMapTy VMap;
   //unique_ptr<Module> Mcopy = CloneModule(*M, VMap);
-  sym_exec_llvm se(ctx, M, *F, nullptr, false, BYTE_LEN, DWORD_LEN);
+  sym_exec_llvm se(ctx, M, *F, nullptr, false, BYTE_LEN, DWORD_LEN, G_SRC_KEYWORD);
   unique_ptr<tfg_llvm_t> ret = se.get_tfg(nullptr, nullptr, nullptr, nullptr, eimap, {}, context::XML_OUTPUT_FORMAT_TEXT_NOCOLOR);
   pc start_pc = se.get_start_pc();
   ret->add_extra_node_at_start_pc(start_pc);
