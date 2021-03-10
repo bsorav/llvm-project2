@@ -3402,7 +3402,7 @@ sym_exec_llvm::get_basicblock_index(const llvm::BasicBlock &v)
 
 struct FunctionPassPopulateTfgScev : public FunctionPass {
   static char ID;
-  const PassInfo *PassInfo;
+  const PassInfo *passInfo;
   const class PassInfo *PassInfo_LI;
   //raw_ostream &Out;
   map<string, value_scev_map_t>& scev_map;
@@ -3411,13 +3411,13 @@ struct FunctionPassPopulateTfgScev : public FunctionPass {
   std::string PassName;
 
   FunctionPassPopulateTfgScev(class PassInfo const *PI, class PassInfo const* PI_loopinfo, map<string, value_scev_map_t>& scev_map, string const& srcdst_keyword)
-      : FunctionPass(ID), PassInfo(PI), PassInfo_LI(PI_loopinfo), scev_map(scev_map), m_srcdst_keyword(srcdst_keyword) {
+      : FunctionPass(ID), passInfo(PI), PassInfo_LI(PI_loopinfo), scev_map(scev_map), m_srcdst_keyword(srcdst_keyword) {
     PassName = "FunctionPass PopulateTfgScev";
   }
 
   bool runOnFunction(Function& F) override {
     // Get pass and populate scev ...
-    ScalarEvolutionWrapperPass& P = getAnalysisID<ScalarEvolutionWrapperPass>(PassInfo->getTypeInfo());
+    ScalarEvolutionWrapperPass& P = getAnalysisID<ScalarEvolutionWrapperPass>(passInfo->getTypeInfo());
     LoopInfoWrapperPass& LP = getAnalysisID<LoopInfoWrapperPass>(PassInfo_LI->getTypeInfo());
     LoopInfo& LI = LP.getLoopInfo();
     ScalarEvolution& SE = P.getSE();
@@ -3448,7 +3448,7 @@ struct FunctionPassPopulateTfgScev : public FunctionPass {
   StringRef getPassName() const override { return PassName; }
 
   void getAnalysisUsage(AnalysisUsage &AU) const override {
-    AU.addRequiredID(PassInfo->getTypeInfo());
+    AU.addRequiredID(passInfo->getTypeInfo());
     AU.addRequiredID(PassInfo_LI->getTypeInfo());
     AU.setPreservesAll();
   }
