@@ -2260,7 +2260,37 @@ sym_exec_llvm::get_scev(ScalarEvolution& SE, SCEV const* scev, string const& src
       return mk_scev(get_scev_op_from_scev_type(scevtype), mybitset(), scev_args, pc::start(), scev_overflow_flag);
     }
     case scUnknown: {
-      return mk_scev(scev_op_unknown, mybitset(), {});
+      const SCEVUnknown *U = cast<SCEVUnknown>(scev);
+      Type *AllocTy;
+
+      string ret;
+      raw_string_ostream ss(ret);
+      string name;
+      if (U->isSizeOf(AllocTy)) {
+        ss << "sizeof(" << *AllocTy << ")";
+        name = ss.str();
+      } else if (U->isAlignOf(AllocTy)) {
+        ss << "alignof(" << *AllocTy << ")";
+        name = ss.str();
+      } else {
+        Type *CTy;
+        Constant *FieldNo;
+        if (U->isOffsetOf(CTy, FieldNo)) {
+          ss << "offsetof(" << *CTy << ", ";
+          FieldNo->printAsOperand(ss, false);
+          ss << ")";
+          name = ss.str();
+        }
+      }
+
+      if (name == "") {
+        U->getValue()->printAsOperand(ss, false);
+        name = ss.str();
+      }
+      if (name == "") {
+        name = "unknown-notimplemented";
+      }
+      return mk_scev(scev_op_unknown, name);
     }
     case scCouldNotCompute: {
       return mk_scev(scev_op_couldnotcompute, mybitset(), {});
