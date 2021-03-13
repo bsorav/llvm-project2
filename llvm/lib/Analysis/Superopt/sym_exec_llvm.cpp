@@ -2572,6 +2572,9 @@ sym_exec_llvm::parse_dbg_value_intrinsic(Instruction const& I, tfg_llvm_t& t, pc
   string llvm_varname = string(G_INPUT_KEYWORD ".") + get_value_name(*v);
   string source_varname = DI.getVariable()->getName().str() + (m_srcdst_keyword == G_DST_KEYWORD ? "'" : "");
   DIExpression* die = DI.getExpression(); //not used so far
+  DYN_DEBUG(dbg_declare_intrinsic, std::cout << "source_varname = " << source_varname << "\n");
+  DYN_DEBUG(dbg_declare_intrinsic, std::cout << "llvm_varname = " << llvm_varname << "\n");
+  DYN_DEBUG(dbg_declare_intrinsic, std::cout << "pc_from = " << pc_from << "\n");
   t.tfg_llvm_add_source_to_llvm_varname_mapping_at_pc(source_varname, llvm_varname, pc_from);
 }
 
@@ -2580,10 +2583,13 @@ void
 sym_exec_llvm::add_edges(const llvm::BasicBlock& B, tfg_llvm_t const* src_llvm_tfg, tfg_llvm_t& t, const llvm::Function& F, map<string, pair<callee_summary_t, unique_ptr<tfg_llvm_t>>> *function_tfg_map, map<llvm_value_id_t, string_ref>* value_to_name_map, set<string> const *function_call_chain, map<shared_ptr<tfg_edge const>, Instruction *>& eimap, map<string, value_scev_map_t> const& scev_map, context::xml_output_format_t xml_output_format)
 {
   //errs() << "Doing BB: " << get_basicblock_name(B) << "\n";
+  //errs() << "t.get_edges().size() = " << t.get_edges().size() << "\n";
   size_t insn_id = 0;
+  bool pc_is_start = (t.get_edges().size() == 0);
 
   for (const Instruction& I : B) {
     if (isa<PHINode const>(I)) {
+      ASSERT(!pc_is_start);
       continue;
     }
     if (   false
@@ -2594,15 +2600,31 @@ sym_exec_llvm::add_edges(const llvm::BasicBlock& B, tfg_llvm_t const* src_llvm_t
     }
 
     pc pc_from = get_pc_from_bbindex_and_insn_id(get_basicblock_index(B), insn_id);
+    pc pc_from_dbg;
+    if (pc_is_start) {
+      pc_from_dbg = pc::start();
+    } else {
+      pc_from_dbg = pc_from;
+    }
 
     if (isa<CallInst>(I) && cast<CallInst>(I).getIntrinsicID() == Intrinsic::dbg_declare) {//declare will be replaced with addr in future revisions; so watch out for this change
-      pc pc_from_for_dbg_parsing(pc_from.get_type(), pc_from.get_index(), pc_from.get_subindex(), 0);
+      pc pc_from_for_dbg_parsing;
+      if (pc_is_start) {
+        pc_from_for_dbg_parsing = pc_from_dbg;
+      } else {
+        pc_from_for_dbg_parsing = pc(pc_from_dbg.get_type(), pc_from_dbg.get_index(), pc_from_dbg.get_subindex(), 0);
+      }
       this->parse_dbg_declare_intrinsic(I, t, pc_from_for_dbg_parsing);
       continue;
     }
 
     if (isa<CallInst>(I) && cast<CallInst>(I).getIntrinsicID() == Intrinsic::dbg_value) {
-      pc pc_from_for_dbg_parsing(pc_from.get_type(), pc_from.get_index(), pc_from.get_subindex(), 0);
+      pc pc_from_for_dbg_parsing;
+      if (pc_is_start) {
+        pc_from_for_dbg_parsing = pc_from_dbg;
+      } else {
+        pc_from_for_dbg_parsing = pc(pc_from_dbg.get_type(), pc_from_dbg.get_index(), pc_from_dbg.get_subindex(), 0);
+      }
       this->parse_dbg_value_intrinsic(I, t, pc_from_for_dbg_parsing);
       continue;
     }
@@ -2610,6 +2632,10 @@ sym_exec_llvm::add_edges(const llvm::BasicBlock& B, tfg_llvm_t const* src_llvm_t
     if (isa<CallInst>(I) && cast<CallInst>(I).getIntrinsicID() == Intrinsic::unseq_noalias) {
       //NOT_IMPLEMENTED();
       continue;
+    }
+    if (pc_is_start) {
+      pc_is_start = false;
+      //errs() << "setting pc_is_start to false\n";
     }
 
     dshared_ptr<tfg_node> from_node = make_dshared<tfg_node>(pc_from);
