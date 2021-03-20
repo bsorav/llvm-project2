@@ -1400,17 +1400,17 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     ss0 << G_LOCAL_KEYWORD << '.' << local_id;
     string local_name = ss0.str();
     Type *ElTy = a->getAllocatedType();
-    uint64_t local_size = dl.getTypeAllocSize(ElTy);
+    uint64_t local_type_alloc_size = dl.getTypeAllocSize(ElTy);
     unsigned align = a->getAlignment();
     bool is_varsize = !(a->getAllocationSizeInBits(dl).hasValue());
 
-    m_local_refs.insert(make_pair(local_id, graph_local_t(name, local_size, align, is_varsize)));
+    m_local_refs.insert(make_pair(local_id, graph_local_t(name, local_type_alloc_size, align, is_varsize)));
     expr_ref local_addr = m_ctx->mk_var(local_name, m_ctx->mk_bv_sort(get_word_length()));
     memlabel_t ml_local;
     stringstream ss;
-    ss <<  local_name << "." << local_size;
+    ss <<  local_name << "." << local_type_alloc_size;
     string local_name_with_size = ss.str();
-    memlabel_t::keyword_to_memlabel(&ml_local, local_name_with_size.c_str(), local_size);
+    memlabel_t::keyword_to_memlabel(&ml_local, local_name_with_size.c_str(), local_type_alloc_size);
 
     //string typeString = getTypeString(ElTy);
     //typeString = typeString + "*";
@@ -1423,26 +1423,39 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     ss2 << G_LOCAL_SIZE_KEYWORD << '.' << local_id;
     string const& local_size_str = ss2.str();
     expr_ref local_size_expr;
+    expr_ref varsize_expr;
     if (is_varsize) {
-      expr_ref varsize_expr;
       Value const* ArraySize = a->getArraySize();
       tie(varsize_expr, state_assumes) = get_expr_adding_edges_for_intermediate_vals(*ArraySize/*, ""*/, state_in, state_assumes, from_node/*, pc_to, B, F*/, t, value_to_name_map);
-      local_size_expr = m_ctx->mk_bvmul(varsize_expr, m_ctx->mk_bv_const(varsize_expr->get_sort()->get_size(), local_size));
+      local_size_expr = m_ctx->mk_bvmul(varsize_expr, m_ctx->mk_bv_const(varsize_expr->get_sort()->get_size(), local_type_alloc_size));
       ASSERT(local_size_expr->get_sort()->get_size() == get_word_length());
-      // add size > 0 assume
-      expr_ref const& size_is_positive_assume = m_ctx->mk_bvsgt(varsize_expr, m_ctx->mk_zerobv(local_size_expr->get_sort()->get_size())); // XXX shall we check for integer overflow during (varsize_expr * local_size) as well?
-      state_assumes.insert(size_is_positive_assume);
-      // add (local_size.<id> == <expr>) global assume; as the <expr> is SSA we don't need to be careful about PCs/order
-      expr_ref local_size_eq = m_ctx->mk_eq(m_ctx->get_input_expr_for_key(mk_string_ref(local_size_str), local_size_expr->get_sort()), local_size_expr);
-      state_assumes.insert(local_size_eq);
     }
     else {
-      local_size_expr = m_ctx->mk_bv_const(get_word_length(), local_size);
+      local_size_expr = m_ctx->mk_bv_const(get_word_length(), local_type_alloc_size);
     }
 
     state_set_expr(state_out, m_mem_reg, m_ctx->mk_alloca(state_get_expr(state_in, m_mem_reg, this->get_mem_sort()), ml_local, local_addr, local_size_expr));
     state_set_expr(state_out, name, local_addr);
     state_set_expr(state_out, local_size_str, local_size_expr);
+
+    if (is_varsize) {
+      // create extra edge for `local_size` related assumes
+      dshared_ptr<tfg_node> intermediate_node = get_next_intermediate_subsubindex_pc_node(t, from_node);
+      tfg_edge_ref e = mk_tfg_edge(mk_itfg_edge(from_node->get_pc(), intermediate_node->get_pc(), state_out, expr_true(m_ctx)/*, t.get_start_state()*/, state_assumes, te_comment));
+      t.add_edge(e);
+
+      // add size > 0 assume
+      ASSERT(varsize_expr);
+      expr_ref const& size_is_positive_assume = m_ctx->mk_bvsgt(varsize_expr, m_ctx->mk_zerobv(local_size_expr->get_sort()->get_size()));
+      // XXX shall we check for integer overflow during (varsize_expr * local_type_alloc_size) as well?
+      // add (local_size.<id> == <expr>) assume
+      expr_ref local_size_eq = m_ctx->mk_eq(m_ctx->get_input_expr_for_key(mk_string_ref(local_size_str), local_size_expr->get_sort()), local_size_expr);
+
+      state_assumes = { size_is_positive_assume, local_size_eq };
+      state_out = state_in;
+      from_node = t.find_node(intermediate_node->get_pc());
+      ASSERT(from_node);
+    }
     break;
   }
   case Instruction::Store:
