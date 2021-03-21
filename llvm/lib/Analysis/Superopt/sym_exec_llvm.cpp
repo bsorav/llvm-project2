@@ -2240,8 +2240,7 @@ sym_exec_llvm::get_scev(ScalarEvolution& SE, SCEV const* scev, string const& src
     case scUMaxExpr:
     case scSMaxExpr:
     case scUMinExpr:
-    case scSMinExpr:
-    case scUDivExpr: {
+    case scSMinExpr: {
       const SCEVNAryExpr *NAry = cast<SCEVNAryExpr>(scev);
       vector<scev_ref> scev_args;
       for (int i = 0; i < NAry->getNumOperands(); i++) {
@@ -2258,6 +2257,15 @@ sym_exec_llvm::get_scev(ScalarEvolution& SE, SCEV const* scev, string const& src
         }
       }
       return mk_scev(get_scev_op_from_scev_type(scevtype), mybitset(), scev_args, pc::start(), scev_overflow_flag);
+    }
+    case scUDivExpr: {
+      const SCEVUDivExpr *UDiv = cast<SCEVUDivExpr>(scev);
+      vector<scev_ref> scev_args;
+      scev_ref scev_lhs_arg = get_scev(SE, UDiv->getLHS(), srcdst_keyword);
+      scev_args.push_back(scev_lhs_arg);
+      scev_ref scev_rhs_arg = get_scev(SE, UDiv->getRHS(), srcdst_keyword);
+      scev_args.push_back(scev_rhs_arg);
+      return mk_scev(get_scev_op_from_scev_type(scevtype), mybitset(), scev_args);
     }
     case scUnknown: {
       const SCEVUnknown *U = cast<SCEVUnknown>(scev);
