@@ -2354,7 +2354,7 @@ sym_exec_llvm::get_scev_toplevel(Instruction& I, ScalarEvolution * scev, LoopInf
   SCEV const* sv = scev->getSCEV(&I);
   Loop const* L = loopinfo->getLoopFor(I.getParent());
   SCEV const* atuse_sv = scev->getSCEVAtScope(sv, L);
-  SCEV const* atexit_sv = scev->getSCEVAtScope(sv, L);
+  SCEV const* atexit_sv = scev->getSCEVAtScope(sv, L->getParentLoop());
 
   scev_with_bounds_t val_scevb = get_scev_with_bounds(*scev, sv, srcdst_keyword);
   scev_with_bounds_t atuse_scevb = get_scev_with_bounds(*scev, atuse_sv, srcdst_keyword);
