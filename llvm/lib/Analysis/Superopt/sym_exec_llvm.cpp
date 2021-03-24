@@ -2253,8 +2253,8 @@ sym_exec_llvm::get_scev(ScalarEvolution& SE, SCEV const* scev, string const& src
         if (NAry->hasNoUnsignedWrap()) {
           scev_overflow_flag.add(scev_overflow_flag_t::scev_overflow_flag_nuw);
         }
-        if (NAry->hasNoUnsignedWrap()) {
-          scev_overflow_flag.add(scev_overflow_flag_t::scev_overflow_flag_nuw);
+        if (NAry->hasNoSignedWrap()) {
+          scev_overflow_flag.add(scev_overflow_flag_t::scev_overflow_flag_nsw);
         }
       }
       return mk_scev(get_scev_op_from_scev_type(scevtype), mybitset(), scev_args, pc::start(), scev_overflow_flag);
