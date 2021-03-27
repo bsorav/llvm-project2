@@ -2177,7 +2177,7 @@ sym_exec_llvm::get_scev_op_from_scev_type(SCEVTypes scevtype)
 }
 
 scev_ref
-sym_exec_llvm::get_scev(ScalarEvolution& SE, SCEV const* scev, string const& srcdst_keyword)
+sym_exec_llvm::get_scev(ScalarEvolution& SE, SCEV const* scev, string const& srcdst_keyword, size_t word_length)
 {
   SCEVTypes scevtype = static_cast<SCEVTypes>(scev->getSCEVType());
   switch (scevtype) {
@@ -2190,19 +2190,19 @@ sym_exec_llvm::get_scev(ScalarEvolution& SE, SCEV const* scev, string const& src
       const SCEV *Op = Trunc->getOperand();
       //OS << "(trunc " << *Op->getType() << " " << *Op << " to "
       //   << *Trunc->getType() << ")";
-      return mk_scev(scev_op_truncate, mybitset(), { get_scev(SE, Op, srcdst_keyword) });
+      return mk_scev(scev_op_truncate, mybitset(), { get_scev(SE, Op, srcdst_keyword, word_length) });
     }
     case scZeroExtend: {
       const SCEVZeroExtendExpr *ZExt = cast<SCEVZeroExtendExpr>(scev);
       const SCEV *Op = ZExt->getOperand();
       //OS << "(zext " << *Op->getType() << " " << *Op << " to "
       //   << *ZExt->getType() << ")";
-      return mk_scev(scev_op_zeroext, mybitset(), { get_scev(SE, Op, srcdst_keyword) });
+      return mk_scev(scev_op_zeroext, mybitset(), { get_scev(SE, Op, srcdst_keyword, word_length) });
     }
     case scSignExtend: {
       const SCEVSignExtendExpr *SExt = cast<SCEVSignExtendExpr>(scev);
       const SCEV *Op = SExt->getOperand();
-      return mk_scev(scev_op_signext, mybitset(), { get_scev(SE, Op, srcdst_keyword) });
+      return mk_scev(scev_op_signext, mybitset(), { get_scev(SE, Op, srcdst_keyword, word_length) });
     }
     case scAddRecExpr: {
       const SCEVAddRecExpr *AR = cast<SCEVAddRecExpr>(scev);
@@ -2210,7 +2210,7 @@ sym_exec_llvm::get_scev(ScalarEvolution& SE, SCEV const* scev, string const& src
       vector<scev_ref> scev_args;
       for (unsigned i = 0, e = AR->getNumOperands(); i != e; ++i) {
         //OS << ",+," << *AR->getOperand(i);
-        scev_args.push_back(get_scev(SE, AR->getOperand(i), srcdst_keyword));
+        scev_args.push_back(get_scev(SE, AR->getOperand(i), srcdst_keyword, word_length));
       }
       //OS << "}<";
       scev_overflow_flag_t scev_overflow_flag;
@@ -2245,7 +2245,7 @@ sym_exec_llvm::get_scev(ScalarEvolution& SE, SCEV const* scev, string const& src
       const SCEVNAryExpr *NAry = cast<SCEVNAryExpr>(scev);
       vector<scev_ref> scev_args;
       for (int i = 0; i < NAry->getNumOperands(); i++) {
-        scev_ref scev_arg = get_scev(SE, NAry->getOperand(i), srcdst_keyword);
+        scev_ref scev_arg = get_scev(SE, NAry->getOperand(i), srcdst_keyword, word_length);
         scev_args.push_back(scev_arg);
       }
       scev_overflow_flag_t scev_overflow_flag;
@@ -2285,19 +2285,26 @@ sym_exec_llvm::get_scev(ScalarEvolution& SE, SCEV const* scev, string const& src
 
       if (name == "") {
         U->getValue()->printAsOperand(ss, false);
-        name = ss.str();
+        name = string(G_INPUT_KEYWORD ".") + srcdst_keyword + ("." G_LLVM_PREFIX "-") + ss.str();
       }
       if (name == "") {
         name = "unknown-notimplemented";
       }
-      return mk_scev(scev_op_unknown, name);
+      size_t bitwidth;
+      Type const* typ = U->getType();
+      if (IntegerType const* itype = dyn_cast<IntegerType const>(typ)) {
+        bitwidth = itype->getBitWidth();
+      } else if (isa<PointerType const>(typ)) {
+        bitwidth = word_length;
+      } else NOT_REACHED();
+      return mk_scev(scev_op_unknown, name, bitwidth);
     }
     case scCouldNotCompute: {
       return mk_scev(scev_op_couldnotcompute, mybitset(), {});
     }
-    default: {
-      NOT_REACHED();
-    }
+    //default: {
+    //  NOT_REACHED();
+    //}
   }
 }
 
@@ -2329,11 +2336,11 @@ sym_exec_llvm::get_bounds_from_range(llvm::ConstantRange const& crange, bool is_
 }
 
 scev_with_bounds_t
-sym_exec_llvm::get_scev_with_bounds(ScalarEvolution& SE, SCEV const* scev, string const& srcdst_keyword)
+sym_exec_llvm::get_scev_with_bounds(ScalarEvolution& SE, SCEV const* scev, string const& srcdst_keyword, size_t word_length)
 {
   pair<mybitset, mybitset> unsigned_bounds = get_bounds_from_range(SE.getUnsignedRange(scev), false);
   pair<mybitset, mybitset> signed_bounds = get_bounds_from_range(SE.getSignedRange(scev), true);
-  scev_ref scevr = get_scev(SE, scev, srcdst_keyword);
+  scev_ref scevr = get_scev(SE, scev, srcdst_keyword, word_length);
   return scev_with_bounds_t(scevr, unsigned_bounds.first, unsigned_bounds.second, signed_bounds.first, signed_bounds.second);
 }
 
@@ -2349,17 +2356,17 @@ sym_exec_llvm::get_loop_pc(Loop const* L, string const& srcdst_keyword)
 }
 
 scev_toplevel_t<pc>
-sym_exec_llvm::get_scev_toplevel(Instruction& I, ScalarEvolution * scev, LoopInfo const* loopinfo, string const& srcdst_keyword)
+sym_exec_llvm::get_scev_toplevel(Instruction& I, ScalarEvolution * scev, LoopInfo const* loopinfo, string const& srcdst_keyword, size_t word_length)
 {
   SCEV const* sv = scev->getSCEV(&I);
   Loop const* L = loopinfo->getLoopFor(I.getParent());
   SCEV const* atuse_sv = scev->getSCEVAtScope(sv, L);
   SCEV const* atexit_sv = scev->getSCEVAtScope(sv, L->getParentLoop());
 
-  scev_with_bounds_t val_scevb = get_scev_with_bounds(*scev, sv, srcdst_keyword);
-  scev_with_bounds_t atuse_scevb = get_scev_with_bounds(*scev, atuse_sv, srcdst_keyword);
+  scev_with_bounds_t val_scevb = get_scev_with_bounds(*scev, sv, srcdst_keyword, word_length);
+  scev_with_bounds_t atuse_scevb = get_scev_with_bounds(*scev, atuse_sv, srcdst_keyword, word_length);
   pc loop_pc = get_loop_pc(L, srcdst_keyword);
-  scev_ref atexit_scev = get_scev(*scev, atexit_sv, srcdst_keyword);
+  scev_ref atexit_scev = get_scev(*scev, atexit_sv, srcdst_keyword, word_length);
   return scev_toplevel_t<pc>(val_scevb, atuse_scevb, atexit_scev, loop_pc);
 }
 
@@ -3429,11 +3436,12 @@ struct FunctionPassPopulateTfgScev : public FunctionPass {
   //raw_ostream &Out;
   map<string, value_scev_map_t>& scev_map;
   string const& m_srcdst_keyword;
+  size_t m_word_length;
   //map<Function const*, LoopInfo const*>& loopinfo_map;
   std::string PassName;
 
-  FunctionPassPopulateTfgScev(class PassInfo const *PI, class PassInfo const* PI_loopinfo, map<string, value_scev_map_t>& scev_map, string const& srcdst_keyword)
-      : FunctionPass(ID), PassInfo(PI), PassInfo_LI(PI_loopinfo), scev_map(scev_map), m_srcdst_keyword(srcdst_keyword) {
+  FunctionPassPopulateTfgScev(class PassInfo const *PI, class PassInfo const* PI_loopinfo, map<string, value_scev_map_t>& scev_map, string const& srcdst_keyword, size_t word_length)
+      : FunctionPass(ID), PassInfo(PI), PassInfo_LI(PI_loopinfo), scev_map(scev_map), m_srcdst_keyword(srcdst_keyword), m_word_length(word_length) {
     PassName = "FunctionPass PopulateTfgScev";
   }
 
@@ -3457,7 +3465,7 @@ struct FunctionPassPopulateTfgScev : public FunctionPass {
       for(Instruction& I : B) {
         if (SE.isSCEVable(I.getType()) && !isa<CmpInst>(I)) {
           string iname = sym_exec_llvm::get_value_name_using_srcdst_keyword(I, m_srcdst_keyword);
-          scev_toplevel_t<pc> st = sym_exec_llvm::get_scev_toplevel(I, &SE, &LI, m_srcdst_keyword);
+          scev_toplevel_t<pc> st = sym_exec_llvm::get_scev_toplevel(I, &SE, &LI, m_srcdst_keyword, m_word_length);
           scev_map[fname].insert(make_pair(iname, st));
         }
       }
@@ -3511,7 +3519,7 @@ sym_exec_llvm::sym_exec_populate_potential_scev_relations(Module* M, string cons
   Passes.add(P);
   Passes.add(P_loopinfo);
   //Passes.add(createRegionPassPrinter(PI, Out->os()));
-  Passes.add(new FunctionPassPopulateTfgScev(PI, PI_loopinfo, scev_map, srcdst_keyword));
+  Passes.add(new FunctionPassPopulateTfgScev(PI, PI_loopinfo, scev_map, srcdst_keyword, M->getDataLayout().getPointerSize() * BYTE_LEN));
 
   Passes.run(*M);
   return scev_map;
