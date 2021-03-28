@@ -3439,7 +3439,7 @@ sym_exec_llvm::get_basicblock_index(const llvm::BasicBlock &v)
 
 struct FunctionPassPopulateTfgScev : public FunctionPass {
   static char ID;
-  const PassInfo *PassInfo;
+  const PassInfo *PassInfo_v;
   const class PassInfo *PassInfo_LI;
   //raw_ostream &Out;
   map<string, value_scev_map_t>& scev_map;
@@ -3455,7 +3455,7 @@ struct FunctionPassPopulateTfgScev : public FunctionPass {
 
   bool runOnFunction(Function& F) override {
     // Get pass and populate scev ...
-    ScalarEvolutionWrapperPass& P = getAnalysisID<ScalarEvolutionWrapperPass>(PassInfo->getTypeInfo());
+    ScalarEvolutionWrapperPass& P = getAnalysisID<ScalarEvolutionWrapperPass>(PassInfo_v->getTypeInfo());
     LoopInfoWrapperPass& LP = getAnalysisID<LoopInfoWrapperPass>(PassInfo_LI->getTypeInfo());
     LoopInfo& LI = LP.getLoopInfo();
     ScalarEvolution& SE = P.getSE();
@@ -3486,7 +3486,7 @@ struct FunctionPassPopulateTfgScev : public FunctionPass {
   StringRef getPassName() const override { return PassName; }
 
   void getAnalysisUsage(AnalysisUsage &AU) const override {
-    AU.addRequiredID(PassInfo->getTypeInfo());
+    AU.addRequiredID(PassInfo_v->getTypeInfo());
     AU.addRequiredID(PassInfo_LI->getTypeInfo());
     AU.setPreservesAll();
   }
