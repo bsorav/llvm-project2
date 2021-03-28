@@ -3449,7 +3449,7 @@ struct FunctionPassPopulateTfgScev : public FunctionPass {
   std::string PassName;
 
   FunctionPassPopulateTfgScev(class PassInfo const *PI, class PassInfo const* PI_loopinfo, map<string, value_scev_map_t>& scev_map, string const& srcdst_keyword, size_t word_length)
-      : FunctionPass(ID), PassInfo(PI), PassInfo_LI(PI_loopinfo), scev_map(scev_map), m_srcdst_keyword(srcdst_keyword), m_word_length(word_length) {
+      : FunctionPass(ID), PassInfo_v(PI), PassInfo_LI(PI_loopinfo), scev_map(scev_map), m_srcdst_keyword(srcdst_keyword), m_word_length(word_length) {
     PassName = "FunctionPass PopulateTfgScev";
   }
 
