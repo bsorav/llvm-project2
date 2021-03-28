@@ -2240,8 +2240,7 @@ sym_exec_llvm::get_scev(ScalarEvolution& SE, SCEV const* scev, string const& src
     case scUMaxExpr:
     case scSMaxExpr:
     case scUMinExpr:
-    case scSMinExpr:
-    case scUDivExpr: {
+    case scSMinExpr: {
       const SCEVNAryExpr *NAry = cast<SCEVNAryExpr>(scev);
       vector<scev_ref> scev_args;
       for (int i = 0; i < NAry->getNumOperands(); i++) {
@@ -2258,6 +2257,15 @@ sym_exec_llvm::get_scev(ScalarEvolution& SE, SCEV const* scev, string const& src
         }
       }
       return mk_scev(get_scev_op_from_scev_type(scevtype), mybitset(), scev_args, pc::start(), scev_overflow_flag);
+    }
+    case scUDivExpr: {
+      const SCEVUDivExpr *UDiv = cast<SCEVUDivExpr>(scev);
+      //OS << "(" << *UDiv->getLHS() << " /u " << *UDiv->getRHS() << ")";
+      vector<scev_ref> scev_args;
+      scev_args.push_back(get_scev(SE, UDiv->getLHS(), srcdst_keyword, word_length));
+      scev_args.push_back(get_scev(SE, UDiv->getRHS(), srcdst_keyword, word_length));
+
+      return mk_scev(scev_op_udiv, mybitset(), scev_args);
     }
     case scUnknown: {
       const SCEVUnknown *U = cast<SCEVUnknown>(scev);
@@ -2361,12 +2369,12 @@ sym_exec_llvm::get_scev_toplevel(Instruction& I, ScalarEvolution * scev, LoopInf
   SCEV const* sv = scev->getSCEV(&I);
   Loop const* L = loopinfo->getLoopFor(I.getParent());
   SCEV const* atuse_sv = scev->getSCEVAtScope(sv, L);
-  SCEV const* atexit_sv = scev->getSCEVAtScope(sv, L->getParentLoop());
+  SCEV const* atexit_sv = L ? scev->getSCEVAtScope(sv, L->getParentLoop()) : nullptr;
 
   scev_with_bounds_t val_scevb = get_scev_with_bounds(*scev, sv, srcdst_keyword, word_length);
   scev_with_bounds_t atuse_scevb = get_scev_with_bounds(*scev, atuse_sv, srcdst_keyword, word_length);
   pc loop_pc = get_loop_pc(L, srcdst_keyword);
-  scev_ref atexit_scev = get_scev(*scev, atexit_sv, srcdst_keyword, word_length);
+  scev_ref atexit_scev = atexit_sv ? get_scev(*scev, atexit_sv, srcdst_keyword, word_length) : nullptr;
   return scev_toplevel_t<pc>(val_scevb, atuse_scevb, atexit_scev, loop_pc);
 }
 
