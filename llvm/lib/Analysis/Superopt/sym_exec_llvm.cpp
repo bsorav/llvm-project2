@@ -1395,22 +1395,30 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
   {
     const AllocaInst* a =  cast<const AllocaInst>(&I);
     string name = get_value_name(*a);
+    Type *ElTy = a->getAllocatedType();
+    Value const* ArraySize = a->getArraySize();
+    unsigned align = a->getAlignment();
+    bool is_varsize = !(a->getAllocationSizeInBits(dl).hasValue());
+
+    uint64_t local_type_alloc_size = dl.getTypeAllocSize(ElTy);
+    uint64_t local_size = local_type_alloc_size;
+    if (const ConstantInt* constArraySize = dyn_cast<const ConstantInt>(ArraySize)) {
+      local_size *= constArraySize->getZExtValue();
+    }
+
     size_t local_id = m_local_num++;
     stringstream ss0;
     ss0 << G_LOCAL_KEYWORD << '.' << local_id;
     string local_name = ss0.str();
-    Type *ElTy = a->getAllocatedType();
-    uint64_t local_type_alloc_size = dl.getTypeAllocSize(ElTy);
-    unsigned align = a->getAlignment();
-    bool is_varsize = !(a->getAllocationSizeInBits(dl).hasValue());
 
-    m_local_refs.insert(make_pair(local_id, graph_local_t(name, local_type_alloc_size, align, is_varsize)));
+    m_local_refs.insert(make_pair(local_id, graph_local_t(name, local_size, align, is_varsize)));
     expr_ref local_addr = m_ctx->mk_var(local_name, m_ctx->mk_bv_sort(get_word_length()));
+
     memlabel_t ml_local;
     stringstream ss;
-    ss <<  local_name << "." << local_type_alloc_size;
+    ss <<  local_name << "." << local_size;
     string local_name_with_size = ss.str();
-    memlabel_t::keyword_to_memlabel(&ml_local, local_name_with_size.c_str(), local_type_alloc_size);
+    memlabel_t::keyword_to_memlabel(&ml_local, local_name_with_size.c_str(), local_size);
 
     //string typeString = getTypeString(ElTy);
     //typeString = typeString + "*";
@@ -1422,16 +1430,16 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     ostringstream ss2;
     ss2 << G_LOCAL_SIZE_KEYWORD << '.' << local_id;
     string const& local_size_str = ss2.str();
+
     expr_ref local_size_expr;
     expr_ref varsize_expr;
     if (is_varsize) {
-      Value const* ArraySize = a->getArraySize();
       tie(varsize_expr, state_assumes) = get_expr_adding_edges_for_intermediate_vals(*ArraySize/*, ""*/, state_in, state_assumes, from_node/*, pc_to, B, F*/, t, value_to_name_map);
       local_size_expr = m_ctx->mk_bvmul(varsize_expr, m_ctx->mk_bv_const(varsize_expr->get_sort()->get_size(), local_type_alloc_size));
       ASSERT(local_size_expr->get_sort()->get_size() == get_word_length());
     }
     else {
-      local_size_expr = m_ctx->mk_bv_const(get_word_length(), local_type_alloc_size);
+      local_size_expr = m_ctx->mk_bv_const(get_word_length(), local_size);
     }
 
     state_set_expr(state_out, m_mem_reg, m_ctx->mk_alloca(state_get_expr(state_in, m_mem_reg, this->get_mem_sort()), ml_local, local_addr, local_size_expr));
