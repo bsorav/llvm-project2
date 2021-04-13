@@ -3149,6 +3149,7 @@ sym_exec_common::get_symbol_map_and_string_contents(Module const *M, list<pair<s
     smap.insert(make_pair(symbol_id, graph_symbol_t(mk_string_ref(fun_name.first), fun_name.second, ALIGNMENT_FOR_FUNCTION_SYMBOL, false)));
     symbol_id++;
   }
+  ASSERT(symbol_id < NUM_CANON_SYMBOLS);
   return make_pair(smap, scontents);
 }
 
