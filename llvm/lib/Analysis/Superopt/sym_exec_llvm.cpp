@@ -1954,6 +1954,7 @@ sym_exec_llvm::exec_gen_expr(const llvm::Instruction& I/*, string Iname*/, const
       assert(index->get_sort()->get_size() <= get_word_length());
       if (index->get_sort()->get_size() < get_word_length()) {
         index = m_ctx->mk_bvzero_ext(index, get_word_length() - index->get_sort()->get_size());
+        index = m_ctx->expr_do_simplify(index);
       }
       ASSERT(index->get_sort()->get_size() == get_word_length());
       expr_ref offset_expr;
@@ -1962,6 +1963,9 @@ sym_exec_llvm::exec_gen_expr(const llvm::Instruction& I/*, string Iname*/, const
       if (itype.isStruct()) {
         //StructType* s = dyn_cast<StructType>(typ)
         StructType* s = itype.getStructType();
+        if (!index->is_const()) {
+          errs() << _FNLN_ << ": index =\n" << m_ctx->expr_to_string_table(index) << "\n";
+        }
         assert(index->is_const());
         int64_t c = index->get_int64_value();
         assert(c >= 0);
@@ -2319,16 +2323,26 @@ sym_exec_llvm::get_scev(ScalarEvolution& SE, SCEV const* scev, string const& src
 mybitset
 sym_exec_llvm::get_mybitset_from_apint(llvm::APInt const& apint, uint32_t bitwidth, bool is_signed)
 {
+  mybitset ret;
   if (bitwidth <= QWORD_LEN) {
     if (is_signed) {
       int64_t I = apint.getSExtValue();
-      return mybitset((long long)I, bitwidth);
+      ret = mybitset((long long)I, bitwidth);
     } else {
       uint64_t N = apint.getZExtValue();
-      return mybitset((unsigned long long)N, bitwidth);
+      ret = mybitset((unsigned long long)N, bitwidth);
     }
+    {
+      SmallString<4096> s;
+      apint.toStringUnsigned(s);
+      mybitset a(s.c_str(), bitwidth);
+      ASSERT(ret == a);
+    }
+    return ret;
   } else {
-    NOT_IMPLEMENTED();
+    SmallString<4096> s;
+    apint.toStringUnsigned(s);
+    return mybitset(s.c_str(), bitwidth);
   }
 }
 
@@ -3534,11 +3548,11 @@ sym_exec_llvm::sym_exec_populate_potential_scev_relations(Module* M, string cons
 }
 
 map<string, pair<callee_summary_t, unique_ptr<tfg_llvm_t>>>
-sym_exec_llvm::get_function_tfg_map(Module* M, set<string> FunNamesVec, bool DisableModelingOfUninitVarUB, context* ctx, dshared_ptr<llptfg_t const> const& src_llptfg, map<llvm_value_id_t, string_ref>* value_to_name_map, context::xml_output_format_t xml_output_format)
+sym_exec_llvm::get_function_tfg_map(Module* M, set<string> FunNamesVec, bool DisableModelingOfUninitVarUB, context* ctx, dshared_ptr<llptfg_t const> const& src_llptfg, bool gen_scev, map<llvm_value_id_t, string_ref>* value_to_name_map, context::xml_output_format_t xml_output_format)
 {
   map<string, pair<callee_summary_t, unique_ptr<tfg_llvm_t>>> function_tfg_map;
 
-  DYN_DEBUG2(llvm2tfg,
+  DYN_DEBUG3(llvm2tfg,
     cout.flush();
     M->print(dbgs(), nullptr, true);
     dbgs().flush();
@@ -3547,7 +3561,9 @@ sym_exec_llvm::get_function_tfg_map(Module* M, set<string> FunNamesVec, bool Dis
 
   map<string, value_scev_map_t> scev_map;
   //map<Function const*, LoopInfo const*> loopinfo_map;
-  scev_map = sym_exec_populate_potential_scev_relations(M, srcdst_keyword);
+  if (gen_scev) {
+    scev_map = sym_exec_populate_potential_scev_relations(M, srcdst_keyword);
+  }
   //for (auto const& li : loopinfo_map) {
   //  errs() << "loop info map for " << li.first->getName() << "\n";
   //  li.second->print(errs());
@@ -3560,6 +3576,7 @@ sym_exec_llvm::get_function_tfg_map(Module* M, set<string> FunNamesVec, bool Dis
     if (   FunNamesVec.size() != 0
         //&& (FunNamesVec.size() != 1 || *FunNamesVec.begin() != "ALL")
         && !set_belongs(FunNamesVec, string(f.getName().data()))) {
+      DYN_DEBUG(llvm2tfg, errs() << "Ignoring " << string(f.getName().data()) << "\n");
       continue;
     }
     if (sym_exec_common::get_num_insn(f) == 0) {
