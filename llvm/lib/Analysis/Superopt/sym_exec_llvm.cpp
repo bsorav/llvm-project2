@@ -1464,15 +1464,16 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     tie(addr, state_assumes) = get_expr_adding_edges_for_intermediate_vals(*Addr/*, ""*/, state_in, state_assumes, from_node/*, pc_to, B, F*/, t, value_to_name_map);
     tie(val, state_assumes)  = get_expr_adding_edges_for_intermediate_vals(*Val/*, ""*/, state_in, state_assumes, from_node/*, pc_to, B, F*/, t, value_to_name_map);
     if (val->is_bool_sort()) {
-      string val_str = expr_string(val);
-      /*if (val_str.find("unsupported") != string::npos) */{
-        NOT_REACHED();
-        //state_set_expr(state_out, G_SRC_KEYWORD "." LLVM_CONTAINS_FLOAT_OP_SYMBOL, m_ctx->mk_bool_const(true));
-        break;
-      }
+      val = m_ctx->mk_bool_to_bv(val);
     }
     ASSERTCHECK(val->is_bv_sort(), cout << __func__ << " " << __LINE__ << ": val = " << expr_string(val) << endl);
-    unsigned count = val->get_sort()->get_size()/get_memory_addressable_size();
+    unsigned mem_addressable_sz = get_memory_addressable_size();
+    unsigned count = DIV_ROUND_UP(val->get_sort()->get_size(), mem_addressable_sz);
+    unsigned addressable_write_size = ROUND_UP(val->get_sort()->get_size(), mem_addressable_sz);
+    if (addressable_write_size != val->get_sort()->get_size()) {
+      ASSERT(addressable_write_size > val->get_sort()->get_size());
+      val = m_ctx->mk_bvzero_ext(val, addressable_write_size - val->get_sort()->get_size());
+    }
     state_set_expr(state_out, m_mem_reg, m_ctx->mk_store(state_get_expr(state_in, m_mem_reg, this->get_mem_sort()), ml_top, addr, val, count, false/*, comment_t()*/));
     //add_dereference_assume(addr, assumes);
 
@@ -1512,11 +1513,22 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     //  break;
     //}
     sort_ref value_type = get_value_type(*l, m_module->getDataLayout());
+    if (value_type->is_bool_kind()) {
+      value_type = m_ctx->mk_bv_sort(1);
+    }
     ASSERTCHECK(value_type->is_bv_kind(), cout << __func__ << " " << __LINE__ << ": value_type = " << value_type->to_string() << endl);
     memlabel_t ml_top;
     memlabel_t::keyword_to_memlabel(&ml_top, G_MEMLABEL_TOP_SYMBOL, MEMSIZE_MAX);
-    unsigned count = value_type->get_size()/get_memory_addressable_size();
+    unsigned count = DIV_ROUND_UP(value_type->get_size(), get_memory_addressable_size());
+    size_t addressable_sz = ROUND_UP(value_type->get_size(), get_memory_addressable_size());
     expr_ref read_value = m_ctx->mk_select(state_get_expr(state_in, m_mem_reg, this->get_mem_sort()), ml_top, addr, count, false);
+    if (addressable_sz != value_type->get_size()) {
+      ASSERT(addressable_sz > value_type->get_size());
+      read_value = m_ctx->mk_bvextract(read_value, value_type->get_size() - 1, 0);
+    }
+    if (read_value->get_sort()->get_size() == 1) {
+      read_value = m_ctx->mk_eq(read_value, m_ctx->mk_bv_const(1, 1));
+    }
     set_expr(get_value_name(*l), read_value, state_out);
 
     //add_dereference_assume(addr, assumes);
