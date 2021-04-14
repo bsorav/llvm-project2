@@ -184,17 +184,19 @@ sym_exec_llvm::get_const_value_expr(const llvm::Value& v/*, string vname*/, cons
   if(const ConstantInt* c = dyn_cast<const ConstantInt>(&v))
   {
     unsigned size = c->getBitWidth();
-    if(size > 1)
-      return make_pair(m_ctx->mk_bv_const(size, c->getZExtValue()), state_assumes);
-    else if(c->getZExtValue() == 0)
+    if (size > 1) {
+      APInt const& ai = c->getValue();
+      return make_pair(m_ctx->mk_bv_const(size, get_mybitset_from_apint(ai, ai.getBitWidth(), false)), state_assumes);
+    } else if(c->getZExtValue() == 0) {
       return make_pair(m_ctx->mk_bool_false(), state_assumes);
-    else
+    } else {
       return make_pair(m_ctx->mk_bool_true(), state_assumes);
+    }
   }
   else if(const ConstantFP* c = dyn_cast<const ConstantFP>(&v))
   {
     APInt ai = c->getValueAPF().bitcastToAPInt();
-    return make_pair(m_ctx->mk_bv_const(ai.getBitWidth(), ai.getZExtValue()), state_assumes);
+    return make_pair(m_ctx->mk_bv_const(ai.getBitWidth(), get_mybitset_from_apint(ai, ai.getBitWidth(), false)), state_assumes);
   }
   else if (ConstantExpr const* ce = (ConstantExpr const*)dyn_cast<const ConstantExpr>(&v))
   {
