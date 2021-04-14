@@ -341,6 +341,11 @@ vector<sort_ref> sym_exec_common::get_type_sort_vec(llvm::Type* t, DataLayout co
     sv.push_back(m_ctx->mk_bv_sort(size));
     //sv.push_back(m_ctx->mk_bv_sort(QWORD_LEN));
     return sv;
+  } else if (t->getTypeID() == Type::X86_FP80TyID) {
+    //cout << __func__ << " " << __LINE__ << ": double size in bits = " << dl.getTypeSizeInBits(t) << endl;
+    size_t size = dl.getTypeSizeInBits(t);
+    ASSERT(size == 80);
+    sv.push_back(m_ctx->mk_bv_sort(size));
   } else if (t->getTypeID() == Type::StructTyID) {
     //const DataLayout &dl = m_module->getDataLayout();
     StructType const *sty = dyn_cast<StructType>(t);
@@ -363,9 +368,11 @@ vector<sort_ref> sym_exec_common::get_type_sort_vec(llvm::Type* t, DataLayout co
             ) {
     t->print(errs());
     errs().flush();
+    errs() << "\n";
     NOT_IMPLEMENTED();
   } else {
     t->print(errs());
+    errs() << "\n";
     errs().flush();
     unreachable("type unhandled");
   }
@@ -997,7 +1004,7 @@ sym_exec_llvm::apply_memcpy_function(const CallInst* c, expr_ref fun_name_expr, 
     memcpy_align_int = 1;
   } else {
     ASSERT(memcpy_align_expr->is_const());
-    int memcpy_align_int = memcpy_align_expr->get_int_value();
+    int memcpy_align_int = memcpy_align_expr->get_int64_value();
     if (memcpy_align_int == 0) {
       cout << __func__ << " " << __LINE__ << ": memcpy_nbytes_expr = " << expr_string(memcpy_nbytes_expr) << endl;
       cout << __func__ << " " << __LINE__ << ": memcpy_align_expr = " << expr_string(memcpy_align_expr) << endl;
@@ -1011,7 +1018,7 @@ sym_exec_llvm::apply_memcpy_function(const CallInst* c, expr_ref fun_name_expr, 
   unordered_set<expr_ref> succ_assumes;
   if (memcpy_nbytes_expr->is_const()) {
     //predicate p_src(m_ctx->mk_islangaligned(memcpy_src_expr, memcpy_align_int), m_ctx->mk_bool_const(true), UNDEF_BEHAVIOUR_ASSUME_COMMENT_PREFIX "-align-memcpy-src-assume", predicate::assume);
-    int count = memcpy_nbytes_expr->get_int_value();
+    int count = memcpy_nbytes_expr->get_int64_value();
     if (count != 0) {
       expr_ref const& src_isaligned_assume = m_ctx->mk_islangaligned(memcpy_src_expr, count /*XXX: not sure*/);
       assumes.insert(src_isaligned_assume);
