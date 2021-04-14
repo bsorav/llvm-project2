@@ -1277,6 +1277,8 @@ sym_exec_llvm::farith_to_operation_kind(unsigned opcode, expr_vector const& args
     return expr::OP_FSUB;
   } else if (opcode == Instruction::FRem) {
     return expr::OP_FREM;
+  } else if (opcode == Instruction::FNeg) {
+    return expr::OP_FNEG;
   }
   NOT_REACHED();
 }
@@ -1662,6 +1664,22 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     expr_vector args;
     args.push_back(e0);
     args.push_back(e1);
+
+    state_set_expr(state_out, iname, m_ctx->mk_app(farith_to_operation_kind(I.getOpcode(), args), args));
+    break;
+  }
+  case Instruction::FNeg: {
+    sort_ref isort = get_value_type(I, dl);
+    ASSERT(isort->is_bv_kind());
+    string iname = get_value_name(I);
+
+    Value const &op0 = *I.getOperand(0);
+
+    expr_ref e0;
+    tie(e0, state_assumes) = get_expr_adding_edges_for_intermediate_vals(op0/*, ""*/, state(), state_assumes, from_node/*, pc_to, B, F*/, t, value_to_name_map);
+
+    expr_vector args;
+    args.push_back(e0);
 
     state_set_expr(state_out, iname, m_ctx->mk_app(farith_to_operation_kind(I.getOpcode(), args), args));
     break;
