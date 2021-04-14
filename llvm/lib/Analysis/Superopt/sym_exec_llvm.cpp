@@ -346,6 +346,7 @@ vector<sort_ref> sym_exec_common::get_type_sort_vec(llvm::Type* t, DataLayout co
     size_t size = dl.getTypeSizeInBits(t);
     ASSERT(size == 80);
     sv.push_back(m_ctx->mk_bv_sort(size));
+    return sv;
   } else if (t->getTypeID() == Type::StructTyID) {
     //const DataLayout &dl = m_module->getDataLayout();
     StructType const *sty = dyn_cast<StructType>(t);
