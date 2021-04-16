@@ -2927,6 +2927,7 @@ sym_exec_llvm::set_next_phi_pc(pc const &p, pc const &phi_pc)
 map<nextpc_id_t, callee_summary_t>
 sym_exec_llvm::get_callee_summaries_for_tfg(map<nextpc_id_t, string> const &nextpc_map, map<string, callee_summary_t> const &callee_summaries)
 {
+  autostop_timer func_timer(__func__);
   map<nextpc_id_t, callee_summary_t> ret;
   for (auto ncsum : callee_summaries) {
     string nextpc_str = ncsum.first;
@@ -2979,6 +2980,7 @@ sym_exec_llvm::sym_exec_preprocess_tfg(string const &name, tfg_llvm_t& t_src, ma
   DYN_DEBUG(llvm2tfg, cout << _FNLN_ << ": name = " << name << ": calling tfg_preprocess()\n");
   t_src.tfg_preprocess(false, sorted_bbl_indices, {}, xml_output_format);
   DYN_DEBUG(llvm2tfg, cout << _FNLN_ << ": name = " << name << ": after tfg_preprocess(), TFG:\n" << t_src.graph_to_string() << endl);
+  //cout << _FNLN_ << ": " << get_timestamp(as1, sizeof as1) << ": returning\n";
 }
 
 bool
@@ -3016,6 +3018,7 @@ sym_exec_llvm::get_preprocessed_tfg_common(string const &name, tfg_llvm_t const*
   unique_ptr<tfg_llvm_t> t_src = this->get_tfg(src_llvm_tfg, &function_tfg_map, value_to_name_map, &function_call_chain, eimap, scev_map, xml_output_format);
   DYN_DEBUG(llvm2tfg, outs() << _FNLN_ << ": " << get_timestamp(as1, sizeof as1) << ": Done get_tfg() on " << name << ". Calling sym_exec_preprocess_tfg()\n");
   this->sym_exec_preprocess_tfg(name, *t_src, function_tfg_map, sorted_bbl_indices, src_llvm_tfg, xml_output_format);
+  //cout << _FNLN_ << ": " << get_timestamp(as1, sizeof as1) << ": returned from sym_exec_preprocess_tfg\n";
   if (scev_map.count(name)) {
     this->sym_exec_populate_tfg_scev_map(*t_src, scev_map.at(name));
   }
@@ -3038,6 +3041,7 @@ sym_exec_llvm::get_preprocessed_tfg_common(string const &name, tfg_llvm_t const*
       }
     }
   }
+  //cout << _FNLN_ << ": " << get_timestamp(as1, sizeof as1) << ": returning\n";
   return t_src;
 }
 
