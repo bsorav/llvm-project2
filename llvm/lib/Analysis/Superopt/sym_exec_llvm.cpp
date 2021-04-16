@@ -3030,9 +3030,9 @@ sym_exec_llvm::get_preprocessed_tfg_common(string const &name, tfg_llvm_t const*
   );
 
   if (!DisableModelingOfUninitVarUB) {
-    map<pc, map<graph_loc_id_t, bool>> init_status;
+    //map<pc, map<graph_loc_id_t, bool>> init_status;
     list<pc> exit_pcs;
-    t_src->populate_loc_definedness();
+    //t_src->populate_loc_definedness();
     //init_status = t_src->determine_initialization_status_for_locs();
     t_src->get_exit_pcs(exit_pcs);
     for (auto exit_pc : exit_pcs) {

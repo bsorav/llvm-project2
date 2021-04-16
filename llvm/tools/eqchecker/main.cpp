@@ -88,6 +88,9 @@ XmlOutputFormat("xml-output-format", cl::desc("<xml-output-format.  Format to us
 static cl::opt<bool>
 NoGenScev("no-gen-scev", cl::desc("<gen-scev. generate potential scev relationships to be used for invariant inferences>"), cl::init(false));
 
+static cl::opt<bool>
+Progress("progress", cl::desc("<progress. keep printing progress involving time/mem stats>"), cl::init(false));
+
 //static void diagnosticHandler(const DiagnosticInfo &DI, void *Context) {
 //  assert(DI.getSeverity() == DS_Error && "Only expecting errors");
 //
@@ -240,6 +243,10 @@ main(int argc, char **argv)
       NOT_REACHED();
     }
     src_llptfg = make_shared<llptfg_t const>(in_src, ctx);
+  }
+
+  if (Progress) {
+    progress_flag = 1;
   }
 
   map<string, pair<callee_summary_t, unique_ptr<tfg_llvm_t>>> function_tfg_map = sym_exec_llvm::get_function_tfg_map(M1.get(), FunNamesVec, DisableModelingOfUninitVarUB ? true : false, ctx, src_llptfg, !NoGenScev, nullptr, xml_output_format);
