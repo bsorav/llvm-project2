@@ -1033,15 +1033,30 @@ sym_exec_llvm::apply_memcpy_function(const CallInst* c, expr_ref fun_name_expr, 
       //predicate p_dst(precond_t(m_ctx), dst_isaligned_assume, expr_true(m_ctx), UNDEF_BEHAVIOUR_ASSUME_ALIGN_MEMCPY_DST);
       //t.add_assume_pred(from_pc, p_dst);
     }
+    pc cur_pc = from_pc;
+    dshared_ptr<tfg_node> intermediate_node = get_next_intermediate_subsubindex_pc_node(t, from_node);
+    shared_ptr<tfg_edge const> e = mk_tfg_edge(mk_itfg_edge(cur_pc, intermediate_node->get_pc(), state_out, expr_true(m_ctx), assumes, this->instruction_to_te_comment(*c, from_pc)));
+    t.add_edge(e);
+    cur_pc = intermediate_node->get_pc();
 
     for (int i = 0; i < count; i += memcpy_align_int) {
+      state_out = state_in;
       expr_ref offset = m_ctx->mk_bv_const(get_word_length(), i);
       //cout << __func__ << " " << __LINE__ << ": count = " << count << ", memcpy_align_int = " << memcpy_align_int << ", i = " << i << endl;
       expr_ref inbytes = m_ctx->mk_select(state_get_expr(state_out, m_mem_reg, this->get_mem_sort()), ml_top, m_ctx->mk_bvadd(memcpy_src_expr, offset), memcpy_align_int, false/*, comment_t()*/);
       expr_ref out_mem = state_get_expr(state_out, m_mem_reg, this->get_mem_sort());
       out_mem = m_ctx->mk_store(out_mem, ml_top, m_ctx->mk_bvadd(memcpy_dst_expr, offset), inbytes, memcpy_align_int, false/*, comment_t()*/);
       state_set_expr(state_out, m_mem_reg, out_mem);
+
+      dshared_ptr<tfg_node> intermediate_node = get_next_intermediate_subsubindex_pc_node(t, from_node);
+
+      shared_ptr<tfg_edge const> e = mk_tfg_edge(mk_itfg_edge(cur_pc, intermediate_node->get_pc(), state_out, expr_true(m_ctx), {}, this->instruction_to_te_comment(*c, from_pc)));
+      t.add_edge(e);
+      cur_pc = intermediate_node->get_pc();
     }
+    state_out = state_in;
+    from_node = t.find_node(cur_pc);
+    ASSERT(from_node);
   } else {
     //cout << __func__ << " " << __LINE__ << ": memcpy_nbytes_expr = " << expr_string(memcpy_nbytes_expr) << endl;
     tie(assumes, succ_assumes) = apply_general_function(c, fun_name_expr, fun_name, src_llvm_tfg, F, state_in, state_out, assumes, cur_function_name, from_node/*, pc_to, B, curF*/, t, function_tfg_map, value_to_name_map, function_call_chain, scev_map, collapse, xml_output_format);
