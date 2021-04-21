@@ -1445,6 +1445,8 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     state_set_expr(state_out, m_mem_reg, m_ctx->mk_alloca(state_get_expr(state_in, m_mem_reg, this->get_mem_sort()), ml_local, local_addr, local_size_expr));
     state_set_expr(state_out, name, local_addr);
     state_set_expr(state_out, local_size_str, local_size_expr);
+    // alloca returned addr can never be 0
+    state_assumes.insert(m_ctx->mk_not(m_ctx->mk_eq(local_addr, m_ctx->mk_zerobv(local_addr->get_sort()->get_size()))));
 
     if (is_varsize) {
       // create extra edge for `local_size` related assumes
