@@ -1435,6 +1435,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     expr_ref varsize_expr;
     if (is_varsize) {
       tie(varsize_expr, state_assumes) = get_expr_adding_edges_for_intermediate_vals(*ArraySize/*, ""*/, state_in, state_assumes, from_node/*, pc_to, B, F*/, t, value_to_name_map);
+      // XXX shall we check for integer overflow during (varsize_expr * local_type_alloc_size) as well?
       local_size_expr = m_ctx->mk_bvmul(varsize_expr, m_ctx->mk_bv_const(varsize_expr->get_sort()->get_size(), local_type_alloc_size));
       ASSERT(local_size_expr->get_sort()->get_size() == get_word_length());
     }
@@ -1448,23 +1449,32 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     // alloca returned addr can never be 0
     state_assumes.insert(m_ctx->mk_not(m_ctx->mk_eq(local_addr, m_ctx->mk_zerobv(local_addr->get_sort()->get_size()))));
 
+    // create extra edge for memory SSA equality assume
+    dshared_ptr<tfg_node> intermediate_node = get_next_intermediate_subsubindex_pc_node(t, from_node);
+    ASSERT(intermediate_node);
+    tfg_edge_ref e = mk_tfg_edge(mk_itfg_edge(from_node->get_pc(), intermediate_node->get_pc(), state_out, expr_true(m_ctx)/*, t.get_start_state()*/, state_assumes, te_comment));
+    t.add_edge(e);
+    from_node = intermediate_node;
+    state_out = state_in;
+    state_assumes.clear();
+
+    string_ref keyname = mk_string_ref(get_key_for_mem_version(mk_string_ref(m_mem_reg), local_id));
+    expr_ref const& mem_e = state_get_expr(state_in, m_mem_reg, this->get_mem_sort());
+    expr_ref const& memeq_e = m_ctx->mk_memmasks_are_equal(
+                                m_ctx->get_input_expr_for_key(keyname, mem_e->get_sort()),
+                                mem_e,
+                                memlabel_t::memlabel_local(local_id));
+    expr_ref const& memeq_assume = m_ctx->mk_eq(m_ctx->mk_bool_true(), memeq_e);
+    state_assumes.insert(memeq_assume);
+
     if (is_varsize) {
-      // create extra edge for `local_size` related assumes
-      dshared_ptr<tfg_node> intermediate_node = get_next_intermediate_subsubindex_pc_node(t, from_node);
-      tfg_edge_ref e = mk_tfg_edge(mk_itfg_edge(from_node->get_pc(), intermediate_node->get_pc(), state_out, expr_true(m_ctx)/*, t.get_start_state()*/, state_assumes, te_comment));
-      t.add_edge(e);
-
-      // add size > 0 assume
       ASSERT(varsize_expr);
+      // add size > 0 assume
       expr_ref const& size_is_positive_assume = m_ctx->mk_bvsgt(varsize_expr, m_ctx->mk_zerobv(local_size_expr->get_sort()->get_size()));
-      // XXX shall we check for integer overflow during (varsize_expr * local_type_alloc_size) as well?
+      state_assumes.insert(size_is_positive_assume);
       // add (local_size.<id> == <expr>) assume
-      expr_ref local_size_eq = m_ctx->mk_eq(m_ctx->get_input_expr_for_key(mk_string_ref(local_size_str), local_size_expr->get_sort()), local_size_expr);
-
-      state_assumes = { size_is_positive_assume, local_size_eq };
-      state_out = state_in;
-      from_node = t.find_node(intermediate_node->get_pc());
-      ASSERT(from_node);
+      expr_ref const& local_size_eq = m_ctx->mk_eq(m_ctx->get_input_expr_for_key(mk_string_ref(local_size_str), local_size_expr->get_sort()), local_size_expr);
+      state_assumes.insert(local_size_eq);
     }
     break;
   }
