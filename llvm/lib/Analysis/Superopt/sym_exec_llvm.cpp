@@ -195,8 +195,10 @@ sym_exec_llvm::get_const_value_expr(const llvm::Value& v/*, string vname*/, cons
   }
   else if(const ConstantFP* c = dyn_cast<const ConstantFP>(&v))
   {
-    APInt ai = c->getValueAPF().bitcastToAPInt();
-    return make_pair(m_ctx->mk_bv_const(ai.getBitWidth(), get_mybitset_from_apint(ai, ai.getBitWidth(), false)), state_assumes);
+    //APInt ai = c->getValueAPF().bitcastToAPInt();
+    long double d = c->getValueAPF().convertToDouble();
+    //return make_pair(m_ctx->mk_float_const(ai.getBitWidth(), get_mybitset_from_apint(ai, ai.getBitWidth(), false)), state_assumes);
+    return make_pair(m_ctx->mk_float_const(sizeof(long double)*BYTE_LEN, d), state_assumes);
   }
   else if (ConstantExpr const* ce = (ConstantExpr const*)dyn_cast<const ConstantExpr>(&v))
   {
@@ -1493,6 +1495,9 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     if (val->is_bool_sort()) {
       val = m_ctx->mk_bool_to_bv(val);
     }
+    if (val->is_float_sort()) {
+      val = m_ctx->mk_float_to_ieee_bv(val);
+    }
     ASSERTCHECK(val->is_bv_sort(), cout << __func__ << " " << __LINE__ << ": val = " << expr_string(val) << endl);
     unsigned mem_addressable_sz = get_memory_addressable_size();
     unsigned count = DIV_ROUND_UP(val->get_sort()->get_size(), mem_addressable_sz);
@@ -1543,7 +1548,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     if (value_type->is_bool_kind()) {
       value_type = m_ctx->mk_bv_sort(1);
     }
-    ASSERTCHECK(value_type->is_bv_kind(), cout << __func__ << " " << __LINE__ << ": value_type = " << value_type->to_string() << endl);
+    ASSERTCHECK((value_type->is_bv_kind() || value_type->is_float_kind()), cout << __func__ << " " << __LINE__ << ": value_type = " << value_type->to_string() << endl);
     memlabel_t ml_top;
     memlabel_t::keyword_to_memlabel(&ml_top, G_MEMLABEL_TOP_SYMBOL, MEMSIZE_MAX);
     unsigned count = DIV_ROUND_UP(value_type->get_size(), get_memory_addressable_size());
@@ -1555,6 +1560,9 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     }
     if (read_value->get_sort()->get_size() == 1) {
       read_value = m_ctx->mk_eq(read_value, m_ctx->mk_bv_const(1, 1));
+    }
+    if (value_type->is_float_kind()) {
+      read_value = m_ctx->mk_ieee_bv_to_float(read_value);
     }
     set_expr(get_value_name(*l), read_value, state_out);
 
