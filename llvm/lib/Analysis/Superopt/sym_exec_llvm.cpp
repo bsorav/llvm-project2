@@ -333,21 +333,21 @@ vector<sort_ref> sym_exec_common::get_type_sort_vec(llvm::Type* t, DataLayout co
     //cout << __func__ << " " << __LINE__ << ": float size in bits = " << dl.getTypeSizeInBits(t) << endl;
     size_t size = dl.getTypeSizeInBits(t);
     ASSERT(size == DWORD_LEN);
-    sv.push_back(m_ctx->mk_bv_sort(size));
+    sv.push_back(m_ctx->mk_float_sort(size));
     //sv.push_back(m_ctx->mk_bv_sort(DWORD_LEN));
     return sv;
   } else if (t->getTypeID() == Type::DoubleTyID) {
     //cout << __func__ << " " << __LINE__ << ": double size in bits = " << dl.getTypeSizeInBits(t) << endl;
     size_t size = dl.getTypeSizeInBits(t);
     ASSERT(size == QWORD_LEN);
-    sv.push_back(m_ctx->mk_bv_sort(size));
+    sv.push_back(m_ctx->mk_float_sort(size));
     //sv.push_back(m_ctx->mk_bv_sort(QWORD_LEN));
     return sv;
   } else if (t->getTypeID() == Type::X86_FP80TyID) {
     //cout << __func__ << " " << __LINE__ << ": double size in bits = " << dl.getTypeSizeInBits(t) << endl;
     size_t size = dl.getTypeSizeInBits(t);
     ASSERT(size == 80);
-    sv.push_back(m_ctx->mk_bv_sort(size));
+    sv.push_back(m_ctx->mk_float_sort(size));
     return sv;
   } else if (t->getTypeID() == Type::StructTyID) {
     //const DataLayout &dl = m_module->getDataLayout();
@@ -1179,7 +1179,7 @@ sym_exec_llvm::apply_general_function(const CallInst* c, expr_ref fun_name_expr,
     csum = csum_callee_tfg.first;
     tfg const& callee_tfg = *csum_callee_tfg.second;
     for (auto const& s : callee_tfg.get_symbol_map().get_map()) {
-      if (!s.second.is_const()) { //do not include callee's const symbols because they are inconsequential (but are complicated to handle)
+      if (!s.second.graph_symbol_is_const()) { //do not include callee's const symbols because they are inconsequential (but are complicated to handle)
         m_touched_symbols.insert(s.first);
       }
     }
@@ -1235,7 +1235,7 @@ sym_exec_llvm::apply_general_function(const CallInst* c, expr_ref fun_name_expr,
     for (size_t r = 0; r < ret_sort_vec.size(); r++) {
       sort_ref ret_sort = ret_sort_vec.at(r);
       size_t bvsize;
-      if (ret_sort->is_bv_kind()) {
+      if (ret_sort->is_bv_kind() || ret_sort->is_float_kind()) {
         bvsize = ret_sort->get_size();
       } else if (ret_sort->is_bool_kind()) {
         bvsize = 1;
@@ -1668,7 +1668,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
   case Instruction::FRem:
   {
     sort_ref isort = get_value_type(I, dl);
-    ASSERT(isort->is_bv_kind());
+    ASSERT(isort->is_float_kind());
     string iname = get_value_name(I);
 
     Value const &op0 = *I.getOperand(0);
@@ -1738,10 +1738,10 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     long double max_limit = powl(2, target_size) - 1;
     long double min_limit = 0;
 
-    ASSERT(e0->is_bv_sort());
+    ASSERT(e0->is_float_sort());
     //add to state_assumes the conditions that op0 is within limits
-    state_assumes.insert(m_ctx->mk_fcmp_oge(e0, m_ctx->mk_fp_const(e0->get_sort()->get_size(), min_limit)));
-    state_assumes.insert(m_ctx->mk_fcmp_ole(e0, m_ctx->mk_fp_const(e0->get_sort()->get_size(), max_limit)));
+    state_assumes.insert(m_ctx->mk_fcmp_oge(e0, m_ctx->mk_float_const(e0->get_sort()->get_size(), min_limit)));
+    state_assumes.insert(m_ctx->mk_fcmp_ole(e0, m_ctx->mk_float_const(e0->get_sort()->get_size(), max_limit)));
 
     state_set_expr(state_out, iname, m_ctx->mk_fp_to_ubv(e0, target_size));
     break;
@@ -1762,18 +1762,24 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     long double max_limit = powl(2, target_size - 1) - 1;
     long double min_limit = powl(-2, target_size - 1);
 
-    ASSERT(e0->is_bv_sort());
+    expr_ref min_limit_expr = m_ctx->mk_float_const(e0->get_sort()->get_size(), min_limit);
+    expr_ref max_limit_expr = m_ctx->mk_float_const(e0->get_sort()->get_size(), max_limit);
+
+    cout << _FNLN_ << ": min_limit_expr = " << expr_string(min_limit_expr) << endl;
+    cout << _FNLN_ << ": max_limit_expr = " << expr_string(max_limit_expr) << endl;
+
+    ASSERT(e0->is_float_sort());
     //add to state_assumes the conditions that op0 is within limits
-    state_assumes.insert(m_ctx->mk_fcmp_oge(e0, m_ctx->mk_fp_const(e0->get_sort()->get_size(), min_limit)));
-    state_assumes.insert(m_ctx->mk_fcmp_ole(e0, m_ctx->mk_fp_const(e0->get_sort()->get_size(), max_limit)));
+    state_assumes.insert(m_ctx->mk_fcmp_oge(e0, min_limit_expr));
+    state_assumes.insert(m_ctx->mk_fcmp_ole(e0, max_limit_expr));
 
     state_set_expr(state_out, iname, m_ctx->mk_fp_to_sbv(e0, target_size));
     break;
   }
   case Instruction::UIToFP: {
     sort_ref isort = get_value_type(I, dl);
-    ASSERT(isort->is_bool_kind() || isort->is_bv_kind());
-    size_t target_size = isort->is_bool_kind() ? 1 : isort->get_size();
+    ASSERT(isort->is_float_kind());
+    size_t target_size = isort->get_size();
     string iname = get_value_name(I);
     Value const &op0 = *I.getOperand(0);
     expr_ref e0;
@@ -1783,8 +1789,8 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
   }
   case Instruction::SIToFP: {
     sort_ref isort = get_value_type(I, dl);
-    ASSERT(isort->is_bool_kind() || isort->is_bv_kind());
-    size_t target_size = isort->is_bool_kind() ? 1 : isort->get_size();
+    ASSERT(isort->is_float_kind());
+    size_t target_size = isort->get_size();
     string iname = get_value_name(I);
     Value const &op0 = *I.getOperand(0);
     expr_ref e0;
