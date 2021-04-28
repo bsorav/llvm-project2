@@ -1409,17 +1409,19 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     size_t local_id = m_local_num++;
     stringstream ss0;
     ss0 << G_LOCAL_KEYWORD << '.' << local_id;
-    string local_name = ss0.str();
+    string local_str = ss0.str();
 
     m_local_refs.insert(make_pair(local_id, graph_local_t(name, local_size, align, is_varsize)));
-    expr_ref local_addr = m_ctx->mk_var(local_name, m_ctx->mk_bv_sort(get_word_length()));
 
     memlabel_t ml_local;
     stringstream ss;
-    ss <<  local_name << "." << local_size;
+    ss <<  local_str << "." << local_size;
     string local_name_with_size = ss.str();
     memlabel_t::keyword_to_memlabel(&ml_local, local_name_with_size.c_str(), local_size);
 
+    expr_ref local_instance_expr = m_ctx->get_local_instance_expr_for_id(local_id);
+
+    //expr_ref local_addr = m_ctx->mk_var(local_str, m_ctx->mk_bv_sort(get_word_length()));
     //string typeString = getTypeString(ElTy);
     //typeString = typeString + "*";
     //langtype_ref lt = mk_langtype_ref(typeString);
@@ -1427,9 +1429,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     //assumes.insert(p);
     //t.add_assume_pred(from_node->get_pc(), p);
 
-    ostringstream ss2;
-    ss2 << G_LOCAL_SIZE_KEYWORD << '.' << local_id;
-    string const& local_size_str = ss2.str();
+    string local_size_str = m_ctx->get_key_from_input_expr(m_ctx->get_local_size_expr_for_id(local_id))->get_str();
 
     expr_ref local_size_expr;
     expr_ref varsize_expr;
@@ -1443,13 +1443,14 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
       local_size_expr = m_ctx->mk_bv_const(get_word_length(), local_size);
     }
 
-    state_set_expr(state_out, m_mem_reg, m_ctx->mk_alloca(state_get_expr(state_in, m_mem_reg, this->get_mem_sort()), ml_local, local_addr, local_size_expr));
-    state_set_expr(state_out, name, local_addr);
+    // memory <- alloca
+    // name <- alloca_ptr
+    // local_size.id <- size expr
+    state_set_expr(state_out, m_mem_reg, m_ctx->mk_alloca(state_get_expr(state_in, m_mem_reg, this->get_mem_sort()), ml_local, local_instance_expr, local_size_expr));
+    state_set_expr(state_out, name, m_ctx->mk_alloca_ptr(ml_local));
     state_set_expr(state_out, local_size_str, local_size_expr);
-    // alloca returned addr can never be 0
-    state_assumes.insert(m_ctx->mk_not(m_ctx->mk_eq(local_addr, m_ctx->mk_zerobv(local_addr->get_sort()->get_size()))));
 
-    // create extra edge for memory SSA equality assume
+    // intermediate edge
     dshared_ptr<tfg_node> intermediate_node = get_next_intermediate_subsubindex_pc_node(t, from_node);
     ASSERT(intermediate_node);
     tfg_edge_ref e = mk_tfg_edge(mk_itfg_edge(from_node->get_pc(), intermediate_node->get_pc(), state_out, expr_true(m_ctx)/*, t.get_start_state()*/, state_assumes, te_comment));
@@ -1458,14 +1459,17 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     state_out = state_in;
     state_assumes.clear();
 
-    string_ref keyname = mk_string_ref(get_key_for_mem_version(mk_string_ref(m_mem_reg), local_id));
+    // memory SSA equality assume
+    string_ref memversion_keyname = mk_string_ref(get_key_for_mem_version(mk_string_ref(m_mem_reg), local_id));
     expr_ref const& mem_e = state_get_expr(state_in, m_mem_reg, this->get_mem_sort());
     expr_ref const& memeq_e = m_ctx->mk_memmasks_are_equal(
-                                m_ctx->get_input_expr_for_key(keyname, mem_e->get_sort()),
+                                m_ctx->get_input_expr_for_key(memversion_keyname, mem_e->get_sort()),
                                 mem_e,
                                 memlabel_t::memlabel_local(local_id));
-    expr_ref const& memeq_assume = m_ctx->mk_eq(m_ctx->mk_bool_true(), memeq_e);
-    state_assumes.insert(memeq_assume);
+    state_assumes.insert(m_ctx->mk_eq(m_ctx->mk_bool_true(), memeq_e));
+    // alloca returned addr can never be 0
+    expr_ref name_expr = m_ctx->get_input_expr_for_key(mk_string_ref(name), m_ctx->mk_bv_sort(get_word_length()));
+    state_assumes.insert(m_ctx->mk_not(m_ctx->mk_eq(name_expr, m_ctx->mk_zerobv(get_word_length()))));
 
     if (is_varsize) {
       ASSERT(varsize_expr);
@@ -2946,7 +2950,7 @@ void
 sym_exec_llvm::sym_exec_preprocess_tfg(string const &name, tfg_llvm_t& t_src, map<string, pair<callee_summary_t, unique_ptr<tfg_llvm_t>>> &function_tfg_map, list<string> const& sorted_bbl_indices, tfg_llvm_t const* src_llvm_tfg, context::xml_output_format_t xml_output_format)
 {
   autostop_timer func_timer(__func__);
-  context* ctx = this->get_context();
+  //context* ctx = this->get_context();
   //consts_struct_t &cs = ctx->get_consts_struct();
   map<local_id_t, graph_local_t> local_refs = this->get_local_refs();
 
