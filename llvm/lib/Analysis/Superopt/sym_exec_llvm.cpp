@@ -452,6 +452,15 @@ sym_exec_llvm::gep_instruction_get_intermediate_value_name(Instruction const& I/
   return ss.str();
 }
 
+string
+sym_exec_llvm::get_poison_value_name(Value const& I) const
+{
+  string base_name =  get_value_name(I);
+  stringstream ss;
+  ss << base_name << ".poison_temp";
+  return ss.str();
+}
+
 /*void
 sym_exec_llvm::add_gep_intermediate_vals(Instruction const &I, string const &name)
 {
@@ -865,6 +874,20 @@ expr_ref sym_exec_llvm::icmp_to_expr(ICmpInst::Predicate cmp_kind, const vector<
     ret = m_ctx->mk_not(ret);
 
   return ret;
+}
+
+vector<expr_ref>
+sym_exec_llvm::get_poison_args(const llvm::Instruction& I/*, string vname*/, const state& st, unordered_set<expr_ref> const& state_assumes, dshared_ptr<tfg_node> &from_node/*, pc const &pc_to, llvm::BasicBlock const &B, llvm::Function const &F*/, tfg &t, map<llvm_value_id_t, string_ref>* value_to_name_map)
+{
+  vector<expr_ref> args;
+  for (unsigned i = 0; i < I.getNumOperands(); ++i) {
+    const auto& v = *I.getOperand(i);
+    if (isa<const Instruction>(&v)) {
+      vector<sort_ref> sv = get_value_type_vec(v, m_module->getDataLayout());
+      args.push_back(state_get_expr(st, get_poison_value_name(v), m_ctx->mk_bool_sort()));
+    }
+  }
+  return args;
 }
 
 pair<vector<expr_ref>, unordered_set<expr_ref>>
@@ -1813,8 +1836,37 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     tie(expr_args, state_assumes) = get_expr_args(I/*, ""*/, state_in, state_assumes, from_node/*, pc_to, B, F*/, t, value_to_name_map);
     expr_ref insn_expr;
     expr_ref assume_expr = get_orig_assume_expr(I/*, ""*/, expr_args, state_in, state_assumes, from_node/*, pc_to, B, F*/, t);
+    vector<expr_ref> poison_args = get_poison_args(I/*, ""*/, state_in, state_assumes, from_node/*, pc_to, B, F*/, t, value_to_name_map);
+
+    if (!poison_args.empty()) {
+      if (assume_expr) {
+        poison_args.push_back(assume_expr);
+      }
+      if (poison_args.size() == 1) {
+	assume_expr = poison_args.front();
+      } else {
+        assume_expr = m_ctx->mk_app((poison_args.front()->is_bool_sort() ? expr::OP_OR : expr::OP_BVOR), poison_args);
+      }
+    }
+
+    if (!assume_expr) {
+      assume_expr = expr_false(m_ctx);
+    }
+
+    string poison_name       = get_poison_value_name(I);
+
+    state state_poison;
+    state_set_expr(state_poison, poison_name, assume_expr);
+
+    dshared_ptr<tfg_node> poison_node = get_next_intermediate_subsubindex_pc_node(t, from_node);
+    pc cur_pc = from_node->get_pc();
+    shared_ptr<tfg_edge const> e = mk_tfg_edge(mk_itfg_edge(cur_pc, poison_node->get_pc(), state_poison, expr_true(m_ctx)/*, t.get_start_state()*/, state_assumes, this->instruction_to_te_comment(I, from_node->get_pc()/*, bbo*/)));
+    t.add_edge(e);
+    from_node = poison_node;
+
     tie(insn_expr, state_assumes) = exec_gen_expr(I/*, ""*/, expr_args, state_in, state_assumes, from_node/*, pc_to, B, F*/, t);
     set_expr(get_value_name(I), insn_expr, state_out);
+
     break;
   }
   DYN_DEBUG(llvm2tfg, errs() << __func__ << " " << __LINE__ << " " << get_timestamp(as1, sizeof as1) << ": sym exec done\n");
@@ -1895,7 +1947,7 @@ sym_exec_llvm::get_orig_assume_expr(const llvm::Instruction& I/*, string Iname*/
 	assume_args.push_back(ret);
 	assume_args.push_back(other_ref);
 
-        ret = m_ctx->mk_app((ret->is_bool_sort() ? expr::OP_BVOR : expr::OP_OR), assume_args);
+        ret = m_ctx->mk_app((ret->is_bool_sort() ? expr::OP_OR : expr::OP_BVOR), assume_args);
       }
     }
     break;
