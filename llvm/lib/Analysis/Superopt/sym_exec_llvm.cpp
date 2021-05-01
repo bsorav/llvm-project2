@@ -1812,6 +1812,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     vector<expr_ref> expr_args;
     tie(expr_args, state_assumes) = get_expr_args(I/*, ""*/, state_in, state_assumes, from_node/*, pc_to, B, F*/, t, value_to_name_map);
     expr_ref insn_expr;
+    expr_ref assume_expr = get_orig_assume_expr(I/*, ""*/, expr_args, state_in, state_assumes, from_node/*, pc_to, B, F*/, t);
     tie(insn_expr, state_assumes) = exec_gen_expr(I/*, ""*/, expr_args, state_in, state_assumes, from_node/*, pc_to, B, F*/, t);
     set_expr(get_value_name(I), insn_expr, state_out);
     break;
@@ -1849,6 +1850,88 @@ sym_exec_common::instruction_to_te_comment(llvm::Instruction const& I, pc const&
   return te_comment_t(/*bbo, */false, from_subindex, ss.str());
 }
 
+// get_orig_assume_expr(): Return the original Assume associated with Instruction
+// This is what we originally had, for eg, is_shiftcount for a shift instruction
+expr_ref
+sym_exec_llvm::get_orig_assume_expr(const llvm::Instruction& I/*, string Iname*/, const vector<expr_ref>& args, state const &state_in, unordered_set<expr_ref> const& state_assumes, dshared_ptr<tfg_node> &from_node/*, pc const &pc_to, llvm::BasicBlock const &B, llvm::Function const &F*/, tfg &t)
+{
+  pc const &from_pc = from_node->get_pc();
+  expr_ref ret;
+  switch(I.getOpcode())
+  {
+  case Instruction::Add:
+  case Instruction::Mul:
+  case Instruction::Sub:
+  case Instruction::UDiv:
+  case Instruction::SDiv:
+  case Instruction::URem:
+  case Instruction::SRem:
+  case Instruction::Shl:
+  case Instruction::LShr:
+  case Instruction::AShr:
+  case Instruction::And:
+  case Instruction::Or:
+  case Instruction::Xor:
+  {
+    const BinaryOperator* i = cast<const BinaryOperator>(&I);
+    assert(args[0]->get_sort() == args[1]->get_sort());
+    if (   I.getOpcode() == Instruction::Shl
+        || I.getOpcode() == Instruction::LShr
+        || I.getOpcode() == Instruction::AShr) {
+      ASSERT(args[0]->is_bv_sort());
+      ret =  gen_shiftcount_assume_expr(args[1], args[0]->get_sort()->get_size());
+    }
+    if (   I.getOpcode() == Instruction::UDiv
+        || I.getOpcode() == Instruction::SDiv
+        || I.getOpcode() == Instruction::URem
+        || I.getOpcode() == Instruction::SRem) {
+      ASSERT(args[0]->is_bv_sort());
+      ret = gen_no_divbyzero_assume_expr(args[1]);
+      if (   I.getOpcode() == Instruction::SDiv
+          || I.getOpcode() == Instruction::SRem) {
+        expr_ref other_ref = gen_div_no_overflow_assume_expr(args[0], args[1]);
+
+	vector<expr_ref> assume_args;
+	assume_args.push_back(ret);
+	assume_args.push_back(other_ref);
+
+        ret = m_ctx->mk_app((ret->is_bool_sort() ? expr::OP_BVOR : expr::OP_OR), assume_args);
+      }
+    }
+    break;
+  }
+  case Instruction::SExt:
+  case Instruction::ZExt:
+  case Instruction::BitCast:
+  case Instruction::AddrSpaceCast:
+  case Instruction::PtrToInt:
+  case Instruction::IntToPtr:
+  case Instruction::Trunc:
+  {
+    break;
+  }
+  case Instruction::Select:
+    break;
+  case Instruction::ICmp:
+  {
+    break;
+  }
+  case Instruction::InsertValue:
+  case Instruction::ExtractValue:
+    assert(false && "insert extract not handled");
+  case Instruction::GetElementPtr:
+  {
+    break;
+  }
+  default:
+    break;
+  }
+
+  return ret;
+}
+
+
+  //errs() << "exec_gen_expr: " << I << " (function " << F.getName() << ")\n";
 //exec_gen_expr(): this is shared common logic for general instruction computation and constant-expression computation;
 //thus these common opcodes are encapsulated in a separate function
 //Returns: resulting expression EXPR_REF, set of UB assumes UNORDERED_SET<EXPR_REF>
@@ -1880,28 +1963,7 @@ sym_exec_llvm::exec_gen_expr(const llvm::Instruction& I/*, string Iname*/, const
     //errs() << "arg1: " << args[1]->to_string_table() << "\n";
     assert(args[0]->get_sort() == args[1]->get_sort());
     expr_ref ret = m_ctx->mk_app(binary_op_to_expr_kind(i->getOpcode(), args[0]->is_bool_sort()), args);
-    unordered_set<expr_ref> assumes = state_assumes;
-    if (   I.getOpcode() == Instruction::Shl
-        || I.getOpcode() == Instruction::LShr
-        || I.getOpcode() == Instruction::AShr) {
-      ASSERT(args[0]->is_bv_sort());
-      assumes.insert(gen_shiftcount_assume_expr(args[1], args[0]->get_sort()->get_size()));
-      //add_shiftcount_assume(args[1], args[0]->get_sort()->get_size(), from_node->get_pc(), t/*assumes*/);
-    }
-    if (   I.getOpcode() == Instruction::UDiv
-        || I.getOpcode() == Instruction::SDiv
-        || I.getOpcode() == Instruction::URem
-        || I.getOpcode() == Instruction::SRem) {
-      ASSERT(args[0]->is_bv_sort());
-      assumes.insert(gen_no_divbyzero_assume_expr(args[1]));
-      //add_divbyzero_assume(args[1], from_node->get_pc(), t/*assumes*/);
-      if (   I.getOpcode() == Instruction::SDiv
-          || I.getOpcode() == Instruction::SRem) {
-        assumes.insert(gen_div_no_overflow_assume_expr(args[0], args[1]));
-        //add_div_no_overflow_assume(args[0], args[1], from_node->get_pc(), t/*assumes*/);
-      }
-    }
-    return make_pair(ret, assumes);
+    return make_pair(ret, state_assumes);
   }
   case Instruction::SExt:
   case Instruction::ZExt:
