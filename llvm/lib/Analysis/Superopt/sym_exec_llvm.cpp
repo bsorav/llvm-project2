@@ -1419,8 +1419,6 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     string local_name_with_size = ss.str();
     memlabel_t::keyword_to_memlabel(&ml_local, local_name_with_size.c_str(), local_size);
 
-    expr_ref local_instance_expr = m_ctx->get_local_instance_expr_for_id(local_id);
-
     //expr_ref local_addr = m_ctx->mk_var(local_str, m_ctx->mk_bv_sort(get_word_length()));
     //string typeString = getTypeString(ElTy);
     //typeString = typeString + "*";
@@ -1443,11 +1441,12 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
       local_size_expr = m_ctx->mk_bv_const(get_word_length(), local_size);
     }
 
+    expr_ref alloca_ptr = m_ctx->mk_alloca_ptr(state_get_expr(state_in, m_mem_reg, this->get_mem_sort()), ml_local);
     // memory <- alloca
     // name <- alloca_ptr
     // local_size.id <- size expr
-    state_set_expr(state_out, m_mem_reg, m_ctx->mk_alloca(state_get_expr(state_in, m_mem_reg, this->get_mem_sort()), ml_local, local_instance_expr, local_size_expr));
-    state_set_expr(state_out, name, m_ctx->mk_alloca_ptr(ml_local));
+    state_set_expr(state_out, m_mem_reg, m_ctx->mk_alloca(state_get_expr(state_in, m_mem_reg, this->get_mem_sort()), ml_local, alloca_ptr, local_size_expr));
+    state_set_expr(state_out, name, alloca_ptr);
     state_set_expr(state_out, local_size_str, local_size_expr);
 
     // intermediate edge
