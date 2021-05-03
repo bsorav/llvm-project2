@@ -1330,6 +1330,26 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
       cfts.push_back(cft1);
       control_flow_transfer cft2(from_node->get_pc(), get_pc_from_bbindex_and_insn_id(get_basicblock_index(*i->getSuccessor(1)), 0), m_ctx->mk_not(e), cond_assumes);
       cfts.push_back(cft2);
+      // ============================================
+      vector<expr_ref> poison_args = get_poison_args(I/*, ""*/, state_in, state_assumes, from_node/*, pc_to, B, F*/, t, value_to_name_map);
+      expr_ref assume_expr;
+      if (!poison_args.empty()) 
+      {
+        // if (poison_args.size() == 1) 
+        // {
+          assume_expr = poison_args.front();
+        // } 
+        // else 
+        // {
+        //   assume_expr = m_ctx->mk_app((poison_args.front()->is_bool_sort() ? expr::OP_OR : expr::OP_BVOR), poison_args);
+        // }
+      }
+
+      if (!assume_expr) {
+        assume_expr = expr_false(m_ctx);
+      }
+      state_assumes.insert(assume_expr);
+      //=============================================
     }
     else
       assert(false);
