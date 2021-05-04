@@ -1,6 +1,6 @@
 =llvm_header
-; ModuleID = '/home/adityanathan/superopt-project/llvm-project/tests_aditya_ritesh/eq_tests/prog2.ll'
-source_filename = "/home/adityanathan/superopt-project/llvm-project/tests_aditya_ritesh/eq_tests/prog2.ll"
+; ModuleID = '/home/adityanathan/superopt-project/llvm-project/manual_safety_tests/eq_tests/prog1.ll'
+source_filename = "/home/adityanathan/superopt-project/llvm-project/manual_safety_tests/eq_tests/prog1.ll"
 target datalayout = "e-m:e-p:32:32-p270:32:32-p271:32:32-p272:64:64-f64:32:64-f80:32-n8:16:32-S128"
 target triple = "i386-unknown-linux-gnu"
 
@@ -72,14 +72,14 @@ tfg_edge_comment end
 1 : 1 : BOOL
 =Edge.StateTo: 
 =dst.llvm-%i_1.poison.temp1
-1 : 1 : BV:4
+1 : 5 : BV:4
 2 : 4 : INT
 3 : isshiftcount(1, 2) : BOOL
 =state_end
 =Edge.Assumes.begin:
 =Edge.Assumes.end
 =Edge.te_comment
-0:1:  %i_1 = shl i4 3, 1
+0:1:  %i_1 = shl i4 3, 5
 tfg_edge_comment end
 
 =Edge: L0%1%100003 => L0%1%100004
@@ -93,7 +93,7 @@ tfg_edge_comment end
 =Edge.Assumes.begin:
 =Edge.Assumes.end
 =Edge.te_comment
-0:1:  %i_1 = shl i4 3, 1
+0:1:  %i_1 = shl i4 3, 5
 tfg_edge_comment end
 
 =Edge: L0%1%100004 => L0%1%100005
@@ -101,12 +101,14 @@ tfg_edge_comment end
 1 : 1 : BOOL
 =Edge.StateTo: 
 =dst.llvm-%i_1.poison
-1 : input.dst.llvm-%i_1.poison.temp2 : BOOL
+1 : 0 : BOOL
+2 : input.dst.llvm-%i_1.poison.temp2 : BOOL
+3 : or(1, 1, 2) : BOOL
 =state_end
 =Edge.Assumes.begin:
 =Edge.Assumes.end
 =Edge.te_comment
-0:1:  %i_1 = shl i4 3, 1
+0:1:  %i_1 = shl i4 3, 5
 tfg_edge_comment end
 
 =Edge: L0%1%100005 => L0%2%1
@@ -115,13 +117,13 @@ tfg_edge_comment end
 =Edge.StateTo: 
 =dst.llvm-%i_1
 1 : 3 : BV:4
-2 : 1 : BV:4
+2 : 5 : BV:4
 3 : bvshl(1, 2) : BV:4
 =state_end
 =Edge.Assumes.begin:
 =Edge.Assumes.end
 =Edge.te_comment
-0:1:  %i_1 = shl i4 3, 1
+0:1:  %i_1 = shl i4 3, 5
 tfg_edge_comment end
 
 =Edge: L0%2%1 => L0%2%100003
@@ -129,7 +131,9 @@ tfg_edge_comment end
 1 : 1 : BOOL
 =Edge.StateTo: 
 =dst.llvm-%i_2.poison
-1 : input.dst.llvm-%i_1.poison.temp2 : BOOL
+1 : input.dst.llvm-%i_1.poison : BOOL
+2 : 0 : BOOL
+3 : or(1, 2) : BOOL
 =state_end
 =Edge.Assumes.begin:
 =Edge.Assumes.end
@@ -160,7 +164,7 @@ tfg_edge_comment end
 =state_end
 =Edge.Assumes.begin:
 =EdgeAssume.0
-1 : input.dst.llvm-%i_1.poison.temp2 : BOOL
+1 : input.dst.llvm-%i_2.poison : BOOL
 2 : not(1) : BOOL
 =Edge.Assumes.end
 =Edge.te_comment
@@ -174,7 +178,7 @@ tfg_edge_comment end
 =state_end
 =Edge.Assumes.begin:
 =EdgeAssume.0
-1 : input.dst.llvm-%i_1.poison.temp2 : BOOL
+1 : input.dst.llvm-%i_2.poison : BOOL
 2 : not(1) : BOOL
 =Edge.Assumes.end
 =Edge.te_comment
@@ -259,9 +263,10 @@ tfg_edge_comment end
 1 : 1 : BOOL
 =Edge.StateTo: 
 =dst.llvm-%i_3.poison
-1 : input.dst.llvm-%i_1.poison.temp2 : BOOL
-2 : input.dst.llvm-%i_3.poison.temp2 : BOOL
-3 : or(1, 2) : BOOL
+1 : 0 : BOOL
+2 : input.dst.llvm-%i_1.poison : BOOL
+3 : input.dst.llvm-%i_3.poison.temp2 : BOOL
+4 : or(1, 2, 3) : BOOL
 =state_end
 =Edge.Assumes.begin:
 =Edge.Assumes.end
@@ -368,9 +373,9 @@ tfg_edge_comment end
 =graph_with_simplified_assets.simplified_edgecond at L0%2%100003=>L0%3%1
 1 : 1 : BOOL
 =graph_with_simplified_assets.simplified_edgecond at L0%3%1=>L0%3%100003
-1 : 0 : BOOL
-=graph_with_simplified_assets.simplified_edgecond at L0%3%1=>L0%3%100005
 1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at L0%3%1=>L0%3%100005
+1 : 0 : BOOL
 =graph_with_simplified_assets.simplified_edgecond at L0%3%100003=>L0%3%100004
 1 : 1 : BOOL
 =graph_with_simplified_assets.simplified_edgecond at L0%3%100004=>Lfoo%1%1
@@ -402,27 +407,27 @@ tfg_edge_comment end
 =state_end
 =graph_with_simplified_assets.simplified_to_state at L0%1%1=>L0%1%100003
 =dst.llvm-%i_1.poison.temp1
-1 : 1 : BOOL
+1 : 0 : BOOL
 =state_end
 =graph_with_simplified_assets.simplified_to_state at L0%1%100003=>L0%1%100004
 =dst.llvm-%i_1.poison.temp2
-1 : 0 : BOOL
+1 : 1 : BOOL
 =state_end
 =graph_with_simplified_assets.simplified_to_state at L0%1%100004=>L0%1%100005
 =dst.llvm-%i_1.poison
-1 : 0 : BOOL
+1 : 1 : BOOL
 =state_end
 =graph_with_simplified_assets.simplified_to_state at L0%1%100005=>L0%2%1
 =dst.llvm-%i_1
-1 : 6 : BV:4
+1 : 0 : BV:4
 =state_end
 =graph_with_simplified_assets.simplified_to_state at L0%2%1=>L0%2%100003
 =dst.llvm-%i_2.poison
-1 : 0 : BOOL
+1 : 1 : BOOL
 =state_end
 =graph_with_simplified_assets.simplified_to_state at L0%2%100003=>L0%3%1
 =dst.llvm-%i_2
-1 : 0 : BOOL
+1 : 1 : BOOL
 =state_end
 =graph_with_simplified_assets.simplified_to_state at L0%3%1=>L0%3%100003
 =state_end
@@ -451,11 +456,11 @@ tfg_edge_comment end
 =state_end
 =graph_with_simplified_assets.simplified_to_state at Lfoo%1%1=>Lfoo%1%100003
 =dst.llvm-%i_3.poison.temp1
-1 : 0 : BOOL
+1 : 1 : BOOL
 =state_end
 =graph_with_simplified_assets.simplified_to_state at Lfoo%1%100003=>Lfoo%1%100004
 =dst.llvm-%i_3.poison.temp2
-1 : 1 : BOOL
+1 : 0 : BOOL
 =state_end
 =graph_with_simplified_assets.simplified_to_state at Lfoo%1%100004=>Lfoo%1%100005
 =dst.llvm-%i_3.poison
@@ -463,7 +468,7 @@ tfg_edge_comment end
 =state_end
 =graph_with_simplified_assets.simplified_to_state at Lfoo%1%100005=>Lfoo%2%1
 =dst.llvm-%i_3
-1 : 0 : BV:4
+1 : 3 : BV:4
 =state_end
 =graph_with_simplified_assets.simplified_to_state at Lfoo%2%1=>Lfoo%2%100003
 =state_end
@@ -488,11 +493,11 @@ tfg_edge_comment end
 =graph_with_simplified_assets.simplified_assumes at L0%2%100003=>L0%3%1 done
 =graph_with_simplified_assets.simplified_assumes at L0%3%1=>L0%3%100003
 =graph_with_simplified_assets.simplified_assumes at L0%3%1=>L0%3%100003 assume# 0
-1 : 1 : BOOL
+1 : 0 : BOOL
 =graph_with_simplified_assets.simplified_assumes at L0%3%1=>L0%3%100003 done
 =graph_with_simplified_assets.simplified_assumes at L0%3%1=>L0%3%100005
 =graph_with_simplified_assets.simplified_assumes at L0%3%1=>L0%3%100005 assume# 0
-1 : 1 : BOOL
+1 : 0 : BOOL
 =graph_with_simplified_assets.simplified_assumes at L0%3%1=>L0%3%100005 done
 =graph_with_simplified_assets.simplified_assumes at L0%3%100003=>L0%3%100004
 =graph_with_simplified_assets.simplified_assumes at L0%3%100003=>L0%3%100004 done
@@ -525,27 +530,27 @@ tfg_edge_comment end
 =graph_with_simplified_assets.loc_to_expr_map at L0%0%1=>L0%1%1 done
 =graph_with_simplified_assets.loc_to_expr_map at L0%1%1=>L0%1%100003
 =graph_with_simplified_assets.loc_to_expr_map at L0%1%1=>L0%1%100003 for loc_id 1004
-1 : 1 : BOOL
+1 : 0 : BOOL
 =graph_with_simplified_assets.loc_to_expr_map at L0%1%1=>L0%1%100003 done
 =graph_with_simplified_assets.loc_to_expr_map at L0%1%100003=>L0%1%100004
 =graph_with_simplified_assets.loc_to_expr_map at L0%1%100003=>L0%1%100004 for loc_id 1005
-1 : 0 : BOOL
+1 : 1 : BOOL
 =graph_with_simplified_assets.loc_to_expr_map at L0%1%100003=>L0%1%100004 done
 =graph_with_simplified_assets.loc_to_expr_map at L0%1%100004=>L0%1%100005
 =graph_with_simplified_assets.loc_to_expr_map at L0%1%100004=>L0%1%100005 for loc_id 1003
-1 : 0 : BOOL
+1 : 1 : BOOL
 =graph_with_simplified_assets.loc_to_expr_map at L0%1%100004=>L0%1%100005 done
 =graph_with_simplified_assets.loc_to_expr_map at L0%1%100005=>L0%2%1
 =graph_with_simplified_assets.loc_to_expr_map at L0%1%100005=>L0%2%1 for loc_id 1002
-1 : 6 : BV:4
+1 : 0 : BV:4
 =graph_with_simplified_assets.loc_to_expr_map at L0%1%100005=>L0%2%1 done
 =graph_with_simplified_assets.loc_to_expr_map at L0%2%1=>L0%2%100003
 =graph_with_simplified_assets.loc_to_expr_map at L0%2%1=>L0%2%100003 for loc_id 1007
-1 : 0 : BOOL
+1 : 1 : BOOL
 =graph_with_simplified_assets.loc_to_expr_map at L0%2%1=>L0%2%100003 done
 =graph_with_simplified_assets.loc_to_expr_map at L0%2%100003=>L0%3%1
 =graph_with_simplified_assets.loc_to_expr_map at L0%2%100003=>L0%3%1 for loc_id 1006
-1 : 0 : BOOL
+1 : 1 : BOOL
 =graph_with_simplified_assets.loc_to_expr_map at L0%2%100003=>L0%3%1 done
 =graph_with_simplified_assets.loc_to_expr_map at L0%3%1=>L0%3%100003
 =graph_with_simplified_assets.loc_to_expr_map at L0%3%1=>L0%3%100003 done
@@ -574,11 +579,11 @@ tfg_edge_comment end
 =graph_with_simplified_assets.loc_to_expr_map at Lend%1%1=>E0%0%1 done
 =graph_with_simplified_assets.loc_to_expr_map at Lfoo%1%1=>Lfoo%1%100003
 =graph_with_simplified_assets.loc_to_expr_map at Lfoo%1%1=>Lfoo%1%100003 for loc_id 1010
-1 : 0 : BOOL
+1 : 1 : BOOL
 =graph_with_simplified_assets.loc_to_expr_map at Lfoo%1%1=>Lfoo%1%100003 done
 =graph_with_simplified_assets.loc_to_expr_map at Lfoo%1%100003=>Lfoo%1%100004
 =graph_with_simplified_assets.loc_to_expr_map at Lfoo%1%100003=>Lfoo%1%100004 for loc_id 1011
-1 : 1 : BOOL
+1 : 0 : BOOL
 =graph_with_simplified_assets.loc_to_expr_map at Lfoo%1%100003=>Lfoo%1%100004 done
 =graph_with_simplified_assets.loc_to_expr_map at Lfoo%1%100004=>Lfoo%1%100005
 =graph_with_simplified_assets.loc_to_expr_map at Lfoo%1%100004=>Lfoo%1%100005 for loc_id 1009
@@ -586,7 +591,7 @@ tfg_edge_comment end
 =graph_with_simplified_assets.loc_to_expr_map at Lfoo%1%100004=>Lfoo%1%100005 done
 =graph_with_simplified_assets.loc_to_expr_map at Lfoo%1%100005=>Lfoo%2%1
 =graph_with_simplified_assets.loc_to_expr_map at Lfoo%1%100005=>Lfoo%2%1 for loc_id 1008
-1 : 0 : BV:4
+1 : 3 : BV:4
 =graph_with_simplified_assets.loc_to_expr_map at Lfoo%1%100005=>Lfoo%2%1 done
 =graph_with_simplified_assets.loc_to_expr_map at Lfoo%2%1=>Lfoo%2%100003
 =graph_with_simplified_assets.loc_to_expr_map at Lfoo%2%1=>Lfoo%2%100003 done
@@ -1549,679 +1554,679 @@ lr_status_bottom(; memlabel-mem-heap, )
 =avail_exprs begin
 =loc 1004
 =from_expr
-17436 : input.dst.llvm-%i_1.poison.temp1 : BOOL
+17439 : input.dst.llvm-%i_1.poison.temp1 : BOOL
 =to_expr
-17393 : 1 : BOOL
+17399 : 0 : BOOL
 =avail_exprs end
 =available expressions at L0%1%100004 in dst.llvm.main
 =avail_exprs begin
 =loc 1004
 =from_expr
-17436 : input.dst.llvm-%i_1.poison.temp1 : BOOL
+17439 : input.dst.llvm-%i_1.poison.temp1 : BOOL
 =to_expr
-17393 : 1 : BOOL
+17399 : 0 : BOOL
 =loc 1005
 =from_expr
-17438 : input.dst.llvm-%i_1.poison.temp2 : BOOL
+17441 : input.dst.llvm-%i_1.poison.temp2 : BOOL
 =to_expr
-17423 : 0 : BOOL
+17393 : 1 : BOOL
 =avail_exprs end
 =available expressions at L0%1%100005 in dst.llvm.main
 =avail_exprs begin
 =loc 1003
 =from_expr
-17441 : input.dst.llvm-%i_1.poison : BOOL
-=to_expr
-17423 : 0 : BOOL
-=loc 1004
-=from_expr
-17436 : input.dst.llvm-%i_1.poison.temp1 : BOOL
+17445 : input.dst.llvm-%i_1.poison : BOOL
 =to_expr
 17393 : 1 : BOOL
+=loc 1004
+=from_expr
+17439 : input.dst.llvm-%i_1.poison.temp1 : BOOL
+=to_expr
+17399 : 0 : BOOL
 =loc 1005
 =from_expr
-17438 : input.dst.llvm-%i_1.poison.temp2 : BOOL
+17441 : input.dst.llvm-%i_1.poison.temp2 : BOOL
 =to_expr
-17423 : 0 : BOOL
+17393 : 1 : BOOL
 =avail_exprs end
 =available expressions at L0%2%1 in dst.llvm.main
 =avail_exprs begin
 =loc 1002
 =from_expr
-17440 : input.dst.llvm-%i_1 : BV:4
+17444 : input.dst.llvm-%i_1 : BV:4
 =to_expr
-17468 : 6 : BV:4
+17407 : 0 : BV:4
 =loc 1003
 =from_expr
-17441 : input.dst.llvm-%i_1.poison : BOOL
-=to_expr
-17423 : 0 : BOOL
-=loc 1004
-=from_expr
-17436 : input.dst.llvm-%i_1.poison.temp1 : BOOL
+17445 : input.dst.llvm-%i_1.poison : BOOL
 =to_expr
 17393 : 1 : BOOL
+=loc 1004
+=from_expr
+17439 : input.dst.llvm-%i_1.poison.temp1 : BOOL
+=to_expr
+17399 : 0 : BOOL
 =loc 1005
 =from_expr
-17438 : input.dst.llvm-%i_1.poison.temp2 : BOOL
+17441 : input.dst.llvm-%i_1.poison.temp2 : BOOL
 =to_expr
-17423 : 0 : BOOL
+17393 : 1 : BOOL
 =avail_exprs end
 =available expressions at L0%2%100003 in dst.llvm.main
 =avail_exprs begin
 =loc 1002
 =from_expr
-17440 : input.dst.llvm-%i_1 : BV:4
+17444 : input.dst.llvm-%i_1 : BV:4
 =to_expr
-17468 : 6 : BV:4
+17407 : 0 : BV:4
 =loc 1003
 =from_expr
-17441 : input.dst.llvm-%i_1.poison : BOOL
-=to_expr
-17423 : 0 : BOOL
-=loc 1004
-=from_expr
-17436 : input.dst.llvm-%i_1.poison.temp1 : BOOL
+17445 : input.dst.llvm-%i_1.poison : BOOL
 =to_expr
 17393 : 1 : BOOL
+=loc 1004
+=from_expr
+17439 : input.dst.llvm-%i_1.poison.temp1 : BOOL
+=to_expr
+17399 : 0 : BOOL
 =loc 1005
 =from_expr
-17438 : input.dst.llvm-%i_1.poison.temp2 : BOOL
+17441 : input.dst.llvm-%i_1.poison.temp2 : BOOL
 =to_expr
-17423 : 0 : BOOL
+17393 : 1 : BOOL
 =loc 1007
 =from_expr
-17445 : input.dst.llvm-%i_2.poison : BOOL
+17450 : input.dst.llvm-%i_2.poison : BOOL
 =to_expr
-17423 : 0 : BOOL
+17393 : 1 : BOOL
 =avail_exprs end
 =available expressions at L0%3%1 in dst.llvm.main
 =avail_exprs begin
 =loc 1002
 =from_expr
-17440 : input.dst.llvm-%i_1 : BV:4
+17444 : input.dst.llvm-%i_1 : BV:4
 =to_expr
-17468 : 6 : BV:4
+17407 : 0 : BV:4
 =loc 1003
 =from_expr
-17441 : input.dst.llvm-%i_1.poison : BOOL
-=to_expr
-17423 : 0 : BOOL
-=loc 1004
-=from_expr
-17436 : input.dst.llvm-%i_1.poison.temp1 : BOOL
+17445 : input.dst.llvm-%i_1.poison : BOOL
 =to_expr
 17393 : 1 : BOOL
+=loc 1004
+=from_expr
+17439 : input.dst.llvm-%i_1.poison.temp1 : BOOL
+=to_expr
+17399 : 0 : BOOL
 =loc 1005
 =from_expr
-17438 : input.dst.llvm-%i_1.poison.temp2 : BOOL
+17441 : input.dst.llvm-%i_1.poison.temp2 : BOOL
 =to_expr
-17423 : 0 : BOOL
+17393 : 1 : BOOL
 =loc 1006
 =from_expr
-17443 : input.dst.llvm-%i_2 : BOOL
+17448 : input.dst.llvm-%i_2 : BOOL
 =to_expr
-17423 : 0 : BOOL
+17393 : 1 : BOOL
 =loc 1007
 =from_expr
-17445 : input.dst.llvm-%i_2.poison : BOOL
+17450 : input.dst.llvm-%i_2.poison : BOOL
 =to_expr
-17423 : 0 : BOOL
+17393 : 1 : BOOL
 =avail_exprs end
 =available expressions at L0%3%100003 in dst.llvm.main
 =avail_exprs begin
 =loc 1002
 =from_expr
-17440 : input.dst.llvm-%i_1 : BV:4
+17444 : input.dst.llvm-%i_1 : BV:4
 =to_expr
-17468 : 6 : BV:4
+17407 : 0 : BV:4
 =loc 1003
 =from_expr
-17441 : input.dst.llvm-%i_1.poison : BOOL
-=to_expr
-17423 : 0 : BOOL
-=loc 1004
-=from_expr
-17436 : input.dst.llvm-%i_1.poison.temp1 : BOOL
+17445 : input.dst.llvm-%i_1.poison : BOOL
 =to_expr
 17393 : 1 : BOOL
+=loc 1004
+=from_expr
+17439 : input.dst.llvm-%i_1.poison.temp1 : BOOL
+=to_expr
+17399 : 0 : BOOL
 =loc 1005
 =from_expr
-17438 : input.dst.llvm-%i_1.poison.temp2 : BOOL
+17441 : input.dst.llvm-%i_1.poison.temp2 : BOOL
 =to_expr
-17423 : 0 : BOOL
+17393 : 1 : BOOL
 =loc 1006
 =from_expr
-17443 : input.dst.llvm-%i_2 : BOOL
+17448 : input.dst.llvm-%i_2 : BOOL
 =to_expr
-17423 : 0 : BOOL
+17393 : 1 : BOOL
 =loc 1007
 =from_expr
-17445 : input.dst.llvm-%i_2.poison : BOOL
+17450 : input.dst.llvm-%i_2.poison : BOOL
 =to_expr
-17423 : 0 : BOOL
+17393 : 1 : BOOL
 =avail_exprs end
 =available expressions at L0%3%100004 in dst.llvm.main
 =avail_exprs begin
 =loc 1002
 =from_expr
-17440 : input.dst.llvm-%i_1 : BV:4
+17444 : input.dst.llvm-%i_1 : BV:4
 =to_expr
-17468 : 6 : BV:4
+17407 : 0 : BV:4
 =loc 1003
 =from_expr
-17441 : input.dst.llvm-%i_1.poison : BOOL
-=to_expr
-17423 : 0 : BOOL
-=loc 1004
-=from_expr
-17436 : input.dst.llvm-%i_1.poison.temp1 : BOOL
+17445 : input.dst.llvm-%i_1.poison : BOOL
 =to_expr
 17393 : 1 : BOOL
+=loc 1004
+=from_expr
+17439 : input.dst.llvm-%i_1.poison.temp1 : BOOL
+=to_expr
+17399 : 0 : BOOL
 =loc 1005
 =from_expr
-17438 : input.dst.llvm-%i_1.poison.temp2 : BOOL
+17441 : input.dst.llvm-%i_1.poison.temp2 : BOOL
 =to_expr
-17423 : 0 : BOOL
+17393 : 1 : BOOL
 =loc 1006
 =from_expr
-17443 : input.dst.llvm-%i_2 : BOOL
+17448 : input.dst.llvm-%i_2 : BOOL
 =to_expr
-17423 : 0 : BOOL
+17393 : 1 : BOOL
 =loc 1007
 =from_expr
-17445 : input.dst.llvm-%i_2.poison : BOOL
+17450 : input.dst.llvm-%i_2.poison : BOOL
 =to_expr
-17423 : 0 : BOOL
+17393 : 1 : BOOL
 =avail_exprs end
 =available expressions at L0%3%100005 in dst.llvm.main
 =avail_exprs begin
 =loc 1002
 =from_expr
-17440 : input.dst.llvm-%i_1 : BV:4
+17444 : input.dst.llvm-%i_1 : BV:4
 =to_expr
-17468 : 6 : BV:4
+17407 : 0 : BV:4
 =loc 1003
 =from_expr
-17441 : input.dst.llvm-%i_1.poison : BOOL
-=to_expr
-17423 : 0 : BOOL
-=loc 1004
-=from_expr
-17436 : input.dst.llvm-%i_1.poison.temp1 : BOOL
+17445 : input.dst.llvm-%i_1.poison : BOOL
 =to_expr
 17393 : 1 : BOOL
+=loc 1004
+=from_expr
+17439 : input.dst.llvm-%i_1.poison.temp1 : BOOL
+=to_expr
+17399 : 0 : BOOL
 =loc 1005
 =from_expr
-17438 : input.dst.llvm-%i_1.poison.temp2 : BOOL
+17441 : input.dst.llvm-%i_1.poison.temp2 : BOOL
 =to_expr
-17423 : 0 : BOOL
+17393 : 1 : BOOL
 =loc 1006
 =from_expr
-17443 : input.dst.llvm-%i_2 : BOOL
+17448 : input.dst.llvm-%i_2 : BOOL
 =to_expr
-17423 : 0 : BOOL
+17393 : 1 : BOOL
 =loc 1007
 =from_expr
-17445 : input.dst.llvm-%i_2.poison : BOOL
+17450 : input.dst.llvm-%i_2.poison : BOOL
 =to_expr
-17423 : 0 : BOOL
+17393 : 1 : BOOL
 =avail_exprs end
 =available expressions at L0%3%100006 in dst.llvm.main
 =avail_exprs begin
 =loc 1002
 =from_expr
-17440 : input.dst.llvm-%i_1 : BV:4
+17444 : input.dst.llvm-%i_1 : BV:4
 =to_expr
-17468 : 6 : BV:4
+17407 : 0 : BV:4
 =loc 1003
 =from_expr
-17441 : input.dst.llvm-%i_1.poison : BOOL
-=to_expr
-17423 : 0 : BOOL
-=loc 1004
-=from_expr
-17436 : input.dst.llvm-%i_1.poison.temp1 : BOOL
+17445 : input.dst.llvm-%i_1.poison : BOOL
 =to_expr
 17393 : 1 : BOOL
+=loc 1004
+=from_expr
+17439 : input.dst.llvm-%i_1.poison.temp1 : BOOL
+=to_expr
+17399 : 0 : BOOL
 =loc 1005
 =from_expr
-17438 : input.dst.llvm-%i_1.poison.temp2 : BOOL
+17441 : input.dst.llvm-%i_1.poison.temp2 : BOOL
 =to_expr
-17423 : 0 : BOOL
+17393 : 1 : BOOL
 =loc 1006
 =from_expr
-17443 : input.dst.llvm-%i_2 : BOOL
+17448 : input.dst.llvm-%i_2 : BOOL
 =to_expr
-17423 : 0 : BOOL
+17393 : 1 : BOOL
 =loc 1007
 =from_expr
-17445 : input.dst.llvm-%i_2.poison : BOOL
+17450 : input.dst.llvm-%i_2.poison : BOOL
 =to_expr
-17423 : 0 : BOOL
+17393 : 1 : BOOL
 =avail_exprs end
 =available expressions at Lend%1%0 in dst.llvm.main
 =avail_exprs begin
 =loc 1002
 =from_expr
-17440 : input.dst.llvm-%i_1 : BV:4
+17444 : input.dst.llvm-%i_1 : BV:4
 =to_expr
-17468 : 6 : BV:4
+17407 : 0 : BV:4
 =loc 1003
 =from_expr
-17441 : input.dst.llvm-%i_1.poison : BOOL
-=to_expr
-17423 : 0 : BOOL
-=loc 1004
-=from_expr
-17436 : input.dst.llvm-%i_1.poison.temp1 : BOOL
+17445 : input.dst.llvm-%i_1.poison : BOOL
 =to_expr
 17393 : 1 : BOOL
+=loc 1004
+=from_expr
+17439 : input.dst.llvm-%i_1.poison.temp1 : BOOL
+=to_expr
+17399 : 0 : BOOL
 =loc 1005
 =from_expr
-17438 : input.dst.llvm-%i_1.poison.temp2 : BOOL
+17441 : input.dst.llvm-%i_1.poison.temp2 : BOOL
 =to_expr
-17423 : 0 : BOOL
+17393 : 1 : BOOL
 =loc 1006
 =from_expr
-17443 : input.dst.llvm-%i_2 : BOOL
+17448 : input.dst.llvm-%i_2 : BOOL
 =to_expr
-17423 : 0 : BOOL
+17393 : 1 : BOOL
 =loc 1007
 =from_expr
-17445 : input.dst.llvm-%i_2.poison : BOOL
+17450 : input.dst.llvm-%i_2.poison : BOOL
 =to_expr
-17423 : 0 : BOOL
+17393 : 1 : BOOL
 =avail_exprs end
 =available expressions at Lend%1%1 in dst.llvm.main
 =avail_exprs begin
 =loc 1002
 =from_expr
-17440 : input.dst.llvm-%i_1 : BV:4
+17444 : input.dst.llvm-%i_1 : BV:4
 =to_expr
-17468 : 6 : BV:4
+17407 : 0 : BV:4
 =loc 1003
 =from_expr
-17441 : input.dst.llvm-%i_1.poison : BOOL
-=to_expr
-17423 : 0 : BOOL
-=loc 1004
-=from_expr
-17436 : input.dst.llvm-%i_1.poison.temp1 : BOOL
+17445 : input.dst.llvm-%i_1.poison : BOOL
 =to_expr
 17393 : 1 : BOOL
+=loc 1004
+=from_expr
+17439 : input.dst.llvm-%i_1.poison.temp1 : BOOL
+=to_expr
+17399 : 0 : BOOL
 =loc 1005
 =from_expr
-17438 : input.dst.llvm-%i_1.poison.temp2 : BOOL
+17441 : input.dst.llvm-%i_1.poison.temp2 : BOOL
 =to_expr
-17423 : 0 : BOOL
+17393 : 1 : BOOL
 =loc 1006
 =from_expr
-17443 : input.dst.llvm-%i_2 : BOOL
+17448 : input.dst.llvm-%i_2 : BOOL
 =to_expr
-17423 : 0 : BOOL
+17393 : 1 : BOOL
 =loc 1007
 =from_expr
-17445 : input.dst.llvm-%i_2.poison : BOOL
+17450 : input.dst.llvm-%i_2.poison : BOOL
 =to_expr
-17423 : 0 : BOOL
+17393 : 1 : BOOL
 =avail_exprs end
 =available expressions at Lfoo%1%1 in dst.llvm.main
 =avail_exprs begin
 =loc 1002
 =from_expr
-17440 : input.dst.llvm-%i_1 : BV:4
+17444 : input.dst.llvm-%i_1 : BV:4
 =to_expr
-17468 : 6 : BV:4
+17407 : 0 : BV:4
 =loc 1003
 =from_expr
-17441 : input.dst.llvm-%i_1.poison : BOOL
-=to_expr
-17423 : 0 : BOOL
-=loc 1004
-=from_expr
-17436 : input.dst.llvm-%i_1.poison.temp1 : BOOL
+17445 : input.dst.llvm-%i_1.poison : BOOL
 =to_expr
 17393 : 1 : BOOL
+=loc 1004
+=from_expr
+17439 : input.dst.llvm-%i_1.poison.temp1 : BOOL
+=to_expr
+17399 : 0 : BOOL
 =loc 1005
 =from_expr
-17438 : input.dst.llvm-%i_1.poison.temp2 : BOOL
+17441 : input.dst.llvm-%i_1.poison.temp2 : BOOL
 =to_expr
-17423 : 0 : BOOL
+17393 : 1 : BOOL
 =loc 1006
 =from_expr
-17443 : input.dst.llvm-%i_2 : BOOL
+17448 : input.dst.llvm-%i_2 : BOOL
 =to_expr
-17423 : 0 : BOOL
+17393 : 1 : BOOL
 =loc 1007
 =from_expr
-17445 : input.dst.llvm-%i_2.poison : BOOL
+17450 : input.dst.llvm-%i_2.poison : BOOL
 =to_expr
-17423 : 0 : BOOL
+17393 : 1 : BOOL
 =avail_exprs end
 =available expressions at Lfoo%1%100003 in dst.llvm.main
 =avail_exprs begin
 =loc 1002
 =from_expr
-17440 : input.dst.llvm-%i_1 : BV:4
+17444 : input.dst.llvm-%i_1 : BV:4
 =to_expr
-17468 : 6 : BV:4
+17407 : 0 : BV:4
 =loc 1003
 =from_expr
-17441 : input.dst.llvm-%i_1.poison : BOOL
-=to_expr
-17423 : 0 : BOOL
-=loc 1004
-=from_expr
-17436 : input.dst.llvm-%i_1.poison.temp1 : BOOL
+17445 : input.dst.llvm-%i_1.poison : BOOL
 =to_expr
 17393 : 1 : BOOL
+=loc 1004
+=from_expr
+17439 : input.dst.llvm-%i_1.poison.temp1 : BOOL
+=to_expr
+17399 : 0 : BOOL
 =loc 1005
 =from_expr
-17438 : input.dst.llvm-%i_1.poison.temp2 : BOOL
+17441 : input.dst.llvm-%i_1.poison.temp2 : BOOL
 =to_expr
-17423 : 0 : BOOL
+17393 : 1 : BOOL
 =loc 1006
 =from_expr
-17443 : input.dst.llvm-%i_2 : BOOL
+17448 : input.dst.llvm-%i_2 : BOOL
 =to_expr
-17423 : 0 : BOOL
+17393 : 1 : BOOL
 =loc 1007
 =from_expr
-17445 : input.dst.llvm-%i_2.poison : BOOL
+17450 : input.dst.llvm-%i_2.poison : BOOL
 =to_expr
-17423 : 0 : BOOL
+17393 : 1 : BOOL
 =loc 1010
 =from_expr
-17448 : input.dst.llvm-%i_3.poison.temp1 : BOOL
+17453 : input.dst.llvm-%i_3.poison.temp1 : BOOL
 =to_expr
-17423 : 0 : BOOL
+17393 : 1 : BOOL
 =avail_exprs end
 =available expressions at Lfoo%1%100004 in dst.llvm.main
 =avail_exprs begin
 =loc 1002
 =from_expr
-17440 : input.dst.llvm-%i_1 : BV:4
+17444 : input.dst.llvm-%i_1 : BV:4
 =to_expr
-17468 : 6 : BV:4
+17407 : 0 : BV:4
 =loc 1003
 =from_expr
-17441 : input.dst.llvm-%i_1.poison : BOOL
+17445 : input.dst.llvm-%i_1.poison : BOOL
 =to_expr
-17423 : 0 : BOOL
+17393 : 1 : BOOL
 =loc 1004
 =from_expr
-17436 : input.dst.llvm-%i_1.poison.temp1 : BOOL
+17439 : input.dst.llvm-%i_1.poison.temp1 : BOOL
 =to_expr
-17393 : 1 : BOOL
+17399 : 0 : BOOL
 =loc 1005
 =from_expr
-17438 : input.dst.llvm-%i_1.poison.temp2 : BOOL
-=to_expr
-17423 : 0 : BOOL
-=loc 1006
-=from_expr
-17443 : input.dst.llvm-%i_2 : BOOL
-=to_expr
-17423 : 0 : BOOL
-=loc 1007
-=from_expr
-17445 : input.dst.llvm-%i_2.poison : BOOL
-=to_expr
-17423 : 0 : BOOL
-=loc 1010
-=from_expr
-17448 : input.dst.llvm-%i_3.poison.temp1 : BOOL
-=to_expr
-17423 : 0 : BOOL
-=loc 1011
-=from_expr
-17450 : input.dst.llvm-%i_3.poison.temp2 : BOOL
+17441 : input.dst.llvm-%i_1.poison.temp2 : BOOL
 =to_expr
 17393 : 1 : BOOL
+=loc 1006
+=from_expr
+17448 : input.dst.llvm-%i_2 : BOOL
+=to_expr
+17393 : 1 : BOOL
+=loc 1007
+=from_expr
+17450 : input.dst.llvm-%i_2.poison : BOOL
+=to_expr
+17393 : 1 : BOOL
+=loc 1010
+=from_expr
+17453 : input.dst.llvm-%i_3.poison.temp1 : BOOL
+=to_expr
+17393 : 1 : BOOL
+=loc 1011
+=from_expr
+17455 : input.dst.llvm-%i_3.poison.temp2 : BOOL
+=to_expr
+17399 : 0 : BOOL
 =avail_exprs end
 =available expressions at Lfoo%1%100005 in dst.llvm.main
 =avail_exprs begin
 =loc 1002
 =from_expr
-17440 : input.dst.llvm-%i_1 : BV:4
+17444 : input.dst.llvm-%i_1 : BV:4
 =to_expr
-17468 : 6 : BV:4
+17407 : 0 : BV:4
 =loc 1003
 =from_expr
-17441 : input.dst.llvm-%i_1.poison : BOOL
-=to_expr
-17423 : 0 : BOOL
-=loc 1004
-=from_expr
-17436 : input.dst.llvm-%i_1.poison.temp1 : BOOL
+17445 : input.dst.llvm-%i_1.poison : BOOL
 =to_expr
 17393 : 1 : BOOL
+=loc 1004
+=from_expr
+17439 : input.dst.llvm-%i_1.poison.temp1 : BOOL
+=to_expr
+17399 : 0 : BOOL
 =loc 1005
 =from_expr
-17438 : input.dst.llvm-%i_1.poison.temp2 : BOOL
+17441 : input.dst.llvm-%i_1.poison.temp2 : BOOL
 =to_expr
-17423 : 0 : BOOL
+17393 : 1 : BOOL
 =loc 1006
 =from_expr
-17443 : input.dst.llvm-%i_2 : BOOL
+17448 : input.dst.llvm-%i_2 : BOOL
 =to_expr
-17423 : 0 : BOOL
+17393 : 1 : BOOL
 =loc 1007
 =from_expr
-17445 : input.dst.llvm-%i_2.poison : BOOL
+17450 : input.dst.llvm-%i_2.poison : BOOL
 =to_expr
-17423 : 0 : BOOL
+17393 : 1 : BOOL
 =loc 1009
 =from_expr
-17464 : input.dst.llvm-%i_3.poison : BOOL
+17469 : input.dst.llvm-%i_3.poison : BOOL
 =to_expr
 17393 : 1 : BOOL
 =loc 1010
 =from_expr
-17448 : input.dst.llvm-%i_3.poison.temp1 : BOOL
-=to_expr
-17423 : 0 : BOOL
-=loc 1011
-=from_expr
-17450 : input.dst.llvm-%i_3.poison.temp2 : BOOL
+17453 : input.dst.llvm-%i_3.poison.temp1 : BOOL
 =to_expr
 17393 : 1 : BOOL
+=loc 1011
+=from_expr
+17455 : input.dst.llvm-%i_3.poison.temp2 : BOOL
+=to_expr
+17399 : 0 : BOOL
 =avail_exprs end
 =available expressions at Lfoo%2%1 in dst.llvm.main
 =avail_exprs begin
 =loc 1002
 =from_expr
-17440 : input.dst.llvm-%i_1 : BV:4
+17444 : input.dst.llvm-%i_1 : BV:4
 =to_expr
-17468 : 6 : BV:4
+17407 : 0 : BV:4
 =loc 1003
 =from_expr
-17441 : input.dst.llvm-%i_1.poison : BOOL
-=to_expr
-17423 : 0 : BOOL
-=loc 1004
-=from_expr
-17436 : input.dst.llvm-%i_1.poison.temp1 : BOOL
+17445 : input.dst.llvm-%i_1.poison : BOOL
 =to_expr
 17393 : 1 : BOOL
+=loc 1004
+=from_expr
+17439 : input.dst.llvm-%i_1.poison.temp1 : BOOL
+=to_expr
+17399 : 0 : BOOL
 =loc 1005
 =from_expr
-17438 : input.dst.llvm-%i_1.poison.temp2 : BOOL
+17441 : input.dst.llvm-%i_1.poison.temp2 : BOOL
 =to_expr
-17423 : 0 : BOOL
+17393 : 1 : BOOL
 =loc 1006
 =from_expr
-17443 : input.dst.llvm-%i_2 : BOOL
+17448 : input.dst.llvm-%i_2 : BOOL
 =to_expr
-17423 : 0 : BOOL
+17393 : 1 : BOOL
 =loc 1007
 =from_expr
-17445 : input.dst.llvm-%i_2.poison : BOOL
+17450 : input.dst.llvm-%i_2.poison : BOOL
 =to_expr
-17423 : 0 : BOOL
+17393 : 1 : BOOL
 =loc 1008
 =from_expr
-17463 : input.dst.llvm-%i_3 : BV:4
+17468 : input.dst.llvm-%i_3 : BV:4
 =to_expr
-17403 : 0 : BV:4
+17402 : 3 : BV:4
 =loc 1009
 =from_expr
-17464 : input.dst.llvm-%i_3.poison : BOOL
+17469 : input.dst.llvm-%i_3.poison : BOOL
 =to_expr
 17393 : 1 : BOOL
 =loc 1010
 =from_expr
-17448 : input.dst.llvm-%i_3.poison.temp1 : BOOL
-=to_expr
-17423 : 0 : BOOL
-=loc 1011
-=from_expr
-17450 : input.dst.llvm-%i_3.poison.temp2 : BOOL
+17453 : input.dst.llvm-%i_3.poison.temp1 : BOOL
 =to_expr
 17393 : 1 : BOOL
+=loc 1011
+=from_expr
+17455 : input.dst.llvm-%i_3.poison.temp2 : BOOL
+=to_expr
+17399 : 0 : BOOL
 =avail_exprs end
 =available expressions at Lfoo%2%100003 in dst.llvm.main
 =avail_exprs begin
 =loc 1002
 =from_expr
-17440 : input.dst.llvm-%i_1 : BV:4
+17444 : input.dst.llvm-%i_1 : BV:4
 =to_expr
-17468 : 6 : BV:4
+17407 : 0 : BV:4
 =loc 1003
 =from_expr
-17441 : input.dst.llvm-%i_1.poison : BOOL
-=to_expr
-17423 : 0 : BOOL
-=loc 1004
-=from_expr
-17436 : input.dst.llvm-%i_1.poison.temp1 : BOOL
+17445 : input.dst.llvm-%i_1.poison : BOOL
 =to_expr
 17393 : 1 : BOOL
+=loc 1004
+=from_expr
+17439 : input.dst.llvm-%i_1.poison.temp1 : BOOL
+=to_expr
+17399 : 0 : BOOL
 =loc 1005
 =from_expr
-17438 : input.dst.llvm-%i_1.poison.temp2 : BOOL
+17441 : input.dst.llvm-%i_1.poison.temp2 : BOOL
 =to_expr
-17423 : 0 : BOOL
+17393 : 1 : BOOL
 =loc 1006
 =from_expr
-17443 : input.dst.llvm-%i_2 : BOOL
+17448 : input.dst.llvm-%i_2 : BOOL
 =to_expr
-17423 : 0 : BOOL
+17393 : 1 : BOOL
 =loc 1007
 =from_expr
-17445 : input.dst.llvm-%i_2.poison : BOOL
+17450 : input.dst.llvm-%i_2.poison : BOOL
 =to_expr
-17423 : 0 : BOOL
+17393 : 1 : BOOL
 =loc 1008
 =from_expr
-17463 : input.dst.llvm-%i_3 : BV:4
+17468 : input.dst.llvm-%i_3 : BV:4
 =to_expr
-17403 : 0 : BV:4
+17402 : 3 : BV:4
 =loc 1009
 =from_expr
-17464 : input.dst.llvm-%i_3.poison : BOOL
+17469 : input.dst.llvm-%i_3.poison : BOOL
 =to_expr
 17393 : 1 : BOOL
 =loc 1010
 =from_expr
-17448 : input.dst.llvm-%i_3.poison.temp1 : BOOL
-=to_expr
-17423 : 0 : BOOL
-=loc 1011
-=from_expr
-17450 : input.dst.llvm-%i_3.poison.temp2 : BOOL
+17453 : input.dst.llvm-%i_3.poison.temp1 : BOOL
 =to_expr
 17393 : 1 : BOOL
+=loc 1011
+=from_expr
+17455 : input.dst.llvm-%i_3.poison.temp2 : BOOL
+=to_expr
+17399 : 0 : BOOL
 =avail_exprs end
 =available expressions at Lfoo%2%100004 in dst.llvm.main
 =avail_exprs begin
 =loc 1002
 =from_expr
-17440 : input.dst.llvm-%i_1 : BV:4
+17444 : input.dst.llvm-%i_1 : BV:4
 =to_expr
-17468 : 6 : BV:4
+17407 : 0 : BV:4
 =loc 1003
 =from_expr
-17441 : input.dst.llvm-%i_1.poison : BOOL
-=to_expr
-17423 : 0 : BOOL
-=loc 1004
-=from_expr
-17436 : input.dst.llvm-%i_1.poison.temp1 : BOOL
+17445 : input.dst.llvm-%i_1.poison : BOOL
 =to_expr
 17393 : 1 : BOOL
+=loc 1004
+=from_expr
+17439 : input.dst.llvm-%i_1.poison.temp1 : BOOL
+=to_expr
+17399 : 0 : BOOL
 =loc 1005
 =from_expr
-17438 : input.dst.llvm-%i_1.poison.temp2 : BOOL
+17441 : input.dst.llvm-%i_1.poison.temp2 : BOOL
 =to_expr
-17423 : 0 : BOOL
+17393 : 1 : BOOL
 =loc 1006
 =from_expr
-17443 : input.dst.llvm-%i_2 : BOOL
+17448 : input.dst.llvm-%i_2 : BOOL
 =to_expr
-17423 : 0 : BOOL
+17393 : 1 : BOOL
 =loc 1007
 =from_expr
-17445 : input.dst.llvm-%i_2.poison : BOOL
+17450 : input.dst.llvm-%i_2.poison : BOOL
 =to_expr
-17423 : 0 : BOOL
+17393 : 1 : BOOL
 =loc 1008
 =from_expr
-17463 : input.dst.llvm-%i_3 : BV:4
+17468 : input.dst.llvm-%i_3 : BV:4
 =to_expr
-17403 : 0 : BV:4
+17402 : 3 : BV:4
 =loc 1009
 =from_expr
-17464 : input.dst.llvm-%i_3.poison : BOOL
+17469 : input.dst.llvm-%i_3.poison : BOOL
 =to_expr
 17393 : 1 : BOOL
 =loc 1010
 =from_expr
-17448 : input.dst.llvm-%i_3.poison.temp1 : BOOL
-=to_expr
-17423 : 0 : BOOL
-=loc 1011
-=from_expr
-17450 : input.dst.llvm-%i_3.poison.temp2 : BOOL
+17453 : input.dst.llvm-%i_3.poison.temp1 : BOOL
 =to_expr
 17393 : 1 : BOOL
+=loc 1011
+=from_expr
+17455 : input.dst.llvm-%i_3.poison.temp2 : BOOL
+=to_expr
+17399 : 0 : BOOL
 =avail_exprs end
 =available expressions at E0%0%1 in dst.llvm.main
 =avail_exprs begin
 =loc 1002
 =from_expr
-17440 : input.dst.llvm-%i_1 : BV:4
+17444 : input.dst.llvm-%i_1 : BV:4
 =to_expr
-17468 : 6 : BV:4
+17407 : 0 : BV:4
 =loc 1003
 =from_expr
-17441 : input.dst.llvm-%i_1.poison : BOOL
-=to_expr
-17423 : 0 : BOOL
-=loc 1004
-=from_expr
-17436 : input.dst.llvm-%i_1.poison.temp1 : BOOL
+17445 : input.dst.llvm-%i_1.poison : BOOL
 =to_expr
 17393 : 1 : BOOL
+=loc 1004
+=from_expr
+17439 : input.dst.llvm-%i_1.poison.temp1 : BOOL
+=to_expr
+17399 : 0 : BOOL
 =loc 1005
 =from_expr
-17438 : input.dst.llvm-%i_1.poison.temp2 : BOOL
+17441 : input.dst.llvm-%i_1.poison.temp2 : BOOL
 =to_expr
-17423 : 0 : BOOL
+17393 : 1 : BOOL
 =loc 1006
 =from_expr
-17443 : input.dst.llvm-%i_2 : BOOL
+17448 : input.dst.llvm-%i_2 : BOOL
 =to_expr
-17423 : 0 : BOOL
+17393 : 1 : BOOL
 =loc 1007
 =from_expr
-17445 : input.dst.llvm-%i_2.poison : BOOL
+17450 : input.dst.llvm-%i_2.poison : BOOL
 =to_expr
-17423 : 0 : BOOL
+17393 : 1 : BOOL
 =loc 1012
 =from_expr
-17465 : input.dst.llvm-indir_tgt : BV:32
+17470 : input.dst.llvm-indir_tgt : BV:32
 =to_expr
 17387 : retaddr_const : BV:32
 =avail_exprs end
@@ -2231,270 +2236,270 @@ lr_status_bottom(; memlabel-mem-heap, )
 =sprel_map at L0%1%1 in dst.llvm.main
 =sprel_map at L0%1%100003 in dst.llvm.main
 =loc 1004
-17393 : 1 : BOOL
+17399 : 0 : BOOL
 =sprel_map at L0%1%100004 in dst.llvm.main
 =loc 1004
-17393 : 1 : BOOL
+17399 : 0 : BOOL
 =loc 1005
-17423 : 0 : BOOL
+17393 : 1 : BOOL
 =sprel_map at L0%1%100005 in dst.llvm.main
 =loc 1003
-17423 : 0 : BOOL
-=loc 1004
 17393 : 1 : BOOL
+=loc 1004
+17399 : 0 : BOOL
 =loc 1005
-17423 : 0 : BOOL
+17393 : 1 : BOOL
 =sprel_map at L0%2%1 in dst.llvm.main
 =loc 1002
-17468 : 6 : BV:4
+17407 : 0 : BV:4
 =loc 1003
-17423 : 0 : BOOL
-=loc 1004
 17393 : 1 : BOOL
+=loc 1004
+17399 : 0 : BOOL
 =loc 1005
-17423 : 0 : BOOL
+17393 : 1 : BOOL
 =sprel_map at L0%2%100003 in dst.llvm.main
 =loc 1002
-17468 : 6 : BV:4
+17407 : 0 : BV:4
 =loc 1003
-17423 : 0 : BOOL
-=loc 1004
 17393 : 1 : BOOL
+=loc 1004
+17399 : 0 : BOOL
 =loc 1005
-17423 : 0 : BOOL
+17393 : 1 : BOOL
 =loc 1007
-17423 : 0 : BOOL
+17393 : 1 : BOOL
 =sprel_map at L0%3%1 in dst.llvm.main
 =loc 1002
-17468 : 6 : BV:4
+17407 : 0 : BV:4
 =loc 1003
-17423 : 0 : BOOL
-=loc 1004
 17393 : 1 : BOOL
+=loc 1004
+17399 : 0 : BOOL
 =loc 1005
-17423 : 0 : BOOL
+17393 : 1 : BOOL
 =loc 1006
-17423 : 0 : BOOL
+17393 : 1 : BOOL
 =loc 1007
-17423 : 0 : BOOL
+17393 : 1 : BOOL
 =sprel_map at L0%3%100003 in dst.llvm.main
 =loc 1002
-17468 : 6 : BV:4
+17407 : 0 : BV:4
 =loc 1003
-17423 : 0 : BOOL
-=loc 1004
 17393 : 1 : BOOL
+=loc 1004
+17399 : 0 : BOOL
 =loc 1005
-17423 : 0 : BOOL
+17393 : 1 : BOOL
 =loc 1006
-17423 : 0 : BOOL
+17393 : 1 : BOOL
 =loc 1007
-17423 : 0 : BOOL
+17393 : 1 : BOOL
 =sprel_map at L0%3%100004 in dst.llvm.main
 =loc 1002
-17468 : 6 : BV:4
+17407 : 0 : BV:4
 =loc 1003
-17423 : 0 : BOOL
-=loc 1004
 17393 : 1 : BOOL
+=loc 1004
+17399 : 0 : BOOL
 =loc 1005
-17423 : 0 : BOOL
+17393 : 1 : BOOL
 =loc 1006
-17423 : 0 : BOOL
+17393 : 1 : BOOL
 =loc 1007
-17423 : 0 : BOOL
+17393 : 1 : BOOL
 =sprel_map at L0%3%100005 in dst.llvm.main
 =loc 1002
-17468 : 6 : BV:4
+17407 : 0 : BV:4
 =loc 1003
-17423 : 0 : BOOL
-=loc 1004
 17393 : 1 : BOOL
+=loc 1004
+17399 : 0 : BOOL
 =loc 1005
-17423 : 0 : BOOL
+17393 : 1 : BOOL
 =loc 1006
-17423 : 0 : BOOL
+17393 : 1 : BOOL
 =loc 1007
-17423 : 0 : BOOL
+17393 : 1 : BOOL
 =sprel_map at L0%3%100006 in dst.llvm.main
 =loc 1002
-17468 : 6 : BV:4
+17407 : 0 : BV:4
 =loc 1003
-17423 : 0 : BOOL
-=loc 1004
 17393 : 1 : BOOL
+=loc 1004
+17399 : 0 : BOOL
 =loc 1005
-17423 : 0 : BOOL
+17393 : 1 : BOOL
 =loc 1006
-17423 : 0 : BOOL
+17393 : 1 : BOOL
 =loc 1007
-17423 : 0 : BOOL
+17393 : 1 : BOOL
 =sprel_map at Lend%1%0 in dst.llvm.main
 =loc 1002
-17468 : 6 : BV:4
+17407 : 0 : BV:4
 =loc 1003
-17423 : 0 : BOOL
-=loc 1004
 17393 : 1 : BOOL
+=loc 1004
+17399 : 0 : BOOL
 =loc 1005
-17423 : 0 : BOOL
+17393 : 1 : BOOL
 =loc 1006
-17423 : 0 : BOOL
+17393 : 1 : BOOL
 =loc 1007
-17423 : 0 : BOOL
+17393 : 1 : BOOL
 =sprel_map at Lend%1%1 in dst.llvm.main
 =loc 1002
-17468 : 6 : BV:4
+17407 : 0 : BV:4
 =loc 1003
-17423 : 0 : BOOL
-=loc 1004
 17393 : 1 : BOOL
+=loc 1004
+17399 : 0 : BOOL
 =loc 1005
-17423 : 0 : BOOL
+17393 : 1 : BOOL
 =loc 1006
-17423 : 0 : BOOL
+17393 : 1 : BOOL
 =loc 1007
-17423 : 0 : BOOL
+17393 : 1 : BOOL
 =sprel_map at Lfoo%1%1 in dst.llvm.main
 =loc 1002
-17468 : 6 : BV:4
+17407 : 0 : BV:4
 =loc 1003
-17423 : 0 : BOOL
-=loc 1004
 17393 : 1 : BOOL
+=loc 1004
+17399 : 0 : BOOL
 =loc 1005
-17423 : 0 : BOOL
+17393 : 1 : BOOL
 =loc 1006
-17423 : 0 : BOOL
+17393 : 1 : BOOL
 =loc 1007
-17423 : 0 : BOOL
+17393 : 1 : BOOL
 =sprel_map at Lfoo%1%100003 in dst.llvm.main
 =loc 1002
-17468 : 6 : BV:4
+17407 : 0 : BV:4
 =loc 1003
-17423 : 0 : BOOL
-=loc 1004
 17393 : 1 : BOOL
+=loc 1004
+17399 : 0 : BOOL
 =loc 1005
-17423 : 0 : BOOL
+17393 : 1 : BOOL
 =loc 1006
-17423 : 0 : BOOL
+17393 : 1 : BOOL
 =loc 1007
-17423 : 0 : BOOL
+17393 : 1 : BOOL
 =loc 1010
-17423 : 0 : BOOL
+17393 : 1 : BOOL
 =sprel_map at Lfoo%1%100004 in dst.llvm.main
 =loc 1002
-17468 : 6 : BV:4
+17407 : 0 : BV:4
 =loc 1003
-17423 : 0 : BOOL
+17393 : 1 : BOOL
 =loc 1004
-17393 : 1 : BOOL
+17399 : 0 : BOOL
 =loc 1005
-17423 : 0 : BOOL
-=loc 1006
-17423 : 0 : BOOL
-=loc 1007
-17423 : 0 : BOOL
-=loc 1010
-17423 : 0 : BOOL
-=loc 1011
 17393 : 1 : BOOL
+=loc 1006
+17393 : 1 : BOOL
+=loc 1007
+17393 : 1 : BOOL
+=loc 1010
+17393 : 1 : BOOL
+=loc 1011
+17399 : 0 : BOOL
 =sprel_map at Lfoo%1%100005 in dst.llvm.main
 =loc 1002
-17468 : 6 : BV:4
+17407 : 0 : BV:4
 =loc 1003
-17423 : 0 : BOOL
-=loc 1004
 17393 : 1 : BOOL
+=loc 1004
+17399 : 0 : BOOL
 =loc 1005
-17423 : 0 : BOOL
+17393 : 1 : BOOL
 =loc 1006
-17423 : 0 : BOOL
+17393 : 1 : BOOL
 =loc 1007
-17423 : 0 : BOOL
+17393 : 1 : BOOL
 =loc 1009
 17393 : 1 : BOOL
 =loc 1010
-17423 : 0 : BOOL
-=loc 1011
 17393 : 1 : BOOL
+=loc 1011
+17399 : 0 : BOOL
 =sprel_map at Lfoo%2%1 in dst.llvm.main
 =loc 1002
-17468 : 6 : BV:4
+17407 : 0 : BV:4
 =loc 1003
-17423 : 0 : BOOL
-=loc 1004
 17393 : 1 : BOOL
+=loc 1004
+17399 : 0 : BOOL
 =loc 1005
-17423 : 0 : BOOL
+17393 : 1 : BOOL
 =loc 1006
-17423 : 0 : BOOL
+17393 : 1 : BOOL
 =loc 1007
-17423 : 0 : BOOL
+17393 : 1 : BOOL
 =loc 1008
-17403 : 0 : BV:4
+17402 : 3 : BV:4
 =loc 1009
 17393 : 1 : BOOL
 =loc 1010
-17423 : 0 : BOOL
-=loc 1011
 17393 : 1 : BOOL
+=loc 1011
+17399 : 0 : BOOL
 =sprel_map at Lfoo%2%100003 in dst.llvm.main
 =loc 1002
-17468 : 6 : BV:4
+17407 : 0 : BV:4
 =loc 1003
-17423 : 0 : BOOL
-=loc 1004
 17393 : 1 : BOOL
+=loc 1004
+17399 : 0 : BOOL
 =loc 1005
-17423 : 0 : BOOL
+17393 : 1 : BOOL
 =loc 1006
-17423 : 0 : BOOL
+17393 : 1 : BOOL
 =loc 1007
-17423 : 0 : BOOL
+17393 : 1 : BOOL
 =loc 1008
-17403 : 0 : BV:4
+17402 : 3 : BV:4
 =loc 1009
 17393 : 1 : BOOL
 =loc 1010
-17423 : 0 : BOOL
-=loc 1011
 17393 : 1 : BOOL
+=loc 1011
+17399 : 0 : BOOL
 =sprel_map at Lfoo%2%100004 in dst.llvm.main
 =loc 1002
-17468 : 6 : BV:4
+17407 : 0 : BV:4
 =loc 1003
-17423 : 0 : BOOL
-=loc 1004
 17393 : 1 : BOOL
+=loc 1004
+17399 : 0 : BOOL
 =loc 1005
-17423 : 0 : BOOL
+17393 : 1 : BOOL
 =loc 1006
-17423 : 0 : BOOL
+17393 : 1 : BOOL
 =loc 1007
-17423 : 0 : BOOL
+17393 : 1 : BOOL
 =loc 1008
-17403 : 0 : BV:4
+17402 : 3 : BV:4
 =loc 1009
 17393 : 1 : BOOL
 =loc 1010
-17423 : 0 : BOOL
-=loc 1011
 17393 : 1 : BOOL
+=loc 1011
+17399 : 0 : BOOL
 =sprel_map at E0%0%1 in dst.llvm.main
 =loc 1002
-17468 : 6 : BV:4
+17407 : 0 : BV:4
 =loc 1003
-17423 : 0 : BOOL
-=loc 1004
 17393 : 1 : BOOL
+=loc 1004
+17399 : 0 : BOOL
 =loc 1005
-17423 : 0 : BOOL
+17393 : 1 : BOOL
 =loc 1006
-17423 : 0 : BOOL
+17393 : 1 : BOOL
 =loc 1007
-17423 : 0 : BOOL
+17393 : 1 : BOOL
 =loc 1012
 17387 : retaddr_const : BV:32
 =graph_with_aliasing_done
@@ -2517,15 +2522,15 @@ lr_status_bottom(; memlabel-mem-heap, )
 =SourceToLLVMVarnames:
 =SourceToLLVMVarnames done
 =InputLLVMToSourceVarnames:
-input.dst.llvm-%i_1.poison.temp1 : L0%1%100003 : true
-input.dst.llvm-%i_1.poison.temp2 : L0%1%100004 : false
-input.dst.llvm-%i_1 : L0%2%1 : 6
-input.dst.llvm-%i_1.poison : L0%1%100005 : false
-input.dst.llvm-%i_2 : L0%3%1 : false
-input.dst.llvm-%i_2.poison : L0%2%100003 : false
-input.dst.llvm-%i_3.poison.temp1 : Lfoo%1%100003 : false
-input.dst.llvm-%i_3.poison.temp2 : Lfoo%1%100004 : true
-input.dst.llvm-%i_3 : Lfoo%2%1 : 0
+input.dst.llvm-%i_1.poison.temp1 : L0%1%100003 : false
+input.dst.llvm-%i_1.poison.temp2 : L0%1%100004 : true
+input.dst.llvm-%i_1 : L0%2%1 : 0
+input.dst.llvm-%i_1.poison : L0%1%100005 : true
+input.dst.llvm-%i_2 : L0%3%1 : true
+input.dst.llvm-%i_2.poison : L0%2%100003 : true
+input.dst.llvm-%i_3.poison.temp1 : Lfoo%1%100003 : true
+input.dst.llvm-%i_3.poison.temp2 : Lfoo%1%100004 : false
+input.dst.llvm-%i_3 : Lfoo%2%1 : 3
 input.dst.llvm-%i_3.poison : Lfoo%1%100005 : true
 input.dst.llvm-indir_tgt : E0%0%1 : return-address
 =InputLLVMToSourceVarnames done
@@ -2537,28 +2542,28 @@ input.dst.llvm-indir_tgt : E0%0%1 : return-address
 =dst.llvm-%i_1 val_scevb scev loop: L0%0%1
 =dst.llvm-%i_1 val_scevb scev scev_overflow_flag: 
 =dst.llvm-%i_1 val_scevb scev scev_expr
-3 : 0110b
+3 : %i_1
 =dst.llvm-%i_1 val_scevb scev scev_expr done
-=dst.llvm-%i_1 val_scevb unsigned lower bound: 0110b
-=dst.llvm-%i_1 val_scevb unsigned upper bound: 1110b
-=dst.llvm-%i_1 val_scevb signed lower bound: 0110b
-=dst.llvm-%i_1 val_scevb signed upper bound: 1110b
+=dst.llvm-%i_1 val_scevb unsigned lower bound: 0001b
+=dst.llvm-%i_1 val_scevb unsigned upper bound: 1001b
+=dst.llvm-%i_1 val_scevb signed lower bound: 0001b
+=dst.llvm-%i_1 val_scevb signed upper bound: 1000b
 =dst.llvm-%i_1 atuse_scevb
 =dst.llvm-%i_1 atuse_scevb scev
 =dst.llvm-%i_1 atuse_scevb scev loop: L0%0%1
 =dst.llvm-%i_1 atuse_scevb scev scev_overflow_flag: 
 =dst.llvm-%i_1 atuse_scevb scev scev_expr
-3 : 0110b
+3 : %i_1
 =dst.llvm-%i_1 atuse_scevb scev scev_expr done
-=dst.llvm-%i_1 atuse_scevb unsigned lower bound: 0110b
-=dst.llvm-%i_1 atuse_scevb unsigned upper bound: 1110b
-=dst.llvm-%i_1 atuse_scevb signed lower bound: 0110b
-=dst.llvm-%i_1 atuse_scevb signed upper bound: 1110b
+=dst.llvm-%i_1 atuse_scevb unsigned lower bound: 0001b
+=dst.llvm-%i_1 atuse_scevb unsigned upper bound: 1001b
+=dst.llvm-%i_1 atuse_scevb signed lower bound: 0001b
+=dst.llvm-%i_1 atuse_scevb signed upper bound: 1000b
 =dst.llvm-%i_1 atexit_scev
 =dst.llvm-%i_1 atexit_scev loop: L0%0%1
 =dst.llvm-%i_1 atexit_scev scev_overflow_flag: 
 =dst.llvm-%i_1 atexit_scev scev_expr
-3 : 0110b
+3 : %i_1
 =dst.llvm-%i_1 atexit_scev scev_expr done
 =dst.llvm-%i_3
 =dst.llvm-%i_3 loop pc: L0%0%1

@@ -101,7 +101,9 @@ tfg_edge_comment end
 1 : 1 : BOOL
 =Edge.StateTo: 
 =src.llvm-%i_1.poison
-1 : input.src.llvm-%i_1.poison.temp2 : BOOL
+1 : 0 : BOOL
+2 : input.src.llvm-%i_1.poison.temp2 : BOOL
+3 : or(1, 1, 2) : BOOL
 =state_end
 =Edge.Assumes.begin:
 =Edge.Assumes.end
@@ -129,7 +131,9 @@ tfg_edge_comment end
 1 : 1 : BOOL
 =Edge.StateTo: 
 =src.llvm-%i_2.poison
-1 : input.src.llvm-%i_1.poison.temp2 : BOOL
+1 : input.src.llvm-%i_1.poison : BOOL
+2 : 0 : BOOL
+3 : or(1, 2) : BOOL
 =state_end
 =Edge.Assumes.begin:
 =Edge.Assumes.end
@@ -160,7 +164,7 @@ tfg_edge_comment end
 =state_end
 =Edge.Assumes.begin:
 =EdgeAssume.0
-1 : input.src.llvm-%i_1.poison.temp2 : BOOL
+1 : input.src.llvm-%i_2.poison : BOOL
 2 : not(1) : BOOL
 =Edge.Assumes.end
 =Edge.te_comment
@@ -174,7 +178,7 @@ tfg_edge_comment end
 =state_end
 =Edge.Assumes.begin:
 =EdgeAssume.0
-1 : input.src.llvm-%i_1.poison.temp2 : BOOL
+1 : input.src.llvm-%i_2.poison : BOOL
 2 : not(1) : BOOL
 =Edge.Assumes.end
 =Edge.te_comment
@@ -259,9 +263,10 @@ tfg_edge_comment end
 1 : 1 : BOOL
 =Edge.StateTo: 
 =src.llvm-%i_3.poison
-1 : input.src.llvm-%i_1.poison.temp2 : BOOL
-2 : input.src.llvm-%i_3.poison.temp2 : BOOL
-3 : or(1, 2) : BOOL
+1 : 0 : BOOL
+2 : input.src.llvm-%i_1.poison : BOOL
+3 : input.src.llvm-%i_3.poison.temp2 : BOOL
+4 : or(1, 2, 3) : BOOL
 =state_end
 =Edge.Assumes.begin:
 =Edge.Assumes.end
@@ -1551,7 +1556,7 @@ lr_status_bottom(; memlabel-mem-heap, )
 =from_expr
 17396 : input.src.llvm-%i_1.poison.temp1 : BOOL
 =to_expr
-17431 : 0 : BOOL
+17399 : 0 : BOOL
 =avail_exprs end
 =available expressions at L0%1%100004 in src.llvm.main
 =avail_exprs begin
@@ -1559,7 +1564,7 @@ lr_status_bottom(; memlabel-mem-heap, )
 =from_expr
 17396 : input.src.llvm-%i_1.poison.temp1 : BOOL
 =to_expr
-17431 : 0 : BOOL
+17399 : 0 : BOOL
 =loc 1005
 =from_expr
 17398 : input.src.llvm-%i_1.poison.temp2 : BOOL
@@ -1570,14 +1575,14 @@ lr_status_bottom(; memlabel-mem-heap, )
 =avail_exprs begin
 =loc 1003
 =from_expr
-17402 : input.src.llvm-%i_1.poison : BOOL
+17404 : input.src.llvm-%i_1.poison : BOOL
 =to_expr
 17395 : 1 : BOOL
 =loc 1004
 =from_expr
 17396 : input.src.llvm-%i_1.poison.temp1 : BOOL
 =to_expr
-17431 : 0 : BOOL
+17399 : 0 : BOOL
 =loc 1005
 =from_expr
 17398 : input.src.llvm-%i_1.poison.temp2 : BOOL
@@ -1588,19 +1593,19 @@ lr_status_bottom(; memlabel-mem-heap, )
 =avail_exprs begin
 =loc 1002
 =from_expr
-17400 : input.src.llvm-%i_1 : BV:4
+17402 : input.src.llvm-%i_1 : BV:4
 =to_expr
-17401 : 0 : BV:4
+17403 : 0 : BV:4
 =loc 1003
 =from_expr
-17402 : input.src.llvm-%i_1.poison : BOOL
+17404 : input.src.llvm-%i_1.poison : BOOL
 =to_expr
 17395 : 1 : BOOL
 =loc 1004
 =from_expr
 17396 : input.src.llvm-%i_1.poison.temp1 : BOOL
 =to_expr
-17431 : 0 : BOOL
+17399 : 0 : BOOL
 =loc 1005
 =from_expr
 17398 : input.src.llvm-%i_1.poison.temp2 : BOOL
@@ -1611,19 +1616,19 @@ lr_status_bottom(; memlabel-mem-heap, )
 =avail_exprs begin
 =loc 1002
 =from_expr
-17400 : input.src.llvm-%i_1 : BV:4
+17402 : input.src.llvm-%i_1 : BV:4
 =to_expr
-17401 : 0 : BV:4
+17403 : 0 : BV:4
 =loc 1003
 =from_expr
-17402 : input.src.llvm-%i_1.poison : BOOL
+17404 : input.src.llvm-%i_1.poison : BOOL
 =to_expr
 17395 : 1 : BOOL
 =loc 1004
 =from_expr
 17396 : input.src.llvm-%i_1.poison.temp1 : BOOL
 =to_expr
-17431 : 0 : BOOL
+17399 : 0 : BOOL
 =loc 1005
 =from_expr
 17398 : input.src.llvm-%i_1.poison.temp2 : BOOL
@@ -1631,7 +1636,7 @@ lr_status_bottom(; memlabel-mem-heap, )
 17395 : 1 : BOOL
 =loc 1007
 =from_expr
-17406 : input.src.llvm-%i_2.poison : BOOL
+17409 : input.src.llvm-%i_2.poison : BOOL
 =to_expr
 17395 : 1 : BOOL
 =avail_exprs end
@@ -1639,19 +1644,19 @@ lr_status_bottom(; memlabel-mem-heap, )
 =avail_exprs begin
 =loc 1002
 =from_expr
-17400 : input.src.llvm-%i_1 : BV:4
+17402 : input.src.llvm-%i_1 : BV:4
 =to_expr
-17401 : 0 : BV:4
+17403 : 0 : BV:4
 =loc 1003
 =from_expr
-17402 : input.src.llvm-%i_1.poison : BOOL
+17404 : input.src.llvm-%i_1.poison : BOOL
 =to_expr
 17395 : 1 : BOOL
 =loc 1004
 =from_expr
 17396 : input.src.llvm-%i_1.poison.temp1 : BOOL
 =to_expr
-17431 : 0 : BOOL
+17399 : 0 : BOOL
 =loc 1005
 =from_expr
 17398 : input.src.llvm-%i_1.poison.temp2 : BOOL
@@ -1659,12 +1664,12 @@ lr_status_bottom(; memlabel-mem-heap, )
 17395 : 1 : BOOL
 =loc 1006
 =from_expr
-17404 : input.src.llvm-%i_2 : BOOL
+17407 : input.src.llvm-%i_2 : BOOL
 =to_expr
 17395 : 1 : BOOL
 =loc 1007
 =from_expr
-17406 : input.src.llvm-%i_2.poison : BOOL
+17409 : input.src.llvm-%i_2.poison : BOOL
 =to_expr
 17395 : 1 : BOOL
 =avail_exprs end
@@ -1672,19 +1677,19 @@ lr_status_bottom(; memlabel-mem-heap, )
 =avail_exprs begin
 =loc 1002
 =from_expr
-17400 : input.src.llvm-%i_1 : BV:4
+17402 : input.src.llvm-%i_1 : BV:4
 =to_expr
-17401 : 0 : BV:4
+17403 : 0 : BV:4
 =loc 1003
 =from_expr
-17402 : input.src.llvm-%i_1.poison : BOOL
+17404 : input.src.llvm-%i_1.poison : BOOL
 =to_expr
 17395 : 1 : BOOL
 =loc 1004
 =from_expr
 17396 : input.src.llvm-%i_1.poison.temp1 : BOOL
 =to_expr
-17431 : 0 : BOOL
+17399 : 0 : BOOL
 =loc 1005
 =from_expr
 17398 : input.src.llvm-%i_1.poison.temp2 : BOOL
@@ -1692,12 +1697,12 @@ lr_status_bottom(; memlabel-mem-heap, )
 17395 : 1 : BOOL
 =loc 1006
 =from_expr
-17404 : input.src.llvm-%i_2 : BOOL
+17407 : input.src.llvm-%i_2 : BOOL
 =to_expr
 17395 : 1 : BOOL
 =loc 1007
 =from_expr
-17406 : input.src.llvm-%i_2.poison : BOOL
+17409 : input.src.llvm-%i_2.poison : BOOL
 =to_expr
 17395 : 1 : BOOL
 =avail_exprs end
@@ -1705,19 +1710,19 @@ lr_status_bottom(; memlabel-mem-heap, )
 =avail_exprs begin
 =loc 1002
 =from_expr
-17400 : input.src.llvm-%i_1 : BV:4
+17402 : input.src.llvm-%i_1 : BV:4
 =to_expr
-17401 : 0 : BV:4
+17403 : 0 : BV:4
 =loc 1003
 =from_expr
-17402 : input.src.llvm-%i_1.poison : BOOL
+17404 : input.src.llvm-%i_1.poison : BOOL
 =to_expr
 17395 : 1 : BOOL
 =loc 1004
 =from_expr
 17396 : input.src.llvm-%i_1.poison.temp1 : BOOL
 =to_expr
-17431 : 0 : BOOL
+17399 : 0 : BOOL
 =loc 1005
 =from_expr
 17398 : input.src.llvm-%i_1.poison.temp2 : BOOL
@@ -1725,12 +1730,12 @@ lr_status_bottom(; memlabel-mem-heap, )
 17395 : 1 : BOOL
 =loc 1006
 =from_expr
-17404 : input.src.llvm-%i_2 : BOOL
+17407 : input.src.llvm-%i_2 : BOOL
 =to_expr
 17395 : 1 : BOOL
 =loc 1007
 =from_expr
-17406 : input.src.llvm-%i_2.poison : BOOL
+17409 : input.src.llvm-%i_2.poison : BOOL
 =to_expr
 17395 : 1 : BOOL
 =avail_exprs end
@@ -1738,19 +1743,19 @@ lr_status_bottom(; memlabel-mem-heap, )
 =avail_exprs begin
 =loc 1002
 =from_expr
-17400 : input.src.llvm-%i_1 : BV:4
+17402 : input.src.llvm-%i_1 : BV:4
 =to_expr
-17401 : 0 : BV:4
+17403 : 0 : BV:4
 =loc 1003
 =from_expr
-17402 : input.src.llvm-%i_1.poison : BOOL
+17404 : input.src.llvm-%i_1.poison : BOOL
 =to_expr
 17395 : 1 : BOOL
 =loc 1004
 =from_expr
 17396 : input.src.llvm-%i_1.poison.temp1 : BOOL
 =to_expr
-17431 : 0 : BOOL
+17399 : 0 : BOOL
 =loc 1005
 =from_expr
 17398 : input.src.llvm-%i_1.poison.temp2 : BOOL
@@ -1758,12 +1763,12 @@ lr_status_bottom(; memlabel-mem-heap, )
 17395 : 1 : BOOL
 =loc 1006
 =from_expr
-17404 : input.src.llvm-%i_2 : BOOL
+17407 : input.src.llvm-%i_2 : BOOL
 =to_expr
 17395 : 1 : BOOL
 =loc 1007
 =from_expr
-17406 : input.src.llvm-%i_2.poison : BOOL
+17409 : input.src.llvm-%i_2.poison : BOOL
 =to_expr
 17395 : 1 : BOOL
 =avail_exprs end
@@ -1771,19 +1776,19 @@ lr_status_bottom(; memlabel-mem-heap, )
 =avail_exprs begin
 =loc 1002
 =from_expr
-17400 : input.src.llvm-%i_1 : BV:4
+17402 : input.src.llvm-%i_1 : BV:4
 =to_expr
-17401 : 0 : BV:4
+17403 : 0 : BV:4
 =loc 1003
 =from_expr
-17402 : input.src.llvm-%i_1.poison : BOOL
+17404 : input.src.llvm-%i_1.poison : BOOL
 =to_expr
 17395 : 1 : BOOL
 =loc 1004
 =from_expr
 17396 : input.src.llvm-%i_1.poison.temp1 : BOOL
 =to_expr
-17431 : 0 : BOOL
+17399 : 0 : BOOL
 =loc 1005
 =from_expr
 17398 : input.src.llvm-%i_1.poison.temp2 : BOOL
@@ -1791,12 +1796,12 @@ lr_status_bottom(; memlabel-mem-heap, )
 17395 : 1 : BOOL
 =loc 1006
 =from_expr
-17404 : input.src.llvm-%i_2 : BOOL
+17407 : input.src.llvm-%i_2 : BOOL
 =to_expr
 17395 : 1 : BOOL
 =loc 1007
 =from_expr
-17406 : input.src.llvm-%i_2.poison : BOOL
+17409 : input.src.llvm-%i_2.poison : BOOL
 =to_expr
 17395 : 1 : BOOL
 =avail_exprs end
@@ -1804,19 +1809,19 @@ lr_status_bottom(; memlabel-mem-heap, )
 =avail_exprs begin
 =loc 1002
 =from_expr
-17400 : input.src.llvm-%i_1 : BV:4
+17402 : input.src.llvm-%i_1 : BV:4
 =to_expr
-17401 : 0 : BV:4
+17403 : 0 : BV:4
 =loc 1003
 =from_expr
-17402 : input.src.llvm-%i_1.poison : BOOL
+17404 : input.src.llvm-%i_1.poison : BOOL
 =to_expr
 17395 : 1 : BOOL
 =loc 1004
 =from_expr
 17396 : input.src.llvm-%i_1.poison.temp1 : BOOL
 =to_expr
-17431 : 0 : BOOL
+17399 : 0 : BOOL
 =loc 1005
 =from_expr
 17398 : input.src.llvm-%i_1.poison.temp2 : BOOL
@@ -1824,12 +1829,12 @@ lr_status_bottom(; memlabel-mem-heap, )
 17395 : 1 : BOOL
 =loc 1006
 =from_expr
-17404 : input.src.llvm-%i_2 : BOOL
+17407 : input.src.llvm-%i_2 : BOOL
 =to_expr
 17395 : 1 : BOOL
 =loc 1007
 =from_expr
-17406 : input.src.llvm-%i_2.poison : BOOL
+17409 : input.src.llvm-%i_2.poison : BOOL
 =to_expr
 17395 : 1 : BOOL
 =avail_exprs end
@@ -1837,19 +1842,19 @@ lr_status_bottom(; memlabel-mem-heap, )
 =avail_exprs begin
 =loc 1002
 =from_expr
-17400 : input.src.llvm-%i_1 : BV:4
+17402 : input.src.llvm-%i_1 : BV:4
 =to_expr
-17401 : 0 : BV:4
+17403 : 0 : BV:4
 =loc 1003
 =from_expr
-17402 : input.src.llvm-%i_1.poison : BOOL
+17404 : input.src.llvm-%i_1.poison : BOOL
 =to_expr
 17395 : 1 : BOOL
 =loc 1004
 =from_expr
 17396 : input.src.llvm-%i_1.poison.temp1 : BOOL
 =to_expr
-17431 : 0 : BOOL
+17399 : 0 : BOOL
 =loc 1005
 =from_expr
 17398 : input.src.llvm-%i_1.poison.temp2 : BOOL
@@ -1857,12 +1862,12 @@ lr_status_bottom(; memlabel-mem-heap, )
 17395 : 1 : BOOL
 =loc 1006
 =from_expr
-17404 : input.src.llvm-%i_2 : BOOL
+17407 : input.src.llvm-%i_2 : BOOL
 =to_expr
 17395 : 1 : BOOL
 =loc 1007
 =from_expr
-17406 : input.src.llvm-%i_2.poison : BOOL
+17409 : input.src.llvm-%i_2.poison : BOOL
 =to_expr
 17395 : 1 : BOOL
 =avail_exprs end
@@ -1870,19 +1875,19 @@ lr_status_bottom(; memlabel-mem-heap, )
 =avail_exprs begin
 =loc 1002
 =from_expr
-17400 : input.src.llvm-%i_1 : BV:4
+17402 : input.src.llvm-%i_1 : BV:4
 =to_expr
-17401 : 0 : BV:4
+17403 : 0 : BV:4
 =loc 1003
 =from_expr
-17402 : input.src.llvm-%i_1.poison : BOOL
+17404 : input.src.llvm-%i_1.poison : BOOL
 =to_expr
 17395 : 1 : BOOL
 =loc 1004
 =from_expr
 17396 : input.src.llvm-%i_1.poison.temp1 : BOOL
 =to_expr
-17431 : 0 : BOOL
+17399 : 0 : BOOL
 =loc 1005
 =from_expr
 17398 : input.src.llvm-%i_1.poison.temp2 : BOOL
@@ -1890,12 +1895,12 @@ lr_status_bottom(; memlabel-mem-heap, )
 17395 : 1 : BOOL
 =loc 1006
 =from_expr
-17404 : input.src.llvm-%i_2 : BOOL
+17407 : input.src.llvm-%i_2 : BOOL
 =to_expr
 17395 : 1 : BOOL
 =loc 1007
 =from_expr
-17406 : input.src.llvm-%i_2.poison : BOOL
+17409 : input.src.llvm-%i_2.poison : BOOL
 =to_expr
 17395 : 1 : BOOL
 =avail_exprs end
@@ -1903,19 +1908,19 @@ lr_status_bottom(; memlabel-mem-heap, )
 =avail_exprs begin
 =loc 1002
 =from_expr
-17400 : input.src.llvm-%i_1 : BV:4
+17402 : input.src.llvm-%i_1 : BV:4
 =to_expr
-17401 : 0 : BV:4
+17403 : 0 : BV:4
 =loc 1003
 =from_expr
-17402 : input.src.llvm-%i_1.poison : BOOL
+17404 : input.src.llvm-%i_1.poison : BOOL
 =to_expr
 17395 : 1 : BOOL
 =loc 1004
 =from_expr
 17396 : input.src.llvm-%i_1.poison.temp1 : BOOL
 =to_expr
-17431 : 0 : BOOL
+17399 : 0 : BOOL
 =loc 1005
 =from_expr
 17398 : input.src.llvm-%i_1.poison.temp2 : BOOL
@@ -1923,17 +1928,17 @@ lr_status_bottom(; memlabel-mem-heap, )
 17395 : 1 : BOOL
 =loc 1006
 =from_expr
-17404 : input.src.llvm-%i_2 : BOOL
+17407 : input.src.llvm-%i_2 : BOOL
 =to_expr
 17395 : 1 : BOOL
 =loc 1007
 =from_expr
-17406 : input.src.llvm-%i_2.poison : BOOL
+17409 : input.src.llvm-%i_2.poison : BOOL
 =to_expr
 17395 : 1 : BOOL
 =loc 1010
 =from_expr
-17409 : input.src.llvm-%i_3.poison.temp1 : BOOL
+17412 : input.src.llvm-%i_3.poison.temp1 : BOOL
 =to_expr
 17395 : 1 : BOOL
 =avail_exprs end
@@ -1941,19 +1946,19 @@ lr_status_bottom(; memlabel-mem-heap, )
 =avail_exprs begin
 =loc 1002
 =from_expr
-17400 : input.src.llvm-%i_1 : BV:4
+17402 : input.src.llvm-%i_1 : BV:4
 =to_expr
-17401 : 0 : BV:4
+17403 : 0 : BV:4
 =loc 1003
 =from_expr
-17402 : input.src.llvm-%i_1.poison : BOOL
+17404 : input.src.llvm-%i_1.poison : BOOL
 =to_expr
 17395 : 1 : BOOL
 =loc 1004
 =from_expr
 17396 : input.src.llvm-%i_1.poison.temp1 : BOOL
 =to_expr
-17431 : 0 : BOOL
+17399 : 0 : BOOL
 =loc 1005
 =from_expr
 17398 : input.src.llvm-%i_1.poison.temp2 : BOOL
@@ -1961,42 +1966,42 @@ lr_status_bottom(; memlabel-mem-heap, )
 17395 : 1 : BOOL
 =loc 1006
 =from_expr
-17404 : input.src.llvm-%i_2 : BOOL
+17407 : input.src.llvm-%i_2 : BOOL
 =to_expr
 17395 : 1 : BOOL
 =loc 1007
 =from_expr
-17406 : input.src.llvm-%i_2.poison : BOOL
+17409 : input.src.llvm-%i_2.poison : BOOL
 =to_expr
 17395 : 1 : BOOL
 =loc 1010
 =from_expr
-17409 : input.src.llvm-%i_3.poison.temp1 : BOOL
+17412 : input.src.llvm-%i_3.poison.temp1 : BOOL
 =to_expr
 17395 : 1 : BOOL
 =loc 1011
 =from_expr
-17411 : input.src.llvm-%i_3.poison.temp2 : BOOL
+17414 : input.src.llvm-%i_3.poison.temp2 : BOOL
 =to_expr
-17431 : 0 : BOOL
+17399 : 0 : BOOL
 =avail_exprs end
 =available expressions at Lfoo%1%100005 in src.llvm.main
 =avail_exprs begin
 =loc 1002
 =from_expr
-17400 : input.src.llvm-%i_1 : BV:4
+17402 : input.src.llvm-%i_1 : BV:4
 =to_expr
-17401 : 0 : BV:4
+17403 : 0 : BV:4
 =loc 1003
 =from_expr
-17402 : input.src.llvm-%i_1.poison : BOOL
+17404 : input.src.llvm-%i_1.poison : BOOL
 =to_expr
 17395 : 1 : BOOL
 =loc 1004
 =from_expr
 17396 : input.src.llvm-%i_1.poison.temp1 : BOOL
 =to_expr
-17431 : 0 : BOOL
+17399 : 0 : BOOL
 =loc 1005
 =from_expr
 17398 : input.src.llvm-%i_1.poison.temp2 : BOOL
@@ -2004,47 +2009,47 @@ lr_status_bottom(; memlabel-mem-heap, )
 17395 : 1 : BOOL
 =loc 1006
 =from_expr
-17404 : input.src.llvm-%i_2 : BOOL
+17407 : input.src.llvm-%i_2 : BOOL
 =to_expr
 17395 : 1 : BOOL
 =loc 1007
 =from_expr
-17406 : input.src.llvm-%i_2.poison : BOOL
+17409 : input.src.llvm-%i_2.poison : BOOL
 =to_expr
 17395 : 1 : BOOL
 =loc 1009
 =from_expr
-17426 : input.src.llvm-%i_3.poison : BOOL
+17429 : input.src.llvm-%i_3.poison : BOOL
 =to_expr
 17395 : 1 : BOOL
 =loc 1010
 =from_expr
-17409 : input.src.llvm-%i_3.poison.temp1 : BOOL
+17412 : input.src.llvm-%i_3.poison.temp1 : BOOL
 =to_expr
 17395 : 1 : BOOL
 =loc 1011
 =from_expr
-17411 : input.src.llvm-%i_3.poison.temp2 : BOOL
+17414 : input.src.llvm-%i_3.poison.temp2 : BOOL
 =to_expr
-17431 : 0 : BOOL
+17399 : 0 : BOOL
 =avail_exprs end
 =available expressions at Lfoo%2%1 in src.llvm.main
 =avail_exprs begin
 =loc 1002
 =from_expr
-17400 : input.src.llvm-%i_1 : BV:4
+17402 : input.src.llvm-%i_1 : BV:4
 =to_expr
-17401 : 0 : BV:4
+17403 : 0 : BV:4
 =loc 1003
 =from_expr
-17402 : input.src.llvm-%i_1.poison : BOOL
+17404 : input.src.llvm-%i_1.poison : BOOL
 =to_expr
 17395 : 1 : BOOL
 =loc 1004
 =from_expr
 17396 : input.src.llvm-%i_1.poison.temp1 : BOOL
 =to_expr
-17431 : 0 : BOOL
+17399 : 0 : BOOL
 =loc 1005
 =from_expr
 17398 : input.src.llvm-%i_1.poison.temp2 : BOOL
@@ -2052,52 +2057,52 @@ lr_status_bottom(; memlabel-mem-heap, )
 17395 : 1 : BOOL
 =loc 1006
 =from_expr
-17404 : input.src.llvm-%i_2 : BOOL
+17407 : input.src.llvm-%i_2 : BOOL
 =to_expr
 17395 : 1 : BOOL
 =loc 1007
 =from_expr
-17406 : input.src.llvm-%i_2.poison : BOOL
+17409 : input.src.llvm-%i_2.poison : BOOL
 =to_expr
 17395 : 1 : BOOL
 =loc 1008
 =from_expr
-17425 : input.src.llvm-%i_3 : BV:4
+17428 : input.src.llvm-%i_3 : BV:4
 =to_expr
 17391 : 3 : BV:4
 =loc 1009
 =from_expr
-17426 : input.src.llvm-%i_3.poison : BOOL
+17429 : input.src.llvm-%i_3.poison : BOOL
 =to_expr
 17395 : 1 : BOOL
 =loc 1010
 =from_expr
-17409 : input.src.llvm-%i_3.poison.temp1 : BOOL
+17412 : input.src.llvm-%i_3.poison.temp1 : BOOL
 =to_expr
 17395 : 1 : BOOL
 =loc 1011
 =from_expr
-17411 : input.src.llvm-%i_3.poison.temp2 : BOOL
+17414 : input.src.llvm-%i_3.poison.temp2 : BOOL
 =to_expr
-17431 : 0 : BOOL
+17399 : 0 : BOOL
 =avail_exprs end
 =available expressions at Lfoo%2%100003 in src.llvm.main
 =avail_exprs begin
 =loc 1002
 =from_expr
-17400 : input.src.llvm-%i_1 : BV:4
+17402 : input.src.llvm-%i_1 : BV:4
 =to_expr
-17401 : 0 : BV:4
+17403 : 0 : BV:4
 =loc 1003
 =from_expr
-17402 : input.src.llvm-%i_1.poison : BOOL
+17404 : input.src.llvm-%i_1.poison : BOOL
 =to_expr
 17395 : 1 : BOOL
 =loc 1004
 =from_expr
 17396 : input.src.llvm-%i_1.poison.temp1 : BOOL
 =to_expr
-17431 : 0 : BOOL
+17399 : 0 : BOOL
 =loc 1005
 =from_expr
 17398 : input.src.llvm-%i_1.poison.temp2 : BOOL
@@ -2105,52 +2110,52 @@ lr_status_bottom(; memlabel-mem-heap, )
 17395 : 1 : BOOL
 =loc 1006
 =from_expr
-17404 : input.src.llvm-%i_2 : BOOL
+17407 : input.src.llvm-%i_2 : BOOL
 =to_expr
 17395 : 1 : BOOL
 =loc 1007
 =from_expr
-17406 : input.src.llvm-%i_2.poison : BOOL
+17409 : input.src.llvm-%i_2.poison : BOOL
 =to_expr
 17395 : 1 : BOOL
 =loc 1008
 =from_expr
-17425 : input.src.llvm-%i_3 : BV:4
+17428 : input.src.llvm-%i_3 : BV:4
 =to_expr
 17391 : 3 : BV:4
 =loc 1009
 =from_expr
-17426 : input.src.llvm-%i_3.poison : BOOL
+17429 : input.src.llvm-%i_3.poison : BOOL
 =to_expr
 17395 : 1 : BOOL
 =loc 1010
 =from_expr
-17409 : input.src.llvm-%i_3.poison.temp1 : BOOL
+17412 : input.src.llvm-%i_3.poison.temp1 : BOOL
 =to_expr
 17395 : 1 : BOOL
 =loc 1011
 =from_expr
-17411 : input.src.llvm-%i_3.poison.temp2 : BOOL
+17414 : input.src.llvm-%i_3.poison.temp2 : BOOL
 =to_expr
-17431 : 0 : BOOL
+17399 : 0 : BOOL
 =avail_exprs end
 =available expressions at Lfoo%2%100004 in src.llvm.main
 =avail_exprs begin
 =loc 1002
 =from_expr
-17400 : input.src.llvm-%i_1 : BV:4
+17402 : input.src.llvm-%i_1 : BV:4
 =to_expr
-17401 : 0 : BV:4
+17403 : 0 : BV:4
 =loc 1003
 =from_expr
-17402 : input.src.llvm-%i_1.poison : BOOL
+17404 : input.src.llvm-%i_1.poison : BOOL
 =to_expr
 17395 : 1 : BOOL
 =loc 1004
 =from_expr
 17396 : input.src.llvm-%i_1.poison.temp1 : BOOL
 =to_expr
-17431 : 0 : BOOL
+17399 : 0 : BOOL
 =loc 1005
 =from_expr
 17398 : input.src.llvm-%i_1.poison.temp2 : BOOL
@@ -2158,52 +2163,52 @@ lr_status_bottom(; memlabel-mem-heap, )
 17395 : 1 : BOOL
 =loc 1006
 =from_expr
-17404 : input.src.llvm-%i_2 : BOOL
+17407 : input.src.llvm-%i_2 : BOOL
 =to_expr
 17395 : 1 : BOOL
 =loc 1007
 =from_expr
-17406 : input.src.llvm-%i_2.poison : BOOL
+17409 : input.src.llvm-%i_2.poison : BOOL
 =to_expr
 17395 : 1 : BOOL
 =loc 1008
 =from_expr
-17425 : input.src.llvm-%i_3 : BV:4
+17428 : input.src.llvm-%i_3 : BV:4
 =to_expr
 17391 : 3 : BV:4
 =loc 1009
 =from_expr
-17426 : input.src.llvm-%i_3.poison : BOOL
+17429 : input.src.llvm-%i_3.poison : BOOL
 =to_expr
 17395 : 1 : BOOL
 =loc 1010
 =from_expr
-17409 : input.src.llvm-%i_3.poison.temp1 : BOOL
+17412 : input.src.llvm-%i_3.poison.temp1 : BOOL
 =to_expr
 17395 : 1 : BOOL
 =loc 1011
 =from_expr
-17411 : input.src.llvm-%i_3.poison.temp2 : BOOL
+17414 : input.src.llvm-%i_3.poison.temp2 : BOOL
 =to_expr
-17431 : 0 : BOOL
+17399 : 0 : BOOL
 =avail_exprs end
 =available expressions at E0%0%1 in src.llvm.main
 =avail_exprs begin
 =loc 1002
 =from_expr
-17400 : input.src.llvm-%i_1 : BV:4
+17402 : input.src.llvm-%i_1 : BV:4
 =to_expr
-17401 : 0 : BV:4
+17403 : 0 : BV:4
 =loc 1003
 =from_expr
-17402 : input.src.llvm-%i_1.poison : BOOL
+17404 : input.src.llvm-%i_1.poison : BOOL
 =to_expr
 17395 : 1 : BOOL
 =loc 1004
 =from_expr
 17396 : input.src.llvm-%i_1.poison.temp1 : BOOL
 =to_expr
-17431 : 0 : BOOL
+17399 : 0 : BOOL
 =loc 1005
 =from_expr
 17398 : input.src.llvm-%i_1.poison.temp2 : BOOL
@@ -2211,17 +2216,17 @@ lr_status_bottom(; memlabel-mem-heap, )
 17395 : 1 : BOOL
 =loc 1006
 =from_expr
-17404 : input.src.llvm-%i_2 : BOOL
+17407 : input.src.llvm-%i_2 : BOOL
 =to_expr
 17395 : 1 : BOOL
 =loc 1007
 =from_expr
-17406 : input.src.llvm-%i_2.poison : BOOL
+17409 : input.src.llvm-%i_2.poison : BOOL
 =to_expr
 17395 : 1 : BOOL
 =loc 1012
 =from_expr
-17427 : input.src.llvm-indir_tgt : BV:32
+17430 : input.src.llvm-indir_tgt : BV:32
 =to_expr
 17387 : retaddr_const : BV:32
 =avail_exprs end
@@ -2231,46 +2236,46 @@ lr_status_bottom(; memlabel-mem-heap, )
 =sprel_map at L0%1%1 in src.llvm.main
 =sprel_map at L0%1%100003 in src.llvm.main
 =loc 1004
-17431 : 0 : BOOL
+17399 : 0 : BOOL
 =sprel_map at L0%1%100004 in src.llvm.main
 =loc 1004
-17431 : 0 : BOOL
+17399 : 0 : BOOL
 =loc 1005
 17395 : 1 : BOOL
 =sprel_map at L0%1%100005 in src.llvm.main
 =loc 1003
 17395 : 1 : BOOL
 =loc 1004
-17431 : 0 : BOOL
+17399 : 0 : BOOL
 =loc 1005
 17395 : 1 : BOOL
 =sprel_map at L0%2%1 in src.llvm.main
 =loc 1002
-17401 : 0 : BV:4
+17403 : 0 : BV:4
 =loc 1003
 17395 : 1 : BOOL
 =loc 1004
-17431 : 0 : BOOL
+17399 : 0 : BOOL
 =loc 1005
 17395 : 1 : BOOL
 =sprel_map at L0%2%100003 in src.llvm.main
 =loc 1002
-17401 : 0 : BV:4
+17403 : 0 : BV:4
 =loc 1003
 17395 : 1 : BOOL
 =loc 1004
-17431 : 0 : BOOL
+17399 : 0 : BOOL
 =loc 1005
 17395 : 1 : BOOL
 =loc 1007
 17395 : 1 : BOOL
 =sprel_map at L0%3%1 in src.llvm.main
 =loc 1002
-17401 : 0 : BV:4
+17403 : 0 : BV:4
 =loc 1003
 17395 : 1 : BOOL
 =loc 1004
-17431 : 0 : BOOL
+17399 : 0 : BOOL
 =loc 1005
 17395 : 1 : BOOL
 =loc 1006
@@ -2279,11 +2284,11 @@ lr_status_bottom(; memlabel-mem-heap, )
 17395 : 1 : BOOL
 =sprel_map at L0%3%100003 in src.llvm.main
 =loc 1002
-17401 : 0 : BV:4
+17403 : 0 : BV:4
 =loc 1003
 17395 : 1 : BOOL
 =loc 1004
-17431 : 0 : BOOL
+17399 : 0 : BOOL
 =loc 1005
 17395 : 1 : BOOL
 =loc 1006
@@ -2292,11 +2297,11 @@ lr_status_bottom(; memlabel-mem-heap, )
 17395 : 1 : BOOL
 =sprel_map at L0%3%100004 in src.llvm.main
 =loc 1002
-17401 : 0 : BV:4
+17403 : 0 : BV:4
 =loc 1003
 17395 : 1 : BOOL
 =loc 1004
-17431 : 0 : BOOL
+17399 : 0 : BOOL
 =loc 1005
 17395 : 1 : BOOL
 =loc 1006
@@ -2305,11 +2310,11 @@ lr_status_bottom(; memlabel-mem-heap, )
 17395 : 1 : BOOL
 =sprel_map at L0%3%100005 in src.llvm.main
 =loc 1002
-17401 : 0 : BV:4
+17403 : 0 : BV:4
 =loc 1003
 17395 : 1 : BOOL
 =loc 1004
-17431 : 0 : BOOL
+17399 : 0 : BOOL
 =loc 1005
 17395 : 1 : BOOL
 =loc 1006
@@ -2318,11 +2323,11 @@ lr_status_bottom(; memlabel-mem-heap, )
 17395 : 1 : BOOL
 =sprel_map at L0%3%100006 in src.llvm.main
 =loc 1002
-17401 : 0 : BV:4
+17403 : 0 : BV:4
 =loc 1003
 17395 : 1 : BOOL
 =loc 1004
-17431 : 0 : BOOL
+17399 : 0 : BOOL
 =loc 1005
 17395 : 1 : BOOL
 =loc 1006
@@ -2331,11 +2336,11 @@ lr_status_bottom(; memlabel-mem-heap, )
 17395 : 1 : BOOL
 =sprel_map at Lend%1%0 in src.llvm.main
 =loc 1002
-17401 : 0 : BV:4
+17403 : 0 : BV:4
 =loc 1003
 17395 : 1 : BOOL
 =loc 1004
-17431 : 0 : BOOL
+17399 : 0 : BOOL
 =loc 1005
 17395 : 1 : BOOL
 =loc 1006
@@ -2344,11 +2349,11 @@ lr_status_bottom(; memlabel-mem-heap, )
 17395 : 1 : BOOL
 =sprel_map at Lend%1%1 in src.llvm.main
 =loc 1002
-17401 : 0 : BV:4
+17403 : 0 : BV:4
 =loc 1003
 17395 : 1 : BOOL
 =loc 1004
-17431 : 0 : BOOL
+17399 : 0 : BOOL
 =loc 1005
 17395 : 1 : BOOL
 =loc 1006
@@ -2357,11 +2362,11 @@ lr_status_bottom(; memlabel-mem-heap, )
 17395 : 1 : BOOL
 =sprel_map at Lfoo%1%1 in src.llvm.main
 =loc 1002
-17401 : 0 : BV:4
+17403 : 0 : BV:4
 =loc 1003
 17395 : 1 : BOOL
 =loc 1004
-17431 : 0 : BOOL
+17399 : 0 : BOOL
 =loc 1005
 17395 : 1 : BOOL
 =loc 1006
@@ -2370,11 +2375,11 @@ lr_status_bottom(; memlabel-mem-heap, )
 17395 : 1 : BOOL
 =sprel_map at Lfoo%1%100003 in src.llvm.main
 =loc 1002
-17401 : 0 : BV:4
+17403 : 0 : BV:4
 =loc 1003
 17395 : 1 : BOOL
 =loc 1004
-17431 : 0 : BOOL
+17399 : 0 : BOOL
 =loc 1005
 17395 : 1 : BOOL
 =loc 1006
@@ -2385,11 +2390,11 @@ lr_status_bottom(; memlabel-mem-heap, )
 17395 : 1 : BOOL
 =sprel_map at Lfoo%1%100004 in src.llvm.main
 =loc 1002
-17401 : 0 : BV:4
+17403 : 0 : BV:4
 =loc 1003
 17395 : 1 : BOOL
 =loc 1004
-17431 : 0 : BOOL
+17399 : 0 : BOOL
 =loc 1005
 17395 : 1 : BOOL
 =loc 1006
@@ -2399,14 +2404,14 @@ lr_status_bottom(; memlabel-mem-heap, )
 =loc 1010
 17395 : 1 : BOOL
 =loc 1011
-17431 : 0 : BOOL
+17399 : 0 : BOOL
 =sprel_map at Lfoo%1%100005 in src.llvm.main
 =loc 1002
-17401 : 0 : BV:4
+17403 : 0 : BV:4
 =loc 1003
 17395 : 1 : BOOL
 =loc 1004
-17431 : 0 : BOOL
+17399 : 0 : BOOL
 =loc 1005
 17395 : 1 : BOOL
 =loc 1006
@@ -2418,14 +2423,14 @@ lr_status_bottom(; memlabel-mem-heap, )
 =loc 1010
 17395 : 1 : BOOL
 =loc 1011
-17431 : 0 : BOOL
+17399 : 0 : BOOL
 =sprel_map at Lfoo%2%1 in src.llvm.main
 =loc 1002
-17401 : 0 : BV:4
+17403 : 0 : BV:4
 =loc 1003
 17395 : 1 : BOOL
 =loc 1004
-17431 : 0 : BOOL
+17399 : 0 : BOOL
 =loc 1005
 17395 : 1 : BOOL
 =loc 1006
@@ -2439,14 +2444,14 @@ lr_status_bottom(; memlabel-mem-heap, )
 =loc 1010
 17395 : 1 : BOOL
 =loc 1011
-17431 : 0 : BOOL
+17399 : 0 : BOOL
 =sprel_map at Lfoo%2%100003 in src.llvm.main
 =loc 1002
-17401 : 0 : BV:4
+17403 : 0 : BV:4
 =loc 1003
 17395 : 1 : BOOL
 =loc 1004
-17431 : 0 : BOOL
+17399 : 0 : BOOL
 =loc 1005
 17395 : 1 : BOOL
 =loc 1006
@@ -2460,14 +2465,14 @@ lr_status_bottom(; memlabel-mem-heap, )
 =loc 1010
 17395 : 1 : BOOL
 =loc 1011
-17431 : 0 : BOOL
+17399 : 0 : BOOL
 =sprel_map at Lfoo%2%100004 in src.llvm.main
 =loc 1002
-17401 : 0 : BV:4
+17403 : 0 : BV:4
 =loc 1003
 17395 : 1 : BOOL
 =loc 1004
-17431 : 0 : BOOL
+17399 : 0 : BOOL
 =loc 1005
 17395 : 1 : BOOL
 =loc 1006
@@ -2481,14 +2486,14 @@ lr_status_bottom(; memlabel-mem-heap, )
 =loc 1010
 17395 : 1 : BOOL
 =loc 1011
-17431 : 0 : BOOL
+17399 : 0 : BOOL
 =sprel_map at E0%0%1 in src.llvm.main
 =loc 1002
-17401 : 0 : BV:4
+17403 : 0 : BV:4
 =loc 1003
 17395 : 1 : BOOL
 =loc 1004
-17431 : 0 : BOOL
+17399 : 0 : BOOL
 =loc 1005
 17395 : 1 : BOOL
 =loc 1006
