@@ -889,6 +889,10 @@ sym_exec_llvm::get_poison_args(const llvm::Instruction& I/*, string vname*/, con
       vector<sort_ref> sv = get_value_type_vec(v, m_module->getDataLayout());
       args.push_back(state_get_expr(st, get_poison_value_name(v, 0), m_ctx->mk_bool_sort()));
     }
+    else {
+      // We need this because sometimes we need to check only some args for poison possibility
+      args.push_back(expr_false(m_ctx));
+    }
   }
   return args;
 }
@@ -1341,7 +1345,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
         // if (poison_args.size() == 1) 
         // {
         //  assume_expr = poison_args.front();
-        vector<expr_ref> temp(1, poison_args.front());
+        vector<expr_ref> temp(1, poison_args[0]);
         assume_expr = m_ctx->mk_app(expr::OP_NOT, temp);
         // } 
         // else 
