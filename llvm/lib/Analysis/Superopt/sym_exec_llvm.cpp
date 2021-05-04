@@ -1549,6 +1549,21 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
       //assumes.insert(p3);
       //t.add_assume_pred(from_node->get_pc(), p3);
     }
+
+    //if address operand in store is poison, it leads to immediate UB.
+    vector<expr_ref> poison_args = get_poison_args(I/*, ""*/, state_in, state_assumes, from_node/*, pc_to, B, F*/, t, value_to_name_map);
+    expr_ref assume_expr;
+    if(!poison_args.empty())
+    {
+      vector<expr_ref> temp(1, poison_args[1]);
+      assume_expr = m_ctx->mk_app(expr::OP_NOT, temp);
+    }
+
+    if(!assume_expr) {
+      assume_expr = expr_true(m_ctx);
+    }
+    state_assumes.insert(assume_expr);
+
     break;
   }
   case Instruction::Load:
