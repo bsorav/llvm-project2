@@ -1340,7 +1340,9 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
       {
         // if (poison_args.size() == 1) 
         // {
-          assume_expr = poison_args.front();
+        //  assume_expr = poison_args.front();
+        vector<expr_ref> temp(1, poison_args.front());
+        assume_expr = m_ctx->mk_app(expr::OP_NOT, temp);
         // } 
         // else 
         // {
@@ -1349,7 +1351,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
       }
 
       if (!assume_expr) {
-        assume_expr = expr_false(m_ctx);
+        assume_expr = expr_true(m_ctx);
       }
       state_assumes.insert(assume_expr);
       //=============================================
