@@ -453,11 +453,14 @@ sym_exec_llvm::gep_instruction_get_intermediate_value_name(Instruction const& I/
 }
 
 string
-sym_exec_llvm::get_poison_value_name(Value const& I) const
+sym_exec_llvm::get_poison_value_name(Value const& I, int temp_count) const
 {
   string base_name =  get_value_name(I);
   stringstream ss;
-  ss << base_name << ".poison_temp";
+  ss << base_name << ".poison";
+  if (temp_count != 0) {
+    ss << ".temp" << temp_count;
+  }
   return ss.str();
 }
 
@@ -884,7 +887,7 @@ sym_exec_llvm::get_poison_args(const llvm::Instruction& I/*, string vname*/, con
     const auto& v = *I.getOperand(i);
     if (isa<const Instruction>(&v)) {
       vector<sort_ref> sv = get_value_type_vec(v, m_module->getDataLayout());
-      args.push_back(state_get_expr(st, get_poison_value_name(v), m_ctx->mk_bool_sort()));
+      args.push_back(state_get_expr(st, get_poison_value_name(v, 0), m_ctx->mk_bool_sort()));
     }
   }
   return args;
@@ -1836,6 +1839,34 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     tie(expr_args, state_assumes) = get_expr_args(I/*, ""*/, state_in, state_assumes, from_node/*, pc_to, B, F*/, t, value_to_name_map);
     expr_ref insn_expr;
     expr_ref assume_expr = get_orig_assume_expr(I/*, ""*/, expr_args, state_in, state_assumes, from_node/*, pc_to, B, F*/, t);
+
+    if (assume_expr) {
+      string poison_name       = get_poison_value_name(I, 1);
+      state state_poison;
+      state_set_expr(state_poison, poison_name, assume_expr);
+
+      dshared_ptr<tfg_node> poison_node = get_next_intermediate_subsubindex_pc_node(t, from_node);
+      pc cur_pc = from_node->get_pc();
+      shared_ptr<tfg_edge const> e = mk_tfg_edge(mk_itfg_edge(cur_pc, poison_node->get_pc(), state_poison, expr_true(m_ctx)/*, t.get_start_state()*/, state_assumes, this->instruction_to_te_comment(I, from_node->get_pc()/*, bbo*/)));
+      t.add_edge(e);
+      from_node = poison_node;
+
+      assume_expr = get_input_expr(get_poison_value_name(I, 1), m_ctx->mk_bool_sort());
+      vector<expr_ref> assume_args(1, assume_expr);
+      assume_expr = m_ctx->mk_app(expr::OP_NOT, assume_args);
+
+      string poison_name_2       = get_poison_value_name(I, 2);
+      state state_poison_2;
+      state_set_expr(state_poison_2, poison_name_2, assume_expr);
+
+      dshared_ptr<tfg_node> poison_node_2 = get_next_intermediate_subsubindex_pc_node(t, from_node);
+      cur_pc = from_node->get_pc();
+      shared_ptr<tfg_edge const> e_2 = mk_tfg_edge(mk_itfg_edge(cur_pc, poison_node_2->get_pc(), state_poison_2, expr_true(m_ctx)/*, t.get_start_state()*/, state_assumes, this->instruction_to_te_comment(I, from_node->get_pc()/*, bbo*/)));
+      t.add_edge(e_2);
+      from_node = poison_node_2;
+      assume_expr = get_input_expr(get_poison_value_name(I, 2), m_ctx->mk_bool_sort());
+    }
+
     vector<expr_ref> poison_args = get_poison_args(I/*, ""*/, state_in, state_assumes, from_node/*, pc_to, B, F*/, t, value_to_name_map);
 
     if (!poison_args.empty()) {
@@ -1853,7 +1884,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
       assume_expr = expr_false(m_ctx);
     }
 
-    string poison_name       = get_poison_value_name(I);
+    string poison_name       = get_poison_value_name(I, 0);
 
     state state_poison;
     state_set_expr(state_poison, poison_name, assume_expr);
