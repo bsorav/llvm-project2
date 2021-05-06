@@ -1441,7 +1441,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
       local_size_expr = m_ctx->mk_bv_const(get_word_length(), local_size);
     }
 
-    expr_ref alloca_ptr = m_ctx->mk_alloca_ptr(state_get_expr(state_in, m_mem_reg, this->get_mem_sort()), ml_local);
+    expr_ref alloca_ptr = m_ctx->mk_alloca_ptr(state_get_expr(state_in, m_mem_reg, this->get_mem_sort()), ml_local, local_size_expr);
     // memory <- alloca
     // name <- alloca_ptr
     // local_size.id <- size expr
