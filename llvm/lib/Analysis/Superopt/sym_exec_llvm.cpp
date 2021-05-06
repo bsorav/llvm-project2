@@ -1774,8 +1774,8 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     expr_ref min_limit_expr = m_ctx->mk_float_const(e0->get_sort()->get_size(), min_limit);
     expr_ref max_limit_expr = m_ctx->mk_float_const(e0->get_sort()->get_size(), max_limit);
 
-    cout << _FNLN_ << ": min_limit_expr = " << expr_string(min_limit_expr) << endl;
-    cout << _FNLN_ << ": max_limit_expr = " << expr_string(max_limit_expr) << endl;
+    //cout << _FNLN_ << ": min_limit_expr = " << expr_string(min_limit_expr) << endl;
+    //cout << _FNLN_ << ": max_limit_expr = " << expr_string(max_limit_expr) << endl;
 
     ASSERT(e0->is_float_sort());
     //add to state_assumes the conditions that op0 is within limits
