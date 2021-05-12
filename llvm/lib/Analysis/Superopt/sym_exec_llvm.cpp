@@ -1469,6 +1469,10 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     // alloca returned addr can never be 0
     expr_ref name_expr = m_ctx->get_input_expr_for_key(mk_string_ref(name), m_ctx->mk_bv_sort(get_word_length()));
     state_assumes.insert(m_ctx->mk_not(m_ctx->mk_eq(name_expr, m_ctx->mk_zerobv(get_word_length()))));
+    if (align != 0) {
+      expr_ref const& isaligned_assume = m_ctx->mk_islangaligned(name_expr, align);
+      state_assumes.insert(isaligned_assume);
+    }
 
     if (is_varsize) {
       ASSERT(varsize_expr);
