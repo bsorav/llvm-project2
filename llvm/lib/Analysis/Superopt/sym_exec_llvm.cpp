@@ -1425,23 +1425,31 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
   {
     const AllocaInst* a =  cast<const AllocaInst>(&I);
     string name = get_value_name(*a);
-    size_t local_id = m_local_num++;
-    stringstream ss0;
-    ss0 << G_LOCAL_KEYWORD << '.' << local_id;
-    string local_name = ss0.str();
     Type *ElTy = a->getAllocatedType();
-    uint64_t local_size = dl.getTypeAllocSize(ElTy);
+    Value const* ArraySize = a->getArraySize();
     unsigned align = a->getAlignment();
     bool is_varsize = !(a->getAllocationSizeInBits(dl).hasValue());
 
+    uint64_t local_type_alloc_size = dl.getTypeAllocSize(ElTy);
+    uint64_t local_size = local_type_alloc_size;
+    if (const ConstantInt* constArraySize = dyn_cast<const ConstantInt>(ArraySize)) {
+      local_size *= constArraySize->getZExtValue();
+    }
+
+    size_t local_id = m_local_num++;
+    stringstream ss0;
+    ss0 << G_LOCAL_KEYWORD << '.' << local_id;
+    string local_str = ss0.str();
+
     m_local_refs.insert(make_pair(local_id, graph_local_t(name, local_size, align, is_varsize)));
-    expr_ref local_addr = m_ctx->mk_var(local_name, m_ctx->mk_bv_sort(get_word_length()));
+
     memlabel_t ml_local;
     stringstream ss;
-    ss <<  local_name << "." << local_size;
+    ss <<  local_str << "." << local_size;
     string local_name_with_size = ss.str();
     memlabel_t::keyword_to_memlabel(&ml_local, local_name_with_size.c_str(), local_size);
 
+    //expr_ref local_addr = m_ctx->mk_var(local_str, m_ctx->mk_bv_sort(get_word_length()));
     //string typeString = getTypeString(ElTy);
     //typeString = typeString + "*";
     //langtype_ref lt = mk_langtype_ref(typeString);
@@ -1449,30 +1457,58 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     //assumes.insert(p);
     //t.add_assume_pred(from_node->get_pc(), p);
 
-    ostringstream ss2;
-    ss2 << G_LOCAL_SIZE_KEYWORD << '.' << local_id;
-    string const& local_size_str = ss2.str();
+    string local_size_str = m_ctx->get_key_from_input_expr(m_ctx->get_local_size_expr_for_id(local_id))->get_str();
+
     expr_ref local_size_expr;
+    expr_ref varsize_expr;
     if (is_varsize) {
-      expr_ref varsize_expr;
-      Value const* ArraySize = a->getArraySize();
       tie(varsize_expr, state_assumes) = get_expr_adding_edges_for_intermediate_vals(*ArraySize/*, ""*/, state_in, state_assumes, from_node/*, pc_to, B, F*/, t, value_to_name_map);
-      local_size_expr = m_ctx->mk_bvmul(varsize_expr, m_ctx->mk_bv_const(varsize_expr->get_sort()->get_size(), local_size));
+      // XXX shall we check for integer overflow during (varsize_expr * local_type_alloc_size) as well?
+      local_size_expr = m_ctx->mk_bvmul(varsize_expr, m_ctx->mk_bv_const(varsize_expr->get_sort()->get_size(), local_type_alloc_size));
       ASSERT(local_size_expr->get_sort()->get_size() == get_word_length());
-      // add size > 0 assume
-      expr_ref const& size_is_positive_assume = m_ctx->mk_bvsgt(varsize_expr, m_ctx->mk_zerobv(local_size_expr->get_sort()->get_size())); // XXX shall we check for integer overflow during (varsize_expr * local_size) as well?
-      state_assumes.insert(size_is_positive_assume);
-      // add (local_size.<id> == <expr>) global assume; as the <expr> is SSA we don't need to be careful about PCs/order
-      expr_ref local_size_eq = m_ctx->mk_eq(m_ctx->get_input_expr_for_key(mk_string_ref(local_size_str), local_size_expr->get_sort()), local_size_expr);
-      state_assumes.insert(local_size_eq);
     }
     else {
       local_size_expr = m_ctx->mk_bv_const(get_word_length(), local_size);
     }
 
-    state_set_expr(state_out, m_mem_reg, m_ctx->mk_alloca(state_get_expr(state_in, m_mem_reg, this->get_mem_sort()), ml_local, local_addr, local_size_expr));
-    state_set_expr(state_out, name, local_addr);
+    expr_ref alloca_ptr = m_ctx->mk_alloca_ptr(state_get_expr(state_in, m_mem_reg, this->get_mem_sort()), ml_local, local_size_expr);
+    // memory <- alloca
+    // name <- alloca_ptr
+    // local_size.id <- size expr
+    state_set_expr(state_out, m_mem_reg, m_ctx->mk_alloca(state_get_expr(state_in, m_mem_reg, this->get_mem_sort()), ml_local, alloca_ptr, local_size_expr));
+    state_set_expr(state_out, name, alloca_ptr);
     state_set_expr(state_out, local_size_str, local_size_expr);
+
+    // intermediate edge
+    dshared_ptr<tfg_node> intermediate_node = get_next_intermediate_subsubindex_pc_node(t, from_node);
+    ASSERT(intermediate_node);
+    tfg_edge_ref e = mk_tfg_edge(mk_itfg_edge(from_node->get_pc(), intermediate_node->get_pc(), state_out, expr_true(m_ctx)/*, t.get_start_state()*/, state_assumes, te_comment));
+    t.add_edge(e);
+    from_node = intermediate_node;
+    state_out = state_in;
+    state_assumes.clear();
+
+    // memory SSA equality assume
+    string_ref memversion_keyname = mk_string_ref(get_key_for_mem_version(mk_string_ref(m_mem_reg), local_id));
+    expr_ref const& mem_e = state_get_expr(state_in, m_mem_reg, this->get_mem_sort());
+    expr_ref const& memeq_e = m_ctx->mk_memmasks_are_equal(
+                                m_ctx->get_input_expr_for_key(memversion_keyname, mem_e->get_sort()),
+                                mem_e,
+                                memlabel_t::memlabel_local(local_id));
+    state_assumes.insert(m_ctx->mk_eq(m_ctx->mk_bool_true(), memeq_e));
+    // alloca returned addr can never be 0
+    expr_ref name_expr = m_ctx->get_input_expr_for_key(mk_string_ref(name), m_ctx->mk_bv_sort(get_word_length()));
+    state_assumes.insert(m_ctx->mk_not(m_ctx->mk_eq(name_expr, m_ctx->mk_zerobv(get_word_length()))));
+
+    if (is_varsize) {
+      ASSERT(varsize_expr);
+      // add size > 0 assume
+      expr_ref const& size_is_positive_assume = m_ctx->mk_bvsgt(varsize_expr, m_ctx->mk_zerobv(local_size_expr->get_sort()->get_size()));
+      state_assumes.insert(size_is_positive_assume);
+      // add (local_size.<id> == <expr>) assume
+      expr_ref const& local_size_eq = m_ctx->mk_eq(m_ctx->get_input_expr_for_key(mk_string_ref(local_size_str), local_size_expr->get_sort()), local_size_expr);
+      state_assumes.insert(local_size_eq);
+    }
     break;
   }
   case Instruction::Store:
@@ -2677,6 +2713,30 @@ sym_exec_llvm::parse_dbg_value_intrinsic(Instruction const& I, tfg_llvm_t& t, pc
   t.tfg_llvm_add_source_to_llvm_varname_mapping_at_pc(source_varname, llvm_varname, pc_from);
 }
 
+void
+sym_exec_llvm::parse_stacksave_intrinsic(Instruction const& I, tfg_llvm_t& t, pc const& pc_from) const
+{
+  const CallInst& CI = cast<CallInst>(I);
+  // llvm.stacksave returns an opaque pointer value which can be passed to
+  // stackrestore.  We track scopes using this pointer value as identifier.
+  string opaque_varname = string(G_INPUT_KEYWORD ".") + get_value_name(CI);
+  t.tfg_llvm_add_scope_begin_at_pc(opaque_varname, pc_from);
+}
+
+void
+sym_exec_llvm::parse_stackrestore_intrinsic(Instruction const& I, tfg_llvm_t& t, pc const& pc_from) const
+{
+  const CallInst& CI = cast<CallInst>(I);
+
+  Value* v = *CI.arg_operands().begin();
+  if (!v) {
+    return;
+  } else if (const auto *CI = dyn_cast<Constant>(v)) {
+    return;
+  }
+  string opaque_varname = string(G_INPUT_KEYWORD ".") + get_value_name(*v);
+  t.tfg_llvm_add_scope_end_at_pc(opaque_varname, pc_from);
+}
 
 void
 sym_exec_llvm::add_edges(const llvm::BasicBlock& B, tfg_llvm_t const* src_llvm_tfg, tfg_llvm_t& t, const llvm::Function& F, map<string, pair<callee_summary_t, unique_ptr<tfg_llvm_t>>> *function_tfg_map, map<llvm_value_id_t, string_ref>* value_to_name_map, set<string> const *function_call_chain, map<shared_ptr<tfg_edge const>, Instruction *>& eimap, map<string, value_scev_map_t> const& scev_map, bool collapse, context::xml_output_format_t xml_output_format)
@@ -2725,6 +2785,16 @@ sym_exec_llvm::add_edges(const llvm::BasicBlock& B, tfg_llvm_t const* src_llvm_t
         pc_from_for_dbg_parsing = pc(pc_from_dbg.get_type(), pc_from_dbg.get_index(), pc_from_dbg.get_subindex(), 0);
       }
       this->parse_dbg_value_intrinsic(I, t, pc_from_for_dbg_parsing);
+      continue;
+    }
+
+    if (isa<CallInst>(I) && cast<CallInst>(I).getIntrinsicID() == Intrinsic::stacksave) {
+      this->parse_stacksave_intrinsic(I, t, pc_from);
+      continue;
+    }
+
+    if (isa<CallInst>(I) && cast<CallInst>(I).getIntrinsicID() == Intrinsic::stackrestore) {
+      this->parse_stackrestore_intrinsic(I, t, pc_from);
       continue;
     }
 
@@ -2980,7 +3050,7 @@ sym_exec_llvm::sym_exec_preprocess_tfg(string const &name, tfg_llvm_t& t_src, ma
 {
   autostop_timer func_timer(__func__);
   DYN_DEBUG(llvm2tfg, cout << _FNLN_ << ": name = " << name << endl);
-  context* ctx = this->get_context();
+  //context* ctx = this->get_context();
   //consts_struct_t &cs = ctx->get_consts_struct();
   map<local_id_t, graph_local_t> local_refs = this->get_local_refs();
 
