@@ -1853,9 +1853,9 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     string iname = get_value_name(I);
     string op0name = get_value_name(op0);
     sort_ref op0_sort = get_value_type(op0, dl);
-    ASSERT(op0_sort->is_bv_kind());
+    ASSERT(op0_sort->is_float_kind());
     sort_ref isort = get_value_type(I, dl);
-    ASSERT(isort->is_bv_kind());
+    ASSERT(isort->is_float_kind());
     size_t target_size = isort->get_size();
     int ebits, sbits;
     tie(ebits, sbits) = context::floating_point_get_ebits_and_sbits_from_size(target_size);
@@ -1875,9 +1875,9 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     string iname = get_value_name(I);
     string op0name = get_value_name(op0);
     sort_ref op0_sort = get_value_type(op0, dl);
-    ASSERT(op0_sort->is_bv_kind());
+    ASSERT(op0_sort->is_float_kind());
     sort_ref isort = get_value_type(I, dl);
-    ASSERT(isort->is_bv_kind());
+    ASSERT(isort->is_float_kind());
     size_t target_size = isort->get_size();
     int ebits, sbits;
     tie(ebits, sbits) = context::floating_point_get_ebits_and_sbits_from_size(target_size);
