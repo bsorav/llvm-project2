@@ -85,6 +85,14 @@ DynDebug("dyn_debug", cl::desc("<dyn_debug.  enable dynamic debugging for debug-
 static cl::opt<std::string>
 XmlOutputFormat("xml-output-format", cl::desc("<xml-output-format.  Format to use during xml printing.  [html|text-color|text-nocolor]"), cl::init("text-color"));
 
+static cl::opt<bool>
+NoGenScev("no-gen-scev", cl::desc("<no-gen-scev. don't generate potential scev relationships to be used for invariant inferences>"), cl::init(false));
+
+static cl::opt<bool>
+Progress("progress", cl::desc("<progress. keep printing progress involving time/mem stats>"), cl::init(false));
+
+static cl::opt<bool>
+NoCollapse("no-collapse", cl::desc("<no-collapse. Do not collapse basic blocks into single edges>"), cl::init(false));
 
 //static void diagnosticHandler(const DiagnosticInfo &DI, void *Context) {
 //  assert(DI.getSeverity() == DS_Error && "Only expecting errors");
@@ -152,8 +160,8 @@ main(int argc, char **argv)
 
   context::xml_output_format_t xml_output_format = context::xml_output_format_from_string(XmlOutputFormat);
 
-  CPP_DBG_EXEC(LLVM2TFG, errs() << "doing functions:" << FunNames << "\n");
-  CPP_DBG_EXEC(LLVM2TFG, errs() << "output filename:" << OutputFilename << "\n");
+  DYN_DEBUG(llvm2tfg, errs() << "doing functions:" << FunNames << "\n");
+  DYN_DEBUG(llvm2tfg, errs() << "output filename:" << OutputFilename << "\n");
 
   if (xml_output_file != "") {
     g_xml_output_stream.open(xml_output_file, ios_base::app | ios_base::ate);
@@ -180,7 +188,7 @@ main(int argc, char **argv)
   if (f.length() > 0 && f != "ALL") {
     FunNamesVec.insert(f);
   }
-  CPP_DBG_EXEC(LLVM2TFG,
+  DYN_DEBUG(llvm2tfg,
     errs() << "printing FunNamesVec:\n";
     for (auto ff : FunNamesVec) {
       errs() << ff << "\n";
@@ -194,7 +202,7 @@ main(int argc, char **argv)
   }
 
   assert(M1 /*&& M2*/);
-  CPP_DBG_EXEC(LLVM2TFG, errs() << InputFilename1 << "\n");
+  DYN_DEBUG(llvm2tfg, errs() << "InputFilename = " << InputFilename1 << "\n");
   //errs() << InputFilename2 << "\n";
 
   /*for(const pair<string, unsigned>& fun_name : fun_names)
@@ -240,7 +248,11 @@ main(int argc, char **argv)
     src_llptfg = make_shared<llptfg_t const>(in_src, ctx);
   }
 
-  map<string, pair<callee_summary_t, unique_ptr<tfg_llvm_t>>> function_tfg_map = sym_exec_llvm::get_function_tfg_map(M1.get(), FunNamesVec, DisableModelingOfUninitVarUB ? true : false, ctx, src_llptfg, nullptr, xml_output_format);
+  if (Progress) {
+    progress_flag = 1;
+  }
+
+  map<string, pair<callee_summary_t, unique_ptr<tfg_llvm_t>>> function_tfg_map = sym_exec_llvm::get_function_tfg_map(M1.get(), FunNamesVec, DisableModelingOfUninitVarUB ? true : false, ctx, src_llptfg, !NoGenScev, !NoCollapse, nullptr, xml_output_format);
 
   string llvm_header = M1->get_llvm_header_as_string();
   list<string> type_decls = M1->get_type_declarations_as_string();
