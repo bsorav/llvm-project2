@@ -3045,6 +3045,12 @@ sym_exec_llvm::get_callee_summaries_for_tfg(map<nextpc_id_t, string> const &next
   return ret;
 }
 
+string
+sym_exec_llvm::get_cur_rounding_mode_varname() const
+{
+  return m_ctx->get_cur_rounding_mode_varname_for_prefix(m_srcdst_keyword + ".");
+}
+
 void
 sym_exec_llvm::sym_exec_preprocess_tfg(string const &name, tfg_llvm_t& t_src, map<string, pair<callee_summary_t, unique_ptr<tfg_llvm_t>>> &function_tfg_map, list<string> const& sorted_bbl_indices, tfg_llvm_t const* src_llvm_tfg, bool collapse, context::xml_output_format_t xml_output_format)
 {
@@ -3059,6 +3065,8 @@ sym_exec_llvm::sym_exec_preprocess_tfg(string const &name, tfg_llvm_t& t_src, ma
 
   unordered_set<expr_ref> const& arg_assumes = this->gen_arg_assumes();
   t_src.add_assumes_to_start_edge(arg_assumes);
+
+  t_src.tfg_initialize_rounding_mode_on_start_edge(this->get_cur_rounding_mode_varname(), m_rounding_mode_at_start_pc);
 
   t_src.set_symbol_map_for_touched_symbols(*m_symbol_map, m_touched_symbols);
   t_src.set_string_contents_for_touched_symbols_at_zero_offset(*m_string_contents, m_touched_symbols);
