@@ -3145,7 +3145,6 @@ sym_exec_llvm::sym_exec_preprocess_tfg(string const &name, tfg_llvm_t& t_src, ma
   //}
   //t_src.set_locals_map(locals_map);
   t_src.set_locals_map(local_refs);
-  cout << __func__ << " " << __LINE__ << ": after preprocess, TFG:\n" << t_src.graph_to_string() << endl;
   t_src.tfg_preprocess(false, sorted_bbl_indices, {}, xml_output_format);
   CPP_DBG_EXEC(EQGEN, cout << __func__ << " " << __LINE__ << ": after preprocess, TFG:\n" << t_src.graph_to_string() << endl);
 }
