@@ -57,6 +57,7 @@ public:
   void exec(const state& state_in, const llvm::Instruction& I/*, state& state_out, vector<control_flow_transfer>& cfts, bool &expand_switch_flag, unordered_set<predicate> &assumes*/, dshared_ptr<tfg_node> from_node, llvm::BasicBlock const &B, llvm::Function const &F, size_t next_insn_id, tfg_llvm_t const* src_llvm_tfg, tfg &t, map<string, pair<callee_summary_t, unique_ptr<tfg_llvm_t>>> *function_tfg_map, map<llvm_value_id_t, string_ref>* value_to_name_map, set<string> const *function_call_chain, map<shared_ptr<tfg_edge const>, llvm::Instruction *>& eimap, map<string, value_scev_map_t> const& scev_map, bool collapse, context::xml_output_format_t xml_output_format);
 
   string get_cur_rounding_mode_varname() const;
+  expr_ref get_cur_rounding_mode_var() const;
 
   static llvm_value_id_t get_llvm_value_id_for_value(llvm::Value const* v);
   static const llvm::Function *getParent(const llvm::Value *V);

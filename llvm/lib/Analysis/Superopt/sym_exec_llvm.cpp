@@ -1788,7 +1788,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     state_assumes.insert(m_ctx->mk_fcmp_oge(e0, m_ctx->mk_float_const(e0->get_sort()->get_size(), min_limit)));
     state_assumes.insert(m_ctx->mk_fcmp_ole(e0, m_ctx->mk_float_const(e0->get_sort()->get_size(), max_limit)));
 
-    state_set_expr(state_out, iname, m_ctx->mk_fp_to_ubv(e0, target_size));
+    state_set_expr(state_out, iname, m_ctx->mk_fp_to_ubv(this->get_cur_rounding_mode_var(), e0, target_size));
     break;
   }
   case Instruction::FPToSI: {
@@ -1818,7 +1818,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     state_assumes.insert(m_ctx->mk_fcmp_oge(e0, min_limit_expr));
     state_assumes.insert(m_ctx->mk_fcmp_ole(e0, max_limit_expr));
 
-    state_set_expr(state_out, iname, m_ctx->mk_fp_to_sbv(e0, target_size));
+    state_set_expr(state_out, iname, m_ctx->mk_fp_to_sbv(this->get_cur_rounding_mode_var(), e0, target_size));
     break;
   }
   case Instruction::UIToFP: {
@@ -3049,6 +3049,12 @@ string
 sym_exec_llvm::get_cur_rounding_mode_varname() const
 {
   return m_ctx->get_cur_rounding_mode_varname_for_prefix(m_srcdst_keyword + ".");
+}
+
+expr_ref
+sym_exec_llvm::get_cur_rounding_mode_var() const
+{
+  return m_ctx->mk_var(this->get_cur_rounding_mode_varname(), m_rounding_mode_at_start_pc->get_sort());
 }
 
 void
