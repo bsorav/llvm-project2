@@ -1724,6 +1724,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     tie(e1, state_assumes) = get_expr_adding_edges_for_intermediate_vals(op1/*, ""*/, state(), state_assumes, from_node/*, pc_to, B, F*/, t, value_to_name_map);
 
     expr_vector args;
+    args.push_back(this->get_cur_rounding_mode_var());
     args.push_back(e0);
     args.push_back(e1);
 
@@ -1829,7 +1830,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     Value const &op0 = *I.getOperand(0);
     expr_ref e0;
     tie(e0, state_assumes) = get_expr_adding_edges_for_intermediate_vals(op0/*, ""*/, state(), state_assumes, from_node/*, pc_to, B, F*/, t, value_to_name_map);
-    state_set_expr(state_out, iname, m_ctx->mk_ubv_to_fp(e0, target_size));
+    state_set_expr(state_out, iname, m_ctx->mk_ubv_to_fp(this->get_cur_rounding_mode_var(), e0, target_size));
     break;
   }
   case Instruction::SIToFP: {
@@ -1840,7 +1841,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     Value const &op0 = *I.getOperand(0);
     expr_ref e0;
     tie(e0, state_assumes) = get_expr_adding_edges_for_intermediate_vals(op0/*, ""*/, state(), state_assumes, from_node/*, pc_to, B, F*/, t, value_to_name_map);
-    state_set_expr(state_out, iname, m_ctx->mk_sbv_to_fp(e0, target_size));
+    state_set_expr(state_out, iname, m_ctx->mk_sbv_to_fp(this->get_cur_rounding_mode_var(), e0, target_size));
     break;
   }
   case Instruction::FPTrunc: {
