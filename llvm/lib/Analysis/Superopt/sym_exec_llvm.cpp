@@ -3055,7 +3055,7 @@ sym_exec_llvm::get_cur_rounding_mode_varname() const
 expr_ref
 sym_exec_llvm::get_cur_rounding_mode_var() const
 {
-  return m_ctx->mk_var(this->get_cur_rounding_mode_varname(), m_rounding_mode_at_start_pc->get_sort());
+  return m_ctx->mk_var(string(G_INPUT_KEYWORD ".") + this->get_cur_rounding_mode_varname(), m_rounding_mode_at_start_pc->get_sort());
 }
 
 void
