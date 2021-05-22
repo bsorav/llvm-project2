@@ -210,6 +210,8 @@ private:
   llvm::Module const *m_module;
   llvm::Function &m_function;
   map<string, llvm::BasicBlock const *> m_pc2bb_cache;
+
+  //see https://docs.microsoft.com/en-us/cpp/build/x64-calling-convention?view=msvc-160 where it says that the value is ROUND_TO_NEAREST at the start of program execution (x86 calling conventions).  XXX: We are taking some liberty here by extending this assumption to the start of every function; a more precise way to model this would involve using a variable (instead of a constant) for the rounding mode at the start pc
   expr_ref m_rounding_mode_at_start_pc;
 };
 
