@@ -196,10 +196,10 @@ sym_exec_llvm::get_const_value_expr(const llvm::Value& v/*, string vname*/, cons
   else if(const ConstantFP* c = dyn_cast<const ConstantFP>(&v))
   {
     sort_ref s = get_type_sort(v.getType(), m_module->getDataLayout());
-    //APInt ai = c->getValueAPF().bitcastToAPInt();
-    long double d = c->getValueAPF().convertToDouble();
-    //return make_pair(m_ctx->mk_float_const(ai.getBitWidth(), get_mybitset_from_apint(ai, ai.getBitWidth(), false)), state_assumes);
-    return make_pair(m_ctx->mk_float_const(s->get_size(), d), state_assumes);
+    APInt ai = c->getValueAPF().bitcastToAPInt();
+    //long double d = c->getValueAPF().convertToDouble();
+    return make_pair(m_ctx->mk_float_const(ai.getBitWidth(), get_mybitset_from_apint(ai, ai.getBitWidth(), false)), state_assumes);
+    //return make_pair(m_ctx->mk_float_const(s->get_size(), d), state_assumes);
   }
   else if (ConstantExpr const* ce = (ConstantExpr const*)dyn_cast<const ConstantExpr>(&v))
   {
