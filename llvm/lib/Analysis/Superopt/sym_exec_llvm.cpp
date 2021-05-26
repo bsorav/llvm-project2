@@ -1859,7 +1859,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     ASSERT(isort->is_float_kind());
     size_t target_size = isort->get_size();
     int ebits, sbits;
-    tie(ebits, sbits) = context::floating_point_get_ebits_and_sbits_from_size(target_size);
+    tie(ebits, sbits) = mybitset::floating_point_get_ebits_and_sbits_from_size(target_size);
     stringstream ss;
     ss << G_INPUT_KEYWORD "." << op0name;
     state_set_expr(state_out, iname, m_ctx->mk_fptrunc(this->get_cur_rounding_mode_var(), m_ctx->mk_var(ss.str(), op0_sort), ebits, sbits));
@@ -1881,7 +1881,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     ASSERT(isort->is_float_kind());
     size_t target_size = isort->get_size();
     int ebits, sbits;
-    tie(ebits, sbits) = context::floating_point_get_ebits_and_sbits_from_size(target_size);
+    tie(ebits, sbits) = mybitset::floating_point_get_ebits_and_sbits_from_size(target_size);
     stringstream ss;
     ss << G_INPUT_KEYWORD "." << op0name;
     state_set_expr(state_out, iname, m_ctx->mk_fpext(m_ctx->mk_var(ss.str(), op0_sort), ebits, sbits));
