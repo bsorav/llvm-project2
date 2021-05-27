@@ -1781,8 +1781,8 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     expr_ref e0;
     tie(e0, state_assumes) = get_expr_adding_edges_for_intermediate_vals(op0/*, ""*/, state(), state_assumes, from_node/*, pc_to, B, F*/, t, value_to_name_map);
 
-    long double max_limit = powl(2, target_size) - 1;
-    long double min_limit = 0;
+    float_max_t max_limit = powl((float_max_t)2, target_size) - 1;
+    float_max_t min_limit = 0;
 
     ASSERT(e0->is_float_sort());
     //add to state_assumes the conditions that op0 is within limits
@@ -1805,8 +1805,8 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     expr_ref e0;
     tie(e0, state_assumes) = get_expr_adding_edges_for_intermediate_vals(op0/*, ""*/, state(), state_assumes, from_node/*, pc_to, B, F*/, t, value_to_name_map);
 
-    long double max_limit = powl(2, target_size - 1) - 1;
-    long double min_limit = powl(-2, target_size - 1);
+    float_max_t max_limit = powl((float_max_t)2, target_size - 1) - 1;
+    float_max_t min_limit = powl((float_max_t)-2, target_size - 1);
 
     expr_ref min_limit_expr = m_ctx->mk_float_const(e0->get_sort()->get_size(), min_limit);
     expr_ref max_limit_expr = m_ctx->mk_float_const(e0->get_sort()->get_size(), max_limit);
