@@ -198,7 +198,12 @@ sym_exec_llvm::get_const_value_expr(const llvm::Value& v/*, string vname*/, cons
     sort_ref s = get_type_sort(v.getType(), m_module->getDataLayout());
     APInt ai = c->getValueAPF().bitcastToAPInt();
     //long double d = c->getValueAPF().convertToDouble();
-    return make_pair(m_ctx->mk_float_const(ai.getBitWidth(), get_mybitset_from_apint(ai, ai.getBitWidth(), false)), state_assumes);
+    mybitset mbs = get_mybitset_from_apint(ai, ai.getBitWidth(), false);
+    if (s->is_float_kind()) {
+      return make_pair(m_ctx->mk_float_const(ai.getBitWidth(), mbs), state_assumes);
+    } else if (s->is_floatx_kind()) {
+      return make_pair(m_ctx->mk_floatx_const(ai.getBitWidth(), mbs), state_assumes);
+    } else NOT_REACHED();
     //return make_pair(m_ctx->mk_float_const(s->get_size(), d), state_assumes);
   }
   else if (ConstantExpr const* ce = (ConstantExpr const*)dyn_cast<const ConstantExpr>(&v))
@@ -350,7 +355,7 @@ vector<sort_ref> sym_exec_common::get_type_sort_vec(llvm::Type* t, DataLayout co
     //cout << __func__ << " " << __LINE__ << ": double size in bits = " << dl.getTypeSizeInBits(t) << endl;
     size_t size = dl.getTypeSizeInBits(t);
     ASSERT(size == 80);
-    sv.push_back(m_ctx->mk_float_sort(size));
+    sv.push_back(m_ctx->mk_floatx_sort(size));
     return sv;
   } else if (t->getTypeID() == Type::StructTyID) {
     //const DataLayout &dl = m_module->getDataLayout();
@@ -1713,7 +1718,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
   case Instruction::FRem:
   {
     sort_ref isort = get_value_type(I, dl);
-    ASSERT(isort->is_float_kind());
+    ASSERT(isort->is_float_kind() || isort->is_floatx_kind());
     string iname = get_value_name(I);
 
     Value const &op0 = *I.getOperand(0);
@@ -1723,17 +1728,31 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     tie(e0, state_assumes) = get_expr_adding_edges_for_intermediate_vals(op0/*, ""*/, state(), state_assumes, from_node/*, pc_to, B, F*/, t, value_to_name_map);
     tie(e1, state_assumes) = get_expr_adding_edges_for_intermediate_vals(op1/*, ""*/, state(), state_assumes, from_node/*, pc_to, B, F*/, t, value_to_name_map);
 
+    if (e0->is_floatx_sort()) {
+      e0 = m_ctx->mk_floatx_to_float(e0);
+    }
+
+    if (e1->is_floatx_sort()) {
+      e1 = m_ctx->mk_floatx_to_float(e1);
+    }
+
     expr_vector args;
     args.push_back(this->get_cur_rounding_mode_var());
     args.push_back(e0);
     args.push_back(e1);
 
-    state_set_expr(state_out, iname, m_ctx->mk_app(farith_to_operation_kind(I.getOpcode(), args), args));
+    expr_ref e = m_ctx->mk_app(farith_to_operation_kind(I.getOpcode(), args), args);
+
+    if (isort->is_floatx_kind()) {
+      e = m_ctx->mk_float_to_floatx(e);
+    }
+
+    state_set_expr(state_out, iname, e);
     break;
   }
   case Instruction::FNeg: {
     sort_ref isort = get_value_type(I, dl);
-    ASSERT(isort->is_bv_kind());
+    ASSERT(isort->is_float_kind() || isort->is_floatx_kind());
     string iname = get_value_name(I);
 
     Value const &op0 = *I.getOperand(0);
@@ -1741,10 +1760,20 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     expr_ref e0;
     tie(e0, state_assumes) = get_expr_adding_edges_for_intermediate_vals(op0/*, ""*/, state(), state_assumes, from_node/*, pc_to, B, F*/, t, value_to_name_map);
 
+    if (e0->is_floatx_sort()) {
+      e0 = m_ctx->mk_floatx_to_float(e0);
+    }
+
     expr_vector args;
     args.push_back(e0);
 
-    state_set_expr(state_out, iname, m_ctx->mk_app(farith_to_operation_kind(I.getOpcode(), args), args));
+    expr_ref e = m_ctx->mk_app(farith_to_operation_kind(I.getOpcode(), args), args);
+
+    if (isort->is_floatx_kind()) {
+      e = m_ctx->mk_float_to_floatx(e);
+    }
+
+    state_set_expr(state_out, iname, e);
     break;
   }
   case Instruction::FCmp: {
@@ -1760,6 +1789,14 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     expr_ref e0, e1;
     tie(e0, state_assumes) = get_expr_adding_edges_for_intermediate_vals(op0/*, ""*/, state(), state_assumes, from_node/*, pc_to, B, F*/, t, value_to_name_map);
     tie(e1, state_assumes) = get_expr_adding_edges_for_intermediate_vals(op1/*, ""*/, state(), state_assumes, from_node/*, pc_to, B, F*/, t, value_to_name_map);
+
+    if (e0->is_floatx_sort()) {
+      e0 = m_ctx->mk_floatx_to_float(e0);
+    }
+
+    if (e1->is_floatx_sort()) {
+      e1 = m_ctx->mk_floatx_to_float(e1);
+    }
 
     expr_vector args;
     args.push_back(e0);
@@ -1783,6 +1820,10 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
 
     float_max_t max_limit = powl((float_max_t)2, target_size) - 1;
     float_max_t min_limit = 0;
+
+    if (e0->is_floatx_sort()) {
+      e0 = m_ctx->mk_floatx_to_float(e0);
+    }
 
     ASSERT(e0->is_float_sort());
     //add to state_assumes the conditions that op0 is within limits
@@ -1814,6 +1855,10 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     //cout << _FNLN_ << ": min_limit_expr = " << expr_string(min_limit_expr) << endl;
     //cout << _FNLN_ << ": max_limit_expr = " << expr_string(max_limit_expr) << endl;
 
+    if (e0->is_floatx_sort()) {
+      e0 = m_ctx->mk_floatx_to_float(e0);
+    }
+
     ASSERT(e0->is_float_sort());
     //add to state_assumes the conditions that op0 is within limits
     state_assumes.insert(m_ctx->mk_fcmp_oge(e0, min_limit_expr));
@@ -1824,24 +1869,32 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
   }
   case Instruction::UIToFP: {
     sort_ref isort = get_value_type(I, dl);
-    ASSERT(isort->is_float_kind());
-    size_t target_size = isort->get_size();
+    ASSERT(isort->is_float_kind() || isort->is_floatx_kind());
+    size_t target_size = isort->is_float_kind() ? isort->get_size() : isort->get_size() - 1;
     string iname = get_value_name(I);
     Value const &op0 = *I.getOperand(0);
     expr_ref e0;
     tie(e0, state_assumes) = get_expr_adding_edges_for_intermediate_vals(op0/*, ""*/, state(), state_assumes, from_node/*, pc_to, B, F*/, t, value_to_name_map);
-    state_set_expr(state_out, iname, m_ctx->mk_ubv_to_fp(this->get_cur_rounding_mode_var(), e0, target_size));
+    expr_ref e = m_ctx->mk_ubv_to_fp(this->get_cur_rounding_mode_var(), e0, target_size);
+    if (isort->is_floatx_kind()) {
+      e = m_ctx->mk_float_to_floatx(e);
+    }
+    state_set_expr(state_out, iname, e);
     break;
   }
   case Instruction::SIToFP: {
     sort_ref isort = get_value_type(I, dl);
-    ASSERT(isort->is_float_kind());
-    size_t target_size = isort->get_size();
+    ASSERT(isort->is_float_kind() || isort->is_floatx_kind());
+    size_t target_size = isort->is_float_kind() ? isort->get_size() : isort->get_size() - 1;
     string iname = get_value_name(I);
     Value const &op0 = *I.getOperand(0);
     expr_ref e0;
     tie(e0, state_assumes) = get_expr_adding_edges_for_intermediate_vals(op0/*, ""*/, state(), state_assumes, from_node/*, pc_to, B, F*/, t, value_to_name_map);
-    state_set_expr(state_out, iname, m_ctx->mk_sbv_to_fp(this->get_cur_rounding_mode_var(), e0, target_size));
+    expr_ref e = m_ctx->mk_sbv_to_fp(this->get_cur_rounding_mode_var(), e0, target_size);
+    if (isort->is_floatx_kind()) {
+      e = m_ctx->mk_float_to_floatx(e);
+    }
+    state_set_expr(state_out, iname, e);
     break;
   }
   case Instruction::FPTrunc: {
@@ -1854,7 +1907,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     string iname = get_value_name(I);
     string op0name = get_value_name(op0);
     sort_ref op0_sort = get_value_type(op0, dl);
-    ASSERT(op0_sort->is_float_kind());
+    ASSERT(op0_sort->is_float_kind() || op0_sort->is_floatx_kind());
     sort_ref isort = get_value_type(I, dl);
     ASSERT(isort->is_float_kind());
     size_t target_size = isort->get_size();
@@ -1862,7 +1915,11 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     tie(ebits, sbits) = mybitset::floating_point_get_ebits_and_sbits_from_size(target_size);
     stringstream ss;
     ss << G_INPUT_KEYWORD "." << op0name;
-    state_set_expr(state_out, iname, m_ctx->mk_fptrunc(this->get_cur_rounding_mode_var(), m_ctx->mk_var(ss.str(), op0_sort), ebits, sbits));
+    expr_ref op0_e = m_ctx->mk_var(ss.str(), op0_sort);
+    if (op0_e->is_floatx_sort()) {
+      op0_e = m_ctx->mk_floatx_to_float(op0_e);
+    }
+    state_set_expr(state_out, iname, m_ctx->mk_fptrunc(this->get_cur_rounding_mode_var(), op0_e, ebits, sbits));
     //cout << __func__ << " " << __LINE__ << ": FPTrunc: state_out =\n" << state_out.to_string_for_eq() << endl;
     break;
   }
@@ -1878,13 +1935,23 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     sort_ref op0_sort = get_value_type(op0, dl);
     ASSERT(op0_sort->is_float_kind());
     sort_ref isort = get_value_type(I, dl);
-    ASSERT(isort->is_float_kind());
+    ASSERT(isort->is_float_kind() || isort->is_floatx_kind());
     size_t target_size = isort->get_size();
+    if (isort->is_floatx_kind()) {
+      target_size--;
+    }
     int ebits, sbits;
     tie(ebits, sbits) = mybitset::floating_point_get_ebits_and_sbits_from_size(target_size);
+
     stringstream ss;
     ss << G_INPUT_KEYWORD "." << op0name;
-    state_set_expr(state_out, iname, m_ctx->mk_fpext(m_ctx->mk_var(ss.str(), op0_sort), ebits, sbits));
+    expr_ref op0_e = m_ctx->mk_var(ss.str(), op0_sort);
+
+    expr_ref e = m_ctx->mk_fpext(op0_e, ebits, sbits);
+    if (isort->is_floatx_kind()) {
+      e = m_ctx->mk_float_to_floatx(e);
+    }
+    state_set_expr(state_out, iname, e);
     //cout << __func__ << " " << __LINE__ << ": FPExt: state_out =\n" << state_out.to_string_for_eq() << endl;
     break;
   }
