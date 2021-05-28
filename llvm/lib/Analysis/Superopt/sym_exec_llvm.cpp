@@ -1242,12 +1242,12 @@ sym_exec_llvm::apply_general_function(const CallInst* c, expr_ref fun_name_expr,
     vector<sort_ref> ret_sort_vec = get_type_sort_vec(retType, dl);
     for (size_t r = 0; r < ret_sort_vec.size(); r++) {
       sort_ref ret_sort = ret_sort_vec.at(r);
-      size_t bvsize;
-      if (ret_sort->is_bv_kind() || ret_sort->is_float_kind()) {
-        bvsize = ret_sort->get_size();
-      } else if (ret_sort->is_bool_kind()) {
-        bvsize = 1;
-      } else NOT_REACHED();
+      //size_t bvsize;
+      //if (ret_sort->is_bv_kind() || ret_sort->is_float_kind() || ret_sort->is_floatx_kind()) {
+      //  bvsize = ret_sort->get_size();
+      //} else if (ret_sort->is_bool_kind()) {
+      //  bvsize = 1;
+      //} else NOT_REACHED();
 
       expr_ref c_expr;
       expr_ref fun = m_ctx->get_fun_expr(args_type, ret_sort);
@@ -1539,6 +1539,8 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     }
     if (val->is_float_sort()) {
       val = m_ctx->mk_float_to_ieee_bv(val);
+    } else if (val->is_floatx_sort()) {
+      val = m_ctx->mk_floatx_to_ieee_bv(val);
     }
     ASSERTCHECK(val->is_bv_sort(), cout << __func__ << " " << __LINE__ << ": val = " << expr_string(val) << endl);
     unsigned mem_addressable_sz = get_memory_addressable_size();
@@ -1590,7 +1592,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     if (value_type->is_bool_kind()) {
       value_type = m_ctx->mk_bv_sort(1);
     }
-    ASSERTCHECK((value_type->is_bv_kind() || value_type->is_float_kind()), cout << __func__ << " " << __LINE__ << ": value_type = " << value_type->to_string() << endl);
+    ASSERTCHECK((value_type->is_bv_kind() || value_type->is_float_kind() || value_type->is_floatx_kind()), cout << __func__ << " " << __LINE__ << ": value_type = " << value_type->to_string() << endl);
     memlabel_t ml_top;
     memlabel_t::keyword_to_memlabel(&ml_top, G_MEMLABEL_TOP_SYMBOL, MEMSIZE_MAX);
     unsigned count = DIV_ROUND_UP(value_type->get_size(), get_memory_addressable_size());
@@ -1605,6 +1607,8 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     }
     if (value_type->is_float_kind()) {
       read_value = m_ctx->mk_ieee_bv_to_float(read_value);
+    } else if (value_type->is_floatx_kind()) {
+      read_value = m_ctx->mk_ieee_bv_to_floatx(read_value);
     }
     set_expr(get_value_name(*l), read_value, state_out);
 
