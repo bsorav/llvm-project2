@@ -1823,7 +1823,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     expr_ref e0;
     tie(e0, state_assumes) = get_expr_adding_edges_for_intermediate_vals(op0/*, ""*/, state(), state_assumes, from_node/*, pc_to, B, F*/, t, value_to_name_map);
 
-    float_max_t max_limit = powl((float_max_t)2, target_size) - 1;
+    float_max_t max_limit = powl((float_max_t)2, target_size);
     float_max_t min_limit = 0;
 
     if (e0->is_floatx_sort()) {
@@ -1833,7 +1833,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     ASSERT(e0->is_float_sort());
     //add to state_assumes the conditions that op0 is within limits
     state_assumes.insert(m_ctx->mk_fcmp_oge(e0, m_ctx->mk_float_const(e0->get_sort()->get_size(), min_limit)));
-    state_assumes.insert(m_ctx->mk_fcmp_ole(e0, m_ctx->mk_float_const(e0->get_sort()->get_size(), max_limit)));
+    state_assumes.insert(m_ctx->mk_fcmp_olt(e0, m_ctx->mk_float_const(e0->get_sort()->get_size(), max_limit)));
 
     state_set_expr(state_out, iname, m_ctx->mk_fp_to_ubv(m_ctx->mk_rounding_mode_const(rounding_mode_t::round_towards_zero_aka_truncate()), e0, target_size));
     break;
@@ -1851,7 +1851,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     expr_ref e0;
     tie(e0, state_assumes) = get_expr_adding_edges_for_intermediate_vals(op0/*, ""*/, state(), state_assumes, from_node/*, pc_to, B, F*/, t, value_to_name_map);
 
-    float_max_t max_limit = powl((float_max_t)2, target_size - 1) - 1;
+    float_max_t max_limit = powl((float_max_t)2, target_size - 1);
     float_max_t min_limit = powl((float_max_t)-2, target_size - 1);
 
     expr_ref min_limit_expr = m_ctx->mk_float_const(e0->get_sort()->get_size(), min_limit);
@@ -1867,7 +1867,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     ASSERT(e0->is_float_sort());
     //add to state_assumes the conditions that op0 is within limits
     state_assumes.insert(m_ctx->mk_fcmp_oge(e0, min_limit_expr));
-    state_assumes.insert(m_ctx->mk_fcmp_ole(e0, max_limit_expr));
+    state_assumes.insert(m_ctx->mk_fcmp_olt(e0, max_limit_expr));
 
     state_set_expr(state_out, iname, m_ctx->mk_fp_to_sbv(m_ctx->mk_rounding_mode_const(rounding_mode_t::round_towards_zero_aka_truncate()), e0, target_size));
     break;
