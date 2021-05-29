@@ -210,6 +210,7 @@ private:
   llvm::Module const *m_module;
   llvm::Function &m_function;
   map<string, llvm::BasicBlock const *> m_pc2bb_cache;
+  set<string> m_poison_set;
 };
 
 #endif

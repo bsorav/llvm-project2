@@ -887,7 +887,10 @@ sym_exec_llvm::get_poison_args(const llvm::Instruction& I/*, string vname*/, con
     const auto& v = *I.getOperand(i);
     if (isa<const Instruction>(&v)) {
       vector<sort_ref> sv = get_value_type_vec(v, m_module->getDataLayout());
-      args.push_back(state_get_expr(st, get_poison_value_name(v, 0), m_ctx->mk_bool_sort()));
+      auto poison_name = get_poison_value_name(v, 0);
+      if (m_poison_set.find(poison_name) != m_poison_set.end()) {
+        args.push_back(state_get_expr(st, get_poison_value_name(v, 0), m_ctx->mk_bool_sort()));
+      }
     }
     else {
       // We need this because sometimes we need to check only some args for poison possibility
@@ -1944,6 +1947,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
 
     string poison_name       = get_poison_value_name(I, 0);
 
+    m_poison_set.insert(poison_name);
     state state_poison;
     state_set_expr(state_poison, poison_name, assume_expr);
 
