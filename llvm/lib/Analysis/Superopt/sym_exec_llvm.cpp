@@ -891,6 +891,9 @@ sym_exec_llvm::get_poison_args(const llvm::Instruction& I/*, string vname*/, con
       if (m_poison_set.find(poison_name) != m_poison_set.end()) {
         args.push_back(state_get_expr(st, get_poison_value_name(v, 0), m_ctx->mk_bool_sort()));
       }
+      else {
+        args.push_back(expr_false(m_ctx));
+      }
     }
     else {
       // We need this because sometimes we need to check only some args for poison possibility

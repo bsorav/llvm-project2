@@ -5,5 +5,5 @@ define void @main(){
   %i_1 = shl i32 0, 3
   %ptr = alloca i32
   store i32 %i_1, i32* %ptr
-	ret void
+  ret void
 }

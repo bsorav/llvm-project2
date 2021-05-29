@@ -1,6 +1,6 @@
 =llvm_header
-; ModuleID = '/home/adityanathan/superopt-project/llvm-project/manual_safety_tests/eq_tests/prog1.ll'
-source_filename = "/home/adityanathan/superopt-project/llvm-project/manual_safety_tests/eq_tests/prog1.ll"
+; ModuleID = '/home/adityanathan/superopt-project/llvm-project/manual_safety_tests/eq_tests/br/prog1.ll'
+source_filename = "/home/adityanathan/superopt-project/llvm-project/manual_safety_tests/eq_tests/br/prog1.ll"
 target datalayout = "e-m:e-p:32:32-p270:32:32-p271:32:32-p272:64:64-f64:32:64-f80:32-n8:16:32-S128"
 target triple = "i386-unknown-linux-gnu"
 

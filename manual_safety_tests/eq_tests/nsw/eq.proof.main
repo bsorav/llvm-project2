@@ -1,0 +1,4904 @@
+=FunctionName: main
+=result: 1
+=cg_with_asm_annotation
+=cg_with_backtracker
+=cg_with_rank
+=corr_graph main.A1
+=src_tfg
+=TFG_LLVM src.llvm.main:
+=TFG:
+=Nodes: L0%0%1 L0%3%1 Lend%1%0 Lfoo%1%1 E0%0%1
+=Edges:
+L0%3%1 => Lfoo%1%1
+L0%3%1 => Lend%1%0
+Lend%1%0 => E0%0%1
+Lfoo%1%1 => Lend%1%0
+L0%0%1 => L0%3%1
+=graph done
+=Node outputs: E0%0%1
+=Output: heap
+1 : input.src.llvm-mem : ARRAY[BV:32 -> BV:8]
+2 : memlabel-mem-heap : MEMLABEL
+3 : memmask(1, 2) : ARRAY[BV:32 -> BV:8]
+=Output: llvm-indir_tgt
+1 : retaddr_const : BV:32
+=Node outputs done for E0%0%1
+=input_outputs done
+=Symbol-map:
+=Symbol-map done
+=Locals-map:
+=Locals-map done
+=StartState:
+=src.llvm-mem
+1 : input.src.llvm-mem : ARRAY[BV:32 -> BV:8]
+=state_end
+
+=Global assumes
+=global assume predicate_set done
+=Edge: L0%3%1 => Lfoo%1%1
+=Edge.EdgeCond: 
+1 : input.src.llvm-%i_3 : BOOL
+=Edge.StateTo: 
+=state_end
+=Edge.Assumes.begin:
+=EdgeAssume.0
+1 : 1 : BOOL
+2 : input.src.llvm-%i_3.poison : BOOL
+3 : not(2) : BOOL
+4 : implies(1, 3) : BOOL
+5 : implies(1, 4) : BOOL
+=Edge.Assumes.end
+=Edge.te_comment
+0:3:((  br i1 %i_3, label %foo, label %end*  br i1 %i_3, label %foo, label %end)*  br i1 %i_3, label %foo, label %end)
+tfg_edge_comment end
+
+=Edge: L0%3%1 => Lend%1%0
+=Edge.EdgeCond: 
+1 : input.src.llvm-%i_3 : BOOL
+2 : not(1) : BOOL
+=Edge.StateTo: 
+=state_end
+=Edge.Assumes.begin:
+=EdgeAssume.0
+1 : 1 : BOOL
+2 : input.src.llvm-%i_3.poison : BOOL
+3 : not(2) : BOOL
+4 : implies(1, 3) : BOOL
+5 : implies(1, 4) : BOOL
+=Edge.Assumes.end
+=Edge.te_comment
+0:3:((  br i1 %i_3, label %foo, label %end*  br i1 %i_3, label %foo, label %end)*  br i1 %i_3, label %foo, label %end)
+tfg_edge_comment end
+
+=Edge: Lend%1%0 => E0%0%1
+=Edge.EdgeCond: 
+1 : 1 : BOOL
+=Edge.StateTo: 
+=src.llvm-%hidden-reg
+1 : input.src.llvm-%hidden-reg : BV:32
+2 : input.src.llvm-callee-save.0 : BV:32
+3 : bvxor(1, 2) : BV:32
+4 : input.src.llvm-callee-save.1 : BV:32
+5 : bvxor(3, 4) : BV:32
+6 : input.src.llvm-callee-save.2 : BV:32
+7 : bvxor(5, 6) : BV:32
+8 : input.src.llvm-callee-save.3 : BV:32
+9 : bvxor(7, 8) : BV:32
+=src.llvm-indir_tgt
+1 : retaddr_const : BV:32
+=state_end
+=Edge.Assumes.begin:
+=Edge.Assumes.end
+=Edge.te_comment
+0:-1:(bb_entry*  ret void)
+tfg_edge_comment end
+
+=Edge: Lfoo%1%1 => Lend%1%0
+=Edge.EdgeCond: 
+1 : 1 : BOOL
+=Edge.StateTo: 
+=src.llvm-%i_4.poison.temp1
+1 : 2 : BV:4
+2 : 4 : INT
+3 : isshiftcount(1, 2) : BOOL
+=src.llvm-%i_4.poison.temp2
+1 : 2 : BV:4
+2 : 4 : INT
+3 : isshiftcount(1, 2) : BOOL
+4 : not(3) : BOOL
+=src.llvm-%i_4.poison
+1 : 0 : BOOL
+2 : 2 : BV:4
+3 : 4 : INT
+4 : isshiftcount(2, 3) : BOOL
+5 : not(4) : BOOL
+6 : or(1, 1, 5) : BOOL
+=src.llvm-%i_4
+1 : 3 : BV:4
+2 : 2 : BV:4
+3 : bvshl(1, 2) : BV:4
+=state_end
+=Edge.Assumes.begin:
+=Edge.Assumes.end
+=Edge.te_comment
+0:1:(((  %i_4 = shl i4 3, 2*  %i_4 = shl i4 3, 2)*  %i_4 = shl i4 3, 2)*(((  %i_4 = shl i4 3, 2*  br label %end)*  br label %end)*  br label %end))
+tfg_edge_comment end
+
+=Edge: L0%0%1 => L0%3%1
+=Edge.EdgeCond: 
+1 : 1 : BOOL
+=Edge.StateTo: 
+=src.llvm-%i_2.poison.temp1
+1 : 10 { -6 } : BV:4
+2 : 1 : INT
+3 : bvsign_ext(1, 2) : BV:5
+4 : 12 { -4 } : BV:4
+5 : bvsign_ext(4, 2) : BV:5
+6 : bvadd(3, 5) : BV:5
+=src.llvm-%i_2.poison.temp2
+1 : 10 { -6 } : BV:4
+2 : 12 { -4 } : BV:4
+3 : bvadd(1, 2) : BV:4
+4 : 1 : INT
+5 : bvsign_ext(3, 4) : BV:5
+=src.llvm-%i_2.poison.temp3
+1 : 10 { -6 } : BV:4
+2 : 1 : INT
+3 : bvsign_ext(1, 2) : BV:5
+4 : 12 { -4 } : BV:4
+5 : bvsign_ext(4, 2) : BV:5
+6 : bvadd(3, 5) : BV:5
+7 : bvadd(1, 4) : BV:4
+8 : bvsign_ext(7, 2) : BV:5
+9 : eq(6, 8) : BOOL
+=src.llvm-%i_2.poison.temp4
+1 : 10 { -6 } : BV:4
+2 : 1 : INT
+3 : bvsign_ext(1, 2) : BV:5
+4 : 12 { -4 } : BV:4
+5 : bvsign_ext(4, 2) : BV:5
+6 : bvadd(3, 5) : BV:5
+7 : bvadd(1, 4) : BV:4
+8 : bvsign_ext(7, 2) : BV:5
+9 : eq(6, 8) : BOOL
+10 : not(9) : BOOL
+=src.llvm-%i_2.poison
+1 : 0 : BOOL
+2 : 10 { -6 } : BV:4
+3 : 1 : INT
+4 : bvsign_ext(2, 3) : BV:5
+5 : 12 { -4 } : BV:4
+6 : bvsign_ext(5, 3) : BV:5
+7 : bvadd(4, 6) : BV:5
+8 : bvadd(2, 5) : BV:4
+9 : bvsign_ext(8, 3) : BV:5
+10 : eq(7, 9) : BOOL
+11 : not(10) : BOOL
+12 : or(1, 1, 11) : BOOL
+=src.llvm-%i_2
+1 : 10 { -6 } : BV:4
+2 : 12 { -4 } : BV:4
+3 : bvadd(1, 2) : BV:4
+=src.llvm-%i_3.poison
+1 : 0 : BOOL
+2 : 10 { -6 } : BV:4
+3 : 1 : INT
+4 : bvsign_ext(2, 3) : BV:5
+5 : 12 { -4 } : BV:4
+6 : bvsign_ext(5, 3) : BV:5
+7 : bvadd(4, 6) : BV:5
+8 : bvadd(2, 5) : BV:4
+9 : bvsign_ext(8, 3) : BV:5
+10 : eq(7, 9) : BOOL
+11 : not(10) : BOOL
+12 : or(1, 1, 11) : BOOL
+13 : or(12, 1) : BOOL
+=src.llvm-%i_3
+1 : 10 { -6 } : BV:4
+2 : 12 { -4 } : BV:4
+3 : bvadd(1, 2) : BV:4
+4 : 0 : BV:4
+5 : eq(3, 4) : BOOL
+=state_end
+=Edge.Assumes.begin:
+=Edge.Assumes.end
+=Edge.te_comment
+0:-1:(((start_pc_edge*  %i_2 = add nsw i4 -6, -4)*  %i_2 = add nsw i4 -6, -4)*(((((  %i_2 = add nsw i4 -6, -4*  %i_2 = add nsw i4 -6, -4)*  %i_2 = add nsw i4 -6, -4)*  %i_2 = add nsw i4 -6, -4)*  %i_3 = icmp eq i4 %i_2, 0)*  %i_3 = icmp eq i4 %i_2, 0))
+tfg_edge_comment end
+
+=graph_with_predicates_done
+=graph_with_simplified_assets
+=graph_with_simplified_assets.simplified_edgecond at L0%0%1=>L0%1%1
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at L0%0%1=>L0%3%1
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at L0%1%1=>L0%1%100003
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at L0%1%100003=>L0%1%100004
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at L0%1%100004=>L0%1%100005
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at L0%1%100005=>L0%1%100006
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at L0%1%100006=>L0%1%100007
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at L0%1%100007=>L0%2%1
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at L0%2%1=>L0%2%100003
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at L0%2%100003=>L0%3%1
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at L0%3%1=>L0%3%100003
+1 : 0 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at L0%3%1=>L0%3%100005
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at L0%3%1=>Lend%1%0
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at L0%3%1=>Lfoo%1%1
+1 : 0 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at L0%3%100003=>L0%3%100004
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at L0%3%100004=>Lfoo%1%1
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at L0%3%100005=>L0%3%100006
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at L0%3%100006=>Lend%1%0
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at Lend%1%0=>Lend%1%1
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at Lend%1%0=>E0%0%1
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at Lend%1%1=>E0%0%1
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at Lfoo%1%1=>Lend%1%0
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at Lfoo%1%1=>Lfoo%1%100003
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at Lfoo%1%100003=>Lfoo%1%100004
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at Lfoo%1%100004=>Lfoo%1%100005
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at Lfoo%1%100005=>Lfoo%2%1
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at Lfoo%2%1=>Lfoo%2%100003
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at Lfoo%2%100003=>Lfoo%2%100004
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at Lfoo%2%100004=>Lend%1%0
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond done
+=graph_with_simplified_assets.simplified_to_state at L0%0%1=>L0%1%1
+=state_end
+=graph_with_simplified_assets.simplified_to_state at L0%0%1=>L0%3%1
+=src.llvm-%i_2.poison.temp1
+1 : 22 { -10 } : BV:5
+=src.llvm-%i_2.poison.temp2
+1 : 6 : BV:5
+=src.llvm-%i_2.poison.temp3
+1 : 0 : BOOL
+=src.llvm-%i_2.poison.temp4
+1 : 1 : BOOL
+=src.llvm-%i_2.poison
+1 : 1 : BOOL
+=src.llvm-%i_2
+1 : 6 : BV:4
+=src.llvm-%i_3.poison
+1 : 1 : BOOL
+=src.llvm-%i_3
+1 : 0 : BOOL
+=state_end
+=graph_with_simplified_assets.simplified_to_state at L0%1%1=>L0%1%100003
+=src.llvm-%i_2.poison.temp1
+1 : 22 { -10 } : BV:5
+=state_end
+=graph_with_simplified_assets.simplified_to_state at L0%1%100003=>L0%1%100004
+=src.llvm-%i_2.poison.temp2
+1 : 6 : BV:5
+=state_end
+=graph_with_simplified_assets.simplified_to_state at L0%1%100004=>L0%1%100005
+=src.llvm-%i_2.poison.temp3
+1 : 0 : BOOL
+=state_end
+=graph_with_simplified_assets.simplified_to_state at L0%1%100005=>L0%1%100006
+=src.llvm-%i_2.poison.temp4
+1 : 1 : BOOL
+=state_end
+=graph_with_simplified_assets.simplified_to_state at L0%1%100006=>L0%1%100007
+=src.llvm-%i_2.poison
+1 : 1 : BOOL
+=state_end
+=graph_with_simplified_assets.simplified_to_state at L0%1%100007=>L0%2%1
+=src.llvm-%i_2
+1 : 6 : BV:4
+=state_end
+=graph_with_simplified_assets.simplified_to_state at L0%2%1=>L0%2%100003
+=src.llvm-%i_3.poison
+1 : 1 : BOOL
+=state_end
+=graph_with_simplified_assets.simplified_to_state at L0%2%100003=>L0%3%1
+=src.llvm-%i_3
+1 : 0 : BOOL
+=state_end
+=graph_with_simplified_assets.simplified_to_state at L0%3%1=>L0%3%100003
+=state_end
+=graph_with_simplified_assets.simplified_to_state at L0%3%1=>L0%3%100005
+=state_end
+=graph_with_simplified_assets.simplified_to_state at L0%3%1=>Lend%1%0
+=state_end
+=graph_with_simplified_assets.simplified_to_state at L0%3%1=>Lfoo%1%1
+=state_end
+=graph_with_simplified_assets.simplified_to_state at L0%3%100003=>L0%3%100004
+=state_end
+=graph_with_simplified_assets.simplified_to_state at L0%3%100004=>Lfoo%1%1
+=state_end
+=graph_with_simplified_assets.simplified_to_state at L0%3%100005=>L0%3%100006
+=state_end
+=graph_with_simplified_assets.simplified_to_state at L0%3%100006=>Lend%1%0
+=state_end
+=graph_with_simplified_assets.simplified_to_state at Lend%1%0=>Lend%1%1
+=state_end
+=graph_with_simplified_assets.simplified_to_state at Lend%1%0=>E0%0%1
+=src.llvm-%hidden-reg
+1 : input.src.llvm-%hidden-reg : BV:32
+2 : input.src.llvm-callee-save.0 : BV:32
+3 : input.src.llvm-callee-save.1 : BV:32
+4 : input.src.llvm-callee-save.2 : BV:32
+5 : input.src.llvm-callee-save.3 : BV:32
+6 : bvxor(1, 2, 3, 4, 5) : BV:32
+=src.llvm-indir_tgt
+1 : retaddr_const : BV:32
+=state_end
+=graph_with_simplified_assets.simplified_to_state at Lend%1%1=>E0%0%1
+=src.llvm-%hidden-reg
+1 : input.src.llvm-callee-save.0 : BV:32
+2 : input.src.llvm-%hidden-reg : BV:32
+3 : input.src.llvm-callee-save.1 : BV:32
+4 : input.src.llvm-callee-save.2 : BV:32
+5 : input.src.llvm-callee-save.3 : BV:32
+6 : bvxor(1, 2, 3, 4, 5) : BV:32
+=src.llvm-indir_tgt
+1 : retaddr_const : BV:32
+=state_end
+=graph_with_simplified_assets.simplified_to_state at Lfoo%1%1=>Lend%1%0
+=src.llvm-%i_4.poison.temp1
+1 : 1 : BOOL
+=src.llvm-%i_4.poison.temp2
+1 : 0 : BOOL
+=src.llvm-%i_4.poison
+1 : 0 : BOOL
+=src.llvm-%i_4
+1 : 12 { -4 } : BV:4
+=state_end
+=graph_with_simplified_assets.simplified_to_state at Lfoo%1%1=>Lfoo%1%100003
+=src.llvm-%i_4.poison.temp1
+1 : 1 : BOOL
+=state_end
+=graph_with_simplified_assets.simplified_to_state at Lfoo%1%100003=>Lfoo%1%100004
+=src.llvm-%i_4.poison.temp2
+1 : 0 : BOOL
+=state_end
+=graph_with_simplified_assets.simplified_to_state at Lfoo%1%100004=>Lfoo%1%100005
+=src.llvm-%i_4.poison
+1 : 0 : BOOL
+=state_end
+=graph_with_simplified_assets.simplified_to_state at Lfoo%1%100005=>Lfoo%2%1
+=src.llvm-%i_4
+1 : 12 { -4 } : BV:4
+=state_end
+=graph_with_simplified_assets.simplified_to_state at Lfoo%2%1=>Lfoo%2%100003
+=state_end
+=graph_with_simplified_assets.simplified_to_state at Lfoo%2%100003=>Lfoo%2%100004
+=state_end
+=graph_with_simplified_assets.simplified_to_state at Lfoo%2%100004=>Lend%1%0
+=state_end
+=graph_with_simplified_assets.simplified_to_state done
+=graph_with_simplified_assets.simplified_assumes at L0%0%1=>L0%1%1
+=graph_with_simplified_assets.simplified_assumes at L0%0%1=>L0%1%1 done
+=graph_with_simplified_assets.simplified_assumes at L0%0%1=>L0%3%1
+=graph_with_simplified_assets.simplified_assumes at L0%0%1=>L0%3%1 done
+=graph_with_simplified_assets.simplified_assumes at L0%1%1=>L0%1%100003
+=graph_with_simplified_assets.simplified_assumes at L0%1%1=>L0%1%100003 done
+=graph_with_simplified_assets.simplified_assumes at L0%1%100003=>L0%1%100004
+=graph_with_simplified_assets.simplified_assumes at L0%1%100003=>L0%1%100004 done
+=graph_with_simplified_assets.simplified_assumes at L0%1%100004=>L0%1%100005
+=graph_with_simplified_assets.simplified_assumes at L0%1%100004=>L0%1%100005 done
+=graph_with_simplified_assets.simplified_assumes at L0%1%100005=>L0%1%100006
+=graph_with_simplified_assets.simplified_assumes at L0%1%100005=>L0%1%100006 done
+=graph_with_simplified_assets.simplified_assumes at L0%1%100006=>L0%1%100007
+=graph_with_simplified_assets.simplified_assumes at L0%1%100006=>L0%1%100007 done
+=graph_with_simplified_assets.simplified_assumes at L0%1%100007=>L0%2%1
+=graph_with_simplified_assets.simplified_assumes at L0%1%100007=>L0%2%1 done
+=graph_with_simplified_assets.simplified_assumes at L0%2%1=>L0%2%100003
+=graph_with_simplified_assets.simplified_assumes at L0%2%1=>L0%2%100003 done
+=graph_with_simplified_assets.simplified_assumes at L0%2%100003=>L0%3%1
+=graph_with_simplified_assets.simplified_assumes at L0%2%100003=>L0%3%1 done
+=graph_with_simplified_assets.simplified_assumes at L0%3%1=>L0%3%100003
+=graph_with_simplified_assets.simplified_assumes at L0%3%1=>L0%3%100003 assume# 0
+1 : 0 : BOOL
+=graph_with_simplified_assets.simplified_assumes at L0%3%1=>L0%3%100003 done
+=graph_with_simplified_assets.simplified_assumes at L0%3%1=>L0%3%100005
+=graph_with_simplified_assets.simplified_assumes at L0%3%1=>L0%3%100005 assume# 0
+1 : 0 : BOOL
+=graph_with_simplified_assets.simplified_assumes at L0%3%1=>L0%3%100005 done
+=graph_with_simplified_assets.simplified_assumes at L0%3%1=>Lend%1%0
+=graph_with_simplified_assets.simplified_assumes at L0%3%1=>Lend%1%0 assume# 0
+1 : 0 : BOOL
+=graph_with_simplified_assets.simplified_assumes at L0%3%1=>Lend%1%0 done
+=graph_with_simplified_assets.simplified_assumes at L0%3%1=>Lfoo%1%1
+=graph_with_simplified_assets.simplified_assumes at L0%3%1=>Lfoo%1%1 assume# 0
+1 : 0 : BOOL
+=graph_with_simplified_assets.simplified_assumes at L0%3%1=>Lfoo%1%1 done
+=graph_with_simplified_assets.simplified_assumes at L0%3%100003=>L0%3%100004
+=graph_with_simplified_assets.simplified_assumes at L0%3%100003=>L0%3%100004 done
+=graph_with_simplified_assets.simplified_assumes at L0%3%100004=>Lfoo%1%1
+=graph_with_simplified_assets.simplified_assumes at L0%3%100004=>Lfoo%1%1 done
+=graph_with_simplified_assets.simplified_assumes at L0%3%100005=>L0%3%100006
+=graph_with_simplified_assets.simplified_assumes at L0%3%100005=>L0%3%100006 done
+=graph_with_simplified_assets.simplified_assumes at L0%3%100006=>Lend%1%0
+=graph_with_simplified_assets.simplified_assumes at L0%3%100006=>Lend%1%0 done
+=graph_with_simplified_assets.simplified_assumes at Lend%1%0=>Lend%1%1
+=graph_with_simplified_assets.simplified_assumes at Lend%1%0=>Lend%1%1 done
+=graph_with_simplified_assets.simplified_assumes at Lend%1%0=>E0%0%1
+=graph_with_simplified_assets.simplified_assumes at Lend%1%0=>E0%0%1 done
+=graph_with_simplified_assets.simplified_assumes at Lend%1%1=>E0%0%1
+=graph_with_simplified_assets.simplified_assumes at Lend%1%1=>E0%0%1 done
+=graph_with_simplified_assets.simplified_assumes at Lfoo%1%1=>Lend%1%0
+=graph_with_simplified_assets.simplified_assumes at Lfoo%1%1=>Lend%1%0 done
+=graph_with_simplified_assets.simplified_assumes at Lfoo%1%1=>Lfoo%1%100003
+=graph_with_simplified_assets.simplified_assumes at Lfoo%1%1=>Lfoo%1%100003 done
+=graph_with_simplified_assets.simplified_assumes at Lfoo%1%100003=>Lfoo%1%100004
+=graph_with_simplified_assets.simplified_assumes at Lfoo%1%100003=>Lfoo%1%100004 done
+=graph_with_simplified_assets.simplified_assumes at Lfoo%1%100004=>Lfoo%1%100005
+=graph_with_simplified_assets.simplified_assumes at Lfoo%1%100004=>Lfoo%1%100005 done
+=graph_with_simplified_assets.simplified_assumes at Lfoo%1%100005=>Lfoo%2%1
+=graph_with_simplified_assets.simplified_assumes at Lfoo%1%100005=>Lfoo%2%1 done
+=graph_with_simplified_assets.simplified_assumes at Lfoo%2%1=>Lfoo%2%100003
+=graph_with_simplified_assets.simplified_assumes at Lfoo%2%1=>Lfoo%2%100003 done
+=graph_with_simplified_assets.simplified_assumes at Lfoo%2%100003=>Lfoo%2%100004
+=graph_with_simplified_assets.simplified_assumes at Lfoo%2%100003=>Lfoo%2%100004 done
+=graph_with_simplified_assets.simplified_assumes at Lfoo%2%100004=>Lend%1%0
+=graph_with_simplified_assets.simplified_assumes at Lfoo%2%100004=>Lend%1%0 done
+=graph_with_simplified_assets.simplified_assumes done
+=graph_with_simplified_assets.loc_to_expr_map at L0%0%1=>L0%1%1
+=graph_with_simplified_assets.loc_to_expr_map at L0%0%1=>L0%1%1 done
+=graph_with_simplified_assets.loc_to_expr_map at L0%0%1=>L0%3%1
+=graph_with_simplified_assets.loc_to_expr_map at L0%0%1=>L0%3%1 for loc_id 1002
+1 : 6 : BV:4
+=graph_with_simplified_assets.loc_to_expr_map at L0%0%1=>L0%3%1 for loc_id 1003
+1 : 1 : BOOL
+=graph_with_simplified_assets.loc_to_expr_map at L0%0%1=>L0%3%1 for loc_id 1004
+1 : 22 { -10 } : BV:5
+=graph_with_simplified_assets.loc_to_expr_map at L0%0%1=>L0%3%1 for loc_id 1005
+1 : 6 : BV:5
+=graph_with_simplified_assets.loc_to_expr_map at L0%0%1=>L0%3%1 for loc_id 1006
+1 : 0 : BOOL
+=graph_with_simplified_assets.loc_to_expr_map at L0%0%1=>L0%3%1 for loc_id 1007
+1 : 1 : BOOL
+=graph_with_simplified_assets.loc_to_expr_map at L0%0%1=>L0%3%1 for loc_id 1008
+1 : 0 : BOOL
+=graph_with_simplified_assets.loc_to_expr_map at L0%0%1=>L0%3%1 for loc_id 1009
+1 : 1 : BOOL
+=graph_with_simplified_assets.loc_to_expr_map at L0%0%1=>L0%3%1 done
+=graph_with_simplified_assets.loc_to_expr_map at L0%1%1=>L0%1%100003
+=graph_with_simplified_assets.loc_to_expr_map at L0%1%1=>L0%1%100003 for loc_id 1004
+1 : 22 { -10 } : BV:5
+=graph_with_simplified_assets.loc_to_expr_map at L0%1%1=>L0%1%100003 done
+=graph_with_simplified_assets.loc_to_expr_map at L0%1%100003=>L0%1%100004
+=graph_with_simplified_assets.loc_to_expr_map at L0%1%100003=>L0%1%100004 for loc_id 1005
+1 : 6 : BV:5
+=graph_with_simplified_assets.loc_to_expr_map at L0%1%100003=>L0%1%100004 done
+=graph_with_simplified_assets.loc_to_expr_map at L0%1%100004=>L0%1%100005
+=graph_with_simplified_assets.loc_to_expr_map at L0%1%100004=>L0%1%100005 for loc_id 1006
+1 : 0 : BOOL
+=graph_with_simplified_assets.loc_to_expr_map at L0%1%100004=>L0%1%100005 done
+=graph_with_simplified_assets.loc_to_expr_map at L0%1%100005=>L0%1%100006
+=graph_with_simplified_assets.loc_to_expr_map at L0%1%100005=>L0%1%100006 for loc_id 1007
+1 : 1 : BOOL
+=graph_with_simplified_assets.loc_to_expr_map at L0%1%100005=>L0%1%100006 done
+=graph_with_simplified_assets.loc_to_expr_map at L0%1%100006=>L0%1%100007
+=graph_with_simplified_assets.loc_to_expr_map at L0%1%100006=>L0%1%100007 for loc_id 1003
+1 : 1 : BOOL
+=graph_with_simplified_assets.loc_to_expr_map at L0%1%100006=>L0%1%100007 done
+=graph_with_simplified_assets.loc_to_expr_map at L0%1%100007=>L0%2%1
+=graph_with_simplified_assets.loc_to_expr_map at L0%1%100007=>L0%2%1 for loc_id 1002
+1 : 6 : BV:4
+=graph_with_simplified_assets.loc_to_expr_map at L0%1%100007=>L0%2%1 done
+=graph_with_simplified_assets.loc_to_expr_map at L0%2%1=>L0%2%100003
+=graph_with_simplified_assets.loc_to_expr_map at L0%2%1=>L0%2%100003 for loc_id 1009
+1 : 1 : BOOL
+=graph_with_simplified_assets.loc_to_expr_map at L0%2%1=>L0%2%100003 done
+=graph_with_simplified_assets.loc_to_expr_map at L0%2%100003=>L0%3%1
+=graph_with_simplified_assets.loc_to_expr_map at L0%2%100003=>L0%3%1 for loc_id 1008
+1 : 0 : BOOL
+=graph_with_simplified_assets.loc_to_expr_map at L0%2%100003=>L0%3%1 done
+=graph_with_simplified_assets.loc_to_expr_map at L0%3%1=>L0%3%100003
+=graph_with_simplified_assets.loc_to_expr_map at L0%3%1=>L0%3%100003 done
+=graph_with_simplified_assets.loc_to_expr_map at L0%3%1=>L0%3%100005
+=graph_with_simplified_assets.loc_to_expr_map at L0%3%1=>L0%3%100005 done
+=graph_with_simplified_assets.loc_to_expr_map at L0%3%1=>Lend%1%0
+=graph_with_simplified_assets.loc_to_expr_map at L0%3%1=>Lend%1%0 done
+=graph_with_simplified_assets.loc_to_expr_map at L0%3%1=>Lfoo%1%1
+=graph_with_simplified_assets.loc_to_expr_map at L0%3%1=>Lfoo%1%1 done
+=graph_with_simplified_assets.loc_to_expr_map at L0%3%100003=>L0%3%100004
+=graph_with_simplified_assets.loc_to_expr_map at L0%3%100003=>L0%3%100004 done
+=graph_with_simplified_assets.loc_to_expr_map at L0%3%100004=>Lfoo%1%1
+=graph_with_simplified_assets.loc_to_expr_map at L0%3%100004=>Lfoo%1%1 done
+=graph_with_simplified_assets.loc_to_expr_map at L0%3%100005=>L0%3%100006
+=graph_with_simplified_assets.loc_to_expr_map at L0%3%100005=>L0%3%100006 done
+=graph_with_simplified_assets.loc_to_expr_map at L0%3%100006=>Lend%1%0
+=graph_with_simplified_assets.loc_to_expr_map at L0%3%100006=>Lend%1%0 done
+=graph_with_simplified_assets.loc_to_expr_map at Lend%1%0=>Lend%1%1
+=graph_with_simplified_assets.loc_to_expr_map at Lend%1%0=>Lend%1%1 done
+=graph_with_simplified_assets.loc_to_expr_map at Lend%1%0=>E0%0%1
+=graph_with_simplified_assets.loc_to_expr_map at Lend%1%0=>E0%0%1 for loc_id 1001
+1 : input.src.llvm-%hidden-reg : BV:32
+2 : input.src.llvm-callee-save.0 : BV:32
+3 : input.src.llvm-callee-save.1 : BV:32
+4 : input.src.llvm-callee-save.2 : BV:32
+5 : input.src.llvm-callee-save.3 : BV:32
+6 : bvxor(1, 2, 3, 4, 5) : BV:32
+=graph_with_simplified_assets.loc_to_expr_map at Lend%1%0=>E0%0%1 for loc_id 1014
+1 : retaddr_const : BV:32
+=graph_with_simplified_assets.loc_to_expr_map at Lend%1%0=>E0%0%1 done
+=graph_with_simplified_assets.loc_to_expr_map at Lend%1%1=>E0%0%1
+=graph_with_simplified_assets.loc_to_expr_map at Lend%1%1=>E0%0%1 for loc_id 1001
+1 : input.src.llvm-callee-save.0 : BV:32
+2 : input.src.llvm-%hidden-reg : BV:32
+3 : input.src.llvm-callee-save.1 : BV:32
+4 : input.src.llvm-callee-save.2 : BV:32
+5 : input.src.llvm-callee-save.3 : BV:32
+6 : bvxor(1, 2, 3, 4, 5) : BV:32
+=graph_with_simplified_assets.loc_to_expr_map at Lend%1%1=>E0%0%1 for loc_id 1014
+1 : retaddr_const : BV:32
+=graph_with_simplified_assets.loc_to_expr_map at Lend%1%1=>E0%0%1 done
+=graph_with_simplified_assets.loc_to_expr_map at Lfoo%1%1=>Lend%1%0
+=graph_with_simplified_assets.loc_to_expr_map at Lfoo%1%1=>Lend%1%0 for loc_id 1010
+1 : 12 { -4 } : BV:4
+=graph_with_simplified_assets.loc_to_expr_map at Lfoo%1%1=>Lend%1%0 for loc_id 1011
+1 : 0 : BOOL
+=graph_with_simplified_assets.loc_to_expr_map at Lfoo%1%1=>Lend%1%0 for loc_id 1012
+1 : 1 : BOOL
+=graph_with_simplified_assets.loc_to_expr_map at Lfoo%1%1=>Lend%1%0 for loc_id 1013
+1 : 0 : BOOL
+=graph_with_simplified_assets.loc_to_expr_map at Lfoo%1%1=>Lend%1%0 done
+=graph_with_simplified_assets.loc_to_expr_map at Lfoo%1%1=>Lfoo%1%100003
+=graph_with_simplified_assets.loc_to_expr_map at Lfoo%1%1=>Lfoo%1%100003 for loc_id 1012
+1 : 1 : BOOL
+=graph_with_simplified_assets.loc_to_expr_map at Lfoo%1%1=>Lfoo%1%100003 done
+=graph_with_simplified_assets.loc_to_expr_map at Lfoo%1%100003=>Lfoo%1%100004
+=graph_with_simplified_assets.loc_to_expr_map at Lfoo%1%100003=>Lfoo%1%100004 for loc_id 1013
+1 : 0 : BOOL
+=graph_with_simplified_assets.loc_to_expr_map at Lfoo%1%100003=>Lfoo%1%100004 done
+=graph_with_simplified_assets.loc_to_expr_map at Lfoo%1%100004=>Lfoo%1%100005
+=graph_with_simplified_assets.loc_to_expr_map at Lfoo%1%100004=>Lfoo%1%100005 for loc_id 1011
+1 : 0 : BOOL
+=graph_with_simplified_assets.loc_to_expr_map at Lfoo%1%100004=>Lfoo%1%100005 done
+=graph_with_simplified_assets.loc_to_expr_map at Lfoo%1%100005=>Lfoo%2%1
+=graph_with_simplified_assets.loc_to_expr_map at Lfoo%1%100005=>Lfoo%2%1 for loc_id 1010
+1 : 12 { -4 } : BV:4
+=graph_with_simplified_assets.loc_to_expr_map at Lfoo%1%100005=>Lfoo%2%1 done
+=graph_with_simplified_assets.loc_to_expr_map at Lfoo%2%1=>Lfoo%2%100003
+=graph_with_simplified_assets.loc_to_expr_map at Lfoo%2%1=>Lfoo%2%100003 done
+=graph_with_simplified_assets.loc_to_expr_map at Lfoo%2%100003=>Lfoo%2%100004
+=graph_with_simplified_assets.loc_to_expr_map at Lfoo%2%100003=>Lfoo%2%100004 done
+=graph_with_simplified_assets.loc_to_expr_map at Lfoo%2%100004=>Lend%1%0
+=graph_with_simplified_assets.loc_to_expr_map at Lfoo%2%100004=>Lend%1%0 done
+=graph_with_simplified_assets.loc_to_expr_map done
+=graph_with_simplified_assets done
+
+=Locs in src.llvm.main
+=Loc 1001 in src.llvm.main.
+LLVMVAR
+src.llvm-%hidden-reg
+1 : input.src.llvm-%hidden-reg : BV:32
+=Loc 1002 in src.llvm.main.
+LLVMVAR
+src.llvm-%i_2
+1 : input.src.llvm-%i_2 : BV:4
+=Loc 1003 in src.llvm.main.
+LLVMVAR
+src.llvm-%i_2.poison
+1 : input.src.llvm-%i_2.poison : BOOL
+=Loc 1004 in src.llvm.main.
+LLVMVAR
+src.llvm-%i_2.poison.temp1
+1 : input.src.llvm-%i_2.poison.temp1 : BV:5
+=Loc 1005 in src.llvm.main.
+LLVMVAR
+src.llvm-%i_2.poison.temp2
+1 : input.src.llvm-%i_2.poison.temp2 : BV:5
+=Loc 1006 in src.llvm.main.
+LLVMVAR
+src.llvm-%i_2.poison.temp3
+1 : input.src.llvm-%i_2.poison.temp3 : BOOL
+=Loc 1007 in src.llvm.main.
+LLVMVAR
+src.llvm-%i_2.poison.temp4
+1 : input.src.llvm-%i_2.poison.temp4 : BOOL
+=Loc 1008 in src.llvm.main.
+LLVMVAR
+src.llvm-%i_3
+1 : input.src.llvm-%i_3 : BOOL
+=Loc 1009 in src.llvm.main.
+LLVMVAR
+src.llvm-%i_3.poison
+1 : input.src.llvm-%i_3.poison : BOOL
+=Loc 1010 in src.llvm.main.
+LLVMVAR
+src.llvm-%i_4
+1 : input.src.llvm-%i_4 : BV:4
+=Loc 1011 in src.llvm.main.
+LLVMVAR
+src.llvm-%i_4.poison
+1 : input.src.llvm-%i_4.poison : BOOL
+=Loc 1012 in src.llvm.main.
+LLVMVAR
+src.llvm-%i_4.poison.temp1
+1 : input.src.llvm-%i_4.poison.temp1 : BOOL
+=Loc 1013 in src.llvm.main.
+LLVMVAR
+src.llvm-%i_4.poison.temp2
+1 : input.src.llvm-%i_4.poison.temp2 : BOOL
+=Loc 1014 in src.llvm.main.
+LLVMVAR
+src.llvm-indir_tgt
+1 : input.src.llvm-indir_tgt : BV:32
+=Loc 1015 in src.llvm.main.
+MASKED
+=memname
+src.llvm-mem
+=memlabel
+memlabel-mem-heap
+=Loc 1016 in src.llvm.main.
+MASKED
+=memname
+src.llvm-mem
+=memlabel
+memlabel-mem-esp
+
+=Alias analysis results in src.llvm.main
+=Alias analysis result in src.llvm.main at L0%0%1
+=Alias analysis result in src.llvm.main at L0%0%1 for loc 1001 (input.src.llvm-%hidden-reg)
+nullptr
+=Alias analysis result in src.llvm.main at L0%0%1 for loc 1002 (input.src.llvm-%i_2)
+nullptr
+=Alias analysis result in src.llvm.main at L0%0%1 for loc 1003 (input.src.llvm-%i_2.poison)
+nullptr
+=Alias analysis result in src.llvm.main at L0%0%1 for loc 1004 (input.src.llvm-%i_2.poison.temp1)
+nullptr
+=Alias analysis result in src.llvm.main at L0%0%1 for loc 1005 (input.src.llvm-%i_2.poison.temp2)
+nullptr
+=Alias analysis result in src.llvm.main at L0%0%1 for loc 1006 (input.src.llvm-%i_2.poison.temp3)
+nullptr
+=Alias analysis result in src.llvm.main at L0%0%1 for loc 1007 (input.src.llvm-%i_2.poison.temp4)
+nullptr
+=Alias analysis result in src.llvm.main at L0%0%1 for loc 1008 (input.src.llvm-%i_3)
+nullptr
+=Alias analysis result in src.llvm.main at L0%0%1 for loc 1009 (input.src.llvm-%i_3.poison)
+nullptr
+=Alias analysis result in src.llvm.main at L0%0%1 for loc 1010 (input.src.llvm-%i_4)
+nullptr
+=Alias analysis result in src.llvm.main at L0%0%1 for loc 1011 (input.src.llvm-%i_4.poison)
+nullptr
+=Alias analysis result in src.llvm.main at L0%0%1 for loc 1012 (input.src.llvm-%i_4.poison.temp1)
+nullptr
+=Alias analysis result in src.llvm.main at L0%0%1 for loc 1013 (input.src.llvm-%i_4.poison.temp2)
+nullptr
+=Alias analysis result in src.llvm.main at L0%0%1 for loc 1014 (input.src.llvm-indir_tgt)
+nullptr
+=Alias analysis result in src.llvm.main at L0%0%1 for loc 1015 (memmask(input.src.llvm-mem, memlabel-mem-heap))
+nullptr
+=Alias analysis result in src.llvm.main at L0%0%1 for loc 1016 (memmask(input.src.llvm-mem, memlabel-mem-esp))
+nullptr
+=Alias analysis result in src.llvm.main at L0%3%1
+=Alias analysis result in src.llvm.main at L0%3%1 for loc 1001 (input.src.llvm-%hidden-reg)
+nullptr
+=Alias analysis result in src.llvm.main at L0%3%1 for loc 1002 (input.src.llvm-%i_2)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in src.llvm.main at L0%3%1 for loc 1003 (input.src.llvm-%i_2.poison)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in src.llvm.main at L0%3%1 for loc 1004 (input.src.llvm-%i_2.poison.temp1)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in src.llvm.main at L0%3%1 for loc 1005 (input.src.llvm-%i_2.poison.temp2)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in src.llvm.main at L0%3%1 for loc 1006 (input.src.llvm-%i_2.poison.temp3)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in src.llvm.main at L0%3%1 for loc 1007 (input.src.llvm-%i_2.poison.temp4)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in src.llvm.main at L0%3%1 for loc 1008 (input.src.llvm-%i_3)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in src.llvm.main at L0%3%1 for loc 1009 (input.src.llvm-%i_3.poison)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in src.llvm.main at L0%3%1 for loc 1010 (input.src.llvm-%i_4)
+nullptr
+=Alias analysis result in src.llvm.main at L0%3%1 for loc 1011 (input.src.llvm-%i_4.poison)
+nullptr
+=Alias analysis result in src.llvm.main at L0%3%1 for loc 1012 (input.src.llvm-%i_4.poison.temp1)
+nullptr
+=Alias analysis result in src.llvm.main at L0%3%1 for loc 1013 (input.src.llvm-%i_4.poison.temp2)
+nullptr
+=Alias analysis result in src.llvm.main at L0%3%1 for loc 1014 (input.src.llvm-indir_tgt)
+nullptr
+=Alias analysis result in src.llvm.main at L0%3%1 for loc 1015 (memmask(input.src.llvm-mem, memlabel-mem-heap))
+nullptr
+=Alias analysis result in src.llvm.main at L0%3%1 for loc 1016 (memmask(input.src.llvm-mem, memlabel-mem-esp))
+nullptr
+=Alias analysis result in src.llvm.main at Lend%1%0
+=Alias analysis result in src.llvm.main at Lend%1%0 for loc 1001 (input.src.llvm-%hidden-reg)
+nullptr
+=Alias analysis result in src.llvm.main at Lend%1%0 for loc 1002 (input.src.llvm-%i_2)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in src.llvm.main at Lend%1%0 for loc 1003 (input.src.llvm-%i_2.poison)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in src.llvm.main at Lend%1%0 for loc 1004 (input.src.llvm-%i_2.poison.temp1)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in src.llvm.main at Lend%1%0 for loc 1005 (input.src.llvm-%i_2.poison.temp2)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in src.llvm.main at Lend%1%0 for loc 1006 (input.src.llvm-%i_2.poison.temp3)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in src.llvm.main at Lend%1%0 for loc 1007 (input.src.llvm-%i_2.poison.temp4)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in src.llvm.main at Lend%1%0 for loc 1008 (input.src.llvm-%i_3)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in src.llvm.main at Lend%1%0 for loc 1009 (input.src.llvm-%i_3.poison)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in src.llvm.main at Lend%1%0 for loc 1010 (input.src.llvm-%i_4)
+nullptr
+=Alias analysis result in src.llvm.main at Lend%1%0 for loc 1011 (input.src.llvm-%i_4.poison)
+nullptr
+=Alias analysis result in src.llvm.main at Lend%1%0 for loc 1012 (input.src.llvm-%i_4.poison.temp1)
+nullptr
+=Alias analysis result in src.llvm.main at Lend%1%0 for loc 1013 (input.src.llvm-%i_4.poison.temp2)
+nullptr
+=Alias analysis result in src.llvm.main at Lend%1%0 for loc 1014 (input.src.llvm-indir_tgt)
+nullptr
+=Alias analysis result in src.llvm.main at Lend%1%0 for loc 1015 (memmask(input.src.llvm-mem, memlabel-mem-heap))
+nullptr
+=Alias analysis result in src.llvm.main at Lend%1%0 for loc 1016 (memmask(input.src.llvm-mem, memlabel-mem-esp))
+nullptr
+=Alias analysis result in src.llvm.main at Lfoo%1%1
+=Alias analysis result in src.llvm.main at Lfoo%1%1 for loc 1001 (input.src.llvm-%hidden-reg)
+nullptr
+=Alias analysis result in src.llvm.main at Lfoo%1%1 for loc 1002 (input.src.llvm-%i_2)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in src.llvm.main at Lfoo%1%1 for loc 1003 (input.src.llvm-%i_2.poison)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in src.llvm.main at Lfoo%1%1 for loc 1004 (input.src.llvm-%i_2.poison.temp1)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in src.llvm.main at Lfoo%1%1 for loc 1005 (input.src.llvm-%i_2.poison.temp2)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in src.llvm.main at Lfoo%1%1 for loc 1006 (input.src.llvm-%i_2.poison.temp3)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in src.llvm.main at Lfoo%1%1 for loc 1007 (input.src.llvm-%i_2.poison.temp4)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in src.llvm.main at Lfoo%1%1 for loc 1008 (input.src.llvm-%i_3)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in src.llvm.main at Lfoo%1%1 for loc 1009 (input.src.llvm-%i_3.poison)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in src.llvm.main at Lfoo%1%1 for loc 1010 (input.src.llvm-%i_4)
+nullptr
+=Alias analysis result in src.llvm.main at Lfoo%1%1 for loc 1011 (input.src.llvm-%i_4.poison)
+nullptr
+=Alias analysis result in src.llvm.main at Lfoo%1%1 for loc 1012 (input.src.llvm-%i_4.poison.temp1)
+nullptr
+=Alias analysis result in src.llvm.main at Lfoo%1%1 for loc 1013 (input.src.llvm-%i_4.poison.temp2)
+nullptr
+=Alias analysis result in src.llvm.main at Lfoo%1%1 for loc 1014 (input.src.llvm-indir_tgt)
+nullptr
+=Alias analysis result in src.llvm.main at Lfoo%1%1 for loc 1015 (memmask(input.src.llvm-mem, memlabel-mem-heap))
+nullptr
+=Alias analysis result in src.llvm.main at Lfoo%1%1 for loc 1016 (memmask(input.src.llvm-mem, memlabel-mem-esp))
+nullptr
+=Alias analysis result in src.llvm.main at E0%0%1
+=Alias analysis result in src.llvm.main at E0%0%1 for loc 1001 (input.src.llvm-%hidden-reg)
+nullptr
+=Alias analysis result in src.llvm.main at E0%0%1 for loc 1002 (input.src.llvm-%i_2)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in src.llvm.main at E0%0%1 for loc 1003 (input.src.llvm-%i_2.poison)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in src.llvm.main at E0%0%1 for loc 1004 (input.src.llvm-%i_2.poison.temp1)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in src.llvm.main at E0%0%1 for loc 1005 (input.src.llvm-%i_2.poison.temp2)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in src.llvm.main at E0%0%1 for loc 1006 (input.src.llvm-%i_2.poison.temp3)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in src.llvm.main at E0%0%1 for loc 1007 (input.src.llvm-%i_2.poison.temp4)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in src.llvm.main at E0%0%1 for loc 1008 (input.src.llvm-%i_3)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in src.llvm.main at E0%0%1 for loc 1009 (input.src.llvm-%i_3.poison)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in src.llvm.main at E0%0%1 for loc 1010 (input.src.llvm-%i_4)
+nullptr
+=Alias analysis result in src.llvm.main at E0%0%1 for loc 1011 (input.src.llvm-%i_4.poison)
+nullptr
+=Alias analysis result in src.llvm.main at E0%0%1 for loc 1012 (input.src.llvm-%i_4.poison.temp1)
+nullptr
+=Alias analysis result in src.llvm.main at E0%0%1 for loc 1013 (input.src.llvm-%i_4.poison.temp2)
+nullptr
+=Alias analysis result in src.llvm.main at E0%0%1 for loc 1014 (input.src.llvm-indir_tgt)
+lr_status
+lr_status_bottom(; memlabel-mem-heap, )
+=Alias analysis result in src.llvm.main at E0%0%1 for loc 1015 (memmask(input.src.llvm-mem, memlabel-mem-heap))
+nullptr
+=Alias analysis result in src.llvm.main at E0%0%1 for loc 1016 (memmask(input.src.llvm-mem, memlabel-mem-esp))
+nullptr
+
+=Liveness in src.llvm.main
+=live locs at L0%0%1
+1015
+=live locs at L0%3%1
+1008, 1015
+=live locs at Lend%1%0
+1015
+=live locs at Lfoo%1%1
+1015
+=live locs at E0%0%1
+1015
+
+=Available expressions in src.llvm.main
+=available expressions at L0%0%1 in src.llvm.main
+=avail_exprs begin
+=avail_exprs end
+=available expressions at L0%3%1 in src.llvm.main
+=avail_exprs begin
+=loc 1002
+=from_expr
+17412 : input.src.llvm-%i_2 : BV:4
+=to_expr
+17439 : 6 : BV:4
+=loc 1003
+=from_expr
+17410 : input.src.llvm-%i_2.poison : BOOL
+=to_expr
+17393 : 1 : BOOL
+=loc 1004
+=from_expr
+17402 : input.src.llvm-%i_2.poison.temp1 : BV:5
+=to_expr
+17437 : 22 { -10 } : BV:5
+=loc 1005
+=from_expr
+17403 : input.src.llvm-%i_2.poison.temp2 : BV:5
+=to_expr
+17438 : 6 : BV:5
+=loc 1006
+=from_expr
+17405 : input.src.llvm-%i_2.poison.temp3 : BOOL
+=to_expr
+17407 : 0 : BOOL
+=loc 1007
+=from_expr
+17408 : input.src.llvm-%i_2.poison.temp4 : BOOL
+=to_expr
+17393 : 1 : BOOL
+=loc 1008
+=from_expr
+17415 : input.src.llvm-%i_3 : BOOL
+=to_expr
+17407 : 0 : BOOL
+=loc 1009
+=from_expr
+17417 : input.src.llvm-%i_3.poison : BOOL
+=to_expr
+17393 : 1 : BOOL
+=avail_exprs end
+=available expressions at Lend%1%0 in src.llvm.main
+=avail_exprs begin
+=loc 1002
+=from_expr
+17412 : input.src.llvm-%i_2 : BV:4
+=to_expr
+17439 : 6 : BV:4
+=loc 1003
+=from_expr
+17410 : input.src.llvm-%i_2.poison : BOOL
+=to_expr
+17393 : 1 : BOOL
+=loc 1004
+=from_expr
+17402 : input.src.llvm-%i_2.poison.temp1 : BV:5
+=to_expr
+17437 : 22 { -10 } : BV:5
+=loc 1005
+=from_expr
+17403 : input.src.llvm-%i_2.poison.temp2 : BV:5
+=to_expr
+17438 : 6 : BV:5
+=loc 1006
+=from_expr
+17405 : input.src.llvm-%i_2.poison.temp3 : BOOL
+=to_expr
+17407 : 0 : BOOL
+=loc 1007
+=from_expr
+17408 : input.src.llvm-%i_2.poison.temp4 : BOOL
+=to_expr
+17393 : 1 : BOOL
+=loc 1008
+=from_expr
+17415 : input.src.llvm-%i_3 : BOOL
+=to_expr
+17407 : 0 : BOOL
+=loc 1009
+=from_expr
+17417 : input.src.llvm-%i_3.poison : BOOL
+=to_expr
+17393 : 1 : BOOL
+=avail_exprs end
+=available expressions at Lfoo%1%1 in src.llvm.main
+=avail_exprs begin
+=loc 1002
+=from_expr
+17412 : input.src.llvm-%i_2 : BV:4
+=to_expr
+17439 : 6 : BV:4
+=loc 1003
+=from_expr
+17410 : input.src.llvm-%i_2.poison : BOOL
+=to_expr
+17393 : 1 : BOOL
+=loc 1004
+=from_expr
+17402 : input.src.llvm-%i_2.poison.temp1 : BV:5
+=to_expr
+17437 : 22 { -10 } : BV:5
+=loc 1005
+=from_expr
+17403 : input.src.llvm-%i_2.poison.temp2 : BV:5
+=to_expr
+17438 : 6 : BV:5
+=loc 1006
+=from_expr
+17405 : input.src.llvm-%i_2.poison.temp3 : BOOL
+=to_expr
+17407 : 0 : BOOL
+=loc 1007
+=from_expr
+17408 : input.src.llvm-%i_2.poison.temp4 : BOOL
+=to_expr
+17393 : 1 : BOOL
+=loc 1008
+=from_expr
+17415 : input.src.llvm-%i_3 : BOOL
+=to_expr
+17407 : 0 : BOOL
+=loc 1009
+=from_expr
+17417 : input.src.llvm-%i_3.poison : BOOL
+=to_expr
+17393 : 1 : BOOL
+=avail_exprs end
+=available expressions at E0%0%1 in src.llvm.main
+=avail_exprs begin
+=loc 1002
+=from_expr
+17412 : input.src.llvm-%i_2 : BV:4
+=to_expr
+17439 : 6 : BV:4
+=loc 1003
+=from_expr
+17410 : input.src.llvm-%i_2.poison : BOOL
+=to_expr
+17393 : 1 : BOOL
+=loc 1004
+=from_expr
+17402 : input.src.llvm-%i_2.poison.temp1 : BV:5
+=to_expr
+17437 : 22 { -10 } : BV:5
+=loc 1005
+=from_expr
+17403 : input.src.llvm-%i_2.poison.temp2 : BV:5
+=to_expr
+17438 : 6 : BV:5
+=loc 1006
+=from_expr
+17405 : input.src.llvm-%i_2.poison.temp3 : BOOL
+=to_expr
+17407 : 0 : BOOL
+=loc 1007
+=from_expr
+17408 : input.src.llvm-%i_2.poison.temp4 : BOOL
+=to_expr
+17393 : 1 : BOOL
+=loc 1008
+=from_expr
+17415 : input.src.llvm-%i_3 : BOOL
+=to_expr
+17407 : 0 : BOOL
+=loc 1009
+=from_expr
+17417 : input.src.llvm-%i_3.poison : BOOL
+=to_expr
+17393 : 1 : BOOL
+=loc 1014
+=from_expr
+17443 : input.src.llvm-indir_tgt : BV:32
+=to_expr
+17387 : retaddr_const : BV:32
+=avail_exprs end
+
+=sprel_maps in src.llvm.main
+=sprel_map at L0%0%1 in src.llvm.main
+=sprel_map at L0%3%1 in src.llvm.main
+=loc 1002
+17439 : 6 : BV:4
+=loc 1003
+17393 : 1 : BOOL
+=loc 1004
+17437 : 22 { -10 } : BV:5
+=loc 1005
+17438 : 6 : BV:5
+=loc 1006
+17407 : 0 : BOOL
+=loc 1007
+17393 : 1 : BOOL
+=loc 1008
+17407 : 0 : BOOL
+=loc 1009
+17393 : 1 : BOOL
+=sprel_map at Lend%1%0 in src.llvm.main
+=loc 1002
+17439 : 6 : BV:4
+=loc 1003
+17393 : 1 : BOOL
+=loc 1004
+17437 : 22 { -10 } : BV:5
+=loc 1005
+17438 : 6 : BV:5
+=loc 1006
+17407 : 0 : BOOL
+=loc 1007
+17393 : 1 : BOOL
+=loc 1008
+17407 : 0 : BOOL
+=loc 1009
+17393 : 1 : BOOL
+=sprel_map at Lfoo%1%1 in src.llvm.main
+=loc 1002
+17439 : 6 : BV:4
+=loc 1003
+17393 : 1 : BOOL
+=loc 1004
+17437 : 22 { -10 } : BV:5
+=loc 1005
+17438 : 6 : BV:5
+=loc 1006
+17407 : 0 : BOOL
+=loc 1007
+17393 : 1 : BOOL
+=loc 1008
+17407 : 0 : BOOL
+=loc 1009
+17393 : 1 : BOOL
+=sprel_map at E0%0%1 in src.llvm.main
+=loc 1002
+17439 : 6 : BV:4
+=loc 1003
+17393 : 1 : BOOL
+=loc 1004
+17437 : 22 { -10 } : BV:5
+=loc 1005
+17438 : 6 : BV:5
+=loc 1006
+17407 : 0 : BOOL
+=loc 1007
+17393 : 1 : BOOL
+=loc 1008
+17407 : 0 : BOOL
+=loc 1009
+17393 : 1 : BOOL
+=loc 1014
+17387 : retaddr_const : BV:32
+=graph_with_aliasing_done
+=Memlabel assertions empty
+=Memlabel assertions done
+=graph_with_proofs done
+=graph_with_ce done
+=Invariant state at node L0%0%1:
+=pc L0%0%1 invariant_state
+is_top 0
+is_stable 1
+=pc L0%0%1 invariant_state done
+=Invariant state at node L0%3%1:
+=pc L0%3%1 invariant_state
+is_top 0
+is_stable 1
+=pc L0%3%1 invariant_state done
+=Invariant state at node Lend%1%0:
+=pc Lend%1%0 invariant_state
+is_top 0
+is_stable 1
+=pc Lend%1%0 invariant_state done
+=Invariant state at node Lfoo%1%1:
+=pc Lfoo%1%1 invariant_state
+is_top 0
+is_stable 1
+=pc Lfoo%1%1 invariant_state done
+=Invariant state at node E0%0%1:
+=pc E0%0%1 invariant_state
+is_top 0
+is_stable 1
+=pc E0%0%1 invariant_state done
+=graph_with_guessing done
+=String-contents:
+=Nextpc-map:
+=TFGdone
+=suffixpaths for src.llvm.main
+=suffixpath_at_L0%0%1 for src.llvm.main
+=suffixpath_at_L0%0%1.graph_edge_composition
+(epsilon)
+=suffixpath_at_L0%3%1 for src.llvm.main
+=suffixpath_at_L0%3%1.graph_edge_composition
+(L0%0%1=>L0%3%1)
+=suffixpath_at_Lend%1%0 for src.llvm.main
+=suffixpath_at_Lend%1%0.graph_edge_composition
+(((L0%0%1=>L0%3%1)*(L0%3%1=>Lend%1%0))+((L0%0%1=>L0%3%1)*((L0%3%1=>Lfoo%1%1)*(Lfoo%1%1=>Lend%1%0))))
+=suffixpath_at_Lfoo%1%1 for src.llvm.main
+=suffixpath_at_Lfoo%1%1.graph_edge_composition
+((L0%0%1=>L0%3%1)*(L0%3%1=>Lfoo%1%1))
+=suffixpath_at_E0%0%1 for src.llvm.main
+=suffixpath_at_E0%0%1.graph_edge_composition
+((((L0%0%1=>L0%3%1)*(L0%3%1=>Lend%1%0))+((L0%0%1=>L0%3%1)*((L0%3%1=>Lfoo%1%1)*(Lfoo%1%1=>Lend%1%0))))*(Lend%1%0=>E0%0%1))
+=suffixpaths for src.llvm.main done
+=PC_to_linename:
+=PC_to_linename done
+=PC_to_column_name:
+=PC_to_column_name done
+=PC_to_line_and_column:
+=PC_to_line_and_column done
+=SourceToLLVMVarnames:
+=SourceToLLVMVarnames done
+=InputLLVMToSourceVarnames:
+input.src.llvm-%i_2.poison.temp1 : L0%1%100003 : (-10)
+input.src.llvm-%i_2.poison.temp2 : L0%1%100004 : 6
+input.src.llvm-%i_2.poison.temp3 : L0%1%100005 : false
+input.src.llvm-%i_2.poison.temp4 : L0%1%100006 : true
+input.src.llvm-%i_2.poison : L0%1%100007 : true
+input.src.llvm-%i_2 : L0%2%1 : 6
+input.src.llvm-%i_3 : L0%3%1 : false
+input.src.llvm-%i_3.poison : L0%2%100003 : true
+input.src.llvm-%i_4.poison.temp1 : Lfoo%1%100003 : true
+input.src.llvm-%i_4.poison.temp2 : Lfoo%1%100004 : false
+input.src.llvm-%i_4 : Lfoo%2%1 : (-4)
+input.src.llvm-%i_4.poison : Lfoo%1%100005 : false
+input.src.llvm-indir_tgt : E0%0%1 : return-address
+=InputLLVMToSourceVarnames done
+=PotentialSCEVRelations:
+=PotentialSCEVRelations done
+=TFG_LLVM_done
+=dst_tfg
+=TFG_LLVM dst.llvm.main.dst:
+=TFG:
+=Nodes: L0%0%1 L0%3%1 Lend%1%0 Lfoo%1%1 E0%0%1
+=Edges:
+L0%3%1 => Lfoo%1%1
+L0%3%1 => Lend%1%0
+Lend%1%0 => E0%0%1
+L0%0%1 => L0%3%1
+Lfoo%1%1 => Lend%1%0
+=graph done
+=Node outputs: E0%0%1
+=Output: heap
+1 : input.dst.llvm-mem : ARRAY[BV:32 -> BV:8]
+2 : memlabel-mem-heap : MEMLABEL
+3 : memmask(1, 2) : ARRAY[BV:32 -> BV:8]
+=Output: llvm-indir_tgt
+1 : retaddr_const : BV:32
+=Node outputs done for E0%0%1
+=input_outputs done
+=Symbol-map:
+=Symbol-map done
+=Locals-map:
+=Locals-map done
+=StartState:
+=dst.llvm-mem
+1 : input.dst.llvm-mem : ARRAY[BV:32 -> BV:8]
+=state_end
+
+=Global assumes
+=global assume predicate_set done
+=Edge: L0%3%1 => Lfoo%1%1
+=Edge.EdgeCond: 
+1 : input.dst.llvm-%i_3 : BOOL
+=Edge.StateTo: 
+=state_end
+=Edge.Assumes.begin:
+=EdgeAssume.0
+1 : 1 : BOOL
+2 : input.dst.llvm-%i_3.poison : BOOL
+3 : not(2) : BOOL
+4 : implies(1, 3) : BOOL
+5 : implies(1, 4) : BOOL
+=Edge.Assumes.end
+=Edge.te_comment
+0:3:((  br i1 %i_3, label %foo, label %end*  br i1 %i_3, label %foo, label %end)*  br i1 %i_3, label %foo, label %end)
+tfg_edge_comment end
+
+=Edge: L0%3%1 => Lend%1%0
+=Edge.EdgeCond: 
+1 : input.dst.llvm-%i_3 : BOOL
+2 : not(1) : BOOL
+=Edge.StateTo: 
+=state_end
+=Edge.Assumes.begin:
+=EdgeAssume.0
+1 : 1 : BOOL
+2 : input.dst.llvm-%i_3.poison : BOOL
+3 : not(2) : BOOL
+4 : implies(1, 3) : BOOL
+5 : implies(1, 4) : BOOL
+=Edge.Assumes.end
+=Edge.te_comment
+0:3:((  br i1 %i_3, label %foo, label %end*  br i1 %i_3, label %foo, label %end)*  br i1 %i_3, label %foo, label %end)
+tfg_edge_comment end
+
+=Edge: Lend%1%0 => E0%0%1
+=Edge.EdgeCond: 
+1 : 1 : BOOL
+=Edge.StateTo: 
+=dst.llvm-%hidden-reg
+1 : input.dst.llvm-%hidden-reg : BV:32
+2 : input.dst.llvm-callee-save.0 : BV:32
+3 : bvxor(1, 2) : BV:32
+4 : input.dst.llvm-callee-save.1 : BV:32
+5 : bvxor(3, 4) : BV:32
+6 : input.dst.llvm-callee-save.2 : BV:32
+7 : bvxor(5, 6) : BV:32
+8 : input.dst.llvm-callee-save.3 : BV:32
+9 : bvxor(7, 8) : BV:32
+=dst.llvm-indir_tgt
+1 : retaddr_const : BV:32
+=state_end
+=Edge.Assumes.begin:
+=Edge.Assumes.end
+=Edge.te_comment
+0:-1:(bb_entry*  ret void)
+tfg_edge_comment end
+
+=Edge: L0%0%1 => L0%3%1
+=Edge.EdgeCond: 
+1 : 1 : BOOL
+=Edge.StateTo: 
+=dst.llvm-%i_2.poison
+1 : 0 : BOOL
+2 : or(1, 1) : BOOL
+=dst.llvm-%i_2
+1 : 10 { -6 } : BV:4
+2 : 12 { -4 } : BV:4
+3 : bvadd(1, 2) : BV:4
+=dst.llvm-%i_3.poison
+1 : 0 : BOOL
+2 : or(1, 1) : BOOL
+3 : or(2, 1) : BOOL
+=dst.llvm-%i_3
+1 : 10 { -6 } : BV:4
+2 : 12 { -4 } : BV:4
+3 : bvadd(1, 2) : BV:4
+4 : 0 : BV:4
+5 : eq(3, 4) : BOOL
+=state_end
+=Edge.Assumes.begin:
+=Edge.Assumes.end
+=Edge.te_comment
+0:-1:((((start_pc_edge*  %i_2 = add i4 -6, -4)*  %i_2 = add i4 -6, -4)*  %i_3 = icmp eq i4 %i_2, 0)*  %i_3 = icmp eq i4 %i_2, 0)
+tfg_edge_comment end
+
+=Edge: Lfoo%1%1 => Lend%1%0
+=Edge.EdgeCond: 
+1 : 1 : BOOL
+=Edge.StateTo: 
+=dst.llvm-%i_4.poison.temp1
+1 : 2 : BV:4
+2 : 4 : INT
+3 : isshiftcount(1, 2) : BOOL
+=dst.llvm-%i_4.poison.temp2
+1 : 2 : BV:4
+2 : 4 : INT
+3 : isshiftcount(1, 2) : BOOL
+4 : not(3) : BOOL
+=dst.llvm-%i_4.poison
+1 : 0 : BOOL
+2 : 2 : BV:4
+3 : 4 : INT
+4 : isshiftcount(2, 3) : BOOL
+5 : not(4) : BOOL
+6 : or(1, 1, 5) : BOOL
+=dst.llvm-%i_4
+1 : 3 : BV:4
+2 : 2 : BV:4
+3 : bvshl(1, 2) : BV:4
+=state_end
+=Edge.Assumes.begin:
+=Edge.Assumes.end
+=Edge.te_comment
+0:1:(((  %i_4 = shl i4 3, 2*  %i_4 = shl i4 3, 2)*  %i_4 = shl i4 3, 2)*(((  %i_4 = shl i4 3, 2*  br label %end)*  br label %end)*  br label %end))
+tfg_edge_comment end
+
+=graph_with_predicates_done
+=graph_with_simplified_assets
+=graph_with_simplified_assets.simplified_edgecond at L0%0%1=>L0%1%1
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at L0%0%1=>L0%3%1
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at L0%1%1=>L0%1%100003
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at L0%1%100003=>L0%2%1
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at L0%2%1=>L0%2%100003
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at L0%2%100003=>L0%3%1
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at L0%3%1=>L0%3%100003
+1 : 0 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at L0%3%1=>L0%3%100005
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at L0%3%1=>Lend%1%0
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at L0%3%1=>Lfoo%1%1
+1 : 0 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at L0%3%100003=>L0%3%100004
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at L0%3%100004=>Lfoo%1%1
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at L0%3%100005=>L0%3%100006
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at L0%3%100006=>Lend%1%0
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at Lend%1%0=>Lend%1%1
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at Lend%1%0=>E0%0%1
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at Lend%1%1=>E0%0%1
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at Lfoo%1%1=>Lend%1%0
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at Lfoo%1%1=>Lfoo%1%100003
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at Lfoo%1%100003=>Lfoo%1%100004
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at Lfoo%1%100004=>Lfoo%1%100005
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at Lfoo%1%100005=>Lfoo%2%1
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at Lfoo%2%1=>Lfoo%2%100003
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at Lfoo%2%100003=>Lfoo%2%100004
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at Lfoo%2%100004=>Lend%1%0
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond done
+=graph_with_simplified_assets.simplified_to_state at L0%0%1=>L0%1%1
+=state_end
+=graph_with_simplified_assets.simplified_to_state at L0%0%1=>L0%3%1
+=dst.llvm-%i_2.poison
+1 : 0 : BOOL
+=dst.llvm-%i_2
+1 : 6 : BV:4
+=dst.llvm-%i_3.poison
+1 : 0 : BOOL
+=dst.llvm-%i_3
+1 : 0 : BOOL
+=state_end
+=graph_with_simplified_assets.simplified_to_state at L0%1%1=>L0%1%100003
+=dst.llvm-%i_2.poison
+1 : 0 : BOOL
+=state_end
+=graph_with_simplified_assets.simplified_to_state at L0%1%100003=>L0%2%1
+=dst.llvm-%i_2
+1 : 6 : BV:4
+=state_end
+=graph_with_simplified_assets.simplified_to_state at L0%2%1=>L0%2%100003
+=dst.llvm-%i_3.poison
+1 : 0 : BOOL
+=state_end
+=graph_with_simplified_assets.simplified_to_state at L0%2%100003=>L0%3%1
+=dst.llvm-%i_3
+1 : 0 : BOOL
+=state_end
+=graph_with_simplified_assets.simplified_to_state at L0%3%1=>L0%3%100003
+=state_end
+=graph_with_simplified_assets.simplified_to_state at L0%3%1=>L0%3%100005
+=state_end
+=graph_with_simplified_assets.simplified_to_state at L0%3%1=>Lend%1%0
+=state_end
+=graph_with_simplified_assets.simplified_to_state at L0%3%1=>Lfoo%1%1
+=state_end
+=graph_with_simplified_assets.simplified_to_state at L0%3%100003=>L0%3%100004
+=state_end
+=graph_with_simplified_assets.simplified_to_state at L0%3%100004=>Lfoo%1%1
+=state_end
+=graph_with_simplified_assets.simplified_to_state at L0%3%100005=>L0%3%100006
+=state_end
+=graph_with_simplified_assets.simplified_to_state at L0%3%100006=>Lend%1%0
+=state_end
+=graph_with_simplified_assets.simplified_to_state at Lend%1%0=>Lend%1%1
+=state_end
+=graph_with_simplified_assets.simplified_to_state at Lend%1%0=>E0%0%1
+=dst.llvm-%hidden-reg
+1 : input.dst.llvm-%hidden-reg : BV:32
+2 : input.dst.llvm-callee-save.0 : BV:32
+3 : input.dst.llvm-callee-save.1 : BV:32
+4 : input.dst.llvm-callee-save.2 : BV:32
+5 : input.dst.llvm-callee-save.3 : BV:32
+6 : bvxor(1, 2, 3, 4, 5) : BV:32
+=dst.llvm-indir_tgt
+1 : retaddr_const : BV:32
+=state_end
+=graph_with_simplified_assets.simplified_to_state at Lend%1%1=>E0%0%1
+=dst.llvm-%hidden-reg
+1 : input.dst.llvm-callee-save.0 : BV:32
+2 : input.dst.llvm-%hidden-reg : BV:32
+3 : input.dst.llvm-callee-save.1 : BV:32
+4 : input.dst.llvm-callee-save.2 : BV:32
+5 : input.dst.llvm-callee-save.3 : BV:32
+6 : bvxor(1, 2, 3, 4, 5) : BV:32
+=dst.llvm-indir_tgt
+1 : retaddr_const : BV:32
+=state_end
+=graph_with_simplified_assets.simplified_to_state at Lfoo%1%1=>Lend%1%0
+=dst.llvm-%i_4.poison.temp1
+1 : 1 : BOOL
+=dst.llvm-%i_4.poison.temp2
+1 : 0 : BOOL
+=dst.llvm-%i_4.poison
+1 : 0 : BOOL
+=dst.llvm-%i_4
+1 : 12 { -4 } : BV:4
+=state_end
+=graph_with_simplified_assets.simplified_to_state at Lfoo%1%1=>Lfoo%1%100003
+=dst.llvm-%i_4.poison.temp1
+1 : 1 : BOOL
+=state_end
+=graph_with_simplified_assets.simplified_to_state at Lfoo%1%100003=>Lfoo%1%100004
+=dst.llvm-%i_4.poison.temp2
+1 : 0 : BOOL
+=state_end
+=graph_with_simplified_assets.simplified_to_state at Lfoo%1%100004=>Lfoo%1%100005
+=dst.llvm-%i_4.poison
+1 : 0 : BOOL
+=state_end
+=graph_with_simplified_assets.simplified_to_state at Lfoo%1%100005=>Lfoo%2%1
+=dst.llvm-%i_4
+1 : 12 { -4 } : BV:4
+=state_end
+=graph_with_simplified_assets.simplified_to_state at Lfoo%2%1=>Lfoo%2%100003
+=state_end
+=graph_with_simplified_assets.simplified_to_state at Lfoo%2%100003=>Lfoo%2%100004
+=state_end
+=graph_with_simplified_assets.simplified_to_state at Lfoo%2%100004=>Lend%1%0
+=state_end
+=graph_with_simplified_assets.simplified_to_state done
+=graph_with_simplified_assets.simplified_assumes at L0%0%1=>L0%1%1
+=graph_with_simplified_assets.simplified_assumes at L0%0%1=>L0%1%1 done
+=graph_with_simplified_assets.simplified_assumes at L0%0%1=>L0%3%1
+=graph_with_simplified_assets.simplified_assumes at L0%0%1=>L0%3%1 done
+=graph_with_simplified_assets.simplified_assumes at L0%1%1=>L0%1%100003
+=graph_with_simplified_assets.simplified_assumes at L0%1%1=>L0%1%100003 done
+=graph_with_simplified_assets.simplified_assumes at L0%1%100003=>L0%2%1
+=graph_with_simplified_assets.simplified_assumes at L0%1%100003=>L0%2%1 done
+=graph_with_simplified_assets.simplified_assumes at L0%2%1=>L0%2%100003
+=graph_with_simplified_assets.simplified_assumes at L0%2%1=>L0%2%100003 done
+=graph_with_simplified_assets.simplified_assumes at L0%2%100003=>L0%3%1
+=graph_with_simplified_assets.simplified_assumes at L0%2%100003=>L0%3%1 done
+=graph_with_simplified_assets.simplified_assumes at L0%3%1=>L0%3%100003
+=graph_with_simplified_assets.simplified_assumes at L0%3%1=>L0%3%100003 assume# 0
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_assumes at L0%3%1=>L0%3%100003 done
+=graph_with_simplified_assets.simplified_assumes at L0%3%1=>L0%3%100005
+=graph_with_simplified_assets.simplified_assumes at L0%3%1=>L0%3%100005 assume# 0
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_assumes at L0%3%1=>L0%3%100005 done
+=graph_with_simplified_assets.simplified_assumes at L0%3%1=>Lend%1%0
+=graph_with_simplified_assets.simplified_assumes at L0%3%1=>Lend%1%0 assume# 0
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_assumes at L0%3%1=>Lend%1%0 done
+=graph_with_simplified_assets.simplified_assumes at L0%3%1=>Lfoo%1%1
+=graph_with_simplified_assets.simplified_assumes at L0%3%1=>Lfoo%1%1 assume# 0
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_assumes at L0%3%1=>Lfoo%1%1 done
+=graph_with_simplified_assets.simplified_assumes at L0%3%100003=>L0%3%100004
+=graph_with_simplified_assets.simplified_assumes at L0%3%100003=>L0%3%100004 done
+=graph_with_simplified_assets.simplified_assumes at L0%3%100004=>Lfoo%1%1
+=graph_with_simplified_assets.simplified_assumes at L0%3%100004=>Lfoo%1%1 done
+=graph_with_simplified_assets.simplified_assumes at L0%3%100005=>L0%3%100006
+=graph_with_simplified_assets.simplified_assumes at L0%3%100005=>L0%3%100006 done
+=graph_with_simplified_assets.simplified_assumes at L0%3%100006=>Lend%1%0
+=graph_with_simplified_assets.simplified_assumes at L0%3%100006=>Lend%1%0 done
+=graph_with_simplified_assets.simplified_assumes at Lend%1%0=>Lend%1%1
+=graph_with_simplified_assets.simplified_assumes at Lend%1%0=>Lend%1%1 done
+=graph_with_simplified_assets.simplified_assumes at Lend%1%0=>E0%0%1
+=graph_with_simplified_assets.simplified_assumes at Lend%1%0=>E0%0%1 done
+=graph_with_simplified_assets.simplified_assumes at Lend%1%1=>E0%0%1
+=graph_with_simplified_assets.simplified_assumes at Lend%1%1=>E0%0%1 done
+=graph_with_simplified_assets.simplified_assumes at Lfoo%1%1=>Lend%1%0
+=graph_with_simplified_assets.simplified_assumes at Lfoo%1%1=>Lend%1%0 done
+=graph_with_simplified_assets.simplified_assumes at Lfoo%1%1=>Lfoo%1%100003
+=graph_with_simplified_assets.simplified_assumes at Lfoo%1%1=>Lfoo%1%100003 done
+=graph_with_simplified_assets.simplified_assumes at Lfoo%1%100003=>Lfoo%1%100004
+=graph_with_simplified_assets.simplified_assumes at Lfoo%1%100003=>Lfoo%1%100004 done
+=graph_with_simplified_assets.simplified_assumes at Lfoo%1%100004=>Lfoo%1%100005
+=graph_with_simplified_assets.simplified_assumes at Lfoo%1%100004=>Lfoo%1%100005 done
+=graph_with_simplified_assets.simplified_assumes at Lfoo%1%100005=>Lfoo%2%1
+=graph_with_simplified_assets.simplified_assumes at Lfoo%1%100005=>Lfoo%2%1 done
+=graph_with_simplified_assets.simplified_assumes at Lfoo%2%1=>Lfoo%2%100003
+=graph_with_simplified_assets.simplified_assumes at Lfoo%2%1=>Lfoo%2%100003 done
+=graph_with_simplified_assets.simplified_assumes at Lfoo%2%100003=>Lfoo%2%100004
+=graph_with_simplified_assets.simplified_assumes at Lfoo%2%100003=>Lfoo%2%100004 done
+=graph_with_simplified_assets.simplified_assumes at Lfoo%2%100004=>Lend%1%0
+=graph_with_simplified_assets.simplified_assumes at Lfoo%2%100004=>Lend%1%0 done
+=graph_with_simplified_assets.simplified_assumes done
+=graph_with_simplified_assets.loc_to_expr_map at L0%0%1=>L0%1%1
+=graph_with_simplified_assets.loc_to_expr_map at L0%0%1=>L0%1%1 done
+=graph_with_simplified_assets.loc_to_expr_map at L0%0%1=>L0%3%1
+=graph_with_simplified_assets.loc_to_expr_map at L0%0%1=>L0%3%1 for loc_id 1002
+1 : 6 : BV:4
+=graph_with_simplified_assets.loc_to_expr_map at L0%0%1=>L0%3%1 for loc_id 1003
+1 : 0 : BOOL
+=graph_with_simplified_assets.loc_to_expr_map at L0%0%1=>L0%3%1 for loc_id 1004
+1 : 0 : BOOL
+=graph_with_simplified_assets.loc_to_expr_map at L0%0%1=>L0%3%1 for loc_id 1005
+1 : 0 : BOOL
+=graph_with_simplified_assets.loc_to_expr_map at L0%0%1=>L0%3%1 done
+=graph_with_simplified_assets.loc_to_expr_map at L0%1%1=>L0%1%100003
+=graph_with_simplified_assets.loc_to_expr_map at L0%1%1=>L0%1%100003 for loc_id 1003
+1 : 0 : BOOL
+=graph_with_simplified_assets.loc_to_expr_map at L0%1%1=>L0%1%100003 done
+=graph_with_simplified_assets.loc_to_expr_map at L0%1%100003=>L0%2%1
+=graph_with_simplified_assets.loc_to_expr_map at L0%1%100003=>L0%2%1 for loc_id 1002
+1 : 6 : BV:4
+=graph_with_simplified_assets.loc_to_expr_map at L0%1%100003=>L0%2%1 done
+=graph_with_simplified_assets.loc_to_expr_map at L0%2%1=>L0%2%100003
+=graph_with_simplified_assets.loc_to_expr_map at L0%2%1=>L0%2%100003 for loc_id 1005
+1 : 0 : BOOL
+=graph_with_simplified_assets.loc_to_expr_map at L0%2%1=>L0%2%100003 done
+=graph_with_simplified_assets.loc_to_expr_map at L0%2%100003=>L0%3%1
+=graph_with_simplified_assets.loc_to_expr_map at L0%2%100003=>L0%3%1 for loc_id 1004
+1 : 0 : BOOL
+=graph_with_simplified_assets.loc_to_expr_map at L0%2%100003=>L0%3%1 done
+=graph_with_simplified_assets.loc_to_expr_map at L0%3%1=>L0%3%100003
+=graph_with_simplified_assets.loc_to_expr_map at L0%3%1=>L0%3%100003 done
+=graph_with_simplified_assets.loc_to_expr_map at L0%3%1=>L0%3%100005
+=graph_with_simplified_assets.loc_to_expr_map at L0%3%1=>L0%3%100005 done
+=graph_with_simplified_assets.loc_to_expr_map at L0%3%1=>Lend%1%0
+=graph_with_simplified_assets.loc_to_expr_map at L0%3%1=>Lend%1%0 done
+=graph_with_simplified_assets.loc_to_expr_map at L0%3%1=>Lfoo%1%1
+=graph_with_simplified_assets.loc_to_expr_map at L0%3%1=>Lfoo%1%1 done
+=graph_with_simplified_assets.loc_to_expr_map at L0%3%100003=>L0%3%100004
+=graph_with_simplified_assets.loc_to_expr_map at L0%3%100003=>L0%3%100004 done
+=graph_with_simplified_assets.loc_to_expr_map at L0%3%100004=>Lfoo%1%1
+=graph_with_simplified_assets.loc_to_expr_map at L0%3%100004=>Lfoo%1%1 done
+=graph_with_simplified_assets.loc_to_expr_map at L0%3%100005=>L0%3%100006
+=graph_with_simplified_assets.loc_to_expr_map at L0%3%100005=>L0%3%100006 done
+=graph_with_simplified_assets.loc_to_expr_map at L0%3%100006=>Lend%1%0
+=graph_with_simplified_assets.loc_to_expr_map at L0%3%100006=>Lend%1%0 done
+=graph_with_simplified_assets.loc_to_expr_map at Lend%1%0=>Lend%1%1
+=graph_with_simplified_assets.loc_to_expr_map at Lend%1%0=>Lend%1%1 done
+=graph_with_simplified_assets.loc_to_expr_map at Lend%1%0=>E0%0%1
+=graph_with_simplified_assets.loc_to_expr_map at Lend%1%0=>E0%0%1 for loc_id 1001
+1 : input.dst.llvm-%hidden-reg : BV:32
+2 : input.dst.llvm-callee-save.0 : BV:32
+3 : input.dst.llvm-callee-save.1 : BV:32
+4 : input.dst.llvm-callee-save.2 : BV:32
+5 : input.dst.llvm-callee-save.3 : BV:32
+6 : bvxor(1, 2, 3, 4, 5) : BV:32
+=graph_with_simplified_assets.loc_to_expr_map at Lend%1%0=>E0%0%1 for loc_id 1010
+1 : retaddr_const : BV:32
+=graph_with_simplified_assets.loc_to_expr_map at Lend%1%0=>E0%0%1 done
+=graph_with_simplified_assets.loc_to_expr_map at Lend%1%1=>E0%0%1
+=graph_with_simplified_assets.loc_to_expr_map at Lend%1%1=>E0%0%1 for loc_id 1001
+1 : input.dst.llvm-callee-save.0 : BV:32
+2 : input.dst.llvm-%hidden-reg : BV:32
+3 : input.dst.llvm-callee-save.1 : BV:32
+4 : input.dst.llvm-callee-save.2 : BV:32
+5 : input.dst.llvm-callee-save.3 : BV:32
+6 : bvxor(1, 2, 3, 4, 5) : BV:32
+=graph_with_simplified_assets.loc_to_expr_map at Lend%1%1=>E0%0%1 for loc_id 1010
+1 : retaddr_const : BV:32
+=graph_with_simplified_assets.loc_to_expr_map at Lend%1%1=>E0%0%1 done
+=graph_with_simplified_assets.loc_to_expr_map at Lfoo%1%1=>Lend%1%0
+=graph_with_simplified_assets.loc_to_expr_map at Lfoo%1%1=>Lend%1%0 for loc_id 1006
+1 : 12 { -4 } : BV:4
+=graph_with_simplified_assets.loc_to_expr_map at Lfoo%1%1=>Lend%1%0 for loc_id 1007
+1 : 0 : BOOL
+=graph_with_simplified_assets.loc_to_expr_map at Lfoo%1%1=>Lend%1%0 for loc_id 1008
+1 : 1 : BOOL
+=graph_with_simplified_assets.loc_to_expr_map at Lfoo%1%1=>Lend%1%0 for loc_id 1009
+1 : 0 : BOOL
+=graph_with_simplified_assets.loc_to_expr_map at Lfoo%1%1=>Lend%1%0 done
+=graph_with_simplified_assets.loc_to_expr_map at Lfoo%1%1=>Lfoo%1%100003
+=graph_with_simplified_assets.loc_to_expr_map at Lfoo%1%1=>Lfoo%1%100003 for loc_id 1008
+1 : 1 : BOOL
+=graph_with_simplified_assets.loc_to_expr_map at Lfoo%1%1=>Lfoo%1%100003 done
+=graph_with_simplified_assets.loc_to_expr_map at Lfoo%1%100003=>Lfoo%1%100004
+=graph_with_simplified_assets.loc_to_expr_map at Lfoo%1%100003=>Lfoo%1%100004 for loc_id 1009
+1 : 0 : BOOL
+=graph_with_simplified_assets.loc_to_expr_map at Lfoo%1%100003=>Lfoo%1%100004 done
+=graph_with_simplified_assets.loc_to_expr_map at Lfoo%1%100004=>Lfoo%1%100005
+=graph_with_simplified_assets.loc_to_expr_map at Lfoo%1%100004=>Lfoo%1%100005 for loc_id 1007
+1 : 0 : BOOL
+=graph_with_simplified_assets.loc_to_expr_map at Lfoo%1%100004=>Lfoo%1%100005 done
+=graph_with_simplified_assets.loc_to_expr_map at Lfoo%1%100005=>Lfoo%2%1
+=graph_with_simplified_assets.loc_to_expr_map at Lfoo%1%100005=>Lfoo%2%1 for loc_id 1006
+1 : 12 { -4 } : BV:4
+=graph_with_simplified_assets.loc_to_expr_map at Lfoo%1%100005=>Lfoo%2%1 done
+=graph_with_simplified_assets.loc_to_expr_map at Lfoo%2%1=>Lfoo%2%100003
+=graph_with_simplified_assets.loc_to_expr_map at Lfoo%2%1=>Lfoo%2%100003 done
+=graph_with_simplified_assets.loc_to_expr_map at Lfoo%2%100003=>Lfoo%2%100004
+=graph_with_simplified_assets.loc_to_expr_map at Lfoo%2%100003=>Lfoo%2%100004 done
+=graph_with_simplified_assets.loc_to_expr_map at Lfoo%2%100004=>Lend%1%0
+=graph_with_simplified_assets.loc_to_expr_map at Lfoo%2%100004=>Lend%1%0 done
+=graph_with_simplified_assets.loc_to_expr_map done
+=graph_with_simplified_assets done
+
+=Locs in dst.llvm.main.dst
+=Loc 1001 in dst.llvm.main.dst.
+LLVMVAR
+dst.llvm-%hidden-reg
+1 : input.dst.llvm-%hidden-reg : BV:32
+=Loc 1002 in dst.llvm.main.dst.
+LLVMVAR
+dst.llvm-%i_2
+1 : input.dst.llvm-%i_2 : BV:4
+=Loc 1003 in dst.llvm.main.dst.
+LLVMVAR
+dst.llvm-%i_2.poison
+1 : input.dst.llvm-%i_2.poison : BOOL
+=Loc 1004 in dst.llvm.main.dst.
+LLVMVAR
+dst.llvm-%i_3
+1 : input.dst.llvm-%i_3 : BOOL
+=Loc 1005 in dst.llvm.main.dst.
+LLVMVAR
+dst.llvm-%i_3.poison
+1 : input.dst.llvm-%i_3.poison : BOOL
+=Loc 1006 in dst.llvm.main.dst.
+LLVMVAR
+dst.llvm-%i_4
+1 : input.dst.llvm-%i_4 : BV:4
+=Loc 1007 in dst.llvm.main.dst.
+LLVMVAR
+dst.llvm-%i_4.poison
+1 : input.dst.llvm-%i_4.poison : BOOL
+=Loc 1008 in dst.llvm.main.dst.
+LLVMVAR
+dst.llvm-%i_4.poison.temp1
+1 : input.dst.llvm-%i_4.poison.temp1 : BOOL
+=Loc 1009 in dst.llvm.main.dst.
+LLVMVAR
+dst.llvm-%i_4.poison.temp2
+1 : input.dst.llvm-%i_4.poison.temp2 : BOOL
+=Loc 1010 in dst.llvm.main.dst.
+LLVMVAR
+dst.llvm-indir_tgt
+1 : input.dst.llvm-indir_tgt : BV:32
+=Loc 1011 in dst.llvm.main.dst.
+MASKED
+=memname
+dst.llvm-mem
+=memlabel
+memlabel-mem-heap
+=Loc 1012 in dst.llvm.main.dst.
+MASKED
+=memname
+dst.llvm-mem
+=memlabel
+memlabel-mem-esp
+
+=Alias analysis results in dst.llvm.main.dst
+=Alias analysis result in dst.llvm.main.dst at L0%0%1
+=Alias analysis result in dst.llvm.main.dst at L0%0%1 for loc 1001 (input.dst.llvm-%hidden-reg)
+nullptr
+=Alias analysis result in dst.llvm.main.dst at L0%0%1 for loc 1002 (input.dst.llvm-%i_2)
+nullptr
+=Alias analysis result in dst.llvm.main.dst at L0%0%1 for loc 1003 (input.dst.llvm-%i_2.poison)
+nullptr
+=Alias analysis result in dst.llvm.main.dst at L0%0%1 for loc 1004 (input.dst.llvm-%i_3)
+nullptr
+=Alias analysis result in dst.llvm.main.dst at L0%0%1 for loc 1005 (input.dst.llvm-%i_3.poison)
+nullptr
+=Alias analysis result in dst.llvm.main.dst at L0%0%1 for loc 1006 (input.dst.llvm-%i_4)
+nullptr
+=Alias analysis result in dst.llvm.main.dst at L0%0%1 for loc 1007 (input.dst.llvm-%i_4.poison)
+nullptr
+=Alias analysis result in dst.llvm.main.dst at L0%0%1 for loc 1008 (input.dst.llvm-%i_4.poison.temp1)
+nullptr
+=Alias analysis result in dst.llvm.main.dst at L0%0%1 for loc 1009 (input.dst.llvm-%i_4.poison.temp2)
+nullptr
+=Alias analysis result in dst.llvm.main.dst at L0%0%1 for loc 1010 (input.dst.llvm-indir_tgt)
+nullptr
+=Alias analysis result in dst.llvm.main.dst at L0%0%1 for loc 1011 (memmask(input.dst.llvm-mem, memlabel-mem-heap))
+nullptr
+=Alias analysis result in dst.llvm.main.dst at L0%0%1 for loc 1012 (memmask(input.dst.llvm-mem, memlabel-mem-esp))
+nullptr
+=Alias analysis result in dst.llvm.main.dst at L0%3%1
+=Alias analysis result in dst.llvm.main.dst at L0%3%1 for loc 1001 (input.dst.llvm-%hidden-reg)
+nullptr
+=Alias analysis result in dst.llvm.main.dst at L0%3%1 for loc 1002 (input.dst.llvm-%i_2)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in dst.llvm.main.dst at L0%3%1 for loc 1003 (input.dst.llvm-%i_2.poison)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in dst.llvm.main.dst at L0%3%1 for loc 1004 (input.dst.llvm-%i_3)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in dst.llvm.main.dst at L0%3%1 for loc 1005 (input.dst.llvm-%i_3.poison)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in dst.llvm.main.dst at L0%3%1 for loc 1006 (input.dst.llvm-%i_4)
+nullptr
+=Alias analysis result in dst.llvm.main.dst at L0%3%1 for loc 1007 (input.dst.llvm-%i_4.poison)
+nullptr
+=Alias analysis result in dst.llvm.main.dst at L0%3%1 for loc 1008 (input.dst.llvm-%i_4.poison.temp1)
+nullptr
+=Alias analysis result in dst.llvm.main.dst at L0%3%1 for loc 1009 (input.dst.llvm-%i_4.poison.temp2)
+nullptr
+=Alias analysis result in dst.llvm.main.dst at L0%3%1 for loc 1010 (input.dst.llvm-indir_tgt)
+nullptr
+=Alias analysis result in dst.llvm.main.dst at L0%3%1 for loc 1011 (memmask(input.dst.llvm-mem, memlabel-mem-heap))
+nullptr
+=Alias analysis result in dst.llvm.main.dst at L0%3%1 for loc 1012 (memmask(input.dst.llvm-mem, memlabel-mem-esp))
+nullptr
+=Alias analysis result in dst.llvm.main.dst at Lend%1%0
+=Alias analysis result in dst.llvm.main.dst at Lend%1%0 for loc 1001 (input.dst.llvm-%hidden-reg)
+nullptr
+=Alias analysis result in dst.llvm.main.dst at Lend%1%0 for loc 1002 (input.dst.llvm-%i_2)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in dst.llvm.main.dst at Lend%1%0 for loc 1003 (input.dst.llvm-%i_2.poison)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in dst.llvm.main.dst at Lend%1%0 for loc 1004 (input.dst.llvm-%i_3)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in dst.llvm.main.dst at Lend%1%0 for loc 1005 (input.dst.llvm-%i_3.poison)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in dst.llvm.main.dst at Lend%1%0 for loc 1006 (input.dst.llvm-%i_4)
+nullptr
+=Alias analysis result in dst.llvm.main.dst at Lend%1%0 for loc 1007 (input.dst.llvm-%i_4.poison)
+nullptr
+=Alias analysis result in dst.llvm.main.dst at Lend%1%0 for loc 1008 (input.dst.llvm-%i_4.poison.temp1)
+nullptr
+=Alias analysis result in dst.llvm.main.dst at Lend%1%0 for loc 1009 (input.dst.llvm-%i_4.poison.temp2)
+nullptr
+=Alias analysis result in dst.llvm.main.dst at Lend%1%0 for loc 1010 (input.dst.llvm-indir_tgt)
+nullptr
+=Alias analysis result in dst.llvm.main.dst at Lend%1%0 for loc 1011 (memmask(input.dst.llvm-mem, memlabel-mem-heap))
+nullptr
+=Alias analysis result in dst.llvm.main.dst at Lend%1%0 for loc 1012 (memmask(input.dst.llvm-mem, memlabel-mem-esp))
+nullptr
+=Alias analysis result in dst.llvm.main.dst at Lfoo%1%1
+=Alias analysis result in dst.llvm.main.dst at Lfoo%1%1 for loc 1001 (input.dst.llvm-%hidden-reg)
+nullptr
+=Alias analysis result in dst.llvm.main.dst at Lfoo%1%1 for loc 1002 (input.dst.llvm-%i_2)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in dst.llvm.main.dst at Lfoo%1%1 for loc 1003 (input.dst.llvm-%i_2.poison)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in dst.llvm.main.dst at Lfoo%1%1 for loc 1004 (input.dst.llvm-%i_3)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in dst.llvm.main.dst at Lfoo%1%1 for loc 1005 (input.dst.llvm-%i_3.poison)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in dst.llvm.main.dst at Lfoo%1%1 for loc 1006 (input.dst.llvm-%i_4)
+nullptr
+=Alias analysis result in dst.llvm.main.dst at Lfoo%1%1 for loc 1007 (input.dst.llvm-%i_4.poison)
+nullptr
+=Alias analysis result in dst.llvm.main.dst at Lfoo%1%1 for loc 1008 (input.dst.llvm-%i_4.poison.temp1)
+nullptr
+=Alias analysis result in dst.llvm.main.dst at Lfoo%1%1 for loc 1009 (input.dst.llvm-%i_4.poison.temp2)
+nullptr
+=Alias analysis result in dst.llvm.main.dst at Lfoo%1%1 for loc 1010 (input.dst.llvm-indir_tgt)
+nullptr
+=Alias analysis result in dst.llvm.main.dst at Lfoo%1%1 for loc 1011 (memmask(input.dst.llvm-mem, memlabel-mem-heap))
+nullptr
+=Alias analysis result in dst.llvm.main.dst at Lfoo%1%1 for loc 1012 (memmask(input.dst.llvm-mem, memlabel-mem-esp))
+nullptr
+=Alias analysis result in dst.llvm.main.dst at E0%0%1
+=Alias analysis result in dst.llvm.main.dst at E0%0%1 for loc 1001 (input.dst.llvm-%hidden-reg)
+nullptr
+=Alias analysis result in dst.llvm.main.dst at E0%0%1 for loc 1002 (input.dst.llvm-%i_2)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in dst.llvm.main.dst at E0%0%1 for loc 1003 (input.dst.llvm-%i_2.poison)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in dst.llvm.main.dst at E0%0%1 for loc 1004 (input.dst.llvm-%i_3)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in dst.llvm.main.dst at E0%0%1 for loc 1005 (input.dst.llvm-%i_3.poison)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in dst.llvm.main.dst at E0%0%1 for loc 1006 (input.dst.llvm-%i_4)
+nullptr
+=Alias analysis result in dst.llvm.main.dst at E0%0%1 for loc 1007 (input.dst.llvm-%i_4.poison)
+nullptr
+=Alias analysis result in dst.llvm.main.dst at E0%0%1 for loc 1008 (input.dst.llvm-%i_4.poison.temp1)
+nullptr
+=Alias analysis result in dst.llvm.main.dst at E0%0%1 for loc 1009 (input.dst.llvm-%i_4.poison.temp2)
+nullptr
+=Alias analysis result in dst.llvm.main.dst at E0%0%1 for loc 1010 (input.dst.llvm-indir_tgt)
+lr_status
+lr_status_bottom(; memlabel-mem-heap, )
+=Alias analysis result in dst.llvm.main.dst at E0%0%1 for loc 1011 (memmask(input.dst.llvm-mem, memlabel-mem-heap))
+nullptr
+=Alias analysis result in dst.llvm.main.dst at E0%0%1 for loc 1012 (memmask(input.dst.llvm-mem, memlabel-mem-esp))
+nullptr
+
+=Liveness in dst.llvm.main.dst
+=live locs at L0%0%1
+1011
+=live locs at L0%3%1
+1004, 1011
+=live locs at Lend%1%0
+1011
+=live locs at Lfoo%1%1
+1011
+=live locs at E0%0%1
+1011
+
+=Available expressions in dst.llvm.main.dst
+=available expressions at L0%0%1 in dst.llvm.main.dst
+=avail_exprs begin
+=avail_exprs end
+=available expressions at L0%3%1 in dst.llvm.main.dst
+=avail_exprs begin
+=loc 1002
+=from_expr
+17452 : input.dst.llvm-%i_2 : BV:4
+=to_expr
+17439 : 6 : BV:4
+=loc 1003
+=from_expr
+17450 : input.dst.llvm-%i_2.poison : BOOL
+=to_expr
+17407 : 0 : BOOL
+=loc 1004
+=from_expr
+17454 : input.dst.llvm-%i_3 : BOOL
+=to_expr
+17407 : 0 : BOOL
+=loc 1005
+=from_expr
+17456 : input.dst.llvm-%i_3.poison : BOOL
+=to_expr
+17407 : 0 : BOOL
+=avail_exprs end
+=available expressions at Lend%1%0 in dst.llvm.main.dst
+=avail_exprs begin
+=loc 1002
+=from_expr
+17452 : input.dst.llvm-%i_2 : BV:4
+=to_expr
+17439 : 6 : BV:4
+=loc 1003
+=from_expr
+17450 : input.dst.llvm-%i_2.poison : BOOL
+=to_expr
+17407 : 0 : BOOL
+=loc 1004
+=from_expr
+17454 : input.dst.llvm-%i_3 : BOOL
+=to_expr
+17407 : 0 : BOOL
+=loc 1005
+=from_expr
+17456 : input.dst.llvm-%i_3.poison : BOOL
+=to_expr
+17407 : 0 : BOOL
+=avail_exprs end
+=available expressions at Lfoo%1%1 in dst.llvm.main.dst
+=avail_exprs begin
+=loc 1002
+=from_expr
+17452 : input.dst.llvm-%i_2 : BV:4
+=to_expr
+17439 : 6 : BV:4
+=loc 1003
+=from_expr
+17450 : input.dst.llvm-%i_2.poison : BOOL
+=to_expr
+17407 : 0 : BOOL
+=loc 1004
+=from_expr
+17454 : input.dst.llvm-%i_3 : BOOL
+=to_expr
+17407 : 0 : BOOL
+=loc 1005
+=from_expr
+17456 : input.dst.llvm-%i_3.poison : BOOL
+=to_expr
+17407 : 0 : BOOL
+=avail_exprs end
+=available expressions at E0%0%1 in dst.llvm.main.dst
+=avail_exprs begin
+=loc 1002
+=from_expr
+17452 : input.dst.llvm-%i_2 : BV:4
+=to_expr
+17439 : 6 : BV:4
+=loc 1003
+=from_expr
+17450 : input.dst.llvm-%i_2.poison : BOOL
+=to_expr
+17407 : 0 : BOOL
+=loc 1004
+=from_expr
+17454 : input.dst.llvm-%i_3 : BOOL
+=to_expr
+17407 : 0 : BOOL
+=loc 1005
+=from_expr
+17456 : input.dst.llvm-%i_3.poison : BOOL
+=to_expr
+17407 : 0 : BOOL
+=loc 1010
+=from_expr
+17474 : input.dst.llvm-indir_tgt : BV:32
+=to_expr
+17387 : retaddr_const : BV:32
+=avail_exprs end
+
+=sprel_maps in dst.llvm.main.dst
+=sprel_map at L0%0%1 in dst.llvm.main.dst
+=sprel_map at L0%3%1 in dst.llvm.main.dst
+=loc 1002
+17439 : 6 : BV:4
+=loc 1003
+17407 : 0 : BOOL
+=loc 1004
+17407 : 0 : BOOL
+=loc 1005
+17407 : 0 : BOOL
+=sprel_map at Lend%1%0 in dst.llvm.main.dst
+=loc 1002
+17439 : 6 : BV:4
+=loc 1003
+17407 : 0 : BOOL
+=loc 1004
+17407 : 0 : BOOL
+=loc 1005
+17407 : 0 : BOOL
+=sprel_map at Lfoo%1%1 in dst.llvm.main.dst
+=loc 1002
+17439 : 6 : BV:4
+=loc 1003
+17407 : 0 : BOOL
+=loc 1004
+17407 : 0 : BOOL
+=loc 1005
+17407 : 0 : BOOL
+=sprel_map at E0%0%1 in dst.llvm.main.dst
+=loc 1002
+17439 : 6 : BV:4
+=loc 1003
+17407 : 0 : BOOL
+=loc 1004
+17407 : 0 : BOOL
+=loc 1005
+17407 : 0 : BOOL
+=loc 1010
+17387 : retaddr_const : BV:32
+=graph_with_aliasing_done
+=Memlabel assertions empty
+=Memlabel assertions done
+=graph_with_proofs done
+=graph_with_ce done
+=Invariant state at node L0%0%1:
+=pc L0%0%1 invariant_state
+is_top 0
+is_stable 1
+=pc L0%0%1 invariant_state done
+=Invariant state at node L0%3%1:
+=pc L0%3%1 invariant_state
+is_top 0
+is_stable 1
+=pc L0%3%1 invariant_state done
+=Invariant state at node Lend%1%0:
+=pc Lend%1%0 invariant_state
+is_top 0
+is_stable 1
+=pc Lend%1%0 invariant_state done
+=Invariant state at node Lfoo%1%1:
+=pc Lfoo%1%1 invariant_state
+is_top 0
+is_stable 1
+=pc Lfoo%1%1 invariant_state done
+=Invariant state at node E0%0%1:
+=pc E0%0%1 invariant_state
+is_top 0
+is_stable 1
+=pc E0%0%1 invariant_state done
+=graph_with_guessing done
+=String-contents:
+=Nextpc-map:
+=TFGdone
+=suffixpaths for dst.llvm.main.dst
+=suffixpath_at_L0%0%1 for dst.llvm.main.dst
+=suffixpath_at_L0%0%1.graph_edge_composition
+(epsilon)
+=suffixpath_at_L0%3%1 for dst.llvm.main.dst
+=suffixpath_at_L0%3%1.graph_edge_composition
+(L0%0%1=>L0%3%1)
+=suffixpath_at_Lend%1%0 for dst.llvm.main.dst
+=suffixpath_at_Lend%1%0.graph_edge_composition
+(((L0%0%1=>L0%3%1)*(L0%3%1=>Lend%1%0))+((L0%0%1=>L0%3%1)*((L0%3%1=>Lfoo%1%1)*(Lfoo%1%1=>Lend%1%0))))
+=suffixpath_at_Lfoo%1%1 for dst.llvm.main.dst
+=suffixpath_at_Lfoo%1%1.graph_edge_composition
+((L0%0%1=>L0%3%1)*(L0%3%1=>Lfoo%1%1))
+=suffixpath_at_E0%0%1 for dst.llvm.main.dst
+=suffixpath_at_E0%0%1.graph_edge_composition
+((((L0%0%1=>L0%3%1)*(L0%3%1=>Lend%1%0))+((L0%0%1=>L0%3%1)*((L0%3%1=>Lfoo%1%1)*(Lfoo%1%1=>Lend%1%0))))*(Lend%1%0=>E0%0%1))
+=suffixpaths for dst.llvm.main.dst done
+=PC_to_linename:
+=PC_to_linename done
+=PC_to_column_name:
+=PC_to_column_name done
+=PC_to_line_and_column:
+=PC_to_line_and_column done
+=SourceToLLVMVarnames:
+=SourceToLLVMVarnames done
+=InputLLVMToSourceVarnames:
+input.dst.llvm-%i_2.poison : L0%1%100003 : false
+input.dst.llvm-%i_2 : L0%2%1 : 6
+input.dst.llvm-%i_3 : L0%3%1 : false
+input.dst.llvm-%i_3.poison : L0%2%100003 : false
+input.dst.llvm-%i_4.poison.temp1 : Lfoo%1%100003 : true
+input.dst.llvm-%i_4.poison.temp2 : Lfoo%1%100004 : false
+input.dst.llvm-%i_4 : Lfoo%2%1 : (-4)
+input.dst.llvm-%i_4.poison : Lfoo%1%100005 : false
+input.dst.llvm-indir_tgt : E0%0%1 : return-address
+=InputLLVMToSourceVarnames done
+=PotentialSCEVRelations:
+=PotentialSCEVRelations done
+=TFG_LLVM_done
+=eqcheck_info
+=eqcheck
+=proof_filename eq.proof.main
+=function_name main
+=fixed_reg_mappings begin
+0 : 0 : 0
+0 : 4 : 4
+=fixed_reg_mappings end
+=rodata_map begin
+=rodata_map end
+=dst_iseq
+=dst_iseq done
+=dst_insn_pcs
+=dst_insn_pcs done
+=asm_filename NONE
+=xml_output_format text-color
+=eqcheck done
+=graph_with_guessing
+=Nodes: L0%0%1_L0%0%1 E0%0%1_E0%0%1
+=Edges:
+L0%0%1_L0%0%1 => E0%0%1_E0%0%1
+=graph done
+=Node outputs: E0%0%1_E0%0%1
+=Node outputs done for E0%0%1_E0%0%1
+=input_outputs done
+=Symbol-map:
+=Symbol-map done
+=Locals-map:
+=Locals-map done
+=StartState:
+=src.llvm-mem
+1 : input.src.llvm-mem : ARRAY[BV:32 -> BV:8]
+=dst.llvm-mem
+1 : input.dst.llvm-mem : ARRAY[BV:32 -> BV:8]
+=state_end
+
+=Global assumes
+=global assume predicate_set done
+=Edge: L0%0%1_L0%0%1 => E0%0%1_E0%0%1
+=Edge.src_tfg_full_pathset
+=Edge.src_tfg_full_pathset.ec from L0%0%1 to E0%0%1 at unroll 1 delta 1
+=Edge.src_tfg_full_pathset.graph_edge_composition
+((L0%0%1=>L0%3%1)*(((L0%3%1=>Lend%1%0)+((L0%3%1=>Lfoo%1%1)*(Lfoo%1%1=>Lend%1%0)))*(Lend%1%0=>E0%0%1)))
+=Edge.src_tfg_full_pathset done
+=Edge.dst_tfg_full_pathset
+=Edge.dst_tfg_full_pathset.ec from L0%0%1 to E0%0%1 at unroll 1 delta 1
+=Edge.dst_tfg_full_pathset.graph_edge_composition
+((L0%0%1=>L0%3%1)*(((L0%3%1=>Lend%1%0)+((L0%3%1=>Lfoo%1%1)*(Lfoo%1%1=>Lend%1%0)))*(Lend%1%0=>E0%0%1)))
+=Edge.dst_tfg_full_pathset done
+
+=graph_with_predicates_done
+=graph_with_simplified_assets
+=graph_with_simplified_assets.simplified_edgecond done
+=graph_with_simplified_assets.simplified_to_state done
+=graph_with_simplified_assets.simplified_assumes done
+=graph_with_simplified_assets.loc_to_expr_map done
+=graph_with_simplified_assets done
+
+=Locs in main.A1
+
+=Alias analysis results in main.A1
+=Alias analysis result in main.A1 at L0%0%1_L0%0%1
+=Alias analysis result in main.A1 at E0%0%1_E0%0%1
+
+=Liveness in main.A1
+=live locs at L0%0%1_L0%0%1
+
+=live locs at E0%0%1_E0%0%1
+
+
+=Available expressions in main.A1
+
+=sprel_maps in main.A1
+=sprel_map at L0%0%1_L0%0%1 in main.A1
+=sprel_map at E0%0%1_E0%0%1 in main.A1
+=graph_with_aliasing_done
+=Memlabel assertions
+=Symbol-map:
+=Symbol-map done
+=Locals-map:
+=Locals-map done
+=graph_arg_regs
+=graph_arg_regs done
+=rodata_map begin
+=rodata_map end
+=assertion
+1 : memlabel-mem-esp_begin : BV:32
+2 : memlabel-mem-esp_end : BV:32
+3 : bvule(1, 2) : BOOL
+4 : stack.size : BV:32
+5 : 4294967295 { -1 } : BV:32
+6 : bvadd(4, 5) : BV:32
+7 : bvadd(1, 6) : BV:32
+8 : eq(2, 7) : BOOL
+9 : and(3, 8) : BOOL
+10 : 0 : BV:32
+11 : bvugt(4, 10) : BOOL
+12 : and(9, 11) : BOOL
+13 : 1048576 : BV:32
+14 : bvadd(1, 13) : BV:32
+15 : bvule(1, 14) : BOOL
+16 : input.dst.esp.L0%0%1 : BV:32
+17 : bvule(14, 16) : BOOL
+18 : and(15, 17) : BOOL
+19 : 3 : BV:32
+20 : bvadd(16, 19) : BV:32
+21 : bvule(16, 20) : BOOL
+22 : bvule(20, 2) : BOOL
+23 : and(21, 22) : BOOL
+24 : and(18, 23) : BOOL
+25 : and(12, 24) : BOOL
+26 : 4294963200 { -4096 } : BV:32
+27 : bvand(1, 26) : BV:32
+28 : eq(27, 1) : BOOL
+29 : 1 : BV:32
+30 : bvadd(2, 29) : BV:32
+31 : bvand(30, 26) : BV:32
+32 : eq(31, 30) : BOOL
+33 : and(28, 32) : BOOL
+34 : and(25, 33) : BOOL
+=concrete_assertion_submap
+
+=use_concrete_assertion : 0
+=Memlabel assertions done
+=graph_with_proofs done
+=counterexamples at pc L0%0%1_L0%0%1
+=pc L0%0%1_L0%0%1 nodece 0
+=pc L0%0%1_L0%0%1 nodece 0 nodece_graphce graphce.num0.num_edges_traversed0
+=graphce counterexample at pc L0%0%1_L0%0%1, graphce.num0
+=counter_example_begin f1a8e1437053f112362b46e86c5bce4
+=input.dst.esp.L0%0%1
+1 : 4294965244 { -2052 } : BV:32
+=input.src.llvm-mem
+1 : (() -> (RAC: m_multiplier -> 178 , m_adder -> 115)) : ARRAY[BV:32 -> BV:8]
+=input.dst.llvm-mem
+1 : (() -> (RAC: m_multiplier -> 178 , m_adder -> 115)) : ARRAY[BV:32 -> BV:8]
+=memlabel-mem-esp_end
+1 : 4294967295 { -1 } : BV:32
+=memlabel-mem-esp_begin
+1 : 4096 : BV:32
+=stack.size
+1 : 4294963200 { -4096 } : BV:32
+=local_sprel_expr_assumes
+=counter_example.random_seed
+3323776219
+=counter_example_end
+=pc L0%0%1_L0%0%1 nodece 0 nodece_path
+=pc L0%0%1_L0%0%1 nodece 0 nodece_path.graph_edge_composition
+(epsilon)
+=pc L0%0%1_L0%0%1 nodece 0 nodece_cached_counterexample
+=counter_example_begin f1a8e1437053f112362b46e86c5bce4
+=input.dst.esp.L0%0%1
+1 : 4294965244 { -2052 } : BV:32
+=input.src.llvm-mem
+1 : (() -> (RAC: m_multiplier -> 178 , m_adder -> 115)) : ARRAY[BV:32 -> BV:8]
+=input.dst.llvm-mem
+1 : (() -> (RAC: m_multiplier -> 178 , m_adder -> 115)) : ARRAY[BV:32 -> BV:8]
+=memlabel-mem-esp_end
+1 : 4294967295 { -1 } : BV:32
+=memlabel-mem-esp_begin
+1 : 4096 : BV:32
+=stack.size
+1 : 4294963200 { -4096 } : BV:32
+=local_sprel_expr_assumes
+=counter_example.random_seed
+3323776219
+=counter_example_end
+=pc L0%0%1_L0%0%1 nodece 0 num_edges_traversed 0
+=pc L0%0%1_L0%0%1 nodece 1
+=pc L0%0%1_L0%0%1 nodece 1 nodece_graphce graphce.num1.num_edges_traversed0
+=graphce counterexample at pc L0%0%1_L0%0%1, graphce.num1
+=counter_example_begin 151ff949e0d7355eb92b9b4e796c281
+=input.dst.esp.L0%0%1
+1 : 8388610 : BV:32
+=input.src.llvm-mem
+1 : (() -> (RAC: m_multiplier -> 178 , m_adder -> 160)) : ARRAY[BV:32 -> BV:8]
+=input.dst.llvm-mem
+1 : (() -> (RAC: m_multiplier -> 178 , m_adder -> 160)) : ARRAY[BV:32 -> BV:8]
+=memlabel-mem-esp_end
+1 : 4294049791 { -917505 } : BV:32
+=memlabel-mem-esp_begin
+1 : 0 : BV:32
+=stack.size
+1 : 4294049792 { -917504 } : BV:32
+=local_sprel_expr_assumes
+=counter_example.random_seed
+2032656889
+=counter_example_end
+=pc L0%0%1_L0%0%1 nodece 1 nodece_path
+=pc L0%0%1_L0%0%1 nodece 1 nodece_path.graph_edge_composition
+(epsilon)
+=pc L0%0%1_L0%0%1 nodece 1 nodece_cached_counterexample
+=counter_example_begin 151ff949e0d7355eb92b9b4e796c281
+=input.dst.esp.L0%0%1
+1 : 8388610 : BV:32
+=input.src.llvm-mem
+1 : (() -> (RAC: m_multiplier -> 178 , m_adder -> 160)) : ARRAY[BV:32 -> BV:8]
+=input.dst.llvm-mem
+1 : (() -> (RAC: m_multiplier -> 178 , m_adder -> 160)) : ARRAY[BV:32 -> BV:8]
+=memlabel-mem-esp_end
+1 : 4294049791 { -917505 } : BV:32
+=memlabel-mem-esp_begin
+1 : 0 : BV:32
+=stack.size
+1 : 4294049792 { -917504 } : BV:32
+=local_sprel_expr_assumes
+=counter_example.random_seed
+2032656889
+=counter_example_end
+=pc L0%0%1_L0%0%1 nodece 1 num_edges_traversed 0
+=pc L0%0%1_L0%0%1 nodece 2
+=pc L0%0%1_L0%0%1 nodece 2 nodece_graphce graphce.num2.num_edges_traversed0
+=graphce counterexample at pc L0%0%1_L0%0%1, graphce.num2
+=counter_example_begin b6c51130f32950c5fbd90fe52a0cda4
+=input.dst.esp.L0%0%1
+1 : 3221225472 { -1073741824 } : BV:32
+=input.src.llvm-mem
+1 : (() -> (RAC: m_multiplier -> 78 , m_adder -> 57)) : ARRAY[BV:32 -> BV:8]
+=input.dst.llvm-mem
+1 : (() -> (RAC: m_multiplier -> 78 , m_adder -> 57)) : ARRAY[BV:32 -> BV:8]
+=memlabel-mem-esp_end
+1 : 4294967295 { -1 } : BV:32
+=memlabel-mem-esp_begin
+1 : 2147483648 { -2147483648 } : BV:32
+=stack.size
+1 : 2147483648 { -2147483648 } : BV:32
+=local_sprel_expr_assumes
+=counter_example.random_seed
+1929904615
+=counter_example_end
+=pc L0%0%1_L0%0%1 nodece 2 nodece_path
+=pc L0%0%1_L0%0%1 nodece 2 nodece_path.graph_edge_composition
+(epsilon)
+=pc L0%0%1_L0%0%1 nodece 2 nodece_cached_counterexample
+=counter_example_begin b6c51130f32950c5fbd90fe52a0cda4
+=input.dst.esp.L0%0%1
+1 : 3221225472 { -1073741824 } : BV:32
+=input.src.llvm-mem
+1 : (() -> (RAC: m_multiplier -> 78 , m_adder -> 57)) : ARRAY[BV:32 -> BV:8]
+=input.dst.llvm-mem
+1 : (() -> (RAC: m_multiplier -> 78 , m_adder -> 57)) : ARRAY[BV:32 -> BV:8]
+=memlabel-mem-esp_end
+1 : 4294967295 { -1 } : BV:32
+=memlabel-mem-esp_begin
+1 : 2147483648 { -2147483648 } : BV:32
+=stack.size
+1 : 2147483648 { -2147483648 } : BV:32
+=local_sprel_expr_assumes
+=counter_example.random_seed
+1929904615
+=counter_example_end
+=pc L0%0%1_L0%0%1 nodece 2 num_edges_traversed 0
+=graph_with_ce done
+=Invariant state at node L0%0%1_L0%0%1:
+=pc L0%0%1_L0%0%1 invariant_state
+is_top 0
+is_stable 1
+=pc L0%0%1_L0%0%1 invariant_state done
+=Invariant state at node E0%0%1_E0%0%1:
+=pc E0%0%1_E0%0%1 invariant_state
+is_top 0
+is_stable 1
+=pc E0%0%1_E0%0%1 invariant_state done
+=graph_with_guessing done
+=graph_with_correctness_covers begin
+=Correctness covers
+=graph_with_correctness_covers done
+=start_pc_preconditions
+=start_pc_precondition.0
+=Comment
+precond-memmask-memlabel-mem-heap
+=LocalSprelAssumptions:
+=LhsExpr
+1 : input.src.llvm-mem : ARRAY[BV:32 -> BV:8]
+2 : input.dst.llvm-mem : ARRAY[BV:32 -> BV:8]
+3 : memlabel-mem-heap : MEMLABEL
+4 : memmasks_are_equal(1, 2, 3) : BOOL
+=RhsExpr
+1 : 1 : BOOL
+=predicate done
+=exit_pc_asserts at E0%0%1_E0%0%1
+=exit_pc_assert.0 at E0%0%1_E0%0%1
+=Comment
+precond-memmask-memlabel-mem-heap
+=LocalSprelAssumptions:
+=LhsExpr
+1 : input.src.llvm-mem : ARRAY[BV:32 -> BV:8]
+2 : input.dst.llvm-mem : ARRAY[BV:32 -> BV:8]
+3 : memlabel-mem-heap : MEMLABEL
+4 : memmasks_are_equal(1, 2, 3) : BOOL
+=RhsExpr
+1 : 1 : BOOL
+=predicate done
+=exit_pc_assert.0 at E0%0%1_E0%0%1
+=Comment
+exit.llvm-indir_tgt
+=LocalSprelAssumptions:
+=LhsExpr
+1 : retaddr_const : BV:32
+=RhsExpr
+1 : retaddr_const : BV:32
+=predicate done
+=well-formedness-conditions for L0%0%1_L0%0%1=>E0%0%1_E0%0%1
+=well-formedness-conditions for L0%0%1_L0%0%1=>E0%0%1_E0%0%1 edge well-formedness condition
+=well-formedness-conditions for L0%0%1_L0%0%1=>E0%0%1_E0%0%1 fromto L0%0%1_L0%0%1=>L0%0%1_L0%0%1 cg_path
+=well-formedness-conditions for L0%0%1_L0%0%1=>E0%0%1_E0%0%1 fromto L0%0%1_L0%0%1=>L0%0%1_L0%0%1 cg_path.graph_edge_composition
+(epsilon)
+=well-formedness-conditions for L0%0%1_L0%0%1=>E0%0%1_E0%0%1 fromto L0%0%1_L0%0%1=>L0%0%1_L0%0%1 src_path
+=well-formedness-conditions for L0%0%1_L0%0%1=>E0%0%1_E0%0%1 fromto L0%0%1_L0%0%1=>L0%0%1_L0%0%1 src_path.graph_edge_composition
+(epsilon)
+=well-formedness-conditions for L0%0%1_L0%0%1=>E0%0%1_E0%0%1 fromto L0%0%1_L0%0%1=>L0%0%1_L0%0%1 dst_path
+=well-formedness-conditions for L0%0%1_L0%0%1=>E0%0%1_E0%0%1 fromto L0%0%1_L0%0%1=>L0%0%1_L0%0%1 dst_path.graph_edge_composition
+(epsilon)
+=well-formedness-conditions for L0%0%1_L0%0%1=>E0%0%1_E0%0%1 fromto L0%0%1_L0%0%1=>L0%0%1_L0%0%1 pred.0
+=Comment
+undef-behavioursome
+=LocalSprelAssumptions:
+=LhsExpr
+1 : 1 : BOOL
+=RhsExpr
+1 : 1 : BOOL
+=predicate done
+=well-formedness-conditions for L0%0%1_L0%0%1=>E0%0%1_E0%0%1 fromto L0%0%1_L0%0%1=>L0%0%1_L0%0%1 cg_path
+=well-formedness-conditions for L0%0%1_L0%0%1=>E0%0%1_E0%0%1 fromto L0%0%1_L0%0%1=>L0%0%1_L0%0%1 cg_path.graph_edge_composition
+(L0%0%1_L0%0%1=>E0%0%1_E0%0%1)
+=well-formedness-conditions for L0%0%1_L0%0%1=>E0%0%1_E0%0%1 fromto L0%0%1_L0%0%1=>L0%0%1_L0%0%1 src_path
+=well-formedness-conditions for L0%0%1_L0%0%1=>E0%0%1_E0%0%1 fromto L0%0%1_L0%0%1=>L0%0%1_L0%0%1 src_path.graph_edge_composition
+(epsilon)
+=well-formedness-conditions for L0%0%1_L0%0%1=>E0%0%1_E0%0%1 fromto L0%0%1_L0%0%1=>L0%0%1_L0%0%1 dst_path
+=well-formedness-conditions for L0%0%1_L0%0%1=>E0%0%1_E0%0%1 fromto L0%0%1_L0%0%1=>L0%0%1_L0%0%1 dst_path.graph_edge_composition
+(epsilon)
+=well-formedness-conditions for L0%0%1_L0%0%1=>E0%0%1_E0%0%1 fromto L0%0%1_L0%0%1=>L0%0%1_L0%0%1 pred.0
+=Comment
+exit.llvm-indir_tgt
+=LocalSprelAssumptions:
+=LhsExpr
+1 : retaddr_const : BV:32
+=RhsExpr
+1 : retaddr_const : BV:32
+=predicate done
+=well-formedness-conditions for L0%0%1_L0%0%1=>E0%0%1_E0%0%1 fromto L0%0%1_L0%0%1=>L0%0%1_L0%0%1 pred.0
+=Comment
+precond-memmask-memlabel-mem-heap
+=LocalSprelAssumptions:
+=LhsExpr
+1 : input.src.llvm-mem : ARRAY[BV:32 -> BV:8]
+2 : input.dst.llvm-mem : ARRAY[BV:32 -> BV:8]
+3 : memlabel-mem-heap : MEMLABEL
+4 : memmasks_are_equal(1, 2, 3) : BOOL
+=RhsExpr
+1 : 1 : BOOL
+=predicate done
+=well-formedness-conditions for L0%0%1_L0%0%1=>E0%0%1_E0%0%1 edge well-formedness condition done
+=corr_graph_done
+=bv_rank_map
+=bv_rank at L0%0%1_L0%0%1
+m_dst_rank: 0, m_src_rank: 0
+=cg_with_rank done
+=cg_with_backtracker done
+=asm filename
+
+=cg_with_asm_annotation done
+=FunctionName: main
+=result: 1
+=cg_with_asm_annotation
+=cg_with_backtracker
+=cg_with_rank
+=corr_graph main.A1
+=src_tfg
+=TFG_LLVM src.llvm.main:
+=TFG:
+=Nodes: L0%0%1 L0%3%1 Lend%1%0 Lfoo%1%1 E0%0%1
+=Edges:
+L0%3%1 => Lfoo%1%1
+L0%3%1 => Lend%1%0
+Lend%1%0 => E0%0%1
+Lfoo%1%1 => Lend%1%0
+L0%0%1 => L0%3%1
+=graph done
+=Node outputs: E0%0%1
+=Output: heap
+1 : input.src.llvm-mem : ARRAY[BV:32 -> BV:8]
+2 : memlabel-mem-heap : MEMLABEL
+3 : memmask(1, 2) : ARRAY[BV:32 -> BV:8]
+=Output: llvm-indir_tgt
+1 : retaddr_const : BV:32
+=Node outputs done for E0%0%1
+=input_outputs done
+=Symbol-map:
+=Symbol-map done
+=Locals-map:
+=Locals-map done
+=StartState:
+=src.llvm-mem
+1 : input.src.llvm-mem : ARRAY[BV:32 -> BV:8]
+=state_end
+
+=Global assumes
+=global assume predicate_set done
+=Edge: L0%3%1 => Lfoo%1%1
+=Edge.EdgeCond: 
+1 : input.src.llvm-%i_3 : BOOL
+=Edge.StateTo: 
+=state_end
+=Edge.Assumes.begin:
+=EdgeAssume.0
+1 : 1 : BOOL
+2 : input.src.llvm-%i_3.poison : BOOL
+3 : not(2) : BOOL
+4 : implies(1, 3) : BOOL
+5 : implies(1, 4) : BOOL
+=Edge.Assumes.end
+=Edge.te_comment
+0:3:((  br i1 %i_3, label %foo, label %end*  br i1 %i_3, label %foo, label %end)*  br i1 %i_3, label %foo, label %end)
+tfg_edge_comment end
+
+=Edge: L0%3%1 => Lend%1%0
+=Edge.EdgeCond: 
+1 : input.src.llvm-%i_3 : BOOL
+2 : not(1) : BOOL
+=Edge.StateTo: 
+=state_end
+=Edge.Assumes.begin:
+=EdgeAssume.0
+1 : 1 : BOOL
+2 : input.src.llvm-%i_3.poison : BOOL
+3 : not(2) : BOOL
+4 : implies(1, 3) : BOOL
+5 : implies(1, 4) : BOOL
+=Edge.Assumes.end
+=Edge.te_comment
+0:3:((  br i1 %i_3, label %foo, label %end*  br i1 %i_3, label %foo, label %end)*  br i1 %i_3, label %foo, label %end)
+tfg_edge_comment end
+
+=Edge: Lend%1%0 => E0%0%1
+=Edge.EdgeCond: 
+1 : 1 : BOOL
+=Edge.StateTo: 
+=src.llvm-%hidden-reg
+1 : input.src.llvm-%hidden-reg : BV:32
+2 : input.src.llvm-callee-save.0 : BV:32
+3 : bvxor(1, 2) : BV:32
+4 : input.src.llvm-callee-save.1 : BV:32
+5 : bvxor(3, 4) : BV:32
+6 : input.src.llvm-callee-save.2 : BV:32
+7 : bvxor(5, 6) : BV:32
+8 : input.src.llvm-callee-save.3 : BV:32
+9 : bvxor(7, 8) : BV:32
+=src.llvm-indir_tgt
+1 : retaddr_const : BV:32
+=state_end
+=Edge.Assumes.begin:
+=Edge.Assumes.end
+=Edge.te_comment
+0:-1:(bb_entry*  ret void)
+tfg_edge_comment end
+
+=Edge: Lfoo%1%1 => Lend%1%0
+=Edge.EdgeCond: 
+1 : 1 : BOOL
+=Edge.StateTo: 
+=src.llvm-%i_4.poison.temp1
+1 : 2 : BV:4
+2 : 4 : INT
+3 : isshiftcount(1, 2) : BOOL
+=src.llvm-%i_4.poison.temp2
+1 : 2 : BV:4
+2 : 4 : INT
+3 : isshiftcount(1, 2) : BOOL
+4 : not(3) : BOOL
+=src.llvm-%i_4.poison
+1 : 0 : BOOL
+2 : 2 : BV:4
+3 : 4 : INT
+4 : isshiftcount(2, 3) : BOOL
+5 : not(4) : BOOL
+6 : or(1, 1, 5) : BOOL
+=src.llvm-%i_4
+1 : 3 : BV:4
+2 : 2 : BV:4
+3 : bvshl(1, 2) : BV:4
+=state_end
+=Edge.Assumes.begin:
+=Edge.Assumes.end
+=Edge.te_comment
+0:1:(((  %i_4 = shl i4 3, 2*  %i_4 = shl i4 3, 2)*  %i_4 = shl i4 3, 2)*(((  %i_4 = shl i4 3, 2*  br label %end)*  br label %end)*  br label %end))
+tfg_edge_comment end
+
+=Edge: L0%0%1 => L0%3%1
+=Edge.EdgeCond: 
+1 : 1 : BOOL
+=Edge.StateTo: 
+=src.llvm-%i_2.poison.temp1
+1 : 10 { -6 } : BV:4
+2 : 1 : INT
+3 : bvsign_ext(1, 2) : BV:5
+4 : 12 { -4 } : BV:4
+5 : bvsign_ext(4, 2) : BV:5
+6 : bvadd(3, 5) : BV:5
+=src.llvm-%i_2.poison.temp2
+1 : 10 { -6 } : BV:4
+2 : 12 { -4 } : BV:4
+3 : bvadd(1, 2) : BV:4
+4 : 1 : INT
+5 : bvsign_ext(3, 4) : BV:5
+=src.llvm-%i_2.poison.temp3
+1 : 10 { -6 } : BV:4
+2 : 1 : INT
+3 : bvsign_ext(1, 2) : BV:5
+4 : 12 { -4 } : BV:4
+5 : bvsign_ext(4, 2) : BV:5
+6 : bvadd(3, 5) : BV:5
+7 : bvadd(1, 4) : BV:4
+8 : bvsign_ext(7, 2) : BV:5
+9 : eq(6, 8) : BOOL
+=src.llvm-%i_2.poison.temp4
+1 : 10 { -6 } : BV:4
+2 : 1 : INT
+3 : bvsign_ext(1, 2) : BV:5
+4 : 12 { -4 } : BV:4
+5 : bvsign_ext(4, 2) : BV:5
+6 : bvadd(3, 5) : BV:5
+7 : bvadd(1, 4) : BV:4
+8 : bvsign_ext(7, 2) : BV:5
+9 : eq(6, 8) : BOOL
+10 : not(9) : BOOL
+=src.llvm-%i_2.poison
+1 : 0 : BOOL
+2 : 10 { -6 } : BV:4
+3 : 1 : INT
+4 : bvsign_ext(2, 3) : BV:5
+5 : 12 { -4 } : BV:4
+6 : bvsign_ext(5, 3) : BV:5
+7 : bvadd(4, 6) : BV:5
+8 : bvadd(2, 5) : BV:4
+9 : bvsign_ext(8, 3) : BV:5
+10 : eq(7, 9) : BOOL
+11 : not(10) : BOOL
+12 : or(1, 1, 11) : BOOL
+=src.llvm-%i_2
+1 : 10 { -6 } : BV:4
+2 : 12 { -4 } : BV:4
+3 : bvadd(1, 2) : BV:4
+=src.llvm-%i_3.poison
+1 : 0 : BOOL
+2 : 10 { -6 } : BV:4
+3 : 1 : INT
+4 : bvsign_ext(2, 3) : BV:5
+5 : 12 { -4 } : BV:4
+6 : bvsign_ext(5, 3) : BV:5
+7 : bvadd(4, 6) : BV:5
+8 : bvadd(2, 5) : BV:4
+9 : bvsign_ext(8, 3) : BV:5
+10 : eq(7, 9) : BOOL
+11 : not(10) : BOOL
+12 : or(1, 1, 11) : BOOL
+13 : or(12, 1) : BOOL
+=src.llvm-%i_3
+1 : 10 { -6 } : BV:4
+2 : 12 { -4 } : BV:4
+3 : bvadd(1, 2) : BV:4
+4 : 0 : BV:4
+5 : eq(3, 4) : BOOL
+=state_end
+=Edge.Assumes.begin:
+=Edge.Assumes.end
+=Edge.te_comment
+0:-1:(((start_pc_edge*  %i_2 = add nsw i4 -6, -4)*  %i_2 = add nsw i4 -6, -4)*(((((  %i_2 = add nsw i4 -6, -4*  %i_2 = add nsw i4 -6, -4)*  %i_2 = add nsw i4 -6, -4)*  %i_2 = add nsw i4 -6, -4)*  %i_3 = icmp eq i4 %i_2, 0)*  %i_3 = icmp eq i4 %i_2, 0))
+tfg_edge_comment end
+
+=graph_with_predicates_done
+=graph_with_simplified_assets
+=graph_with_simplified_assets.simplified_edgecond at L0%0%1=>L0%1%1
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at L0%0%1=>L0%3%1
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at L0%1%1=>L0%1%100003
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at L0%1%100003=>L0%1%100004
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at L0%1%100004=>L0%1%100005
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at L0%1%100005=>L0%1%100006
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at L0%1%100006=>L0%1%100007
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at L0%1%100007=>L0%2%1
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at L0%2%1=>L0%2%100003
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at L0%2%100003=>L0%3%1
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at L0%3%1=>L0%3%100003
+1 : 0 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at L0%3%1=>L0%3%100005
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at L0%3%1=>Lend%1%0
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at L0%3%1=>Lfoo%1%1
+1 : 0 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at L0%3%100003=>L0%3%100004
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at L0%3%100004=>Lfoo%1%1
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at L0%3%100005=>L0%3%100006
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at L0%3%100006=>Lend%1%0
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at Lend%1%0=>Lend%1%1
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at Lend%1%0=>E0%0%1
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at Lend%1%1=>E0%0%1
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at Lfoo%1%1=>Lend%1%0
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at Lfoo%1%1=>Lfoo%1%100003
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at Lfoo%1%100003=>Lfoo%1%100004
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at Lfoo%1%100004=>Lfoo%1%100005
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at Lfoo%1%100005=>Lfoo%2%1
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at Lfoo%2%1=>Lfoo%2%100003
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at Lfoo%2%100003=>Lfoo%2%100004
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at Lfoo%2%100004=>Lend%1%0
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond done
+=graph_with_simplified_assets.simplified_to_state at L0%0%1=>L0%1%1
+=state_end
+=graph_with_simplified_assets.simplified_to_state at L0%0%1=>L0%3%1
+=src.llvm-%i_2.poison.temp1
+1 : 22 { -10 } : BV:5
+=src.llvm-%i_2.poison.temp2
+1 : 6 : BV:5
+=src.llvm-%i_2.poison.temp3
+1 : 0 : BOOL
+=src.llvm-%i_2.poison.temp4
+1 : 1 : BOOL
+=src.llvm-%i_2.poison
+1 : 1 : BOOL
+=src.llvm-%i_2
+1 : 6 : BV:4
+=src.llvm-%i_3.poison
+1 : 1 : BOOL
+=src.llvm-%i_3
+1 : 0 : BOOL
+=state_end
+=graph_with_simplified_assets.simplified_to_state at L0%1%1=>L0%1%100003
+=src.llvm-%i_2.poison.temp1
+1 : 22 { -10 } : BV:5
+=state_end
+=graph_with_simplified_assets.simplified_to_state at L0%1%100003=>L0%1%100004
+=src.llvm-%i_2.poison.temp2
+1 : 6 : BV:5
+=state_end
+=graph_with_simplified_assets.simplified_to_state at L0%1%100004=>L0%1%100005
+=src.llvm-%i_2.poison.temp3
+1 : 0 : BOOL
+=state_end
+=graph_with_simplified_assets.simplified_to_state at L0%1%100005=>L0%1%100006
+=src.llvm-%i_2.poison.temp4
+1 : 1 : BOOL
+=state_end
+=graph_with_simplified_assets.simplified_to_state at L0%1%100006=>L0%1%100007
+=src.llvm-%i_2.poison
+1 : 1 : BOOL
+=state_end
+=graph_with_simplified_assets.simplified_to_state at L0%1%100007=>L0%2%1
+=src.llvm-%i_2
+1 : 6 : BV:4
+=state_end
+=graph_with_simplified_assets.simplified_to_state at L0%2%1=>L0%2%100003
+=src.llvm-%i_3.poison
+1 : 1 : BOOL
+=state_end
+=graph_with_simplified_assets.simplified_to_state at L0%2%100003=>L0%3%1
+=src.llvm-%i_3
+1 : 0 : BOOL
+=state_end
+=graph_with_simplified_assets.simplified_to_state at L0%3%1=>L0%3%100003
+=state_end
+=graph_with_simplified_assets.simplified_to_state at L0%3%1=>L0%3%100005
+=state_end
+=graph_with_simplified_assets.simplified_to_state at L0%3%1=>Lend%1%0
+=state_end
+=graph_with_simplified_assets.simplified_to_state at L0%3%1=>Lfoo%1%1
+=state_end
+=graph_with_simplified_assets.simplified_to_state at L0%3%100003=>L0%3%100004
+=state_end
+=graph_with_simplified_assets.simplified_to_state at L0%3%100004=>Lfoo%1%1
+=state_end
+=graph_with_simplified_assets.simplified_to_state at L0%3%100005=>L0%3%100006
+=state_end
+=graph_with_simplified_assets.simplified_to_state at L0%3%100006=>Lend%1%0
+=state_end
+=graph_with_simplified_assets.simplified_to_state at Lend%1%0=>Lend%1%1
+=state_end
+=graph_with_simplified_assets.simplified_to_state at Lend%1%0=>E0%0%1
+=src.llvm-%hidden-reg
+1 : input.src.llvm-%hidden-reg : BV:32
+2 : input.src.llvm-callee-save.0 : BV:32
+3 : input.src.llvm-callee-save.1 : BV:32
+4 : input.src.llvm-callee-save.2 : BV:32
+5 : input.src.llvm-callee-save.3 : BV:32
+6 : bvxor(1, 2, 3, 4, 5) : BV:32
+=src.llvm-indir_tgt
+1 : retaddr_const : BV:32
+=state_end
+=graph_with_simplified_assets.simplified_to_state at Lend%1%1=>E0%0%1
+=src.llvm-%hidden-reg
+1 : input.src.llvm-callee-save.0 : BV:32
+2 : input.src.llvm-%hidden-reg : BV:32
+3 : input.src.llvm-callee-save.1 : BV:32
+4 : input.src.llvm-callee-save.2 : BV:32
+5 : input.src.llvm-callee-save.3 : BV:32
+6 : bvxor(1, 2, 3, 4, 5) : BV:32
+=src.llvm-indir_tgt
+1 : retaddr_const : BV:32
+=state_end
+=graph_with_simplified_assets.simplified_to_state at Lfoo%1%1=>Lend%1%0
+=src.llvm-%i_4.poison.temp1
+1 : 1 : BOOL
+=src.llvm-%i_4.poison.temp2
+1 : 0 : BOOL
+=src.llvm-%i_4.poison
+1 : 0 : BOOL
+=src.llvm-%i_4
+1 : 12 { -4 } : BV:4
+=state_end
+=graph_with_simplified_assets.simplified_to_state at Lfoo%1%1=>Lfoo%1%100003
+=src.llvm-%i_4.poison.temp1
+1 : 1 : BOOL
+=state_end
+=graph_with_simplified_assets.simplified_to_state at Lfoo%1%100003=>Lfoo%1%100004
+=src.llvm-%i_4.poison.temp2
+1 : 0 : BOOL
+=state_end
+=graph_with_simplified_assets.simplified_to_state at Lfoo%1%100004=>Lfoo%1%100005
+=src.llvm-%i_4.poison
+1 : 0 : BOOL
+=state_end
+=graph_with_simplified_assets.simplified_to_state at Lfoo%1%100005=>Lfoo%2%1
+=src.llvm-%i_4
+1 : 12 { -4 } : BV:4
+=state_end
+=graph_with_simplified_assets.simplified_to_state at Lfoo%2%1=>Lfoo%2%100003
+=state_end
+=graph_with_simplified_assets.simplified_to_state at Lfoo%2%100003=>Lfoo%2%100004
+=state_end
+=graph_with_simplified_assets.simplified_to_state at Lfoo%2%100004=>Lend%1%0
+=state_end
+=graph_with_simplified_assets.simplified_to_state done
+=graph_with_simplified_assets.simplified_assumes at L0%0%1=>L0%1%1
+=graph_with_simplified_assets.simplified_assumes at L0%0%1=>L0%1%1 done
+=graph_with_simplified_assets.simplified_assumes at L0%0%1=>L0%3%1
+=graph_with_simplified_assets.simplified_assumes at L0%0%1=>L0%3%1 done
+=graph_with_simplified_assets.simplified_assumes at L0%1%1=>L0%1%100003
+=graph_with_simplified_assets.simplified_assumes at L0%1%1=>L0%1%100003 done
+=graph_with_simplified_assets.simplified_assumes at L0%1%100003=>L0%1%100004
+=graph_with_simplified_assets.simplified_assumes at L0%1%100003=>L0%1%100004 done
+=graph_with_simplified_assets.simplified_assumes at L0%1%100004=>L0%1%100005
+=graph_with_simplified_assets.simplified_assumes at L0%1%100004=>L0%1%100005 done
+=graph_with_simplified_assets.simplified_assumes at L0%1%100005=>L0%1%100006
+=graph_with_simplified_assets.simplified_assumes at L0%1%100005=>L0%1%100006 done
+=graph_with_simplified_assets.simplified_assumes at L0%1%100006=>L0%1%100007
+=graph_with_simplified_assets.simplified_assumes at L0%1%100006=>L0%1%100007 done
+=graph_with_simplified_assets.simplified_assumes at L0%1%100007=>L0%2%1
+=graph_with_simplified_assets.simplified_assumes at L0%1%100007=>L0%2%1 done
+=graph_with_simplified_assets.simplified_assumes at L0%2%1=>L0%2%100003
+=graph_with_simplified_assets.simplified_assumes at L0%2%1=>L0%2%100003 done
+=graph_with_simplified_assets.simplified_assumes at L0%2%100003=>L0%3%1
+=graph_with_simplified_assets.simplified_assumes at L0%2%100003=>L0%3%1 done
+=graph_with_simplified_assets.simplified_assumes at L0%3%1=>L0%3%100003
+=graph_with_simplified_assets.simplified_assumes at L0%3%1=>L0%3%100003 assume# 0
+1 : 0 : BOOL
+=graph_with_simplified_assets.simplified_assumes at L0%3%1=>L0%3%100003 done
+=graph_with_simplified_assets.simplified_assumes at L0%3%1=>L0%3%100005
+=graph_with_simplified_assets.simplified_assumes at L0%3%1=>L0%3%100005 assume# 0
+1 : 0 : BOOL
+=graph_with_simplified_assets.simplified_assumes at L0%3%1=>L0%3%100005 done
+=graph_with_simplified_assets.simplified_assumes at L0%3%1=>Lend%1%0
+=graph_with_simplified_assets.simplified_assumes at L0%3%1=>Lend%1%0 assume# 0
+1 : 0 : BOOL
+=graph_with_simplified_assets.simplified_assumes at L0%3%1=>Lend%1%0 done
+=graph_with_simplified_assets.simplified_assumes at L0%3%1=>Lfoo%1%1
+=graph_with_simplified_assets.simplified_assumes at L0%3%1=>Lfoo%1%1 assume# 0
+1 : 0 : BOOL
+=graph_with_simplified_assets.simplified_assumes at L0%3%1=>Lfoo%1%1 done
+=graph_with_simplified_assets.simplified_assumes at L0%3%100003=>L0%3%100004
+=graph_with_simplified_assets.simplified_assumes at L0%3%100003=>L0%3%100004 done
+=graph_with_simplified_assets.simplified_assumes at L0%3%100004=>Lfoo%1%1
+=graph_with_simplified_assets.simplified_assumes at L0%3%100004=>Lfoo%1%1 done
+=graph_with_simplified_assets.simplified_assumes at L0%3%100005=>L0%3%100006
+=graph_with_simplified_assets.simplified_assumes at L0%3%100005=>L0%3%100006 done
+=graph_with_simplified_assets.simplified_assumes at L0%3%100006=>Lend%1%0
+=graph_with_simplified_assets.simplified_assumes at L0%3%100006=>Lend%1%0 done
+=graph_with_simplified_assets.simplified_assumes at Lend%1%0=>Lend%1%1
+=graph_with_simplified_assets.simplified_assumes at Lend%1%0=>Lend%1%1 done
+=graph_with_simplified_assets.simplified_assumes at Lend%1%0=>E0%0%1
+=graph_with_simplified_assets.simplified_assumes at Lend%1%0=>E0%0%1 done
+=graph_with_simplified_assets.simplified_assumes at Lend%1%1=>E0%0%1
+=graph_with_simplified_assets.simplified_assumes at Lend%1%1=>E0%0%1 done
+=graph_with_simplified_assets.simplified_assumes at Lfoo%1%1=>Lend%1%0
+=graph_with_simplified_assets.simplified_assumes at Lfoo%1%1=>Lend%1%0 done
+=graph_with_simplified_assets.simplified_assumes at Lfoo%1%1=>Lfoo%1%100003
+=graph_with_simplified_assets.simplified_assumes at Lfoo%1%1=>Lfoo%1%100003 done
+=graph_with_simplified_assets.simplified_assumes at Lfoo%1%100003=>Lfoo%1%100004
+=graph_with_simplified_assets.simplified_assumes at Lfoo%1%100003=>Lfoo%1%100004 done
+=graph_with_simplified_assets.simplified_assumes at Lfoo%1%100004=>Lfoo%1%100005
+=graph_with_simplified_assets.simplified_assumes at Lfoo%1%100004=>Lfoo%1%100005 done
+=graph_with_simplified_assets.simplified_assumes at Lfoo%1%100005=>Lfoo%2%1
+=graph_with_simplified_assets.simplified_assumes at Lfoo%1%100005=>Lfoo%2%1 done
+=graph_with_simplified_assets.simplified_assumes at Lfoo%2%1=>Lfoo%2%100003
+=graph_with_simplified_assets.simplified_assumes at Lfoo%2%1=>Lfoo%2%100003 done
+=graph_with_simplified_assets.simplified_assumes at Lfoo%2%100003=>Lfoo%2%100004
+=graph_with_simplified_assets.simplified_assumes at Lfoo%2%100003=>Lfoo%2%100004 done
+=graph_with_simplified_assets.simplified_assumes at Lfoo%2%100004=>Lend%1%0
+=graph_with_simplified_assets.simplified_assumes at Lfoo%2%100004=>Lend%1%0 done
+=graph_with_simplified_assets.simplified_assumes done
+=graph_with_simplified_assets.loc_to_expr_map at L0%0%1=>L0%1%1
+=graph_with_simplified_assets.loc_to_expr_map at L0%0%1=>L0%1%1 done
+=graph_with_simplified_assets.loc_to_expr_map at L0%0%1=>L0%3%1
+=graph_with_simplified_assets.loc_to_expr_map at L0%0%1=>L0%3%1 for loc_id 1002
+1 : 6 : BV:4
+=graph_with_simplified_assets.loc_to_expr_map at L0%0%1=>L0%3%1 for loc_id 1003
+1 : 1 : BOOL
+=graph_with_simplified_assets.loc_to_expr_map at L0%0%1=>L0%3%1 for loc_id 1004
+1 : 22 { -10 } : BV:5
+=graph_with_simplified_assets.loc_to_expr_map at L0%0%1=>L0%3%1 for loc_id 1005
+1 : 6 : BV:5
+=graph_with_simplified_assets.loc_to_expr_map at L0%0%1=>L0%3%1 for loc_id 1006
+1 : 0 : BOOL
+=graph_with_simplified_assets.loc_to_expr_map at L0%0%1=>L0%3%1 for loc_id 1007
+1 : 1 : BOOL
+=graph_with_simplified_assets.loc_to_expr_map at L0%0%1=>L0%3%1 for loc_id 1008
+1 : 0 : BOOL
+=graph_with_simplified_assets.loc_to_expr_map at L0%0%1=>L0%3%1 for loc_id 1009
+1 : 1 : BOOL
+=graph_with_simplified_assets.loc_to_expr_map at L0%0%1=>L0%3%1 done
+=graph_with_simplified_assets.loc_to_expr_map at L0%1%1=>L0%1%100003
+=graph_with_simplified_assets.loc_to_expr_map at L0%1%1=>L0%1%100003 for loc_id 1004
+1 : 22 { -10 } : BV:5
+=graph_with_simplified_assets.loc_to_expr_map at L0%1%1=>L0%1%100003 done
+=graph_with_simplified_assets.loc_to_expr_map at L0%1%100003=>L0%1%100004
+=graph_with_simplified_assets.loc_to_expr_map at L0%1%100003=>L0%1%100004 for loc_id 1005
+1 : 6 : BV:5
+=graph_with_simplified_assets.loc_to_expr_map at L0%1%100003=>L0%1%100004 done
+=graph_with_simplified_assets.loc_to_expr_map at L0%1%100004=>L0%1%100005
+=graph_with_simplified_assets.loc_to_expr_map at L0%1%100004=>L0%1%100005 for loc_id 1006
+1 : 0 : BOOL
+=graph_with_simplified_assets.loc_to_expr_map at L0%1%100004=>L0%1%100005 done
+=graph_with_simplified_assets.loc_to_expr_map at L0%1%100005=>L0%1%100006
+=graph_with_simplified_assets.loc_to_expr_map at L0%1%100005=>L0%1%100006 for loc_id 1007
+1 : 1 : BOOL
+=graph_with_simplified_assets.loc_to_expr_map at L0%1%100005=>L0%1%100006 done
+=graph_with_simplified_assets.loc_to_expr_map at L0%1%100006=>L0%1%100007
+=graph_with_simplified_assets.loc_to_expr_map at L0%1%100006=>L0%1%100007 for loc_id 1003
+1 : 1 : BOOL
+=graph_with_simplified_assets.loc_to_expr_map at L0%1%100006=>L0%1%100007 done
+=graph_with_simplified_assets.loc_to_expr_map at L0%1%100007=>L0%2%1
+=graph_with_simplified_assets.loc_to_expr_map at L0%1%100007=>L0%2%1 for loc_id 1002
+1 : 6 : BV:4
+=graph_with_simplified_assets.loc_to_expr_map at L0%1%100007=>L0%2%1 done
+=graph_with_simplified_assets.loc_to_expr_map at L0%2%1=>L0%2%100003
+=graph_with_simplified_assets.loc_to_expr_map at L0%2%1=>L0%2%100003 for loc_id 1009
+1 : 1 : BOOL
+=graph_with_simplified_assets.loc_to_expr_map at L0%2%1=>L0%2%100003 done
+=graph_with_simplified_assets.loc_to_expr_map at L0%2%100003=>L0%3%1
+=graph_with_simplified_assets.loc_to_expr_map at L0%2%100003=>L0%3%1 for loc_id 1008
+1 : 0 : BOOL
+=graph_with_simplified_assets.loc_to_expr_map at L0%2%100003=>L0%3%1 done
+=graph_with_simplified_assets.loc_to_expr_map at L0%3%1=>L0%3%100003
+=graph_with_simplified_assets.loc_to_expr_map at L0%3%1=>L0%3%100003 done
+=graph_with_simplified_assets.loc_to_expr_map at L0%3%1=>L0%3%100005
+=graph_with_simplified_assets.loc_to_expr_map at L0%3%1=>L0%3%100005 done
+=graph_with_simplified_assets.loc_to_expr_map at L0%3%1=>Lend%1%0
+=graph_with_simplified_assets.loc_to_expr_map at L0%3%1=>Lend%1%0 done
+=graph_with_simplified_assets.loc_to_expr_map at L0%3%1=>Lfoo%1%1
+=graph_with_simplified_assets.loc_to_expr_map at L0%3%1=>Lfoo%1%1 done
+=graph_with_simplified_assets.loc_to_expr_map at L0%3%100003=>L0%3%100004
+=graph_with_simplified_assets.loc_to_expr_map at L0%3%100003=>L0%3%100004 done
+=graph_with_simplified_assets.loc_to_expr_map at L0%3%100004=>Lfoo%1%1
+=graph_with_simplified_assets.loc_to_expr_map at L0%3%100004=>Lfoo%1%1 done
+=graph_with_simplified_assets.loc_to_expr_map at L0%3%100005=>L0%3%100006
+=graph_with_simplified_assets.loc_to_expr_map at L0%3%100005=>L0%3%100006 done
+=graph_with_simplified_assets.loc_to_expr_map at L0%3%100006=>Lend%1%0
+=graph_with_simplified_assets.loc_to_expr_map at L0%3%100006=>Lend%1%0 done
+=graph_with_simplified_assets.loc_to_expr_map at Lend%1%0=>Lend%1%1
+=graph_with_simplified_assets.loc_to_expr_map at Lend%1%0=>Lend%1%1 done
+=graph_with_simplified_assets.loc_to_expr_map at Lend%1%0=>E0%0%1
+=graph_with_simplified_assets.loc_to_expr_map at Lend%1%0=>E0%0%1 for loc_id 1001
+1 : input.src.llvm-%hidden-reg : BV:32
+2 : input.src.llvm-callee-save.0 : BV:32
+3 : input.src.llvm-callee-save.1 : BV:32
+4 : input.src.llvm-callee-save.2 : BV:32
+5 : input.src.llvm-callee-save.3 : BV:32
+6 : bvxor(1, 2, 3, 4, 5) : BV:32
+=graph_with_simplified_assets.loc_to_expr_map at Lend%1%0=>E0%0%1 for loc_id 1014
+1 : retaddr_const : BV:32
+=graph_with_simplified_assets.loc_to_expr_map at Lend%1%0=>E0%0%1 done
+=graph_with_simplified_assets.loc_to_expr_map at Lend%1%1=>E0%0%1
+=graph_with_simplified_assets.loc_to_expr_map at Lend%1%1=>E0%0%1 for loc_id 1001
+1 : input.src.llvm-callee-save.0 : BV:32
+2 : input.src.llvm-%hidden-reg : BV:32
+3 : input.src.llvm-callee-save.1 : BV:32
+4 : input.src.llvm-callee-save.2 : BV:32
+5 : input.src.llvm-callee-save.3 : BV:32
+6 : bvxor(1, 2, 3, 4, 5) : BV:32
+=graph_with_simplified_assets.loc_to_expr_map at Lend%1%1=>E0%0%1 for loc_id 1014
+1 : retaddr_const : BV:32
+=graph_with_simplified_assets.loc_to_expr_map at Lend%1%1=>E0%0%1 done
+=graph_with_simplified_assets.loc_to_expr_map at Lfoo%1%1=>Lend%1%0
+=graph_with_simplified_assets.loc_to_expr_map at Lfoo%1%1=>Lend%1%0 for loc_id 1010
+1 : 12 { -4 } : BV:4
+=graph_with_simplified_assets.loc_to_expr_map at Lfoo%1%1=>Lend%1%0 for loc_id 1011
+1 : 0 : BOOL
+=graph_with_simplified_assets.loc_to_expr_map at Lfoo%1%1=>Lend%1%0 for loc_id 1012
+1 : 1 : BOOL
+=graph_with_simplified_assets.loc_to_expr_map at Lfoo%1%1=>Lend%1%0 for loc_id 1013
+1 : 0 : BOOL
+=graph_with_simplified_assets.loc_to_expr_map at Lfoo%1%1=>Lend%1%0 done
+=graph_with_simplified_assets.loc_to_expr_map at Lfoo%1%1=>Lfoo%1%100003
+=graph_with_simplified_assets.loc_to_expr_map at Lfoo%1%1=>Lfoo%1%100003 for loc_id 1012
+1 : 1 : BOOL
+=graph_with_simplified_assets.loc_to_expr_map at Lfoo%1%1=>Lfoo%1%100003 done
+=graph_with_simplified_assets.loc_to_expr_map at Lfoo%1%100003=>Lfoo%1%100004
+=graph_with_simplified_assets.loc_to_expr_map at Lfoo%1%100003=>Lfoo%1%100004 for loc_id 1013
+1 : 0 : BOOL
+=graph_with_simplified_assets.loc_to_expr_map at Lfoo%1%100003=>Lfoo%1%100004 done
+=graph_with_simplified_assets.loc_to_expr_map at Lfoo%1%100004=>Lfoo%1%100005
+=graph_with_simplified_assets.loc_to_expr_map at Lfoo%1%100004=>Lfoo%1%100005 for loc_id 1011
+1 : 0 : BOOL
+=graph_with_simplified_assets.loc_to_expr_map at Lfoo%1%100004=>Lfoo%1%100005 done
+=graph_with_simplified_assets.loc_to_expr_map at Lfoo%1%100005=>Lfoo%2%1
+=graph_with_simplified_assets.loc_to_expr_map at Lfoo%1%100005=>Lfoo%2%1 for loc_id 1010
+1 : 12 { -4 } : BV:4
+=graph_with_simplified_assets.loc_to_expr_map at Lfoo%1%100005=>Lfoo%2%1 done
+=graph_with_simplified_assets.loc_to_expr_map at Lfoo%2%1=>Lfoo%2%100003
+=graph_with_simplified_assets.loc_to_expr_map at Lfoo%2%1=>Lfoo%2%100003 done
+=graph_with_simplified_assets.loc_to_expr_map at Lfoo%2%100003=>Lfoo%2%100004
+=graph_with_simplified_assets.loc_to_expr_map at Lfoo%2%100003=>Lfoo%2%100004 done
+=graph_with_simplified_assets.loc_to_expr_map at Lfoo%2%100004=>Lend%1%0
+=graph_with_simplified_assets.loc_to_expr_map at Lfoo%2%100004=>Lend%1%0 done
+=graph_with_simplified_assets.loc_to_expr_map done
+=graph_with_simplified_assets done
+
+=Locs in src.llvm.main
+=Loc 1001 in src.llvm.main.
+LLVMVAR
+src.llvm-%hidden-reg
+1 : input.src.llvm-%hidden-reg : BV:32
+=Loc 1002 in src.llvm.main.
+LLVMVAR
+src.llvm-%i_2
+1 : input.src.llvm-%i_2 : BV:4
+=Loc 1003 in src.llvm.main.
+LLVMVAR
+src.llvm-%i_2.poison
+1 : input.src.llvm-%i_2.poison : BOOL
+=Loc 1004 in src.llvm.main.
+LLVMVAR
+src.llvm-%i_2.poison.temp1
+1 : input.src.llvm-%i_2.poison.temp1 : BV:5
+=Loc 1005 in src.llvm.main.
+LLVMVAR
+src.llvm-%i_2.poison.temp2
+1 : input.src.llvm-%i_2.poison.temp2 : BV:5
+=Loc 1006 in src.llvm.main.
+LLVMVAR
+src.llvm-%i_2.poison.temp3
+1 : input.src.llvm-%i_2.poison.temp3 : BOOL
+=Loc 1007 in src.llvm.main.
+LLVMVAR
+src.llvm-%i_2.poison.temp4
+1 : input.src.llvm-%i_2.poison.temp4 : BOOL
+=Loc 1008 in src.llvm.main.
+LLVMVAR
+src.llvm-%i_3
+1 : input.src.llvm-%i_3 : BOOL
+=Loc 1009 in src.llvm.main.
+LLVMVAR
+src.llvm-%i_3.poison
+1 : input.src.llvm-%i_3.poison : BOOL
+=Loc 1010 in src.llvm.main.
+LLVMVAR
+src.llvm-%i_4
+1 : input.src.llvm-%i_4 : BV:4
+=Loc 1011 in src.llvm.main.
+LLVMVAR
+src.llvm-%i_4.poison
+1 : input.src.llvm-%i_4.poison : BOOL
+=Loc 1012 in src.llvm.main.
+LLVMVAR
+src.llvm-%i_4.poison.temp1
+1 : input.src.llvm-%i_4.poison.temp1 : BOOL
+=Loc 1013 in src.llvm.main.
+LLVMVAR
+src.llvm-%i_4.poison.temp2
+1 : input.src.llvm-%i_4.poison.temp2 : BOOL
+=Loc 1014 in src.llvm.main.
+LLVMVAR
+src.llvm-indir_tgt
+1 : input.src.llvm-indir_tgt : BV:32
+=Loc 1015 in src.llvm.main.
+MASKED
+=memname
+src.llvm-mem
+=memlabel
+memlabel-mem-heap
+=Loc 1016 in src.llvm.main.
+MASKED
+=memname
+src.llvm-mem
+=memlabel
+memlabel-mem-esp
+
+=Alias analysis results in src.llvm.main
+=Alias analysis result in src.llvm.main at L0%0%1
+=Alias analysis result in src.llvm.main at L0%0%1 for loc 1001 (input.src.llvm-%hidden-reg)
+nullptr
+=Alias analysis result in src.llvm.main at L0%0%1 for loc 1002 (input.src.llvm-%i_2)
+nullptr
+=Alias analysis result in src.llvm.main at L0%0%1 for loc 1003 (input.src.llvm-%i_2.poison)
+nullptr
+=Alias analysis result in src.llvm.main at L0%0%1 for loc 1004 (input.src.llvm-%i_2.poison.temp1)
+nullptr
+=Alias analysis result in src.llvm.main at L0%0%1 for loc 1005 (input.src.llvm-%i_2.poison.temp2)
+nullptr
+=Alias analysis result in src.llvm.main at L0%0%1 for loc 1006 (input.src.llvm-%i_2.poison.temp3)
+nullptr
+=Alias analysis result in src.llvm.main at L0%0%1 for loc 1007 (input.src.llvm-%i_2.poison.temp4)
+nullptr
+=Alias analysis result in src.llvm.main at L0%0%1 for loc 1008 (input.src.llvm-%i_3)
+nullptr
+=Alias analysis result in src.llvm.main at L0%0%1 for loc 1009 (input.src.llvm-%i_3.poison)
+nullptr
+=Alias analysis result in src.llvm.main at L0%0%1 for loc 1010 (input.src.llvm-%i_4)
+nullptr
+=Alias analysis result in src.llvm.main at L0%0%1 for loc 1011 (input.src.llvm-%i_4.poison)
+nullptr
+=Alias analysis result in src.llvm.main at L0%0%1 for loc 1012 (input.src.llvm-%i_4.poison.temp1)
+nullptr
+=Alias analysis result in src.llvm.main at L0%0%1 for loc 1013 (input.src.llvm-%i_4.poison.temp2)
+nullptr
+=Alias analysis result in src.llvm.main at L0%0%1 for loc 1014 (input.src.llvm-indir_tgt)
+nullptr
+=Alias analysis result in src.llvm.main at L0%0%1 for loc 1015 (memmask(input.src.llvm-mem, memlabel-mem-heap))
+nullptr
+=Alias analysis result in src.llvm.main at L0%0%1 for loc 1016 (memmask(input.src.llvm-mem, memlabel-mem-esp))
+nullptr
+=Alias analysis result in src.llvm.main at L0%3%1
+=Alias analysis result in src.llvm.main at L0%3%1 for loc 1001 (input.src.llvm-%hidden-reg)
+nullptr
+=Alias analysis result in src.llvm.main at L0%3%1 for loc 1002 (input.src.llvm-%i_2)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in src.llvm.main at L0%3%1 for loc 1003 (input.src.llvm-%i_2.poison)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in src.llvm.main at L0%3%1 for loc 1004 (input.src.llvm-%i_2.poison.temp1)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in src.llvm.main at L0%3%1 for loc 1005 (input.src.llvm-%i_2.poison.temp2)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in src.llvm.main at L0%3%1 for loc 1006 (input.src.llvm-%i_2.poison.temp3)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in src.llvm.main at L0%3%1 for loc 1007 (input.src.llvm-%i_2.poison.temp4)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in src.llvm.main at L0%3%1 for loc 1008 (input.src.llvm-%i_3)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in src.llvm.main at L0%3%1 for loc 1009 (input.src.llvm-%i_3.poison)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in src.llvm.main at L0%3%1 for loc 1010 (input.src.llvm-%i_4)
+nullptr
+=Alias analysis result in src.llvm.main at L0%3%1 for loc 1011 (input.src.llvm-%i_4.poison)
+nullptr
+=Alias analysis result in src.llvm.main at L0%3%1 for loc 1012 (input.src.llvm-%i_4.poison.temp1)
+nullptr
+=Alias analysis result in src.llvm.main at L0%3%1 for loc 1013 (input.src.llvm-%i_4.poison.temp2)
+nullptr
+=Alias analysis result in src.llvm.main at L0%3%1 for loc 1014 (input.src.llvm-indir_tgt)
+nullptr
+=Alias analysis result in src.llvm.main at L0%3%1 for loc 1015 (memmask(input.src.llvm-mem, memlabel-mem-heap))
+nullptr
+=Alias analysis result in src.llvm.main at L0%3%1 for loc 1016 (memmask(input.src.llvm-mem, memlabel-mem-esp))
+nullptr
+=Alias analysis result in src.llvm.main at Lend%1%0
+=Alias analysis result in src.llvm.main at Lend%1%0 for loc 1001 (input.src.llvm-%hidden-reg)
+nullptr
+=Alias analysis result in src.llvm.main at Lend%1%0 for loc 1002 (input.src.llvm-%i_2)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in src.llvm.main at Lend%1%0 for loc 1003 (input.src.llvm-%i_2.poison)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in src.llvm.main at Lend%1%0 for loc 1004 (input.src.llvm-%i_2.poison.temp1)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in src.llvm.main at Lend%1%0 for loc 1005 (input.src.llvm-%i_2.poison.temp2)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in src.llvm.main at Lend%1%0 for loc 1006 (input.src.llvm-%i_2.poison.temp3)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in src.llvm.main at Lend%1%0 for loc 1007 (input.src.llvm-%i_2.poison.temp4)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in src.llvm.main at Lend%1%0 for loc 1008 (input.src.llvm-%i_3)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in src.llvm.main at Lend%1%0 for loc 1009 (input.src.llvm-%i_3.poison)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in src.llvm.main at Lend%1%0 for loc 1010 (input.src.llvm-%i_4)
+nullptr
+=Alias analysis result in src.llvm.main at Lend%1%0 for loc 1011 (input.src.llvm-%i_4.poison)
+nullptr
+=Alias analysis result in src.llvm.main at Lend%1%0 for loc 1012 (input.src.llvm-%i_4.poison.temp1)
+nullptr
+=Alias analysis result in src.llvm.main at Lend%1%0 for loc 1013 (input.src.llvm-%i_4.poison.temp2)
+nullptr
+=Alias analysis result in src.llvm.main at Lend%1%0 for loc 1014 (input.src.llvm-indir_tgt)
+nullptr
+=Alias analysis result in src.llvm.main at Lend%1%0 for loc 1015 (memmask(input.src.llvm-mem, memlabel-mem-heap))
+nullptr
+=Alias analysis result in src.llvm.main at Lend%1%0 for loc 1016 (memmask(input.src.llvm-mem, memlabel-mem-esp))
+nullptr
+=Alias analysis result in src.llvm.main at Lfoo%1%1
+=Alias analysis result in src.llvm.main at Lfoo%1%1 for loc 1001 (input.src.llvm-%hidden-reg)
+nullptr
+=Alias analysis result in src.llvm.main at Lfoo%1%1 for loc 1002 (input.src.llvm-%i_2)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in src.llvm.main at Lfoo%1%1 for loc 1003 (input.src.llvm-%i_2.poison)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in src.llvm.main at Lfoo%1%1 for loc 1004 (input.src.llvm-%i_2.poison.temp1)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in src.llvm.main at Lfoo%1%1 for loc 1005 (input.src.llvm-%i_2.poison.temp2)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in src.llvm.main at Lfoo%1%1 for loc 1006 (input.src.llvm-%i_2.poison.temp3)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in src.llvm.main at Lfoo%1%1 for loc 1007 (input.src.llvm-%i_2.poison.temp4)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in src.llvm.main at Lfoo%1%1 for loc 1008 (input.src.llvm-%i_3)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in src.llvm.main at Lfoo%1%1 for loc 1009 (input.src.llvm-%i_3.poison)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in src.llvm.main at Lfoo%1%1 for loc 1010 (input.src.llvm-%i_4)
+nullptr
+=Alias analysis result in src.llvm.main at Lfoo%1%1 for loc 1011 (input.src.llvm-%i_4.poison)
+nullptr
+=Alias analysis result in src.llvm.main at Lfoo%1%1 for loc 1012 (input.src.llvm-%i_4.poison.temp1)
+nullptr
+=Alias analysis result in src.llvm.main at Lfoo%1%1 for loc 1013 (input.src.llvm-%i_4.poison.temp2)
+nullptr
+=Alias analysis result in src.llvm.main at Lfoo%1%1 for loc 1014 (input.src.llvm-indir_tgt)
+nullptr
+=Alias analysis result in src.llvm.main at Lfoo%1%1 for loc 1015 (memmask(input.src.llvm-mem, memlabel-mem-heap))
+nullptr
+=Alias analysis result in src.llvm.main at Lfoo%1%1 for loc 1016 (memmask(input.src.llvm-mem, memlabel-mem-esp))
+nullptr
+=Alias analysis result in src.llvm.main at E0%0%1
+=Alias analysis result in src.llvm.main at E0%0%1 for loc 1001 (input.src.llvm-%hidden-reg)
+nullptr
+=Alias analysis result in src.llvm.main at E0%0%1 for loc 1002 (input.src.llvm-%i_2)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in src.llvm.main at E0%0%1 for loc 1003 (input.src.llvm-%i_2.poison)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in src.llvm.main at E0%0%1 for loc 1004 (input.src.llvm-%i_2.poison.temp1)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in src.llvm.main at E0%0%1 for loc 1005 (input.src.llvm-%i_2.poison.temp2)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in src.llvm.main at E0%0%1 for loc 1006 (input.src.llvm-%i_2.poison.temp3)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in src.llvm.main at E0%0%1 for loc 1007 (input.src.llvm-%i_2.poison.temp4)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in src.llvm.main at E0%0%1 for loc 1008 (input.src.llvm-%i_3)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in src.llvm.main at E0%0%1 for loc 1009 (input.src.llvm-%i_3.poison)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in src.llvm.main at E0%0%1 for loc 1010 (input.src.llvm-%i_4)
+nullptr
+=Alias analysis result in src.llvm.main at E0%0%1 for loc 1011 (input.src.llvm-%i_4.poison)
+nullptr
+=Alias analysis result in src.llvm.main at E0%0%1 for loc 1012 (input.src.llvm-%i_4.poison.temp1)
+nullptr
+=Alias analysis result in src.llvm.main at E0%0%1 for loc 1013 (input.src.llvm-%i_4.poison.temp2)
+nullptr
+=Alias analysis result in src.llvm.main at E0%0%1 for loc 1014 (input.src.llvm-indir_tgt)
+lr_status
+lr_status_bottom(; memlabel-mem-heap, )
+=Alias analysis result in src.llvm.main at E0%0%1 for loc 1015 (memmask(input.src.llvm-mem, memlabel-mem-heap))
+nullptr
+=Alias analysis result in src.llvm.main at E0%0%1 for loc 1016 (memmask(input.src.llvm-mem, memlabel-mem-esp))
+nullptr
+
+=Liveness in src.llvm.main
+=live locs at L0%0%1
+1015
+=live locs at L0%3%1
+1008, 1015
+=live locs at Lend%1%0
+1015
+=live locs at Lfoo%1%1
+1015
+=live locs at E0%0%1
+1015
+
+=Available expressions in src.llvm.main
+=available expressions at L0%0%1 in src.llvm.main
+=avail_exprs begin
+=avail_exprs end
+=available expressions at L0%3%1 in src.llvm.main
+=avail_exprs begin
+=loc 1002
+=from_expr
+17412 : input.src.llvm-%i_2 : BV:4
+=to_expr
+17439 : 6 : BV:4
+=loc 1003
+=from_expr
+17410 : input.src.llvm-%i_2.poison : BOOL
+=to_expr
+17393 : 1 : BOOL
+=loc 1004
+=from_expr
+17402 : input.src.llvm-%i_2.poison.temp1 : BV:5
+=to_expr
+17437 : 22 { -10 } : BV:5
+=loc 1005
+=from_expr
+17403 : input.src.llvm-%i_2.poison.temp2 : BV:5
+=to_expr
+17438 : 6 : BV:5
+=loc 1006
+=from_expr
+17405 : input.src.llvm-%i_2.poison.temp3 : BOOL
+=to_expr
+17407 : 0 : BOOL
+=loc 1007
+=from_expr
+17408 : input.src.llvm-%i_2.poison.temp4 : BOOL
+=to_expr
+17393 : 1 : BOOL
+=loc 1008
+=from_expr
+17415 : input.src.llvm-%i_3 : BOOL
+=to_expr
+17407 : 0 : BOOL
+=loc 1009
+=from_expr
+17417 : input.src.llvm-%i_3.poison : BOOL
+=to_expr
+17393 : 1 : BOOL
+=avail_exprs end
+=available expressions at Lend%1%0 in src.llvm.main
+=avail_exprs begin
+=loc 1002
+=from_expr
+17412 : input.src.llvm-%i_2 : BV:4
+=to_expr
+17439 : 6 : BV:4
+=loc 1003
+=from_expr
+17410 : input.src.llvm-%i_2.poison : BOOL
+=to_expr
+17393 : 1 : BOOL
+=loc 1004
+=from_expr
+17402 : input.src.llvm-%i_2.poison.temp1 : BV:5
+=to_expr
+17437 : 22 { -10 } : BV:5
+=loc 1005
+=from_expr
+17403 : input.src.llvm-%i_2.poison.temp2 : BV:5
+=to_expr
+17438 : 6 : BV:5
+=loc 1006
+=from_expr
+17405 : input.src.llvm-%i_2.poison.temp3 : BOOL
+=to_expr
+17407 : 0 : BOOL
+=loc 1007
+=from_expr
+17408 : input.src.llvm-%i_2.poison.temp4 : BOOL
+=to_expr
+17393 : 1 : BOOL
+=loc 1008
+=from_expr
+17415 : input.src.llvm-%i_3 : BOOL
+=to_expr
+17407 : 0 : BOOL
+=loc 1009
+=from_expr
+17417 : input.src.llvm-%i_3.poison : BOOL
+=to_expr
+17393 : 1 : BOOL
+=avail_exprs end
+=available expressions at Lfoo%1%1 in src.llvm.main
+=avail_exprs begin
+=loc 1002
+=from_expr
+17412 : input.src.llvm-%i_2 : BV:4
+=to_expr
+17439 : 6 : BV:4
+=loc 1003
+=from_expr
+17410 : input.src.llvm-%i_2.poison : BOOL
+=to_expr
+17393 : 1 : BOOL
+=loc 1004
+=from_expr
+17402 : input.src.llvm-%i_2.poison.temp1 : BV:5
+=to_expr
+17437 : 22 { -10 } : BV:5
+=loc 1005
+=from_expr
+17403 : input.src.llvm-%i_2.poison.temp2 : BV:5
+=to_expr
+17438 : 6 : BV:5
+=loc 1006
+=from_expr
+17405 : input.src.llvm-%i_2.poison.temp3 : BOOL
+=to_expr
+17407 : 0 : BOOL
+=loc 1007
+=from_expr
+17408 : input.src.llvm-%i_2.poison.temp4 : BOOL
+=to_expr
+17393 : 1 : BOOL
+=loc 1008
+=from_expr
+17415 : input.src.llvm-%i_3 : BOOL
+=to_expr
+17407 : 0 : BOOL
+=loc 1009
+=from_expr
+17417 : input.src.llvm-%i_3.poison : BOOL
+=to_expr
+17393 : 1 : BOOL
+=avail_exprs end
+=available expressions at E0%0%1 in src.llvm.main
+=avail_exprs begin
+=loc 1002
+=from_expr
+17412 : input.src.llvm-%i_2 : BV:4
+=to_expr
+17439 : 6 : BV:4
+=loc 1003
+=from_expr
+17410 : input.src.llvm-%i_2.poison : BOOL
+=to_expr
+17393 : 1 : BOOL
+=loc 1004
+=from_expr
+17402 : input.src.llvm-%i_2.poison.temp1 : BV:5
+=to_expr
+17437 : 22 { -10 } : BV:5
+=loc 1005
+=from_expr
+17403 : input.src.llvm-%i_2.poison.temp2 : BV:5
+=to_expr
+17438 : 6 : BV:5
+=loc 1006
+=from_expr
+17405 : input.src.llvm-%i_2.poison.temp3 : BOOL
+=to_expr
+17407 : 0 : BOOL
+=loc 1007
+=from_expr
+17408 : input.src.llvm-%i_2.poison.temp4 : BOOL
+=to_expr
+17393 : 1 : BOOL
+=loc 1008
+=from_expr
+17415 : input.src.llvm-%i_3 : BOOL
+=to_expr
+17407 : 0 : BOOL
+=loc 1009
+=from_expr
+17417 : input.src.llvm-%i_3.poison : BOOL
+=to_expr
+17393 : 1 : BOOL
+=loc 1014
+=from_expr
+17443 : input.src.llvm-indir_tgt : BV:32
+=to_expr
+17387 : retaddr_const : BV:32
+=avail_exprs end
+
+=sprel_maps in src.llvm.main
+=sprel_map at L0%0%1 in src.llvm.main
+=sprel_map at L0%3%1 in src.llvm.main
+=loc 1002
+17439 : 6 : BV:4
+=loc 1003
+17393 : 1 : BOOL
+=loc 1004
+17437 : 22 { -10 } : BV:5
+=loc 1005
+17438 : 6 : BV:5
+=loc 1006
+17407 : 0 : BOOL
+=loc 1007
+17393 : 1 : BOOL
+=loc 1008
+17407 : 0 : BOOL
+=loc 1009
+17393 : 1 : BOOL
+=sprel_map at Lend%1%0 in src.llvm.main
+=loc 1002
+17439 : 6 : BV:4
+=loc 1003
+17393 : 1 : BOOL
+=loc 1004
+17437 : 22 { -10 } : BV:5
+=loc 1005
+17438 : 6 : BV:5
+=loc 1006
+17407 : 0 : BOOL
+=loc 1007
+17393 : 1 : BOOL
+=loc 1008
+17407 : 0 : BOOL
+=loc 1009
+17393 : 1 : BOOL
+=sprel_map at Lfoo%1%1 in src.llvm.main
+=loc 1002
+17439 : 6 : BV:4
+=loc 1003
+17393 : 1 : BOOL
+=loc 1004
+17437 : 22 { -10 } : BV:5
+=loc 1005
+17438 : 6 : BV:5
+=loc 1006
+17407 : 0 : BOOL
+=loc 1007
+17393 : 1 : BOOL
+=loc 1008
+17407 : 0 : BOOL
+=loc 1009
+17393 : 1 : BOOL
+=sprel_map at E0%0%1 in src.llvm.main
+=loc 1002
+17439 : 6 : BV:4
+=loc 1003
+17393 : 1 : BOOL
+=loc 1004
+17437 : 22 { -10 } : BV:5
+=loc 1005
+17438 : 6 : BV:5
+=loc 1006
+17407 : 0 : BOOL
+=loc 1007
+17393 : 1 : BOOL
+=loc 1008
+17407 : 0 : BOOL
+=loc 1009
+17393 : 1 : BOOL
+=loc 1014
+17387 : retaddr_const : BV:32
+=graph_with_aliasing_done
+=Memlabel assertions empty
+=Memlabel assertions done
+=graph_with_proofs done
+=graph_with_ce done
+=Invariant state at node L0%0%1:
+=pc L0%0%1 invariant_state
+is_top 0
+is_stable 1
+=pc L0%0%1 invariant_state done
+=Invariant state at node L0%3%1:
+=pc L0%3%1 invariant_state
+is_top 0
+is_stable 1
+=pc L0%3%1 invariant_state done
+=Invariant state at node Lend%1%0:
+=pc Lend%1%0 invariant_state
+is_top 0
+is_stable 1
+=pc Lend%1%0 invariant_state done
+=Invariant state at node Lfoo%1%1:
+=pc Lfoo%1%1 invariant_state
+is_top 0
+is_stable 1
+=pc Lfoo%1%1 invariant_state done
+=Invariant state at node E0%0%1:
+=pc E0%0%1 invariant_state
+is_top 0
+is_stable 1
+=pc E0%0%1 invariant_state done
+=graph_with_guessing done
+=String-contents:
+=Nextpc-map:
+=TFGdone
+=suffixpaths for src.llvm.main
+=suffixpath_at_L0%0%1 for src.llvm.main
+=suffixpath_at_L0%0%1.graph_edge_composition
+(epsilon)
+=suffixpath_at_L0%3%1 for src.llvm.main
+=suffixpath_at_L0%3%1.graph_edge_composition
+(L0%0%1=>L0%3%1)
+=suffixpath_at_Lend%1%0 for src.llvm.main
+=suffixpath_at_Lend%1%0.graph_edge_composition
+(((L0%0%1=>L0%3%1)*(L0%3%1=>Lend%1%0))+((L0%0%1=>L0%3%1)*((L0%3%1=>Lfoo%1%1)*(Lfoo%1%1=>Lend%1%0))))
+=suffixpath_at_Lfoo%1%1 for src.llvm.main
+=suffixpath_at_Lfoo%1%1.graph_edge_composition
+((L0%0%1=>L0%3%1)*(L0%3%1=>Lfoo%1%1))
+=suffixpath_at_E0%0%1 for src.llvm.main
+=suffixpath_at_E0%0%1.graph_edge_composition
+((((L0%0%1=>L0%3%1)*(L0%3%1=>Lend%1%0))+((L0%0%1=>L0%3%1)*((L0%3%1=>Lfoo%1%1)*(Lfoo%1%1=>Lend%1%0))))*(Lend%1%0=>E0%0%1))
+=suffixpaths for src.llvm.main done
+=PC_to_linename:
+=PC_to_linename done
+=PC_to_column_name:
+=PC_to_column_name done
+=PC_to_line_and_column:
+=PC_to_line_and_column done
+=SourceToLLVMVarnames:
+=SourceToLLVMVarnames done
+=InputLLVMToSourceVarnames:
+input.src.llvm-%i_2.poison.temp1 : L0%1%100003 : (-10)
+input.src.llvm-%i_2.poison.temp2 : L0%1%100004 : 6
+input.src.llvm-%i_2.poison.temp3 : L0%1%100005 : false
+input.src.llvm-%i_2.poison.temp4 : L0%1%100006 : true
+input.src.llvm-%i_2.poison : L0%1%100007 : true
+input.src.llvm-%i_2 : L0%2%1 : 6
+input.src.llvm-%i_3 : L0%3%1 : false
+input.src.llvm-%i_3.poison : L0%2%100003 : true
+input.src.llvm-%i_4.poison.temp1 : Lfoo%1%100003 : true
+input.src.llvm-%i_4.poison.temp2 : Lfoo%1%100004 : false
+input.src.llvm-%i_4 : Lfoo%2%1 : (-4)
+input.src.llvm-%i_4.poison : Lfoo%1%100005 : false
+input.src.llvm-indir_tgt : E0%0%1 : return-address
+=InputLLVMToSourceVarnames done
+=PotentialSCEVRelations:
+=PotentialSCEVRelations done
+=TFG_LLVM_done
+=dst_tfg
+=TFG_LLVM dst.llvm.main.dst:
+=TFG:
+=Nodes: L0%0%1 L0%3%1 Lend%1%0 Lfoo%1%1 E0%0%1
+=Edges:
+L0%3%1 => Lfoo%1%1
+L0%3%1 => Lend%1%0
+Lend%1%0 => E0%0%1
+L0%0%1 => L0%3%1
+Lfoo%1%1 => Lend%1%0
+=graph done
+=Node outputs: E0%0%1
+=Output: heap
+1 : input.dst.llvm-mem : ARRAY[BV:32 -> BV:8]
+2 : memlabel-mem-heap : MEMLABEL
+3 : memmask(1, 2) : ARRAY[BV:32 -> BV:8]
+=Output: llvm-indir_tgt
+1 : retaddr_const : BV:32
+=Node outputs done for E0%0%1
+=input_outputs done
+=Symbol-map:
+=Symbol-map done
+=Locals-map:
+=Locals-map done
+=StartState:
+=dst.llvm-mem
+1 : input.dst.llvm-mem : ARRAY[BV:32 -> BV:8]
+=state_end
+
+=Global assumes
+=global assume predicate_set done
+=Edge: L0%3%1 => Lfoo%1%1
+=Edge.EdgeCond: 
+1 : input.dst.llvm-%i_3 : BOOL
+=Edge.StateTo: 
+=state_end
+=Edge.Assumes.begin:
+=EdgeAssume.0
+1 : 1 : BOOL
+2 : input.dst.llvm-%i_3.poison : BOOL
+3 : not(2) : BOOL
+4 : implies(1, 3) : BOOL
+5 : implies(1, 4) : BOOL
+=Edge.Assumes.end
+=Edge.te_comment
+0:3:((  br i1 %i_3, label %foo, label %end*  br i1 %i_3, label %foo, label %end)*  br i1 %i_3, label %foo, label %end)
+tfg_edge_comment end
+
+=Edge: L0%3%1 => Lend%1%0
+=Edge.EdgeCond: 
+1 : input.dst.llvm-%i_3 : BOOL
+2 : not(1) : BOOL
+=Edge.StateTo: 
+=state_end
+=Edge.Assumes.begin:
+=EdgeAssume.0
+1 : 1 : BOOL
+2 : input.dst.llvm-%i_3.poison : BOOL
+3 : not(2) : BOOL
+4 : implies(1, 3) : BOOL
+5 : implies(1, 4) : BOOL
+=Edge.Assumes.end
+=Edge.te_comment
+0:3:((  br i1 %i_3, label %foo, label %end*  br i1 %i_3, label %foo, label %end)*  br i1 %i_3, label %foo, label %end)
+tfg_edge_comment end
+
+=Edge: Lend%1%0 => E0%0%1
+=Edge.EdgeCond: 
+1 : 1 : BOOL
+=Edge.StateTo: 
+=dst.llvm-%hidden-reg
+1 : input.dst.llvm-%hidden-reg : BV:32
+2 : input.dst.llvm-callee-save.0 : BV:32
+3 : bvxor(1, 2) : BV:32
+4 : input.dst.llvm-callee-save.1 : BV:32
+5 : bvxor(3, 4) : BV:32
+6 : input.dst.llvm-callee-save.2 : BV:32
+7 : bvxor(5, 6) : BV:32
+8 : input.dst.llvm-callee-save.3 : BV:32
+9 : bvxor(7, 8) : BV:32
+=dst.llvm-indir_tgt
+1 : retaddr_const : BV:32
+=state_end
+=Edge.Assumes.begin:
+=Edge.Assumes.end
+=Edge.te_comment
+0:-1:(bb_entry*  ret void)
+tfg_edge_comment end
+
+=Edge: L0%0%1 => L0%3%1
+=Edge.EdgeCond: 
+1 : 1 : BOOL
+=Edge.StateTo: 
+=dst.llvm-%i_2.poison
+1 : 0 : BOOL
+2 : or(1, 1) : BOOL
+=dst.llvm-%i_2
+1 : 10 { -6 } : BV:4
+2 : 12 { -4 } : BV:4
+3 : bvadd(1, 2) : BV:4
+=dst.llvm-%i_3.poison
+1 : 0 : BOOL
+2 : or(1, 1) : BOOL
+3 : or(2, 1) : BOOL
+=dst.llvm-%i_3
+1 : 10 { -6 } : BV:4
+2 : 12 { -4 } : BV:4
+3 : bvadd(1, 2) : BV:4
+4 : 0 : BV:4
+5 : eq(3, 4) : BOOL
+=state_end
+=Edge.Assumes.begin:
+=Edge.Assumes.end
+=Edge.te_comment
+0:-1:((((start_pc_edge*  %i_2 = add i4 -6, -4)*  %i_2 = add i4 -6, -4)*  %i_3 = icmp eq i4 %i_2, 0)*  %i_3 = icmp eq i4 %i_2, 0)
+tfg_edge_comment end
+
+=Edge: Lfoo%1%1 => Lend%1%0
+=Edge.EdgeCond: 
+1 : 1 : BOOL
+=Edge.StateTo: 
+=dst.llvm-%i_4.poison.temp1
+1 : 2 : BV:4
+2 : 4 : INT
+3 : isshiftcount(1, 2) : BOOL
+=dst.llvm-%i_4.poison.temp2
+1 : 2 : BV:4
+2 : 4 : INT
+3 : isshiftcount(1, 2) : BOOL
+4 : not(3) : BOOL
+=dst.llvm-%i_4.poison
+1 : 0 : BOOL
+2 : 2 : BV:4
+3 : 4 : INT
+4 : isshiftcount(2, 3) : BOOL
+5 : not(4) : BOOL
+6 : or(1, 1, 5) : BOOL
+=dst.llvm-%i_4
+1 : 3 : BV:4
+2 : 2 : BV:4
+3 : bvshl(1, 2) : BV:4
+=state_end
+=Edge.Assumes.begin:
+=Edge.Assumes.end
+=Edge.te_comment
+0:1:(((  %i_4 = shl i4 3, 2*  %i_4 = shl i4 3, 2)*  %i_4 = shl i4 3, 2)*(((  %i_4 = shl i4 3, 2*  br label %end)*  br label %end)*  br label %end))
+tfg_edge_comment end
+
+=graph_with_predicates_done
+=graph_with_simplified_assets
+=graph_with_simplified_assets.simplified_edgecond at L0%0%1=>L0%1%1
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at L0%0%1=>L0%3%1
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at L0%1%1=>L0%1%100003
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at L0%1%100003=>L0%2%1
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at L0%2%1=>L0%2%100003
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at L0%2%100003=>L0%3%1
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at L0%3%1=>L0%3%100003
+1 : 0 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at L0%3%1=>L0%3%100005
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at L0%3%1=>Lend%1%0
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at L0%3%1=>Lfoo%1%1
+1 : 0 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at L0%3%100003=>L0%3%100004
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at L0%3%100004=>Lfoo%1%1
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at L0%3%100005=>L0%3%100006
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at L0%3%100006=>Lend%1%0
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at Lend%1%0=>Lend%1%1
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at Lend%1%0=>E0%0%1
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at Lend%1%1=>E0%0%1
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at Lfoo%1%1=>Lend%1%0
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at Lfoo%1%1=>Lfoo%1%100003
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at Lfoo%1%100003=>Lfoo%1%100004
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at Lfoo%1%100004=>Lfoo%1%100005
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at Lfoo%1%100005=>Lfoo%2%1
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at Lfoo%2%1=>Lfoo%2%100003
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at Lfoo%2%100003=>Lfoo%2%100004
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at Lfoo%2%100004=>Lend%1%0
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond done
+=graph_with_simplified_assets.simplified_to_state at L0%0%1=>L0%1%1
+=state_end
+=graph_with_simplified_assets.simplified_to_state at L0%0%1=>L0%3%1
+=dst.llvm-%i_2.poison
+1 : 0 : BOOL
+=dst.llvm-%i_2
+1 : 6 : BV:4
+=dst.llvm-%i_3.poison
+1 : 0 : BOOL
+=dst.llvm-%i_3
+1 : 0 : BOOL
+=state_end
+=graph_with_simplified_assets.simplified_to_state at L0%1%1=>L0%1%100003
+=dst.llvm-%i_2.poison
+1 : 0 : BOOL
+=state_end
+=graph_with_simplified_assets.simplified_to_state at L0%1%100003=>L0%2%1
+=dst.llvm-%i_2
+1 : 6 : BV:4
+=state_end
+=graph_with_simplified_assets.simplified_to_state at L0%2%1=>L0%2%100003
+=dst.llvm-%i_3.poison
+1 : 0 : BOOL
+=state_end
+=graph_with_simplified_assets.simplified_to_state at L0%2%100003=>L0%3%1
+=dst.llvm-%i_3
+1 : 0 : BOOL
+=state_end
+=graph_with_simplified_assets.simplified_to_state at L0%3%1=>L0%3%100003
+=state_end
+=graph_with_simplified_assets.simplified_to_state at L0%3%1=>L0%3%100005
+=state_end
+=graph_with_simplified_assets.simplified_to_state at L0%3%1=>Lend%1%0
+=state_end
+=graph_with_simplified_assets.simplified_to_state at L0%3%1=>Lfoo%1%1
+=state_end
+=graph_with_simplified_assets.simplified_to_state at L0%3%100003=>L0%3%100004
+=state_end
+=graph_with_simplified_assets.simplified_to_state at L0%3%100004=>Lfoo%1%1
+=state_end
+=graph_with_simplified_assets.simplified_to_state at L0%3%100005=>L0%3%100006
+=state_end
+=graph_with_simplified_assets.simplified_to_state at L0%3%100006=>Lend%1%0
+=state_end
+=graph_with_simplified_assets.simplified_to_state at Lend%1%0=>Lend%1%1
+=state_end
+=graph_with_simplified_assets.simplified_to_state at Lend%1%0=>E0%0%1
+=dst.llvm-%hidden-reg
+1 : input.dst.llvm-%hidden-reg : BV:32
+2 : input.dst.llvm-callee-save.0 : BV:32
+3 : input.dst.llvm-callee-save.1 : BV:32
+4 : input.dst.llvm-callee-save.2 : BV:32
+5 : input.dst.llvm-callee-save.3 : BV:32
+6 : bvxor(1, 2, 3, 4, 5) : BV:32
+=dst.llvm-indir_tgt
+1 : retaddr_const : BV:32
+=state_end
+=graph_with_simplified_assets.simplified_to_state at Lend%1%1=>E0%0%1
+=dst.llvm-%hidden-reg
+1 : input.dst.llvm-callee-save.0 : BV:32
+2 : input.dst.llvm-%hidden-reg : BV:32
+3 : input.dst.llvm-callee-save.1 : BV:32
+4 : input.dst.llvm-callee-save.2 : BV:32
+5 : input.dst.llvm-callee-save.3 : BV:32
+6 : bvxor(1, 2, 3, 4, 5) : BV:32
+=dst.llvm-indir_tgt
+1 : retaddr_const : BV:32
+=state_end
+=graph_with_simplified_assets.simplified_to_state at Lfoo%1%1=>Lend%1%0
+=dst.llvm-%i_4.poison.temp1
+1 : 1 : BOOL
+=dst.llvm-%i_4.poison.temp2
+1 : 0 : BOOL
+=dst.llvm-%i_4.poison
+1 : 0 : BOOL
+=dst.llvm-%i_4
+1 : 12 { -4 } : BV:4
+=state_end
+=graph_with_simplified_assets.simplified_to_state at Lfoo%1%1=>Lfoo%1%100003
+=dst.llvm-%i_4.poison.temp1
+1 : 1 : BOOL
+=state_end
+=graph_with_simplified_assets.simplified_to_state at Lfoo%1%100003=>Lfoo%1%100004
+=dst.llvm-%i_4.poison.temp2
+1 : 0 : BOOL
+=state_end
+=graph_with_simplified_assets.simplified_to_state at Lfoo%1%100004=>Lfoo%1%100005
+=dst.llvm-%i_4.poison
+1 : 0 : BOOL
+=state_end
+=graph_with_simplified_assets.simplified_to_state at Lfoo%1%100005=>Lfoo%2%1
+=dst.llvm-%i_4
+1 : 12 { -4 } : BV:4
+=state_end
+=graph_with_simplified_assets.simplified_to_state at Lfoo%2%1=>Lfoo%2%100003
+=state_end
+=graph_with_simplified_assets.simplified_to_state at Lfoo%2%100003=>Lfoo%2%100004
+=state_end
+=graph_with_simplified_assets.simplified_to_state at Lfoo%2%100004=>Lend%1%0
+=state_end
+=graph_with_simplified_assets.simplified_to_state done
+=graph_with_simplified_assets.simplified_assumes at L0%0%1=>L0%1%1
+=graph_with_simplified_assets.simplified_assumes at L0%0%1=>L0%1%1 done
+=graph_with_simplified_assets.simplified_assumes at L0%0%1=>L0%3%1
+=graph_with_simplified_assets.simplified_assumes at L0%0%1=>L0%3%1 done
+=graph_with_simplified_assets.simplified_assumes at L0%1%1=>L0%1%100003
+=graph_with_simplified_assets.simplified_assumes at L0%1%1=>L0%1%100003 done
+=graph_with_simplified_assets.simplified_assumes at L0%1%100003=>L0%2%1
+=graph_with_simplified_assets.simplified_assumes at L0%1%100003=>L0%2%1 done
+=graph_with_simplified_assets.simplified_assumes at L0%2%1=>L0%2%100003
+=graph_with_simplified_assets.simplified_assumes at L0%2%1=>L0%2%100003 done
+=graph_with_simplified_assets.simplified_assumes at L0%2%100003=>L0%3%1
+=graph_with_simplified_assets.simplified_assumes at L0%2%100003=>L0%3%1 done
+=graph_with_simplified_assets.simplified_assumes at L0%3%1=>L0%3%100003
+=graph_with_simplified_assets.simplified_assumes at L0%3%1=>L0%3%100003 assume# 0
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_assumes at L0%3%1=>L0%3%100003 done
+=graph_with_simplified_assets.simplified_assumes at L0%3%1=>L0%3%100005
+=graph_with_simplified_assets.simplified_assumes at L0%3%1=>L0%3%100005 assume# 0
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_assumes at L0%3%1=>L0%3%100005 done
+=graph_with_simplified_assets.simplified_assumes at L0%3%1=>Lend%1%0
+=graph_with_simplified_assets.simplified_assumes at L0%3%1=>Lend%1%0 assume# 0
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_assumes at L0%3%1=>Lend%1%0 done
+=graph_with_simplified_assets.simplified_assumes at L0%3%1=>Lfoo%1%1
+=graph_with_simplified_assets.simplified_assumes at L0%3%1=>Lfoo%1%1 assume# 0
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_assumes at L0%3%1=>Lfoo%1%1 done
+=graph_with_simplified_assets.simplified_assumes at L0%3%100003=>L0%3%100004
+=graph_with_simplified_assets.simplified_assumes at L0%3%100003=>L0%3%100004 done
+=graph_with_simplified_assets.simplified_assumes at L0%3%100004=>Lfoo%1%1
+=graph_with_simplified_assets.simplified_assumes at L0%3%100004=>Lfoo%1%1 done
+=graph_with_simplified_assets.simplified_assumes at L0%3%100005=>L0%3%100006
+=graph_with_simplified_assets.simplified_assumes at L0%3%100005=>L0%3%100006 done
+=graph_with_simplified_assets.simplified_assumes at L0%3%100006=>Lend%1%0
+=graph_with_simplified_assets.simplified_assumes at L0%3%100006=>Lend%1%0 done
+=graph_with_simplified_assets.simplified_assumes at Lend%1%0=>Lend%1%1
+=graph_with_simplified_assets.simplified_assumes at Lend%1%0=>Lend%1%1 done
+=graph_with_simplified_assets.simplified_assumes at Lend%1%0=>E0%0%1
+=graph_with_simplified_assets.simplified_assumes at Lend%1%0=>E0%0%1 done
+=graph_with_simplified_assets.simplified_assumes at Lend%1%1=>E0%0%1
+=graph_with_simplified_assets.simplified_assumes at Lend%1%1=>E0%0%1 done
+=graph_with_simplified_assets.simplified_assumes at Lfoo%1%1=>Lend%1%0
+=graph_with_simplified_assets.simplified_assumes at Lfoo%1%1=>Lend%1%0 done
+=graph_with_simplified_assets.simplified_assumes at Lfoo%1%1=>Lfoo%1%100003
+=graph_with_simplified_assets.simplified_assumes at Lfoo%1%1=>Lfoo%1%100003 done
+=graph_with_simplified_assets.simplified_assumes at Lfoo%1%100003=>Lfoo%1%100004
+=graph_with_simplified_assets.simplified_assumes at Lfoo%1%100003=>Lfoo%1%100004 done
+=graph_with_simplified_assets.simplified_assumes at Lfoo%1%100004=>Lfoo%1%100005
+=graph_with_simplified_assets.simplified_assumes at Lfoo%1%100004=>Lfoo%1%100005 done
+=graph_with_simplified_assets.simplified_assumes at Lfoo%1%100005=>Lfoo%2%1
+=graph_with_simplified_assets.simplified_assumes at Lfoo%1%100005=>Lfoo%2%1 done
+=graph_with_simplified_assets.simplified_assumes at Lfoo%2%1=>Lfoo%2%100003
+=graph_with_simplified_assets.simplified_assumes at Lfoo%2%1=>Lfoo%2%100003 done
+=graph_with_simplified_assets.simplified_assumes at Lfoo%2%100003=>Lfoo%2%100004
+=graph_with_simplified_assets.simplified_assumes at Lfoo%2%100003=>Lfoo%2%100004 done
+=graph_with_simplified_assets.simplified_assumes at Lfoo%2%100004=>Lend%1%0
+=graph_with_simplified_assets.simplified_assumes at Lfoo%2%100004=>Lend%1%0 done
+=graph_with_simplified_assets.simplified_assumes done
+=graph_with_simplified_assets.loc_to_expr_map at L0%0%1=>L0%1%1
+=graph_with_simplified_assets.loc_to_expr_map at L0%0%1=>L0%1%1 done
+=graph_with_simplified_assets.loc_to_expr_map at L0%0%1=>L0%3%1
+=graph_with_simplified_assets.loc_to_expr_map at L0%0%1=>L0%3%1 for loc_id 1002
+1 : 6 : BV:4
+=graph_with_simplified_assets.loc_to_expr_map at L0%0%1=>L0%3%1 for loc_id 1003
+1 : 0 : BOOL
+=graph_with_simplified_assets.loc_to_expr_map at L0%0%1=>L0%3%1 for loc_id 1004
+1 : 0 : BOOL
+=graph_with_simplified_assets.loc_to_expr_map at L0%0%1=>L0%3%1 for loc_id 1005
+1 : 0 : BOOL
+=graph_with_simplified_assets.loc_to_expr_map at L0%0%1=>L0%3%1 done
+=graph_with_simplified_assets.loc_to_expr_map at L0%1%1=>L0%1%100003
+=graph_with_simplified_assets.loc_to_expr_map at L0%1%1=>L0%1%100003 for loc_id 1003
+1 : 0 : BOOL
+=graph_with_simplified_assets.loc_to_expr_map at L0%1%1=>L0%1%100003 done
+=graph_with_simplified_assets.loc_to_expr_map at L0%1%100003=>L0%2%1
+=graph_with_simplified_assets.loc_to_expr_map at L0%1%100003=>L0%2%1 for loc_id 1002
+1 : 6 : BV:4
+=graph_with_simplified_assets.loc_to_expr_map at L0%1%100003=>L0%2%1 done
+=graph_with_simplified_assets.loc_to_expr_map at L0%2%1=>L0%2%100003
+=graph_with_simplified_assets.loc_to_expr_map at L0%2%1=>L0%2%100003 for loc_id 1005
+1 : 0 : BOOL
+=graph_with_simplified_assets.loc_to_expr_map at L0%2%1=>L0%2%100003 done
+=graph_with_simplified_assets.loc_to_expr_map at L0%2%100003=>L0%3%1
+=graph_with_simplified_assets.loc_to_expr_map at L0%2%100003=>L0%3%1 for loc_id 1004
+1 : 0 : BOOL
+=graph_with_simplified_assets.loc_to_expr_map at L0%2%100003=>L0%3%1 done
+=graph_with_simplified_assets.loc_to_expr_map at L0%3%1=>L0%3%100003
+=graph_with_simplified_assets.loc_to_expr_map at L0%3%1=>L0%3%100003 done
+=graph_with_simplified_assets.loc_to_expr_map at L0%3%1=>L0%3%100005
+=graph_with_simplified_assets.loc_to_expr_map at L0%3%1=>L0%3%100005 done
+=graph_with_simplified_assets.loc_to_expr_map at L0%3%1=>Lend%1%0
+=graph_with_simplified_assets.loc_to_expr_map at L0%3%1=>Lend%1%0 done
+=graph_with_simplified_assets.loc_to_expr_map at L0%3%1=>Lfoo%1%1
+=graph_with_simplified_assets.loc_to_expr_map at L0%3%1=>Lfoo%1%1 done
+=graph_with_simplified_assets.loc_to_expr_map at L0%3%100003=>L0%3%100004
+=graph_with_simplified_assets.loc_to_expr_map at L0%3%100003=>L0%3%100004 done
+=graph_with_simplified_assets.loc_to_expr_map at L0%3%100004=>Lfoo%1%1
+=graph_with_simplified_assets.loc_to_expr_map at L0%3%100004=>Lfoo%1%1 done
+=graph_with_simplified_assets.loc_to_expr_map at L0%3%100005=>L0%3%100006
+=graph_with_simplified_assets.loc_to_expr_map at L0%3%100005=>L0%3%100006 done
+=graph_with_simplified_assets.loc_to_expr_map at L0%3%100006=>Lend%1%0
+=graph_with_simplified_assets.loc_to_expr_map at L0%3%100006=>Lend%1%0 done
+=graph_with_simplified_assets.loc_to_expr_map at Lend%1%0=>Lend%1%1
+=graph_with_simplified_assets.loc_to_expr_map at Lend%1%0=>Lend%1%1 done
+=graph_with_simplified_assets.loc_to_expr_map at Lend%1%0=>E0%0%1
+=graph_with_simplified_assets.loc_to_expr_map at Lend%1%0=>E0%0%1 for loc_id 1001
+1 : input.dst.llvm-%hidden-reg : BV:32
+2 : input.dst.llvm-callee-save.0 : BV:32
+3 : input.dst.llvm-callee-save.1 : BV:32
+4 : input.dst.llvm-callee-save.2 : BV:32
+5 : input.dst.llvm-callee-save.3 : BV:32
+6 : bvxor(1, 2, 3, 4, 5) : BV:32
+=graph_with_simplified_assets.loc_to_expr_map at Lend%1%0=>E0%0%1 for loc_id 1010
+1 : retaddr_const : BV:32
+=graph_with_simplified_assets.loc_to_expr_map at Lend%1%0=>E0%0%1 done
+=graph_with_simplified_assets.loc_to_expr_map at Lend%1%1=>E0%0%1
+=graph_with_simplified_assets.loc_to_expr_map at Lend%1%1=>E0%0%1 for loc_id 1001
+1 : input.dst.llvm-callee-save.0 : BV:32
+2 : input.dst.llvm-%hidden-reg : BV:32
+3 : input.dst.llvm-callee-save.1 : BV:32
+4 : input.dst.llvm-callee-save.2 : BV:32
+5 : input.dst.llvm-callee-save.3 : BV:32
+6 : bvxor(1, 2, 3, 4, 5) : BV:32
+=graph_with_simplified_assets.loc_to_expr_map at Lend%1%1=>E0%0%1 for loc_id 1010
+1 : retaddr_const : BV:32
+=graph_with_simplified_assets.loc_to_expr_map at Lend%1%1=>E0%0%1 done
+=graph_with_simplified_assets.loc_to_expr_map at Lfoo%1%1=>Lend%1%0
+=graph_with_simplified_assets.loc_to_expr_map at Lfoo%1%1=>Lend%1%0 for loc_id 1006
+1 : 12 { -4 } : BV:4
+=graph_with_simplified_assets.loc_to_expr_map at Lfoo%1%1=>Lend%1%0 for loc_id 1007
+1 : 0 : BOOL
+=graph_with_simplified_assets.loc_to_expr_map at Lfoo%1%1=>Lend%1%0 for loc_id 1008
+1 : 1 : BOOL
+=graph_with_simplified_assets.loc_to_expr_map at Lfoo%1%1=>Lend%1%0 for loc_id 1009
+1 : 0 : BOOL
+=graph_with_simplified_assets.loc_to_expr_map at Lfoo%1%1=>Lend%1%0 done
+=graph_with_simplified_assets.loc_to_expr_map at Lfoo%1%1=>Lfoo%1%100003
+=graph_with_simplified_assets.loc_to_expr_map at Lfoo%1%1=>Lfoo%1%100003 for loc_id 1008
+1 : 1 : BOOL
+=graph_with_simplified_assets.loc_to_expr_map at Lfoo%1%1=>Lfoo%1%100003 done
+=graph_with_simplified_assets.loc_to_expr_map at Lfoo%1%100003=>Lfoo%1%100004
+=graph_with_simplified_assets.loc_to_expr_map at Lfoo%1%100003=>Lfoo%1%100004 for loc_id 1009
+1 : 0 : BOOL
+=graph_with_simplified_assets.loc_to_expr_map at Lfoo%1%100003=>Lfoo%1%100004 done
+=graph_with_simplified_assets.loc_to_expr_map at Lfoo%1%100004=>Lfoo%1%100005
+=graph_with_simplified_assets.loc_to_expr_map at Lfoo%1%100004=>Lfoo%1%100005 for loc_id 1007
+1 : 0 : BOOL
+=graph_with_simplified_assets.loc_to_expr_map at Lfoo%1%100004=>Lfoo%1%100005 done
+=graph_with_simplified_assets.loc_to_expr_map at Lfoo%1%100005=>Lfoo%2%1
+=graph_with_simplified_assets.loc_to_expr_map at Lfoo%1%100005=>Lfoo%2%1 for loc_id 1006
+1 : 12 { -4 } : BV:4
+=graph_with_simplified_assets.loc_to_expr_map at Lfoo%1%100005=>Lfoo%2%1 done
+=graph_with_simplified_assets.loc_to_expr_map at Lfoo%2%1=>Lfoo%2%100003
+=graph_with_simplified_assets.loc_to_expr_map at Lfoo%2%1=>Lfoo%2%100003 done
+=graph_with_simplified_assets.loc_to_expr_map at Lfoo%2%100003=>Lfoo%2%100004
+=graph_with_simplified_assets.loc_to_expr_map at Lfoo%2%100003=>Lfoo%2%100004 done
+=graph_with_simplified_assets.loc_to_expr_map at Lfoo%2%100004=>Lend%1%0
+=graph_with_simplified_assets.loc_to_expr_map at Lfoo%2%100004=>Lend%1%0 done
+=graph_with_simplified_assets.loc_to_expr_map done
+=graph_with_simplified_assets done
+
+=Locs in dst.llvm.main.dst
+=Loc 1001 in dst.llvm.main.dst.
+LLVMVAR
+dst.llvm-%hidden-reg
+1 : input.dst.llvm-%hidden-reg : BV:32
+=Loc 1002 in dst.llvm.main.dst.
+LLVMVAR
+dst.llvm-%i_2
+1 : input.dst.llvm-%i_2 : BV:4
+=Loc 1003 in dst.llvm.main.dst.
+LLVMVAR
+dst.llvm-%i_2.poison
+1 : input.dst.llvm-%i_2.poison : BOOL
+=Loc 1004 in dst.llvm.main.dst.
+LLVMVAR
+dst.llvm-%i_3
+1 : input.dst.llvm-%i_3 : BOOL
+=Loc 1005 in dst.llvm.main.dst.
+LLVMVAR
+dst.llvm-%i_3.poison
+1 : input.dst.llvm-%i_3.poison : BOOL
+=Loc 1006 in dst.llvm.main.dst.
+LLVMVAR
+dst.llvm-%i_4
+1 : input.dst.llvm-%i_4 : BV:4
+=Loc 1007 in dst.llvm.main.dst.
+LLVMVAR
+dst.llvm-%i_4.poison
+1 : input.dst.llvm-%i_4.poison : BOOL
+=Loc 1008 in dst.llvm.main.dst.
+LLVMVAR
+dst.llvm-%i_4.poison.temp1
+1 : input.dst.llvm-%i_4.poison.temp1 : BOOL
+=Loc 1009 in dst.llvm.main.dst.
+LLVMVAR
+dst.llvm-%i_4.poison.temp2
+1 : input.dst.llvm-%i_4.poison.temp2 : BOOL
+=Loc 1010 in dst.llvm.main.dst.
+LLVMVAR
+dst.llvm-indir_tgt
+1 : input.dst.llvm-indir_tgt : BV:32
+=Loc 1011 in dst.llvm.main.dst.
+MASKED
+=memname
+dst.llvm-mem
+=memlabel
+memlabel-mem-heap
+=Loc 1012 in dst.llvm.main.dst.
+MASKED
+=memname
+dst.llvm-mem
+=memlabel
+memlabel-mem-esp
+
+=Alias analysis results in dst.llvm.main.dst
+=Alias analysis result in dst.llvm.main.dst at L0%0%1
+=Alias analysis result in dst.llvm.main.dst at L0%0%1 for loc 1001 (input.dst.llvm-%hidden-reg)
+nullptr
+=Alias analysis result in dst.llvm.main.dst at L0%0%1 for loc 1002 (input.dst.llvm-%i_2)
+nullptr
+=Alias analysis result in dst.llvm.main.dst at L0%0%1 for loc 1003 (input.dst.llvm-%i_2.poison)
+nullptr
+=Alias analysis result in dst.llvm.main.dst at L0%0%1 for loc 1004 (input.dst.llvm-%i_3)
+nullptr
+=Alias analysis result in dst.llvm.main.dst at L0%0%1 for loc 1005 (input.dst.llvm-%i_3.poison)
+nullptr
+=Alias analysis result in dst.llvm.main.dst at L0%0%1 for loc 1006 (input.dst.llvm-%i_4)
+nullptr
+=Alias analysis result in dst.llvm.main.dst at L0%0%1 for loc 1007 (input.dst.llvm-%i_4.poison)
+nullptr
+=Alias analysis result in dst.llvm.main.dst at L0%0%1 for loc 1008 (input.dst.llvm-%i_4.poison.temp1)
+nullptr
+=Alias analysis result in dst.llvm.main.dst at L0%0%1 for loc 1009 (input.dst.llvm-%i_4.poison.temp2)
+nullptr
+=Alias analysis result in dst.llvm.main.dst at L0%0%1 for loc 1010 (input.dst.llvm-indir_tgt)
+nullptr
+=Alias analysis result in dst.llvm.main.dst at L0%0%1 for loc 1011 (memmask(input.dst.llvm-mem, memlabel-mem-heap))
+nullptr
+=Alias analysis result in dst.llvm.main.dst at L0%0%1 for loc 1012 (memmask(input.dst.llvm-mem, memlabel-mem-esp))
+nullptr
+=Alias analysis result in dst.llvm.main.dst at L0%3%1
+=Alias analysis result in dst.llvm.main.dst at L0%3%1 for loc 1001 (input.dst.llvm-%hidden-reg)
+nullptr
+=Alias analysis result in dst.llvm.main.dst at L0%3%1 for loc 1002 (input.dst.llvm-%i_2)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in dst.llvm.main.dst at L0%3%1 for loc 1003 (input.dst.llvm-%i_2.poison)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in dst.llvm.main.dst at L0%3%1 for loc 1004 (input.dst.llvm-%i_3)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in dst.llvm.main.dst at L0%3%1 for loc 1005 (input.dst.llvm-%i_3.poison)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in dst.llvm.main.dst at L0%3%1 for loc 1006 (input.dst.llvm-%i_4)
+nullptr
+=Alias analysis result in dst.llvm.main.dst at L0%3%1 for loc 1007 (input.dst.llvm-%i_4.poison)
+nullptr
+=Alias analysis result in dst.llvm.main.dst at L0%3%1 for loc 1008 (input.dst.llvm-%i_4.poison.temp1)
+nullptr
+=Alias analysis result in dst.llvm.main.dst at L0%3%1 for loc 1009 (input.dst.llvm-%i_4.poison.temp2)
+nullptr
+=Alias analysis result in dst.llvm.main.dst at L0%3%1 for loc 1010 (input.dst.llvm-indir_tgt)
+nullptr
+=Alias analysis result in dst.llvm.main.dst at L0%3%1 for loc 1011 (memmask(input.dst.llvm-mem, memlabel-mem-heap))
+nullptr
+=Alias analysis result in dst.llvm.main.dst at L0%3%1 for loc 1012 (memmask(input.dst.llvm-mem, memlabel-mem-esp))
+nullptr
+=Alias analysis result in dst.llvm.main.dst at Lend%1%0
+=Alias analysis result in dst.llvm.main.dst at Lend%1%0 for loc 1001 (input.dst.llvm-%hidden-reg)
+nullptr
+=Alias analysis result in dst.llvm.main.dst at Lend%1%0 for loc 1002 (input.dst.llvm-%i_2)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in dst.llvm.main.dst at Lend%1%0 for loc 1003 (input.dst.llvm-%i_2.poison)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in dst.llvm.main.dst at Lend%1%0 for loc 1004 (input.dst.llvm-%i_3)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in dst.llvm.main.dst at Lend%1%0 for loc 1005 (input.dst.llvm-%i_3.poison)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in dst.llvm.main.dst at Lend%1%0 for loc 1006 (input.dst.llvm-%i_4)
+nullptr
+=Alias analysis result in dst.llvm.main.dst at Lend%1%0 for loc 1007 (input.dst.llvm-%i_4.poison)
+nullptr
+=Alias analysis result in dst.llvm.main.dst at Lend%1%0 for loc 1008 (input.dst.llvm-%i_4.poison.temp1)
+nullptr
+=Alias analysis result in dst.llvm.main.dst at Lend%1%0 for loc 1009 (input.dst.llvm-%i_4.poison.temp2)
+nullptr
+=Alias analysis result in dst.llvm.main.dst at Lend%1%0 for loc 1010 (input.dst.llvm-indir_tgt)
+nullptr
+=Alias analysis result in dst.llvm.main.dst at Lend%1%0 for loc 1011 (memmask(input.dst.llvm-mem, memlabel-mem-heap))
+nullptr
+=Alias analysis result in dst.llvm.main.dst at Lend%1%0 for loc 1012 (memmask(input.dst.llvm-mem, memlabel-mem-esp))
+nullptr
+=Alias analysis result in dst.llvm.main.dst at Lfoo%1%1
+=Alias analysis result in dst.llvm.main.dst at Lfoo%1%1 for loc 1001 (input.dst.llvm-%hidden-reg)
+nullptr
+=Alias analysis result in dst.llvm.main.dst at Lfoo%1%1 for loc 1002 (input.dst.llvm-%i_2)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in dst.llvm.main.dst at Lfoo%1%1 for loc 1003 (input.dst.llvm-%i_2.poison)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in dst.llvm.main.dst at Lfoo%1%1 for loc 1004 (input.dst.llvm-%i_3)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in dst.llvm.main.dst at Lfoo%1%1 for loc 1005 (input.dst.llvm-%i_3.poison)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in dst.llvm.main.dst at Lfoo%1%1 for loc 1006 (input.dst.llvm-%i_4)
+nullptr
+=Alias analysis result in dst.llvm.main.dst at Lfoo%1%1 for loc 1007 (input.dst.llvm-%i_4.poison)
+nullptr
+=Alias analysis result in dst.llvm.main.dst at Lfoo%1%1 for loc 1008 (input.dst.llvm-%i_4.poison.temp1)
+nullptr
+=Alias analysis result in dst.llvm.main.dst at Lfoo%1%1 for loc 1009 (input.dst.llvm-%i_4.poison.temp2)
+nullptr
+=Alias analysis result in dst.llvm.main.dst at Lfoo%1%1 for loc 1010 (input.dst.llvm-indir_tgt)
+nullptr
+=Alias analysis result in dst.llvm.main.dst at Lfoo%1%1 for loc 1011 (memmask(input.dst.llvm-mem, memlabel-mem-heap))
+nullptr
+=Alias analysis result in dst.llvm.main.dst at Lfoo%1%1 for loc 1012 (memmask(input.dst.llvm-mem, memlabel-mem-esp))
+nullptr
+=Alias analysis result in dst.llvm.main.dst at E0%0%1
+=Alias analysis result in dst.llvm.main.dst at E0%0%1 for loc 1001 (input.dst.llvm-%hidden-reg)
+nullptr
+=Alias analysis result in dst.llvm.main.dst at E0%0%1 for loc 1002 (input.dst.llvm-%i_2)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in dst.llvm.main.dst at E0%0%1 for loc 1003 (input.dst.llvm-%i_2.poison)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in dst.llvm.main.dst at E0%0%1 for loc 1004 (input.dst.llvm-%i_3)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in dst.llvm.main.dst at E0%0%1 for loc 1005 (input.dst.llvm-%i_3.poison)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in dst.llvm.main.dst at E0%0%1 for loc 1006 (input.dst.llvm-%i_4)
+nullptr
+=Alias analysis result in dst.llvm.main.dst at E0%0%1 for loc 1007 (input.dst.llvm-%i_4.poison)
+nullptr
+=Alias analysis result in dst.llvm.main.dst at E0%0%1 for loc 1008 (input.dst.llvm-%i_4.poison.temp1)
+nullptr
+=Alias analysis result in dst.llvm.main.dst at E0%0%1 for loc 1009 (input.dst.llvm-%i_4.poison.temp2)
+nullptr
+=Alias analysis result in dst.llvm.main.dst at E0%0%1 for loc 1010 (input.dst.llvm-indir_tgt)
+lr_status
+lr_status_bottom(; memlabel-mem-heap, )
+=Alias analysis result in dst.llvm.main.dst at E0%0%1 for loc 1011 (memmask(input.dst.llvm-mem, memlabel-mem-heap))
+nullptr
+=Alias analysis result in dst.llvm.main.dst at E0%0%1 for loc 1012 (memmask(input.dst.llvm-mem, memlabel-mem-esp))
+nullptr
+
+=Liveness in dst.llvm.main.dst
+=live locs at L0%0%1
+1011
+=live locs at L0%3%1
+1004, 1011
+=live locs at Lend%1%0
+1011
+=live locs at Lfoo%1%1
+1011
+=live locs at E0%0%1
+1011
+
+=Available expressions in dst.llvm.main.dst
+=available expressions at L0%0%1 in dst.llvm.main.dst
+=avail_exprs begin
+=avail_exprs end
+=available expressions at L0%3%1 in dst.llvm.main.dst
+=avail_exprs begin
+=loc 1002
+=from_expr
+17452 : input.dst.llvm-%i_2 : BV:4
+=to_expr
+17439 : 6 : BV:4
+=loc 1003
+=from_expr
+17450 : input.dst.llvm-%i_2.poison : BOOL
+=to_expr
+17407 : 0 : BOOL
+=loc 1004
+=from_expr
+17454 : input.dst.llvm-%i_3 : BOOL
+=to_expr
+17407 : 0 : BOOL
+=loc 1005
+=from_expr
+17456 : input.dst.llvm-%i_3.poison : BOOL
+=to_expr
+17407 : 0 : BOOL
+=avail_exprs end
+=available expressions at Lend%1%0 in dst.llvm.main.dst
+=avail_exprs begin
+=loc 1002
+=from_expr
+17452 : input.dst.llvm-%i_2 : BV:4
+=to_expr
+17439 : 6 : BV:4
+=loc 1003
+=from_expr
+17450 : input.dst.llvm-%i_2.poison : BOOL
+=to_expr
+17407 : 0 : BOOL
+=loc 1004
+=from_expr
+17454 : input.dst.llvm-%i_3 : BOOL
+=to_expr
+17407 : 0 : BOOL
+=loc 1005
+=from_expr
+17456 : input.dst.llvm-%i_3.poison : BOOL
+=to_expr
+17407 : 0 : BOOL
+=avail_exprs end
+=available expressions at Lfoo%1%1 in dst.llvm.main.dst
+=avail_exprs begin
+=loc 1002
+=from_expr
+17452 : input.dst.llvm-%i_2 : BV:4
+=to_expr
+17439 : 6 : BV:4
+=loc 1003
+=from_expr
+17450 : input.dst.llvm-%i_2.poison : BOOL
+=to_expr
+17407 : 0 : BOOL
+=loc 1004
+=from_expr
+17454 : input.dst.llvm-%i_3 : BOOL
+=to_expr
+17407 : 0 : BOOL
+=loc 1005
+=from_expr
+17456 : input.dst.llvm-%i_3.poison : BOOL
+=to_expr
+17407 : 0 : BOOL
+=avail_exprs end
+=available expressions at E0%0%1 in dst.llvm.main.dst
+=avail_exprs begin
+=loc 1002
+=from_expr
+17452 : input.dst.llvm-%i_2 : BV:4
+=to_expr
+17439 : 6 : BV:4
+=loc 1003
+=from_expr
+17450 : input.dst.llvm-%i_2.poison : BOOL
+=to_expr
+17407 : 0 : BOOL
+=loc 1004
+=from_expr
+17454 : input.dst.llvm-%i_3 : BOOL
+=to_expr
+17407 : 0 : BOOL
+=loc 1005
+=from_expr
+17456 : input.dst.llvm-%i_3.poison : BOOL
+=to_expr
+17407 : 0 : BOOL
+=loc 1010
+=from_expr
+17474 : input.dst.llvm-indir_tgt : BV:32
+=to_expr
+17387 : retaddr_const : BV:32
+=avail_exprs end
+
+=sprel_maps in dst.llvm.main.dst
+=sprel_map at L0%0%1 in dst.llvm.main.dst
+=sprel_map at L0%3%1 in dst.llvm.main.dst
+=loc 1002
+17439 : 6 : BV:4
+=loc 1003
+17407 : 0 : BOOL
+=loc 1004
+17407 : 0 : BOOL
+=loc 1005
+17407 : 0 : BOOL
+=sprel_map at Lend%1%0 in dst.llvm.main.dst
+=loc 1002
+17439 : 6 : BV:4
+=loc 1003
+17407 : 0 : BOOL
+=loc 1004
+17407 : 0 : BOOL
+=loc 1005
+17407 : 0 : BOOL
+=sprel_map at Lfoo%1%1 in dst.llvm.main.dst
+=loc 1002
+17439 : 6 : BV:4
+=loc 1003
+17407 : 0 : BOOL
+=loc 1004
+17407 : 0 : BOOL
+=loc 1005
+17407 : 0 : BOOL
+=sprel_map at E0%0%1 in dst.llvm.main.dst
+=loc 1002
+17439 : 6 : BV:4
+=loc 1003
+17407 : 0 : BOOL
+=loc 1004
+17407 : 0 : BOOL
+=loc 1005
+17407 : 0 : BOOL
+=loc 1010
+17387 : retaddr_const : BV:32
+=graph_with_aliasing_done
+=Memlabel assertions empty
+=Memlabel assertions done
+=graph_with_proofs done
+=graph_with_ce done
+=Invariant state at node L0%0%1:
+=pc L0%0%1 invariant_state
+is_top 0
+is_stable 1
+=pc L0%0%1 invariant_state done
+=Invariant state at node L0%3%1:
+=pc L0%3%1 invariant_state
+is_top 0
+is_stable 1
+=pc L0%3%1 invariant_state done
+=Invariant state at node Lend%1%0:
+=pc Lend%1%0 invariant_state
+is_top 0
+is_stable 1
+=pc Lend%1%0 invariant_state done
+=Invariant state at node Lfoo%1%1:
+=pc Lfoo%1%1 invariant_state
+is_top 0
+is_stable 1
+=pc Lfoo%1%1 invariant_state done
+=Invariant state at node E0%0%1:
+=pc E0%0%1 invariant_state
+is_top 0
+is_stable 1
+=pc E0%0%1 invariant_state done
+=graph_with_guessing done
+=String-contents:
+=Nextpc-map:
+=TFGdone
+=suffixpaths for dst.llvm.main.dst
+=suffixpath_at_L0%0%1 for dst.llvm.main.dst
+=suffixpath_at_L0%0%1.graph_edge_composition
+(epsilon)
+=suffixpath_at_L0%3%1 for dst.llvm.main.dst
+=suffixpath_at_L0%3%1.graph_edge_composition
+(L0%0%1=>L0%3%1)
+=suffixpath_at_Lend%1%0 for dst.llvm.main.dst
+=suffixpath_at_Lend%1%0.graph_edge_composition
+(((L0%0%1=>L0%3%1)*(L0%3%1=>Lend%1%0))+((L0%0%1=>L0%3%1)*((L0%3%1=>Lfoo%1%1)*(Lfoo%1%1=>Lend%1%0))))
+=suffixpath_at_Lfoo%1%1 for dst.llvm.main.dst
+=suffixpath_at_Lfoo%1%1.graph_edge_composition
+((L0%0%1=>L0%3%1)*(L0%3%1=>Lfoo%1%1))
+=suffixpath_at_E0%0%1 for dst.llvm.main.dst
+=suffixpath_at_E0%0%1.graph_edge_composition
+((((L0%0%1=>L0%3%1)*(L0%3%1=>Lend%1%0))+((L0%0%1=>L0%3%1)*((L0%3%1=>Lfoo%1%1)*(Lfoo%1%1=>Lend%1%0))))*(Lend%1%0=>E0%0%1))
+=suffixpaths for dst.llvm.main.dst done
+=PC_to_linename:
+=PC_to_linename done
+=PC_to_column_name:
+=PC_to_column_name done
+=PC_to_line_and_column:
+=PC_to_line_and_column done
+=SourceToLLVMVarnames:
+=SourceToLLVMVarnames done
+=InputLLVMToSourceVarnames:
+input.dst.llvm-%i_2.poison : L0%1%100003 : false
+input.dst.llvm-%i_2 : L0%2%1 : 6
+input.dst.llvm-%i_3 : L0%3%1 : false
+input.dst.llvm-%i_3.poison : L0%2%100003 : false
+input.dst.llvm-%i_4.poison.temp1 : Lfoo%1%100003 : true
+input.dst.llvm-%i_4.poison.temp2 : Lfoo%1%100004 : false
+input.dst.llvm-%i_4 : Lfoo%2%1 : (-4)
+input.dst.llvm-%i_4.poison : Lfoo%1%100005 : false
+input.dst.llvm-indir_tgt : E0%0%1 : return-address
+=InputLLVMToSourceVarnames done
+=PotentialSCEVRelations:
+=PotentialSCEVRelations done
+=TFG_LLVM_done
+=eqcheck_info
+=eqcheck
+=proof_filename eq.proof.main
+=function_name main
+=fixed_reg_mappings begin
+0 : 0 : 0
+0 : 4 : 4
+=fixed_reg_mappings end
+=rodata_map begin
+=rodata_map end
+=dst_iseq
+=dst_iseq done
+=dst_insn_pcs
+=dst_insn_pcs done
+=asm_filename NONE
+=xml_output_format text-color
+=eqcheck done
+=graph_with_guessing
+=Nodes: L0%0%1_L0%0%1 E0%0%1_E0%0%1
+=Edges:
+L0%0%1_L0%0%1 => E0%0%1_E0%0%1
+=graph done
+=Node outputs: E0%0%1_E0%0%1
+=Node outputs done for E0%0%1_E0%0%1
+=input_outputs done
+=Symbol-map:
+=Symbol-map done
+=Locals-map:
+=Locals-map done
+=StartState:
+=src.llvm-mem
+1 : input.src.llvm-mem : ARRAY[BV:32 -> BV:8]
+=dst.llvm-mem
+1 : input.dst.llvm-mem : ARRAY[BV:32 -> BV:8]
+=state_end
+
+=Global assumes
+=global assume predicate_set done
+=Edge: L0%0%1_L0%0%1 => E0%0%1_E0%0%1
+=Edge.src_tfg_full_pathset
+=Edge.src_tfg_full_pathset.ec from L0%0%1 to E0%0%1 at unroll 1 delta 1
+=Edge.src_tfg_full_pathset.graph_edge_composition
+((L0%0%1=>L0%3%1)*(((L0%3%1=>Lend%1%0)+((L0%3%1=>Lfoo%1%1)*(Lfoo%1%1=>Lend%1%0)))*(Lend%1%0=>E0%0%1)))
+=Edge.src_tfg_full_pathset done
+=Edge.dst_tfg_full_pathset
+=Edge.dst_tfg_full_pathset.ec from L0%0%1 to E0%0%1 at unroll 1 delta 1
+=Edge.dst_tfg_full_pathset.graph_edge_composition
+((L0%0%1=>L0%3%1)*(((L0%3%1=>Lend%1%0)+((L0%3%1=>Lfoo%1%1)*(Lfoo%1%1=>Lend%1%0)))*(Lend%1%0=>E0%0%1)))
+=Edge.dst_tfg_full_pathset done
+
+=graph_with_predicates_done
+=graph_with_simplified_assets
+=graph_with_simplified_assets.simplified_edgecond done
+=graph_with_simplified_assets.simplified_to_state done
+=graph_with_simplified_assets.simplified_assumes done
+=graph_with_simplified_assets.loc_to_expr_map done
+=graph_with_simplified_assets done
+
+=Locs in main.A1
+
+=Alias analysis results in main.A1
+=Alias analysis result in main.A1 at L0%0%1_L0%0%1
+=Alias analysis result in main.A1 at E0%0%1_E0%0%1
+
+=Liveness in main.A1
+=live locs at L0%0%1_L0%0%1
+
+=live locs at E0%0%1_E0%0%1
+
+
+=Available expressions in main.A1
+
+=sprel_maps in main.A1
+=sprel_map at L0%0%1_L0%0%1 in main.A1
+=sprel_map at E0%0%1_E0%0%1 in main.A1
+=graph_with_aliasing_done
+=Memlabel assertions
+=Symbol-map:
+=Symbol-map done
+=Locals-map:
+=Locals-map done
+=graph_arg_regs
+=graph_arg_regs done
+=rodata_map begin
+=rodata_map end
+=assertion
+1 : memlabel-mem-esp_begin : BV:32
+2 : memlabel-mem-esp_end : BV:32
+3 : bvule(1, 2) : BOOL
+4 : stack.size : BV:32
+5 : 4294967295 { -1 } : BV:32
+6 : bvadd(4, 5) : BV:32
+7 : bvadd(1, 6) : BV:32
+8 : eq(2, 7) : BOOL
+9 : and(3, 8) : BOOL
+10 : 0 : BV:32
+11 : bvugt(4, 10) : BOOL
+12 : and(9, 11) : BOOL
+13 : 1048576 : BV:32
+14 : bvadd(1, 13) : BV:32
+15 : bvule(1, 14) : BOOL
+16 : input.dst.esp.L0%0%1 : BV:32
+17 : bvule(14, 16) : BOOL
+18 : and(15, 17) : BOOL
+19 : 3 : BV:32
+20 : bvadd(16, 19) : BV:32
+21 : bvule(16, 20) : BOOL
+22 : bvule(20, 2) : BOOL
+23 : and(21, 22) : BOOL
+24 : and(18, 23) : BOOL
+25 : and(12, 24) : BOOL
+26 : 4294963200 { -4096 } : BV:32
+27 : bvand(1, 26) : BV:32
+28 : eq(27, 1) : BOOL
+29 : 1 : BV:32
+30 : bvadd(2, 29) : BV:32
+31 : bvand(30, 26) : BV:32
+32 : eq(31, 30) : BOOL
+33 : and(28, 32) : BOOL
+34 : and(25, 33) : BOOL
+=concrete_assertion_submap
+
+=use_concrete_assertion : 0
+=Memlabel assertions done
+=graph_with_proofs done
+=counterexamples at pc L0%0%1_L0%0%1
+=pc L0%0%1_L0%0%1 nodece 0
+=pc L0%0%1_L0%0%1 nodece 0 nodece_graphce graphce.num0.num_edges_traversed0
+=graphce counterexample at pc L0%0%1_L0%0%1, graphce.num0
+=counter_example_begin f1a8e1437053f112362b46e86c5bce4
+=input.dst.esp.L0%0%1
+1 : 4294965244 { -2052 } : BV:32
+=input.src.llvm-mem
+1 : (() -> (RAC: m_multiplier -> 178 , m_adder -> 115)) : ARRAY[BV:32 -> BV:8]
+=input.dst.llvm-mem
+1 : (() -> (RAC: m_multiplier -> 178 , m_adder -> 115)) : ARRAY[BV:32 -> BV:8]
+=memlabel-mem-esp_end
+1 : 4294967295 { -1 } : BV:32
+=memlabel-mem-esp_begin
+1 : 4096 : BV:32
+=stack.size
+1 : 4294963200 { -4096 } : BV:32
+=local_sprel_expr_assumes
+=counter_example.random_seed
+3323776219
+=counter_example_end
+=pc L0%0%1_L0%0%1 nodece 0 nodece_path
+=pc L0%0%1_L0%0%1 nodece 0 nodece_path.graph_edge_composition
+(epsilon)
+=pc L0%0%1_L0%0%1 nodece 0 nodece_cached_counterexample
+=counter_example_begin f1a8e1437053f112362b46e86c5bce4
+=input.dst.esp.L0%0%1
+1 : 4294965244 { -2052 } : BV:32
+=input.src.llvm-mem
+1 : (() -> (RAC: m_multiplier -> 178 , m_adder -> 115)) : ARRAY[BV:32 -> BV:8]
+=input.dst.llvm-mem
+1 : (() -> (RAC: m_multiplier -> 178 , m_adder -> 115)) : ARRAY[BV:32 -> BV:8]
+=memlabel-mem-esp_end
+1 : 4294967295 { -1 } : BV:32
+=memlabel-mem-esp_begin
+1 : 4096 : BV:32
+=stack.size
+1 : 4294963200 { -4096 } : BV:32
+=local_sprel_expr_assumes
+=counter_example.random_seed
+3323776219
+=counter_example_end
+=pc L0%0%1_L0%0%1 nodece 0 num_edges_traversed 0
+=pc L0%0%1_L0%0%1 nodece 1
+=pc L0%0%1_L0%0%1 nodece 1 nodece_graphce graphce.num1.num_edges_traversed0
+=graphce counterexample at pc L0%0%1_L0%0%1, graphce.num1
+=counter_example_begin 151ff949e0d7355eb92b9b4e796c281
+=input.dst.esp.L0%0%1
+1 : 8388610 : BV:32
+=input.src.llvm-mem
+1 : (() -> (RAC: m_multiplier -> 178 , m_adder -> 160)) : ARRAY[BV:32 -> BV:8]
+=input.dst.llvm-mem
+1 : (() -> (RAC: m_multiplier -> 178 , m_adder -> 160)) : ARRAY[BV:32 -> BV:8]
+=memlabel-mem-esp_end
+1 : 4294049791 { -917505 } : BV:32
+=memlabel-mem-esp_begin
+1 : 0 : BV:32
+=stack.size
+1 : 4294049792 { -917504 } : BV:32
+=local_sprel_expr_assumes
+=counter_example.random_seed
+2032656889
+=counter_example_end
+=pc L0%0%1_L0%0%1 nodece 1 nodece_path
+=pc L0%0%1_L0%0%1 nodece 1 nodece_path.graph_edge_composition
+(epsilon)
+=pc L0%0%1_L0%0%1 nodece 1 nodece_cached_counterexample
+=counter_example_begin 151ff949e0d7355eb92b9b4e796c281
+=input.dst.esp.L0%0%1
+1 : 8388610 : BV:32
+=input.src.llvm-mem
+1 : (() -> (RAC: m_multiplier -> 178 , m_adder -> 160)) : ARRAY[BV:32 -> BV:8]
+=input.dst.llvm-mem
+1 : (() -> (RAC: m_multiplier -> 178 , m_adder -> 160)) : ARRAY[BV:32 -> BV:8]
+=memlabel-mem-esp_end
+1 : 4294049791 { -917505 } : BV:32
+=memlabel-mem-esp_begin
+1 : 0 : BV:32
+=stack.size
+1 : 4294049792 { -917504 } : BV:32
+=local_sprel_expr_assumes
+=counter_example.random_seed
+2032656889
+=counter_example_end
+=pc L0%0%1_L0%0%1 nodece 1 num_edges_traversed 0
+=pc L0%0%1_L0%0%1 nodece 2
+=pc L0%0%1_L0%0%1 nodece 2 nodece_graphce graphce.num2.num_edges_traversed0
+=graphce counterexample at pc L0%0%1_L0%0%1, graphce.num2
+=counter_example_begin b6c51130f32950c5fbd90fe52a0cda4
+=input.dst.esp.L0%0%1
+1 : 3221225472 { -1073741824 } : BV:32
+=input.src.llvm-mem
+1 : (() -> (RAC: m_multiplier -> 78 , m_adder -> 57)) : ARRAY[BV:32 -> BV:8]
+=input.dst.llvm-mem
+1 : (() -> (RAC: m_multiplier -> 78 , m_adder -> 57)) : ARRAY[BV:32 -> BV:8]
+=memlabel-mem-esp_end
+1 : 4294967295 { -1 } : BV:32
+=memlabel-mem-esp_begin
+1 : 2147483648 { -2147483648 } : BV:32
+=stack.size
+1 : 2147483648 { -2147483648 } : BV:32
+=local_sprel_expr_assumes
+=counter_example.random_seed
+1929904615
+=counter_example_end
+=pc L0%0%1_L0%0%1 nodece 2 nodece_path
+=pc L0%0%1_L0%0%1 nodece 2 nodece_path.graph_edge_composition
+(epsilon)
+=pc L0%0%1_L0%0%1 nodece 2 nodece_cached_counterexample
+=counter_example_begin b6c51130f32950c5fbd90fe52a0cda4
+=input.dst.esp.L0%0%1
+1 : 3221225472 { -1073741824 } : BV:32
+=input.src.llvm-mem
+1 : (() -> (RAC: m_multiplier -> 78 , m_adder -> 57)) : ARRAY[BV:32 -> BV:8]
+=input.dst.llvm-mem
+1 : (() -> (RAC: m_multiplier -> 78 , m_adder -> 57)) : ARRAY[BV:32 -> BV:8]
+=memlabel-mem-esp_end
+1 : 4294967295 { -1 } : BV:32
+=memlabel-mem-esp_begin
+1 : 2147483648 { -2147483648 } : BV:32
+=stack.size
+1 : 2147483648 { -2147483648 } : BV:32
+=local_sprel_expr_assumes
+=counter_example.random_seed
+1929904615
+=counter_example_end
+=pc L0%0%1_L0%0%1 nodece 2 num_edges_traversed 0
+=graph_with_ce done
+=Invariant state at node L0%0%1_L0%0%1:
+=pc L0%0%1_L0%0%1 invariant_state
+is_top 0
+is_stable 1
+=pc L0%0%1_L0%0%1 invariant_state done
+=Invariant state at node E0%0%1_E0%0%1:
+=pc E0%0%1_E0%0%1 invariant_state
+is_top 0
+is_stable 1
+=pc E0%0%1_E0%0%1 invariant_state done
+=graph_with_guessing done
+=graph_with_correctness_covers begin
+=Correctness covers
+=graph_with_correctness_covers done
+=start_pc_preconditions
+=start_pc_precondition.0
+=Comment
+precond-memmask-memlabel-mem-heap
+=LocalSprelAssumptions:
+=LhsExpr
+1 : input.src.llvm-mem : ARRAY[BV:32 -> BV:8]
+2 : input.dst.llvm-mem : ARRAY[BV:32 -> BV:8]
+3 : memlabel-mem-heap : MEMLABEL
+4 : memmasks_are_equal(1, 2, 3) : BOOL
+=RhsExpr
+1 : 1 : BOOL
+=predicate done
+=exit_pc_asserts at E0%0%1_E0%0%1
+=exit_pc_assert.0 at E0%0%1_E0%0%1
+=Comment
+precond-memmask-memlabel-mem-heap
+=LocalSprelAssumptions:
+=LhsExpr
+1 : input.src.llvm-mem : ARRAY[BV:32 -> BV:8]
+2 : input.dst.llvm-mem : ARRAY[BV:32 -> BV:8]
+3 : memlabel-mem-heap : MEMLABEL
+4 : memmasks_are_equal(1, 2, 3) : BOOL
+=RhsExpr
+1 : 1 : BOOL
+=predicate done
+=exit_pc_assert.0 at E0%0%1_E0%0%1
+=Comment
+exit.llvm-indir_tgt
+=LocalSprelAssumptions:
+=LhsExpr
+1 : retaddr_const : BV:32
+=RhsExpr
+1 : retaddr_const : BV:32
+=predicate done
+=well-formedness-conditions for L0%0%1_L0%0%1=>E0%0%1_E0%0%1
+=well-formedness-conditions for L0%0%1_L0%0%1=>E0%0%1_E0%0%1 edge well-formedness condition
+=well-formedness-conditions for L0%0%1_L0%0%1=>E0%0%1_E0%0%1 fromto L0%0%1_L0%0%1=>L0%0%1_L0%0%1 cg_path
+=well-formedness-conditions for L0%0%1_L0%0%1=>E0%0%1_E0%0%1 fromto L0%0%1_L0%0%1=>L0%0%1_L0%0%1 cg_path.graph_edge_composition
+(epsilon)
+=well-formedness-conditions for L0%0%1_L0%0%1=>E0%0%1_E0%0%1 fromto L0%0%1_L0%0%1=>L0%0%1_L0%0%1 src_path
+=well-formedness-conditions for L0%0%1_L0%0%1=>E0%0%1_E0%0%1 fromto L0%0%1_L0%0%1=>L0%0%1_L0%0%1 src_path.graph_edge_composition
+(epsilon)
+=well-formedness-conditions for L0%0%1_L0%0%1=>E0%0%1_E0%0%1 fromto L0%0%1_L0%0%1=>L0%0%1_L0%0%1 dst_path
+=well-formedness-conditions for L0%0%1_L0%0%1=>E0%0%1_E0%0%1 fromto L0%0%1_L0%0%1=>L0%0%1_L0%0%1 dst_path.graph_edge_composition
+(epsilon)
+=well-formedness-conditions for L0%0%1_L0%0%1=>E0%0%1_E0%0%1 fromto L0%0%1_L0%0%1=>L0%0%1_L0%0%1 pred.0
+=Comment
+undef-behavioursome
+=LocalSprelAssumptions:
+=LhsExpr
+1 : 1 : BOOL
+=RhsExpr
+1 : 1 : BOOL
+=predicate done
+=well-formedness-conditions for L0%0%1_L0%0%1=>E0%0%1_E0%0%1 fromto L0%0%1_L0%0%1=>L0%0%1_L0%0%1 cg_path
+=well-formedness-conditions for L0%0%1_L0%0%1=>E0%0%1_E0%0%1 fromto L0%0%1_L0%0%1=>L0%0%1_L0%0%1 cg_path.graph_edge_composition
+(L0%0%1_L0%0%1=>E0%0%1_E0%0%1)
+=well-formedness-conditions for L0%0%1_L0%0%1=>E0%0%1_E0%0%1 fromto L0%0%1_L0%0%1=>L0%0%1_L0%0%1 src_path
+=well-formedness-conditions for L0%0%1_L0%0%1=>E0%0%1_E0%0%1 fromto L0%0%1_L0%0%1=>L0%0%1_L0%0%1 src_path.graph_edge_composition
+(epsilon)
+=well-formedness-conditions for L0%0%1_L0%0%1=>E0%0%1_E0%0%1 fromto L0%0%1_L0%0%1=>L0%0%1_L0%0%1 dst_path
+=well-formedness-conditions for L0%0%1_L0%0%1=>E0%0%1_E0%0%1 fromto L0%0%1_L0%0%1=>L0%0%1_L0%0%1 dst_path.graph_edge_composition
+(epsilon)
+=well-formedness-conditions for L0%0%1_L0%0%1=>E0%0%1_E0%0%1 fromto L0%0%1_L0%0%1=>L0%0%1_L0%0%1 pred.0
+=Comment
+exit.llvm-indir_tgt
+=LocalSprelAssumptions:
+=LhsExpr
+1 : retaddr_const : BV:32
+=RhsExpr
+1 : retaddr_const : BV:32
+=predicate done
+=well-formedness-conditions for L0%0%1_L0%0%1=>E0%0%1_E0%0%1 fromto L0%0%1_L0%0%1=>L0%0%1_L0%0%1 pred.0
+=Comment
+precond-memmask-memlabel-mem-heap
+=LocalSprelAssumptions:
+=LhsExpr
+1 : input.src.llvm-mem : ARRAY[BV:32 -> BV:8]
+2 : input.dst.llvm-mem : ARRAY[BV:32 -> BV:8]
+3 : memlabel-mem-heap : MEMLABEL
+4 : memmasks_are_equal(1, 2, 3) : BOOL
+=RhsExpr
+1 : 1 : BOOL
+=predicate done
+=well-formedness-conditions for L0%0%1_L0%0%1=>E0%0%1_E0%0%1 edge well-formedness condition done
+=corr_graph_done
+=bv_rank_map
+=bv_rank at L0%0%1_L0%0%1
+m_dst_rank: 0, m_src_rank: 0
+=cg_with_rank done
+=cg_with_backtracker done
+=asm filename
+
+=cg_with_asm_annotation done
