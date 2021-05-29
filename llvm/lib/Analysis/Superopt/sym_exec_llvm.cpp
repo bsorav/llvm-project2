@@ -1562,7 +1562,10 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     if(!poison_args.empty())
     {
       // poison_args[1] gives the expr_ref corresponding to the addr operand since it is the second operand in the instruction
-      vector<expr_ref> temp(1, poison_args[1]);
+      //vector<expr_ref> temp(1, poison_args[1]);
+      //vector<expr_ref> temp(poison_args);
+      expr_ref assume_expr_temp = m_ctx->mk_app((poison_args.front()->is_bool_sort()? expr::OP_OR : expr::OP_OR), poison_args);
+      vector<expr_ref> temp(1, assume_expr_temp);
       assume_expr = m_ctx->mk_app(expr::OP_NOT, temp);
     }
 
