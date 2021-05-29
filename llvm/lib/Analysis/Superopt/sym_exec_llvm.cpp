@@ -196,15 +196,16 @@ sym_exec_llvm::get_const_value_expr(const llvm::Value& v/*, string vname*/, cons
   else if(const ConstantFP* c = dyn_cast<const ConstantFP>(&v))
   {
     sort_ref s = get_type_sort(v.getType(), m_module->getDataLayout());
-    APInt ai = c->getValueAPF().bitcastToAPInt();
-    //long double d = c->getValueAPF().convertToDouble();
-    mybitset mbs = get_mybitset_from_apint(ai, ai.getBitWidth(), false);
+
     if (s->is_float_kind()) {
-      return make_pair(m_ctx->mk_float_const(ai.getBitWidth(), mbs), state_assumes);
+      float_max_t d = c->getValueAPF().convertToDouble();
+      return make_pair(m_ctx->mk_float_const(s->get_size(), d), state_assumes);
+      //return make_pair(m_ctx->mk_float_const(ai.getBitWidth(), mbs), state_assumes);
     } else if (s->is_floatx_kind()) {
+      APInt ai = c->getValueAPF().bitcastToAPInt();
+      mybitset mbs = get_mybitset_from_apint(ai, ai.getBitWidth(), false);
       return make_pair(m_ctx->mk_floatx_const(ai.getBitWidth(), mbs), state_assumes);
     } else NOT_REACHED();
-    //return make_pair(m_ctx->mk_float_const(s->get_size(), d), state_assumes);
   }
   else if (ConstantExpr const* ce = (ConstantExpr const*)dyn_cast<const ConstantExpr>(&v))
   {
@@ -1834,7 +1835,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     state_assumes.insert(m_ctx->mk_fcmp_oge(e0, m_ctx->mk_float_const(e0->get_sort()->get_size(), min_limit)));
     state_assumes.insert(m_ctx->mk_fcmp_ole(e0, m_ctx->mk_float_const(e0->get_sort()->get_size(), max_limit)));
 
-    state_set_expr(state_out, iname, m_ctx->mk_fp_to_ubv(this->get_cur_rounding_mode_var(), e0, target_size));
+    state_set_expr(state_out, iname, m_ctx->mk_fp_to_ubv(m_ctx->mk_rounding_mode_const(rounding_mode_t::round_towards_zero_aka_truncate()), e0, target_size));
     break;
   }
   case Instruction::FPToSI: {
@@ -1868,7 +1869,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     state_assumes.insert(m_ctx->mk_fcmp_oge(e0, min_limit_expr));
     state_assumes.insert(m_ctx->mk_fcmp_ole(e0, max_limit_expr));
 
-    state_set_expr(state_out, iname, m_ctx->mk_fp_to_sbv(this->get_cur_rounding_mode_var(), e0, target_size));
+    state_set_expr(state_out, iname, m_ctx->mk_fp_to_sbv(m_ctx->mk_rounding_mode_const(rounding_mode_t::round_towards_zero_aka_truncate()), e0, target_size));
     break;
   }
   case Instruction::UIToFP: {
