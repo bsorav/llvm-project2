@@ -1490,7 +1490,8 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     }
 
     expr_ref const& mem_e = state_get_expr(state_in, m_mem_reg, this->get_mem_sort());
-    expr_ref alloca_ptr = m_ctx->mk_alloca_ptr(mem_e, ml_local, local_size_expr);
+    expr_ref const& mem_alloc_e = state_get_expr(state_in, m_mem_alloc_reg, this->get_mem_alloc_sort());
+    expr_ref alloca_ptr = m_ctx->mk_alloca_ptr(mem_e, mem_alloc_e, ml_local, local_size_expr);
     // name <- alloca_ptr
     // local_size.id <- size expr
     state_set_expr(state_out, name, alloca_ptr);
@@ -1507,7 +1508,6 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     state_assumes.clear();
 
     // mem.alloc <- alloca
-    expr_ref const& mem_alloc_e = state_get_expr(state_in, m_mem_alloc_reg, this->get_mem_alloc_sort());
     state_set_expr(state_out, m_mem_alloc_reg, m_ctx->mk_alloca(mem_alloc_e, ml_local, alloca_ptr, local_size_expr));
 
     // memory SSA equality assume
@@ -1521,9 +1521,11 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
                                 ml_local);
     state_assumes.insert(m_ctx->mk_eq(m_ctx->mk_bool_true(), memeq_e));
     // before alloca, the original memlabel was stack
-    state_assumes.insert(m_ctx->mk_ismemlabel(state_get_expr(state_in, m_mem_alloc_reg, this->get_mem_alloc_sort()), name_expr, local_size_expr, memlabel_t::memlabel_stack()));
+    expr_ref const& orig_ml_was_stack_assume = m_ctx->mk_ismemlabel(state_get_expr(state_in, m_mem_alloc_reg, this->get_mem_alloc_sort()), name_expr, local_size_expr, memlabel_t::memlabel_stack());
+    state_assumes.insert(orig_ml_was_stack_assume);
     // alloca returned addr can never be 0
-    state_assumes.insert(m_ctx->mk_not(m_ctx->mk_eq(name_expr, m_ctx->mk_zerobv(get_word_length()))));
+    expr_ref const& ret_addr_non_zero_assume = m_ctx->mk_not(m_ctx->mk_eq(name_expr, m_ctx->mk_zerobv(get_word_length())));
+    state_assumes.insert(ret_addr_non_zero_assume);
 
     if (align != 0) {
       expr_ref const& isaligned_assume = m_ctx->mk_islangaligned(name_expr, align);
