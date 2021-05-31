@@ -50,11 +50,14 @@ class sym_exec_llvm : public sym_exec_common
 public:
   sym_exec_llvm(context* ctx, llvm::Module const *module, llvm::Function& F, tfg_llvm_t const* src_llvm_tfg, bool gen_callee_summary, unsigned memory_addressable_size, unsigned word_length, string const& srcdst_keyword) :
     sym_exec_common(ctx, make_dshared<list<pair<string, unsigned>> const>(sym_exec_common::get_fun_names(module)), make_dshared<graph_symbol_map_t const>(sym_exec_common::get_symbol_map(module, src_llvm_tfg)), make_dshared<map<pair<symbol_id_t, offset_t>, vector<char>> const>(sym_exec_common::get_string_contents(module, src_llvm_tfg)), gen_callee_summary, memory_addressable_size, word_length, srcdst_keyword),
-    m_module(module), m_function(F)
+    m_module(module), m_function(F), m_rounding_mode_at_start_pc(ctx->mk_rounding_mode_const(rounding_mode_t::round_to_nearest_ties_to_even()))
   {}
   virtual ~sym_exec_llvm() {}
 
   void exec(const state& state_in, const llvm::Instruction& I/*, state& state_out, vector<control_flow_transfer>& cfts, bool &expand_switch_flag, unordered_set<predicate> &assumes*/, dshared_ptr<tfg_node> from_node, llvm::BasicBlock const &B, llvm::Function const &F, size_t next_insn_id, tfg_llvm_t const* src_llvm_tfg, tfg &t, map<string, pair<callee_summary_t, unique_ptr<tfg_llvm_t>>> *function_tfg_map, map<llvm_value_id_t, string_ref>* value_to_name_map, set<string> const *function_call_chain, map<shared_ptr<tfg_edge const>, llvm::Instruction *>& eimap, map<string, value_scev_map_t> const& scev_map, bool collapse, context::xml_output_format_t xml_output_format);
+
+  string get_cur_rounding_mode_varname() const;
+  expr_ref get_cur_rounding_mode_var() const;
 
   static llvm_value_id_t get_llvm_value_id_for_value(llvm::Value const* v);
   static const llvm::Function *getParent(const llvm::Value *V);
@@ -207,6 +210,9 @@ private:
   llvm::Module const *m_module;
   llvm::Function &m_function;
   map<string, llvm::BasicBlock const *> m_pc2bb_cache;
+
+  //see https://docs.microsoft.com/en-us/cpp/build/x64-calling-convention?view=msvc-160 where it says that the value is ROUND_TO_NEAREST at the start of program execution (x86 calling conventions).  XXX: We are taking some liberty here by extending this assumption to the start of every function; a more precise way to model this would involve using a variable (instead of a constant) for the rounding mode at the start pc
+  expr_ref m_rounding_mode_at_start_pc;
 };
 
 #endif

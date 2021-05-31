@@ -634,8 +634,8 @@ int main(int argc, char **argv) {
   cl::ParseCommandLineOptions(argc, argv,
     "llvm .bc -> .bc modular optimizer and analysis printer\n");
 
-  eqspace::init_dyn_debug_from_string(DynDebug);
-  CPP_DBG_EXEC(DYN_DEBUG, eqspace::print_debug_class_levels());
+  init_dyn_debug_from_string(DynDebug);
+  CPP_DBG_EXEC(DYN_DEBUG, print_debug_class_levels());
 
   if (AnalyzeOnly && NoOutput) {
     errs() << argv[0] << ": analyze mode conflicts with no-output mode.\n";

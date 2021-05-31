@@ -155,8 +155,8 @@ main(int argc, char **argv)
 
   cl::ParseCommandLineOptions(argc, argv, "llvm2tfg: file1.bc -> out.etfg\n");
 
-  eqspace::init_dyn_debug_from_string(DynDebug);
-  CPP_DBG_EXEC(DYN_DEBUG, eqspace::print_debug_class_levels());
+  init_dyn_debug_from_string(DynDebug);
+  CPP_DBG_EXEC(DYN_DEBUG, print_debug_class_levels());
 
   context::xml_output_format_t xml_output_format = context::xml_output_format_from_string(XmlOutputFormat);
 
