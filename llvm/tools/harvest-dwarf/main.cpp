@@ -22,6 +22,7 @@
 
 #include "expr/context.h"
 #include "expr/expr.h"
+#include "expr/expr_utils.h"
 #include "expr/state.h"
 #include "expr/esp_version.h"
 
@@ -62,7 +63,8 @@ public:
     m_frame_base(frame_base),
     m_OS(OS),
     m_bvsort_size(m_dwarf_expr.getAddressSize()*8),
-    m_memvar(g_ctx->mk_var(G_SOLVER_DST_MEM_NAME, g_ctx->mk_array_sort(g_ctx->mk_bv_sort(DWORD_LEN), g_ctx->mk_bv_sort(BYTE_LEN))))
+    m_memvar(g_ctx->mk_var(G_SOLVER_DST_MEM_NAME, g_ctx->mk_array_sort(g_ctx->mk_bv_sort(DWORD_LEN), g_ctx->mk_bv_sort(BYTE_LEN)))),
+    m_mem_allocvar(get_corresponding_mem_alloc_from_mem_expr(m_memvar))
   { }
 
   eqspace::expr_ref get_result()
@@ -89,6 +91,7 @@ private:
   std::list<eqspace::expr_ref> m_location_desc;
   unsigned m_bvsort_size;
   expr_ref m_memvar;
+  expr_ref m_mem_allocvar;
 };
 
 eqspace::expr_ref
@@ -225,7 +228,7 @@ DWARFExpression_to_eqspace_expr::handle_op(DWARFExpression::Operation &op)
     case llvm::dwarf::DW_OP_deref: {
       eqspace::expr_ref addr = m_stk.top();
       m_stk.pop();
-      eqspace::expr_ref res  = g_ctx->mk_select(m_memvar, memlabel_t::memlabel_top(), addr, m_bvsort_size/8, false);
+      eqspace::expr_ref res  = g_ctx->mk_select(m_memvar, m_mem_allocvar, memlabel_t::memlabel_top(), addr, m_bvsort_size/8, false);
       m_stk.push(res);
       break;
     }
@@ -233,7 +236,7 @@ DWARFExpression_to_eqspace_expr::handle_op(DWARFExpression::Operation &op)
       eqspace::expr_ref addr = m_stk.top();
       m_stk.pop();
       unsigned size = op.getRawOperand(0);
-      eqspace::expr_ref res  = g_ctx->mk_select(m_memvar, memlabel_t::memlabel_top(), addr, size, false);
+      eqspace::expr_ref res  = g_ctx->mk_select(m_memvar, m_mem_allocvar, memlabel_t::memlabel_top(), addr, size, false);
       if (size*8 < m_bvsort_size) {
         res = g_ctx->mk_bvzero_ext(res, m_bvsort_size - size*8);
       }
