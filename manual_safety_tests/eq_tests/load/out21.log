@@ -1,0 +1,84 @@
+argv[0] = eq32
+argv[1] = --relocatable-memlabels-and-safety
+argv[2] = -f
+argv[3] = main
+argv[4] = prog2.ll
+argv[5] = prog1.ll
+<MSG>0:00 : Converting LLVM IR bitcode to Transfer Function Graph (TFG) for function main</MSG>
+<MSG>0:00 : Converting LLVM IR bitcode to Transfer Function Graph (TFG) for function main</MSG>
+<MSG>0:00 : Converting LLVM IR bitcode to Transfer Function Graph (TFG)...</MSG>
+<MSG>0:00 : Converting LLVM IR bitcode to Transfer Function Graph (TFG)...</MSG>
+<MSG>0:01 : Searching for equivalence at unroll factor 1</MSG>
+<MSG>0:01 : Computing equivalence for function: main...</MSG>
+<MSG>0:01 : Computing equivalence of the two TFGs (LLVM IR and x86 assembly)...</MSG>
+<MSG>0:01 : Chose product-TFG main from a frontier of size 1...</MSG>
+<MSG>0:01 : product-TFG main: Enumerating correlations for L0%0%1=>E0%0%1[mu 1, delta 1] starting at L0%0%1_L0%0%1
+</MSG>
+<MSG>0:01 : Considering 1 paths to src pc E0%0%1 as correlation candidates for L0%0%1=>E0%0%1[mu 1, delta 1] at L0%0%1_L0%0%1
+</MSG>
+<MSG>0:01 : Attempting correlation of src pathset L0%0%1=>E0%0%1[mu 1, delta 1] as correlation candidate for L0%0%1=>E0%0%1[mu 1, delta 1] at L0%0%1_L0%0%1
+</MSG>
+<MSG>0:01 : Found 1 feasible correlations for paths to src pc E0%0%1 as correlation candidates for L0%0%1=>E0%0%1[mu 1, delta 1] at L0%0%1_L0%0%1
+</MSG>
+<MSG>0:01 : product-TFG main: Found 1 correlations for L0%0%1=>E0%0%1[mu 1, delta 1] starting at L0%0%1_L0%0%1
+</MSG>
+<MSG>0:01 : product-TFG main created 1 possibilities in group main.A...</MSG>
+<MSG>0:01 : Chose product-TFG main.A1 from a frontier of size 1...</MSG>
+<MSG>0:01 : main.A1: checked newly added edge and inferred invariants...</MSG>
+<MSG>0:01 : main.A1: Chosen CG is still the most promising correlation entry; proceeding with it...</MSG>
+<MSG>0:01 : Chosen product-TFG represents our required correlation graph...</MSG>
+<MSG>0:01 : Checking equivalence proof...</MSG>
+<MSG>0:01 : Equivalence check passed: product CFG has strong enough inductive invariants...</MSG>
+<MSG>0:01 : Checking equivalence proof with relocatable memlabels...</MSG>
+<MSG>0:01 : Forcing use of abstract memlabel assertions...</MSG>
+<MSG>0:01 : Equivalence check passed: product CFG has strong enough inductive invariants...</MSG>
+<MSG>0:01 : Equivalence check passed on product CFG with relocatable memlabels...</MSG>
+<MSG>0:01 : Check passed on product-CFG...</MSG>
+check_eq 257: Safety check failed on CG!
+<MSG>0:01 : Safety check failed on product-CFG!</MSG>
+failed_cg_set_to_stream 67: failed_cg_set ls.size() = 1
+failed_cg_set_to_stream 78: failed cg filename /tmp/smt-solver-tmp-files/adityanathan.18687/failed_cg.0:
+<MSG>0:01 : Found inequivalence condition for function: main: not(false)</MSG>
+<MSG>0:01 : Counterexample #0
+  SPL0%0%1: (-2052)
+  SRCMEM: (() -> (RAC: m_multiplier -> 29 , m_adder -> 117))
+  DSTMEM: (() -> (RAC: m_multiplier -> 29 , m_adder -> 117))
+  memlabel-mem-esp_begin: 4096
+  memlabel-mem-esp_end: (-1)
+  stack.size: (-4096)
+</MSG>
+<MSG>0:01 : Counterexample #1
+  SPL0%0%1: 8388610
+  SRCMEM: (() -> (RAC: m_multiplier -> 220 , m_adder -> 15))
+  DSTMEM: (() -> (RAC: m_multiplier -> 220 , m_adder -> 15))
+  memlabel-mem-esp_begin: 0
+  memlabel-mem-esp_end: (-917505)
+  stack.size: (-917504)
+</MSG>
+<MSG>0:01 : Counterexample #2
+  SPL0%0%1: (-1073741824)
+  SRCMEM: (() -> (RAC: m_multiplier -> 27 , m_adder -> 4))
+  DSTMEM: (() -> (RAC: m_multiplier -> 27 , m_adder -> 4))
+  memlabel-mem-esp_begin: (-2147483648)
+  memlabel-mem-esp_end: (-1)
+  stack.size: (-2147483648)
+</MSG>
+INEQ equivalence check for function main. 0.13s, query:smt.: 0.109267s (num_starts 3), decide_hoare_triple.ce.: 0.041813s (num_starts 15), decide_hoare_triple_helper.: 0.080099s (num_starts 21)
+
+expr_simplify_solver: num_starts 23 time spent: 0:0:0 [0.001552]
+expr_simplify_syntactic: num_starts 23 time spent: 0:0:0 [0.000486]
+expr_linear_relation_holds_visit: num_starts 16 time spent: 0:0:0 [0.000064]
+manager_register_object: num_starts 88245 time spent: 0:0:0 [0.038564]
+manager_deregister_object: num_starts 1005 time spent: 0:0:0 [0.000942]
+expr_do_simplify_helper: num_starts 525 time spent: 0:0:0 [0.002967]
+expr_do_simplify_helper_cache: num_starts 525 time spent: 0:0:0 [0.000092]
+expr_evaluates_to_constant: num_starts 178 time spent: 0:0:0 [0.000452]
+evaluate_expr_and_check_bounds: num_starts 24 time spent: 0:0:0 [0.000579]
+total: num_starts 1 time spent: 0:0:0 [0.742153]
+num_syntactic_match_tests = 0.
+num_execution_tests = 0.
+num_boolean_tests = 0.
+fingerprinting rate: 0.00 per second (total), -nan per second (itable_enumerate_timer), -nan per second (excluding execution/boolean tests).
+
+Time taken for equivalence check.: 0.121541s (num_starts 1)
+Equivalence proof not found after an exhaustive search.
