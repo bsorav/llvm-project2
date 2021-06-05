@@ -252,7 +252,7 @@ main(int argc, char **argv)
     progress_flag = 1;
   }
 
-  map<string, pair<callee_summary_t, unique_ptr<tfg_llvm_t>>> function_tfg_map = sym_exec_llvm::get_function_tfg_map(M1.get(), FunNamesVec, DisableModelingOfUninitVarUB ? true : false, ctx, src_llptfg, !NoGenScev, !NoCollapse, nullptr, xml_output_format);
+  map<string, pair<callee_summary_t, dshared_ptr<tfg_llvm_t>>> function_tfg_map = sym_exec_llvm::get_function_tfg_map(M1.get(), FunNamesVec, DisableModelingOfUninitVarUB ? true : false, ctx, src_llptfg, !NoGenScev, !NoCollapse, nullptr, xml_output_format);
 
   string llvm_header = M1->get_llvm_header_as_string();
   list<string> type_decls = M1->get_type_declarations_as_string();

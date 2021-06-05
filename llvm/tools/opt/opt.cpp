@@ -1098,7 +1098,7 @@ int main(int argc, char **argv) {
 
   //the following code is only to ensure that function2tfg gets linked into opt; required for future dynamic load of SuperoptMod
   map<shared_ptr<tfg_edge const>, Instruction *> eimap;
-  std::unique_ptr<tfg_llvm_t> t = function2tfg(nullptr, nullptr, eimap);
+  std::dshared_ptr<tfg_llvm_t> t = function2tfg(nullptr, nullptr, eimap);
   if (t) {
     return 1;
   }
