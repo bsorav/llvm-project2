@@ -1128,7 +1128,7 @@ IdentifyMaxDistancePC::find_max_distance_pc(map<pc, distance_t> const& fwd_dista
 
 
 list<Value *>
-InstrumentMarkerCall::get_live_values(dshared_ptr<tfg_llvm_t> const& t, map<shared_ptr<tfg_edge const>, Instruction *> const& eimap, Function const * function, BasicBlock const* BB, int insn_num)
+InstrumentMarkerCall::get_live_values(dshared_ptr<tfg_llvm_t const> t, map<shared_ptr<tfg_edge const>, Instruction *> const& eimap, Function const * function, BasicBlock const* BB, int insn_num)
 {
   map<pc, liveness_val_t> live_vals;
   liveness_dfa_t ldfa(t, eimap, live_vals);
