@@ -25,7 +25,7 @@ class sym_exec_common
 {
 public:
   sym_exec_common(context* ctx/*, consts_struct_t const &cs*/, dshared_ptr<list<pair<string, unsigned>> const> fun_names, dshared_ptr<graph_symbol_map_t const> symbol_map, dshared_ptr<map<pair<symbol_id_t, offset_t>, vector<char>> const> string_contents, bool gen_callee_summary, unsigned memory_addressable_size, unsigned word_length, string const& srcdst_keyword) :
-    m_ctx(ctx), m_cs(ctx->get_consts_struct()), m_fun_names(fun_names), m_symbol_map(symbol_map), m_string_contents(string_contents), m_gen_callee_summary(gen_callee_summary), m_memory_addressable_size(memory_addressable_size), m_word_length(word_length), m_mem_reg(srcdst_keyword + "." LLVM_MEM_SYMBOL)/*, m_io_reg(LLVM_IO_SYMBOL)*/, m_local_num(graph_locals_map_t::first_non_arg_local()), m_memlabel_varnum(0), m_srcdst_keyword(srcdst_keyword)
+    m_ctx(ctx), m_cs(ctx->get_consts_struct()), m_fun_names(fun_names), m_symbol_map(symbol_map), m_string_contents(string_contents), m_gen_callee_summary(gen_callee_summary), m_memory_addressable_size(memory_addressable_size), m_word_length(word_length), m_mem_reg(srcdst_keyword + "." LLVM_MEM_SYMBOL), m_mem_alloc_reg(srcdst_keyword + "." LLVM_MEM_SYMBOL "." G_ALLOC_SYMBOL)/*, m_io_reg(LLVM_IO_SYMBOL)*/, m_local_num(graph_locals_map_t::first_non_arg_local()), m_memlabel_varnum(0), m_srcdst_keyword(srcdst_keyword)
   {
     //list<pair<string, unsigned>> fun_names;
     //sym_exec_common::get_fun_names(M, m_fun_names);
@@ -45,6 +45,9 @@ public:
   sort_ref get_mem_range() const;
   sort_ref get_mem_sort() const;
 
+  sort_ref get_mem_alloc_domain() const;
+  sort_ref get_mem_alloc_range() const;
+  sort_ref get_mem_alloc_sort() const;
   //virtual unique_ptr<tfg_llvm_t> get_tfg(map<string, pair<callee_summary_t, unique_ptr<tfg_llvm_t>>> *function_tfg_map, set<string> const *function_call_chain, map<shared_ptr<tfg_edge const>, llvm::Instruction *>& eimap) = 0;
   //virtual pc get_start_pc() const = 0;
 
@@ -200,6 +203,7 @@ protected:
   unsigned m_word_length;
 
   string m_mem_reg;
+  string m_mem_alloc_reg;
   //string m_io_reg;
   int m_local_num;
   //string m_ret_reg;

@@ -40,6 +40,21 @@ sort_ref sym_exec_common::get_mem_range() const
   return m_ctx->mk_bv_sort(m_memory_addressable_size);
 }
 
+sort_ref sym_exec_common::get_mem_alloc_sort() const
+{
+  return m_ctx->mk_array_sort(get_mem_alloc_domain(), get_mem_alloc_range());
+}
+
+sort_ref sym_exec_common::get_mem_alloc_domain() const
+{
+  return m_ctx->mk_bv_sort(m_word_length);
+}
+
+sort_ref sym_exec_common::get_mem_alloc_range() const
+{
+  return m_ctx->mk_memlabel_sort();
+}
+
 sort_ref sym_exec_common::get_mem_sort() const
 {
   return m_ctx->mk_array_sort(get_mem_domain(), get_mem_range());
@@ -1050,11 +1065,15 @@ sym_exec_llvm::apply_memcpy_function(const CallInst* c, expr_ref fun_name_expr, 
 
     for (int i = 0; i < count; i += memcpy_align_int) {
       state_out = state_in;
+
       expr_ref offset = m_ctx->mk_bv_const(get_word_length(), i);
-      //cout << __func__ << " " << __LINE__ << ": count = " << count << ", memcpy_align_int = " << memcpy_align_int << ", i = " << i << endl;
-      expr_ref inbytes = m_ctx->mk_select(state_get_expr(state_out, m_mem_reg, this->get_mem_sort()), ml_top, m_ctx->mk_bvadd(memcpy_src_expr, offset), memcpy_align_int, false/*, comment_t()*/);
+      expr_ref mem = state_get_expr(state_out, m_mem_reg, this->get_mem_sort());
+      expr_ref mem_alloc = state_get_expr(state_out, m_mem_alloc_reg, this->get_mem_alloc_sort());
+      expr_ref inbytes = m_ctx->mk_select(mem, mem_alloc, ml_top, m_ctx->mk_bvadd(memcpy_src_expr, offset), memcpy_align_int, false/*, comment_t()*/);
+
       expr_ref out_mem = state_get_expr(state_out, m_mem_reg, this->get_mem_sort());
-      out_mem = m_ctx->mk_store(out_mem, ml_top, m_ctx->mk_bvadd(memcpy_dst_expr, offset), inbytes, memcpy_align_int, false/*, comment_t()*/);
+      expr_ref out_mem_alloc = state_get_expr(state_out, m_mem_alloc_reg, this->get_mem_alloc_sort());
+      out_mem = m_ctx->mk_store(out_mem, out_mem_alloc, ml_top, m_ctx->mk_bvadd(memcpy_dst_expr, offset), inbytes, memcpy_align_int, false/*, comment_t()*/);
       state_set_expr(state_out, m_mem_reg, out_mem);
 
       dshared_ptr<tfg_node> intermediate_node = get_next_intermediate_subsubindex_pc_node(t, from_node);
@@ -1084,9 +1103,10 @@ sym_exec_llvm::apply_va_start_function(const CallInst* c, state const& state_in,
   tie(va_list_ptr_expr, assumes) = get_expr_adding_edges_for_intermediate_vals(*va_list_ptr, state_out, assumes, from_node, t, value_to_name_map);
 
   expr_ref vararg_addr = m_ctx->get_consts_struct().get_expr_value(reg_type_local, graph_locals_map_t::vararg_local_id());
+  expr_ref mem_alloc = state_get_expr(state_in, m_mem_alloc_reg, this->get_mem_alloc_sort());
   memlabel_t ml_top = memlabel_t::memlabel_top();
   unsigned count = get_word_length()/get_memory_addressable_size();
-  state_set_expr(state_out, m_mem_reg, m_ctx->mk_store(state_get_expr(state_in, m_mem_reg, this->get_mem_sort()), ml_top, va_list_ptr_expr, vararg_addr, count, false));
+  state_set_expr(state_out, m_mem_reg, m_ctx->mk_store(state_get_expr(state_in, m_mem_reg, this->get_mem_sort()), mem_alloc, ml_top, va_list_ptr_expr, vararg_addr, count, false));
   return make_pair(state_assumes, unordered_set<expr_ref>());
 }
 
@@ -1106,8 +1126,9 @@ sym_exec_llvm::apply_va_copy_function(const CallInst* c, state const& state_in, 
   memlabel_t ml_top = memlabel_t::memlabel_top();
   unsigned count = get_word_length()/get_memory_addressable_size();
   expr_ref mem_expr = state_get_expr(state_in, m_mem_reg, this->get_mem_sort());
-  expr_ref va_list_expr = m_ctx->mk_select(mem_expr, ml_top, src_va_list_ptr_expr, count, false);
-  state_set_expr(state_out, m_mem_reg, m_ctx->mk_store(mem_expr, ml_top, dst_va_list_ptr_expr, va_list_expr, count, false));
+  expr_ref mem_alloc = state_get_expr(state_in, m_mem_alloc_reg, this->get_mem_alloc_sort());
+  expr_ref va_list_expr = m_ctx->mk_select(mem_expr, mem_alloc, ml_top, src_va_list_ptr_expr, count, false);
+  state_set_expr(state_out, m_mem_reg, m_ctx->mk_store(mem_expr, mem_alloc, ml_top, dst_va_list_ptr_expr, va_list_expr, count, false));
 
   return make_pair(state_assumes, unordered_set<expr_ref>());
 }
@@ -1203,6 +1224,7 @@ sym_exec_llvm::apply_general_function(const CallInst* c, expr_ref fun_name_expr,
   m_memlabel_varnum++;
 
   expr_ref mem = state_get_expr(state_in, m_mem_reg, this->get_mem_sort());
+  expr_ref mem_alloc = get_corresponding_mem_alloc_from_mem_expr(mem);
   //expr_ref zerobv = m_ctx->mk_zerobv(DWORD_LEN);
   args.push_back(ml_read_expr);
   args_type.push_back(ml_read_expr->get_sort());
@@ -1210,7 +1232,8 @@ sym_exec_llvm::apply_general_function(const CallInst* c, expr_ref fun_name_expr,
   args_type.push_back(ml_write_expr->get_sort());
   args.push_back(mem);
   args_type.push_back(mem->get_sort());
-
+  args.push_back(mem_alloc);
+  args_type.push_back(mem_alloc->get_sort());
 
   args.push_back(fun_name_expr); //nextpc_const.<n>
   args_type.push_back(fun_name_expr->get_sort());
@@ -1285,8 +1308,6 @@ sym_exec_llvm::apply_general_function(const CallInst* c, expr_ref fun_name_expr,
   expr_ref ret = m_ctx->mk_function_call(memfun, args);
   //cout << __func__ << " " << __LINE__ << ": ret = " << endl << ret->to_string_table() << endl;
   state_set_expr(state_out, m_mem_reg, ret);
-  //ret = m_ctx->mk_function_call(io_fun, args);
-  //state_out.set_expr(m_io_reg, ret);
   return make_pair(assumes, succ_assumes);
 }
 
@@ -1449,11 +1470,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
 
     m_local_refs.insert(make_pair(local_id, graph_local_t(name, local_size, align, is_varsize)));
 
-    memlabel_t ml_local;
-    stringstream ss;
-    ss <<  local_str << "." << local_size;
-    string local_name_with_size = ss.str();
-    memlabel_t::keyword_to_memlabel(&ml_local, local_name_with_size.c_str(), local_size);
+    memlabel_t ml_local = memlabel_t::memlabel_local(local_id);
 
     //expr_ref local_addr = m_ctx->mk_var(local_str, m_ctx->mk_bv_sort(get_word_length()));
     //string typeString = getTypeString(ElTy);
@@ -1465,27 +1482,31 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
 
     string local_size_str = m_ctx->get_key_from_input_expr(m_ctx->get_local_size_expr_for_id(local_id))->get_str();
 
-    expr_ref local_size_expr;
-    expr_ref varsize_expr;
+    expr_ref name_expr = m_ctx->get_input_expr_for_key(mk_string_ref(name), m_ctx->mk_bv_sort(get_word_length()));
+    expr_ref local_size_val;
     if (is_varsize) {
+      expr_ref varsize_expr;
       tie(varsize_expr, state_assumes) = get_expr_adding_edges_for_intermediate_vals(*ArraySize/*, ""*/, state_in, state_assumes, from_node/*, pc_to, B, F*/, t, value_to_name_map);
       // XXX shall we check for integer overflow during (varsize_expr * local_type_alloc_size) as well?
-      local_size_expr = m_ctx->mk_bvmul(varsize_expr, m_ctx->mk_bv_const(varsize_expr->get_sort()->get_size(), local_type_alloc_size));
-      ASSERT(local_size_expr->get_sort()->get_size() == get_word_length());
-    }
-    else {
-      local_size_expr = m_ctx->mk_bv_const(get_word_length(), local_size);
+      local_size_val = m_ctx->mk_bvmul(varsize_expr, m_ctx->mk_bv_const(varsize_expr->get_sort()->get_size(), local_type_alloc_size));
+      ASSERT(local_size_val->get_sort()->get_size() == get_word_length());
+
+      // add size > 0 assume
+      expr_ref const& size_is_positive_assume = m_ctx->mk_bvsgt(varsize_expr, m_ctx->mk_zerobv(varsize_expr->get_sort()->get_size()));
+      state_assumes.insert(size_is_positive_assume);
+    } else {
+      local_size_val = m_ctx->mk_bv_const(get_word_length(), local_size);
     }
 
-    expr_ref alloca_ptr = m_ctx->mk_alloca_ptr(state_get_expr(state_in, m_mem_reg, this->get_mem_sort()), ml_local, local_size_expr);
-    // memory <- alloca
+    expr_ref const& mem_e = state_get_expr(state_in, m_mem_reg, this->get_mem_sort());
+    expr_ref const& mem_alloc_e = state_get_expr(state_in, m_mem_alloc_reg, this->get_mem_alloc_sort());
+    expr_ref alloca_ptr = m_ctx->mk_alloca_ptr(mem_e, mem_alloc_e, ml_local, local_size_val);
     // name <- alloca_ptr
     // local_size.id <- size expr
-    state_set_expr(state_out, m_mem_reg, m_ctx->mk_alloca(state_get_expr(state_in, m_mem_reg, this->get_mem_sort()), ml_local, alloca_ptr, local_size_expr));
     state_set_expr(state_out, name, alloca_ptr);
-    state_set_expr(state_out, local_size_str, local_size_expr);
+    state_set_expr(state_out, local_size_str, local_size_val);
 
-    // intermediate edge
+    // == intermediate edge ==
     dshared_ptr<tfg_node> intermediate_node = get_next_intermediate_subsubindex_pc_node(t, from_node);
     ASSERT(intermediate_node);
     tfg_edge_ref e = mk_tfg_edge(mk_itfg_edge(from_node->get_pc(), intermediate_node->get_pc(), state_out, expr_true(m_ctx)/*, t.get_start_state()*/, state_assumes, te_comment));
@@ -1494,26 +1515,38 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     state_out = state_in;
     state_assumes.clear();
 
+    expr_ref local_size_expr = m_ctx->get_local_size_expr_for_id(local_id);
+    // mem.alloc <- alloca
+    expr_ref new_mem_alloc_expr = m_ctx->mk_alloca(mem_alloc_e, ml_local, name_expr, local_size_expr);
+    state_set_expr(state_out, m_mem_alloc_reg, new_mem_alloc_expr);
+
     // memory SSA equality assume
     string_ref memversion_keyname = mk_string_ref(get_key_for_mem_version(mk_string_ref(m_mem_reg), local_id));
-    expr_ref const& mem_e = state_get_expr(state_in, m_mem_reg, this->get_mem_sort());
+    expr_ref const& memversion_e = m_ctx->get_input_expr_for_key(memversion_keyname, mem_e->get_sort());
     expr_ref const& memeq_e = m_ctx->mk_memmasks_are_equal(
-                                m_ctx->get_input_expr_for_key(memversion_keyname, mem_e->get_sort()),
+                                memversion_e,
+                                new_mem_alloc_expr,
                                 mem_e,
-                                memlabel_t::memlabel_local(local_id));
+                                new_mem_alloc_expr,
+                                ml_local);
     state_assumes.insert(m_ctx->mk_eq(m_ctx->mk_bool_true(), memeq_e));
+    // mem alloc SSA equality assume
+    string_ref mem_alloc_version_keyname = mk_string_ref(get_key_for_mem_alloc_version(mk_string_ref(m_mem_alloc_reg), local_id));
+    expr_ref const& mem_alloc_version_e = m_ctx->get_input_expr_for_key(mem_alloc_version_keyname, new_mem_alloc_expr->get_sort());
+    state_assumes.insert(m_ctx->mk_eq(new_mem_alloc_expr, mem_alloc_version_e));
+    // before alloca, the original memlabel was stack
+    expr_ref const& orig_ml_was_stack_assume = m_ctx->mk_ismemlabel(state_get_expr(state_in, m_mem_alloc_reg, this->get_mem_alloc_sort()), name_expr, local_size_expr, memlabel_t::memlabel_stack());
+    state_assumes.insert(orig_ml_was_stack_assume);
     // alloca returned addr can never be 0
-    expr_ref name_expr = m_ctx->get_input_expr_for_key(mk_string_ref(name), m_ctx->mk_bv_sort(get_word_length()));
-    state_assumes.insert(m_ctx->mk_not(m_ctx->mk_eq(name_expr, m_ctx->mk_zerobv(get_word_length()))));
+    expr_ref const& ret_addr_non_zero_assume = m_ctx->mk_not(m_ctx->mk_eq(name_expr, m_ctx->mk_zerobv(get_word_length())));
+    state_assumes.insert(ret_addr_non_zero_assume);
+    // alloca returned addr does not cause overflow: alloca_ptr <= (alloca_ptr + size - 1)
+    expr_ref const& ret_addr_no_overflow = m_ctx->mk_bvule(name_expr, m_ctx->mk_bvadd(name_expr, m_ctx->mk_bvsub(local_size_expr, m_ctx->mk_onebv(get_word_length()))));
+    state_assumes.insert(ret_addr_no_overflow);
 
-    if (is_varsize) {
-      ASSERT(varsize_expr);
-      // add size > 0 assume
-      expr_ref const& size_is_positive_assume = m_ctx->mk_bvsgt(varsize_expr, m_ctx->mk_zerobv(local_size_expr->get_sort()->get_size()));
-      state_assumes.insert(size_is_positive_assume);
-      // add (local_size.<id> == <expr>) assume
-      expr_ref const& local_size_eq = m_ctx->mk_eq(m_ctx->get_input_expr_for_key(mk_string_ref(local_size_str), local_size_expr->get_sort()), local_size_expr);
-      state_assumes.insert(local_size_eq);
+    if (align != 0) {
+      expr_ref const& isaligned_assume = m_ctx->mk_islangaligned(name_expr, align);
+      state_assumes.insert(isaligned_assume);
     }
     break;
   }
@@ -1551,7 +1584,9 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
       ASSERT(addressable_write_size > val->get_sort()->get_size());
       val = m_ctx->mk_bvzero_ext(val, addressable_write_size - val->get_sort()->get_size());
     }
-    state_set_expr(state_out, m_mem_reg, m_ctx->mk_store(state_get_expr(state_in, m_mem_reg, this->get_mem_sort()), ml_top, addr, val, count, false/*, comment_t()*/));
+    expr_ref mem = state_get_expr(state_in, m_mem_reg, this->get_mem_sort());
+    expr_ref mem_alloc = state_get_expr(state_in, m_mem_alloc_reg, this->get_mem_alloc_sort());
+    state_set_expr(state_out, m_mem_reg, m_ctx->mk_store(mem, mem_alloc, ml_top, addr, val, count, false/*, comment_t()*/));
     //add_dereference_assume(addr, assumes);
 
     //Type *ElTy = Addr->getType();
@@ -1598,7 +1633,9 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     memlabel_t::keyword_to_memlabel(&ml_top, G_MEMLABEL_TOP_SYMBOL, MEMSIZE_MAX);
     unsigned count = DIV_ROUND_UP(value_type->get_size(), get_memory_addressable_size());
     size_t addressable_sz = ROUND_UP(value_type->get_size(), get_memory_addressable_size());
-    expr_ref read_value = m_ctx->mk_select(state_get_expr(state_in, m_mem_reg, this->get_mem_sort()), ml_top, addr, count, false);
+    expr_ref mem = state_get_expr(state_in, m_mem_reg, this->get_mem_sort());
+    expr_ref mem_alloc = state_get_expr(state_in, m_mem_alloc_reg, this->get_mem_alloc_sort());
+    expr_ref read_value = m_ctx->mk_select(mem, mem_alloc, ml_top, addr, count, false);
     if (addressable_sz != value_type->get_size()) {
       ASSERT(addressable_sz > value_type->get_size());
       read_value = m_ctx->mk_bvextract(read_value, value_type->get_size() - 1, 0);
