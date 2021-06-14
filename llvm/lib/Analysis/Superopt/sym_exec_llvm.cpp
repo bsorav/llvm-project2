@@ -1483,28 +1483,30 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     string local_size_str = m_ctx->get_key_from_input_expr(m_ctx->get_local_size_expr_for_id(local_id))->get_str();
 
     expr_ref name_expr = m_ctx->get_input_expr_for_key(mk_string_ref(name), m_ctx->mk_bv_sort(get_word_length()));
-    expr_ref local_size_expr;
-    expr_ref varsize_expr;
+    expr_ref local_size_val;
     if (is_varsize) {
+      expr_ref varsize_expr;
       tie(varsize_expr, state_assumes) = get_expr_adding_edges_for_intermediate_vals(*ArraySize/*, ""*/, state_in, state_assumes, from_node/*, pc_to, B, F*/, t, value_to_name_map);
       // XXX shall we check for integer overflow during (varsize_expr * local_type_alloc_size) as well?
-      local_size_expr = m_ctx->mk_bvmul(varsize_expr, m_ctx->mk_bv_const(varsize_expr->get_sort()->get_size(), local_type_alloc_size));
-      ASSERT(local_size_expr->get_sort()->get_size() == get_word_length());
-    }
-    else {
-      local_size_expr = m_ctx->mk_bv_const(get_word_length(), local_size);
+      local_size_val = m_ctx->mk_bvmul(varsize_expr, m_ctx->mk_bv_const(varsize_expr->get_sort()->get_size(), local_type_alloc_size));
+      ASSERT(local_size_val->get_sort()->get_size() == get_word_length());
+
+      // add size > 0 assume
+      expr_ref const& size_is_positive_assume = m_ctx->mk_bvsgt(varsize_expr, m_ctx->mk_zerobv(varsize_expr->get_sort()->get_size()));
+      state_assumes.insert(size_is_positive_assume);
+    } else {
+      local_size_val = m_ctx->mk_bv_const(get_word_length(), local_size);
     }
 
     expr_ref const& mem_e = state_get_expr(state_in, m_mem_reg, this->get_mem_sort());
     expr_ref const& mem_alloc_e = state_get_expr(state_in, m_mem_alloc_reg, this->get_mem_alloc_sort());
-    expr_ref alloca_ptr = m_ctx->mk_alloca_ptr(mem_e, mem_alloc_e, ml_local, local_size_expr);
+    expr_ref alloca_ptr = m_ctx->mk_alloca_ptr(mem_e, mem_alloc_e, ml_local, local_size_val);
     // name <- alloca_ptr
     // local_size.id <- size expr
     state_set_expr(state_out, name, alloca_ptr);
-    state_set_expr(state_out, local_size_str, local_size_expr);
+    state_set_expr(state_out, local_size_str, local_size_val);
 
-
-    // intermediate edge
+    // == intermediate edge ==
     dshared_ptr<tfg_node> intermediate_node = get_next_intermediate_subsubindex_pc_node(t, from_node);
     ASSERT(intermediate_node);
     tfg_edge_ref e = mk_tfg_edge(mk_itfg_edge(from_node->get_pc(), intermediate_node->get_pc(), state_out, expr_true(m_ctx)/*, t.get_start_state()*/, state_assumes, te_comment));
@@ -1513,39 +1515,38 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     state_out = state_in;
     state_assumes.clear();
 
+    expr_ref local_size_expr = m_ctx->get_local_size_expr_for_id(local_id);
     // mem.alloc <- alloca
-    state_set_expr(state_out, m_mem_alloc_reg, m_ctx->mk_alloca(mem_alloc_e, ml_local, alloca_ptr, local_size_expr));
+    expr_ref new_mem_alloc_expr = m_ctx->mk_alloca(mem_alloc_e, ml_local, name_expr, local_size_expr);
+    state_set_expr(state_out, m_mem_alloc_reg, new_mem_alloc_expr);
 
     // memory SSA equality assume
     string_ref memversion_keyname = mk_string_ref(get_key_for_mem_version(mk_string_ref(m_mem_reg), local_id));
     expr_ref const& memversion_e = m_ctx->get_input_expr_for_key(memversion_keyname, mem_e->get_sort());
     expr_ref const& memeq_e = m_ctx->mk_memmasks_are_equal(
                                 memversion_e,
-                                mem_alloc_e,
+                                new_mem_alloc_expr,
                                 mem_e,
-                                mem_alloc_e,
+                                new_mem_alloc_expr,
                                 ml_local);
     state_assumes.insert(m_ctx->mk_eq(m_ctx->mk_bool_true(), memeq_e));
+    // mem alloc SSA equality assume
+    string_ref mem_alloc_version_keyname = mk_string_ref(get_key_for_mem_alloc_version(mk_string_ref(m_mem_alloc_reg), local_id));
+    expr_ref const& mem_alloc_version_e = m_ctx->get_input_expr_for_key(mem_alloc_version_keyname, new_mem_alloc_expr->get_sort());
+    state_assumes.insert(m_ctx->mk_eq(new_mem_alloc_expr, mem_alloc_version_e));
     // before alloca, the original memlabel was stack
     expr_ref const& orig_ml_was_stack_assume = m_ctx->mk_ismemlabel(state_get_expr(state_in, m_mem_alloc_reg, this->get_mem_alloc_sort()), name_expr, local_size_expr, memlabel_t::memlabel_stack());
     state_assumes.insert(orig_ml_was_stack_assume);
     // alloca returned addr can never be 0
     expr_ref const& ret_addr_non_zero_assume = m_ctx->mk_not(m_ctx->mk_eq(name_expr, m_ctx->mk_zerobv(get_word_length())));
     state_assumes.insert(ret_addr_non_zero_assume);
+    // alloca returned addr does not cause overflow: alloca_ptr <= (alloca_ptr + size - 1)
+    expr_ref const& ret_addr_no_overflow = m_ctx->mk_bvule(name_expr, m_ctx->mk_bvadd(name_expr, m_ctx->mk_bvsub(local_size_expr, m_ctx->mk_onebv(get_word_length()))));
+    state_assumes.insert(ret_addr_no_overflow);
 
     if (align != 0) {
       expr_ref const& isaligned_assume = m_ctx->mk_islangaligned(name_expr, align);
       state_assumes.insert(isaligned_assume);
-    }
-
-    if (is_varsize) {
-      ASSERT(varsize_expr);
-      // add size > 0 assume
-      expr_ref const& size_is_positive_assume = m_ctx->mk_bvsgt(varsize_expr, m_ctx->mk_zerobv(local_size_expr->get_sort()->get_size()));
-      state_assumes.insert(size_is_positive_assume);
-      // add (local_size.<id> == <expr>) assume
-      expr_ref const& local_size_eq = m_ctx->mk_eq(m_ctx->get_input_expr_for_key(mk_string_ref(local_size_str), local_size_expr->get_sort()), local_size_expr);
-      state_assumes.insert(local_size_eq);
     }
     break;
   }
