@@ -54,20 +54,20 @@ get_counting_index_for_basicblock(llvm::BasicBlock const& v)
   NOT_REACHED();
 }
 
-unique_ptr<tfg_llvm_t>
+dshared_ptr<tfg_llvm_t>
 function2tfg(Function *F, Module *M, map<shared_ptr<tfg_edge const>, Instruction *>& eimap)
 {
   if (!g_ctx) {
     g_ctx_init();
   }
   if (!F && !M) {
-    return nullptr;
+    return dshared_ptr<tfg_llvm_t>::dshared_nullptr();
   }
   context *ctx = g_ctx;
   ValueToValueMapTy VMap;
   //unique_ptr<Module> Mcopy = CloneModule(*M, VMap);
   sym_exec_llvm se(ctx, M, *F, nullptr, false, BYTE_LEN, DWORD_LEN, G_SRC_KEYWORD);
-  unique_ptr<tfg_llvm_t> ret = se.get_tfg(nullptr, nullptr, nullptr, nullptr, eimap, {}, false, context::XML_OUTPUT_FORMAT_TEXT_NOCOLOR);
+  dshared_ptr<tfg_llvm_t> ret = se.get_tfg(nullptr, nullptr, nullptr, nullptr, eimap, {}, false, context::XML_OUTPUT_FORMAT_TEXT_NOCOLOR);
   pc start_pc = se.get_start_pc();
   ret->add_extra_node_at_start_pc(start_pc);
   DYN_DEBUG(function2tfg,

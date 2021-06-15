@@ -53,9 +53,9 @@ public:
 
   void get_tfg_common(tfg &t);
 
-  static unique_ptr<tfg> get_preprocessed_tfg_using_callback_function(string const &name, context *ctx, list<pair<string, unsigned>> const &fun_names, graph_symbol_map_t const &symbol_map, map<pair<symbol_id_t, offset_t>, vector<char>> const &string_contents, consts_struct_t &cs, map<string, pair<callee_summary_t, unique_ptr<tfg>>> &function_tfg_map, set<string> function_call_chain, std::function<unique_ptr<tfg> (map<string, pair<callee_summary_t, unique_ptr<tfg>>> &, set<string> const &)> callback_f);
+  static dshared_ptr<tfg> get_preprocessed_tfg_using_callback_function(string const &name, context *ctx, list<pair<string, unsigned>> const &fun_names, graph_symbol_map_t const &symbol_map, map<pair<symbol_id_t, offset_t>, vector<char>> const &string_contents, consts_struct_t &cs, map<string, pair<callee_summary_t, dshared_ptr<tfg>>> &function_tfg_map, set<string> function_call_chain, std::function<dshared_ptr<tfg> (map<string, pair<callee_summary_t, dshared_ptr<tfg>>> &, set<string> const &)> callback_f);
 
-  static bool update_function_call_args_and_retvals_with_atlocals(unique_ptr<tfg> t_src);
+  static bool update_function_call_args_and_retvals_with_atlocals(dshared_ptr<tfg> t_src);
 
   map<local_id_t, graph_local_t> const &get_local_refs() { return m_local_refs; }
   graph_symbol_map_t const &get_symbol_map() { return *m_symbol_map; }

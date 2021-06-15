@@ -55,11 +55,13 @@
 #include "llvm/Transforms/IPO/PassManagerBuilder.h"
 #include "llvm/Transforms/IPO/WholeProgramDevirt.h"
 #include "llvm/Transforms/Utils/Cloning.h"
+
+#include <algorithm>
+#include <memory>
+
 #include "tfg/tfg.h"
 #include "../lib/Analysis/Superopt/dfa_helper.h"
 #include "llvm/Transforms/Utils/Debugify.h"
-#include <algorithm>
-#include <memory>
 using namespace llvm;
 using namespace opt_tool;
 
@@ -1098,7 +1100,7 @@ int main(int argc, char **argv) {
 
   //the following code is only to ensure that function2tfg gets linked into opt; required for future dynamic load of SuperoptMod
   map<shared_ptr<tfg_edge const>, Instruction *> eimap;
-  std::unique_ptr<tfg_llvm_t> t = function2tfg(nullptr, nullptr, eimap);
+  dshared_ptr<tfg_llvm_t> t = function2tfg(nullptr, nullptr, eimap);
   if (t) {
     return 1;
   }
