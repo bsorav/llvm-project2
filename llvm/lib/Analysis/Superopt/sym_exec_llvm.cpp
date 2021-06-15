@@ -1464,9 +1464,6 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     }
 
     size_t local_id = m_local_num++;
-    stringstream ss0;
-    ss0 << G_LOCAL_KEYWORD << '.' << local_id;
-    string local_str = ss0.str();
 
     m_local_refs.insert(make_pair(local_id, graph_local_t(name, local_size, align, is_varsize)));
 
@@ -1500,11 +1497,17 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
 
     expr_ref const& mem_e = state_get_expr(state_in, m_mem_reg, this->get_mem_sort());
     expr_ref const& mem_alloc_e = state_get_expr(state_in, m_mem_alloc_reg, this->get_mem_alloc_sort());
-    expr_ref alloca_ptr = m_ctx->mk_alloca_ptr(mem_e, mem_alloc_e, ml_local, local_size_val);
+    expr_ref const& uninit_nonce = m_ctx->get_uninit_nonce_expr_for_local_id(local_id);
+    string const& uninit_nonce_key = m_ctx->get_key_from_input_expr(uninit_nonce)->get_str();
+
+    expr_ref const& alloca_ptr = m_ctx->mk_alloca_ptr(mem_e, mem_alloc_e, ml_local, local_size_val);
+    expr_ref const& new_nonce_val = m_ctx->mk_bvadd(uninit_nonce, m_ctx->mk_onebv(uninit_nonce->get_sort()->get_size()));
     // name <- alloca_ptr
     // local_size.id <- size expr
+    // local.id.uninit_nonce <- (local.id.uninit_nonce+1)
     state_set_expr(state_out, name, alloca_ptr);
     state_set_expr(state_out, local_size_str, local_size_val);
+    state_set_expr(state_out, uninit_nonce_key, new_nonce_val);
 
     // == intermediate edge ==
     dshared_ptr<tfg_node> intermediate_node = get_next_intermediate_subsubindex_pc_node(t, from_node);
@@ -1515,25 +1518,15 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     state_out = state_in;
     state_assumes.clear();
 
-    expr_ref local_size_expr = m_ctx->get_local_size_expr_for_id(local_id);
-    // mem.alloc <- alloca
-    expr_ref new_mem_alloc_expr = m_ctx->mk_alloca(mem_alloc_e, ml_local, name_expr, local_size_expr);
-    state_set_expr(state_out, m_mem_alloc_reg, new_mem_alloc_expr);
+    expr_ref const& local_size_expr = m_ctx->get_local_size_expr_for_id(local_id);
+    expr_ref const& new_mem_alloc_expr = m_ctx->mk_alloca(mem_alloc_e, ml_local, name_expr, local_size_expr);
+    expr_ref const& new_mem_expr = m_ctx->mk_store_uninit(mem_e, new_mem_alloc_expr, ml_local, name_expr, local_size_expr, uninit_nonce);
 
-    // memory SSA equality assume
-    string_ref memversion_keyname = mk_string_ref(get_key_for_mem_version(mk_string_ref(m_mem_reg), local_id));
-    expr_ref const& memversion_e = m_ctx->get_input_expr_for_key(memversion_keyname, mem_e->get_sort());
-    expr_ref const& memeq_e = m_ctx->mk_memmasks_are_equal(
-                                memversion_e,
-                                new_mem_alloc_expr,
-                                mem_e,
-                                new_mem_alloc_expr,
-                                ml_local);
-    state_assumes.insert(m_ctx->mk_eq(m_ctx->mk_bool_true(), memeq_e));
-    // mem alloc SSA equality assume
-    string_ref mem_alloc_version_keyname = mk_string_ref(get_key_for_mem_alloc_version(mk_string_ref(m_mem_alloc_reg), local_id));
-    expr_ref const& mem_alloc_version_e = m_ctx->get_input_expr_for_key(mem_alloc_version_keyname, new_mem_alloc_expr->get_sort());
-    state_assumes.insert(m_ctx->mk_eq(new_mem_alloc_expr, mem_alloc_version_e));
+    // mem.alloc <- alloca
+    // mem <- store_unint
+    state_set_expr(state_out, m_mem_alloc_reg, new_mem_alloc_expr);
+    state_set_expr(state_out, m_mem_reg, new_mem_expr);
+
     // before alloca, the original memlabel was stack
     expr_ref const& orig_ml_was_stack_assume = m_ctx->mk_ismemlabel(state_get_expr(state_in, m_mem_alloc_reg, this->get_mem_alloc_sort()), name_expr, local_size_expr, memlabel_t::memlabel_stack());
     state_assumes.insert(orig_ml_was_stack_assume);
@@ -1543,8 +1536,8 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     // alloca returned addr does not cause overflow: alloca_ptr <= (alloca_ptr + size - 1)
     expr_ref const& ret_addr_no_overflow = m_ctx->mk_bvule(name_expr, m_ctx->mk_bvadd(name_expr, m_ctx->mk_bvsub(local_size_expr, m_ctx->mk_onebv(get_word_length()))));
     state_assumes.insert(ret_addr_no_overflow);
-
     if (align != 0) {
+      // alloca returned addr is aligned
       expr_ref const& isaligned_assume = m_ctx->mk_islangaligned(name_expr, align);
       state_assumes.insert(isaligned_assume);
     }
@@ -3195,12 +3188,9 @@ sym_exec_llvm::sym_exec_preprocess_tfg(string const &name, tfg_llvm_t& t_src, ma
   t_src.set_callee_summaries(nextpc_id_csum);
 
   ASSERT(t_src.get_locals_map().size() == 0);
-  //vector<pair<string_ref, size_t>> locals_map;
-  //for (auto const &local : local_refs) {
-  //  locals_map.push_back(local);
-  //}
-  //t_src.set_locals_map(locals_map);
   t_src.set_locals_map(local_refs);
+  t_src.tfg_llvm_initialize_uninit_nonce_on_start_edge(map_get_keys(local_refs));
+
   DYN_DEBUG(llvm2tfg, cout << _FNLN_ << ": name = " << name << ": calling tfg_preprocess()\n");
   t_src.tfg_preprocess(false, collapse, sorted_bbl_indices, {}, xml_output_format);
   DYN_DEBUG(llvm2tfg, cout << _FNLN_ << ": name = " << name << ": done tfg_preprocess().\n" << endl);
