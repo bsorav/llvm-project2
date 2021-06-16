@@ -3191,7 +3191,7 @@ sym_exec_llvm::sym_exec_preprocess_tfg(string const &name, tfg_llvm_t& t_src, ma
 
   ASSERT(t_src.get_locals_map().size() == 0);
   t_src.set_locals_map(local_refs);
-  //t_src.tfg_llvm_initialize_uninit_nonce_on_start_edge(map_get_keys(local_refs));
+  t_src.tfg_llvm_initialize_uninit_nonce_on_start_edge(map_get_keys(local_refs), m_srcdst_keyword);
 
   DYN_DEBUG(llvm2tfg, cout << _FNLN_ << ": name = " << name << ": calling tfg_preprocess()\n");
   t_src.tfg_preprocess(false, collapse, sorted_bbl_indices, {}, xml_output_format);
