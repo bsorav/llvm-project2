@@ -1496,20 +1496,16 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     expr_ref mem_e = state_get_expr(state_in, m_mem_reg, this->get_mem_sort());
     expr_ref mem_alloc_e = state_get_expr(state_in, m_mem_alloc_reg, this->get_mem_alloc_sort());
     expr_ref uninit_nonce = m_ctx->get_uninit_nonce_expr_for_local_id(local_id, m_srcdst_keyword);
-    string uninit_nonce_key = m_ctx->get_key_from_input_expr(uninit_nonce)->get_str();
 
     expr_ref alloca_ptr = m_ctx->mk_alloca_ptr(mem_e, mem_alloc_e, ml_local, local_size_val);
-    expr_ref new_nonce_val = m_ctx->mk_bvadd(uninit_nonce, m_ctx->mk_onebv(uninit_nonce->get_sort()->get_size()));
     // name <- alloca_ptr
     // local_size.id <- size expr
-    // local.id.uninit_nonce <- (local.id.uninit_nonce+1)
 
     expr_ref local_size_expr = m_ctx->get_local_size_expr_for_id(local_id, uninit_nonce, m_srcdst_keyword);
     string local_size_str = m_ctx->get_key_from_input_expr(local_size_expr)->get_str();
 
     state_set_expr(state_out, name, alloca_ptr);
     state_set_expr(state_out, local_size_str, local_size_val);
-    state_set_expr(state_out, uninit_nonce_key, new_nonce_val);
 
     // == intermediate edge ==
     dshared_ptr<tfg_node> intermediate_node = get_next_intermediate_subsubindex_pc_node(t, from_node);
@@ -1522,11 +1518,16 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
 
     expr_ref new_mem_alloc_expr = m_ctx->mk_alloca(mem_alloc_e, ml_local, name_expr, local_size_expr);
     expr_ref new_mem_expr = m_ctx->mk_store_uninit(mem_e, new_mem_alloc_expr, ml_local, name_expr, local_size_expr, uninit_nonce);
+    expr_ref new_nonce_val = m_ctx->mk_bvadd(uninit_nonce, m_ctx->mk_onebv(uninit_nonce->get_sort()->get_size()));
+
+    string uninit_nonce_key = m_ctx->get_key_from_input_expr(uninit_nonce)->get_str();
 
     // mem.alloc <- alloca
     // mem <- store_unint
+    // local.id.uninit_nonce <- (local.id.uninit_nonce+1)
     state_set_expr(state_out, m_mem_alloc_reg, new_mem_alloc_expr);
     state_set_expr(state_out, m_mem_reg, new_mem_expr);
+    state_set_expr(state_out, uninit_nonce_key, new_nonce_val);
 
     // before alloca, the original memlabel was stack
     expr_ref orig_ml_was_stack_assume = m_ctx->mk_ismemlabel(state_get_expr(state_in, m_mem_alloc_reg, this->get_mem_alloc_sort()), name_expr, local_size_expr, memlabel_t::memlabel_stack());
