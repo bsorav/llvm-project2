@@ -1477,8 +1477,6 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     //assumes.insert(p);
     //t.add_assume_pred(from_node->get_pc(), p);
 
-    string local_size_str = m_ctx->get_key_from_input_expr(m_ctx->get_local_size_expr_for_id(local_id))->get_str();
-
     expr_ref name_expr = m_ctx->get_input_expr_for_key(mk_string_ref(name), m_ctx->mk_bv_sort(get_word_length()));
     expr_ref local_size_val;
     if (is_varsize) {
@@ -1497,7 +1495,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
 
     expr_ref const& mem_e = state_get_expr(state_in, m_mem_reg, this->get_mem_sort());
     expr_ref const& mem_alloc_e = state_get_expr(state_in, m_mem_alloc_reg, this->get_mem_alloc_sort());
-    expr_ref const& uninit_nonce = m_ctx->get_uninit_nonce_expr_for_local_id(local_id);
+    expr_ref uninit_nonce = m_ctx->get_uninit_nonce_expr_for_local_id(local_id, m_srcdst_keyword);
     string const& uninit_nonce_key = m_ctx->get_key_from_input_expr(uninit_nonce)->get_str();
 
     expr_ref const& alloca_ptr = m_ctx->mk_alloca_ptr(mem_e, mem_alloc_e, ml_local, local_size_val);
@@ -1505,6 +1503,10 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     // name <- alloca_ptr
     // local_size.id <- size expr
     // local.id.uninit_nonce <- (local.id.uninit_nonce+1)
+
+    expr_ref local_size_expr = m_ctx->get_local_size_expr_for_id(local_id, uninit_nonce, m_srcdst_keyword);
+    string local_size_str = m_ctx->get_key_from_input_expr(local_size_expr)->get_str();
+
     state_set_expr(state_out, name, alloca_ptr);
     state_set_expr(state_out, local_size_str, local_size_val);
     state_set_expr(state_out, uninit_nonce_key, new_nonce_val);
@@ -1518,7 +1520,6 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     state_out = state_in;
     state_assumes.clear();
 
-    expr_ref const& local_size_expr = m_ctx->get_local_size_expr_for_id(local_id);
     expr_ref const& new_mem_alloc_expr = m_ctx->mk_alloca(mem_alloc_e, ml_local, name_expr, local_size_expr);
     expr_ref const& new_mem_expr = m_ctx->mk_store_uninit(mem_e, new_mem_alloc_expr, ml_local, name_expr, local_size_expr, uninit_nonce);
 
@@ -3190,7 +3191,7 @@ sym_exec_llvm::sym_exec_preprocess_tfg(string const &name, tfg_llvm_t& t_src, ma
 
   ASSERT(t_src.get_locals_map().size() == 0);
   t_src.set_locals_map(local_refs);
-  t_src.tfg_llvm_initialize_uninit_nonce_on_start_edge(map_get_keys(local_refs));
+  //t_src.tfg_llvm_initialize_uninit_nonce_on_start_edge(map_get_keys(local_refs));
 
   DYN_DEBUG(llvm2tfg, cout << _FNLN_ << ": name = " << name << ": calling tfg_preprocess()\n");
   t_src.tfg_preprocess(false, collapse, sorted_bbl_indices, {}, xml_output_format);
