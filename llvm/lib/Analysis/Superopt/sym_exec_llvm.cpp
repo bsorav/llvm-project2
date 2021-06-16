@@ -1487,19 +1487,19 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
       ASSERT(local_size_val->get_sort()->get_size() == get_word_length());
 
       // add size > 0 assume
-      expr_ref const& size_is_positive_assume = m_ctx->mk_bvsgt(varsize_expr, m_ctx->mk_zerobv(varsize_expr->get_sort()->get_size()));
+      expr_ref size_is_positive_assume = m_ctx->mk_bvsgt(varsize_expr, m_ctx->mk_zerobv(varsize_expr->get_sort()->get_size()));
       state_assumes.insert(size_is_positive_assume);
     } else {
       local_size_val = m_ctx->mk_bv_const(get_word_length(), local_size);
     }
 
-    expr_ref const& mem_e = state_get_expr(state_in, m_mem_reg, this->get_mem_sort());
-    expr_ref const& mem_alloc_e = state_get_expr(state_in, m_mem_alloc_reg, this->get_mem_alloc_sort());
+    expr_ref mem_e = state_get_expr(state_in, m_mem_reg, this->get_mem_sort());
+    expr_ref mem_alloc_e = state_get_expr(state_in, m_mem_alloc_reg, this->get_mem_alloc_sort());
     expr_ref uninit_nonce = m_ctx->get_uninit_nonce_expr_for_local_id(local_id, m_srcdst_keyword);
-    string const& uninit_nonce_key = m_ctx->get_key_from_input_expr(uninit_nonce)->get_str();
+    string uninit_nonce_key = m_ctx->get_key_from_input_expr(uninit_nonce)->get_str();
 
-    expr_ref const& alloca_ptr = m_ctx->mk_alloca_ptr(mem_e, mem_alloc_e, ml_local, local_size_val);
-    expr_ref const& new_nonce_val = m_ctx->mk_bvadd(uninit_nonce, m_ctx->mk_onebv(uninit_nonce->get_sort()->get_size()));
+    expr_ref alloca_ptr = m_ctx->mk_alloca_ptr(mem_e, mem_alloc_e, ml_local, local_size_val);
+    expr_ref new_nonce_val = m_ctx->mk_bvadd(uninit_nonce, m_ctx->mk_onebv(uninit_nonce->get_sort()->get_size()));
     // name <- alloca_ptr
     // local_size.id <- size expr
     // local.id.uninit_nonce <- (local.id.uninit_nonce+1)
@@ -1520,8 +1520,8 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     state_out = state_in;
     state_assumes.clear();
 
-    expr_ref const& new_mem_alloc_expr = m_ctx->mk_alloca(mem_alloc_e, ml_local, name_expr, local_size_expr);
-    expr_ref const& new_mem_expr = m_ctx->mk_store_uninit(mem_e, new_mem_alloc_expr, ml_local, name_expr, local_size_expr, uninit_nonce);
+    expr_ref new_mem_alloc_expr = m_ctx->mk_alloca(mem_alloc_e, ml_local, name_expr, local_size_expr);
+    expr_ref new_mem_expr = m_ctx->mk_store_uninit(mem_e, new_mem_alloc_expr, ml_local, name_expr, local_size_expr, uninit_nonce);
 
     // mem.alloc <- alloca
     // mem <- store_unint
@@ -1529,17 +1529,17 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     state_set_expr(state_out, m_mem_reg, new_mem_expr);
 
     // before alloca, the original memlabel was stack
-    expr_ref const& orig_ml_was_stack_assume = m_ctx->mk_ismemlabel(state_get_expr(state_in, m_mem_alloc_reg, this->get_mem_alloc_sort()), name_expr, local_size_expr, memlabel_t::memlabel_stack());
+    expr_ref orig_ml_was_stack_assume = m_ctx->mk_ismemlabel(state_get_expr(state_in, m_mem_alloc_reg, this->get_mem_alloc_sort()), name_expr, local_size_expr, memlabel_t::memlabel_stack());
     state_assumes.insert(orig_ml_was_stack_assume);
     // alloca returned addr can never be 0
-    expr_ref const& ret_addr_non_zero_assume = m_ctx->mk_not(m_ctx->mk_eq(name_expr, m_ctx->mk_zerobv(get_word_length())));
+    expr_ref ret_addr_non_zero_assume = m_ctx->mk_not(m_ctx->mk_eq(name_expr, m_ctx->mk_zerobv(get_word_length())));
     state_assumes.insert(ret_addr_non_zero_assume);
     // alloca returned addr does not cause overflow: alloca_ptr <= (alloca_ptr + size - 1)
-    expr_ref const& ret_addr_no_overflow = m_ctx->mk_bvule(name_expr, m_ctx->mk_bvadd(name_expr, m_ctx->mk_bvsub(local_size_expr, m_ctx->mk_onebv(get_word_length()))));
+    expr_ref ret_addr_no_overflow = m_ctx->mk_bvule(name_expr, m_ctx->mk_bvadd(name_expr, m_ctx->mk_bvsub(local_size_expr, m_ctx->mk_onebv(get_word_length()))));
     state_assumes.insert(ret_addr_no_overflow);
     if (align != 0) {
       // alloca returned addr is aligned
-      expr_ref const& isaligned_assume = m_ctx->mk_islangaligned(name_expr, align);
+      expr_ref isaligned_assume = m_ctx->mk_islangaligned(name_expr, align);
       state_assumes.insert(isaligned_assume);
     }
     break;
