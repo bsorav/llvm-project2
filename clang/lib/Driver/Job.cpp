@@ -340,7 +340,7 @@ int Command::Execute(ArrayRef<llvm::Optional<StringRef>> Redirects,
     //  ArgsCopy.push_back(arg);
     //}
     Argv.append(Arguments.begin(), Arguments.end());
-    std::string dyn_debug_args = eqspace::get_dyn_debug_cmdline_args();
+    std::string dyn_debug_args = get_dyn_debug_cmdline_args();
     if (executable_supports_dyn_debug(Executable) && dyn_debug_args != "") {
       dyn_debug_args = std::string("--dyn_debug=") + dyn_debug_args;
       char *s = new char[strlen(dyn_debug_args.c_str()) + 1];
