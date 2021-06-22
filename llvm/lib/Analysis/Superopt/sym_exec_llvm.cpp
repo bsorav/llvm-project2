@@ -1330,6 +1330,27 @@ sym_exec_llvm::farith_to_operation_kind(unsigned opcode, expr_vector const& args
   NOT_REACHED();
 }
 
+static expr_ref
+gen_no_mul_overflow_assume_expr(expr_ref const& a, expr_ref const& b, bool a_is_positive)
+{
+  ASSERT(a->get_sort()->get_size() == b->get_sort()->get_size());
+  unsigned bvlen = a->get_sort()->get_size();
+  context* ctx = a->get_context();
+
+  expr_ref se_a        = ctx->mk_bvsign_ext(a, bvlen);
+  expr_ref ze_b        = ctx->mk_bvzero_ext(b, bvlen);
+  expr_ref mul_expr    = expr_bvmul(se_a, ze_b);
+  expr_ref msb_expr    = expr_bvextract(2*bvlen-1, bvlen, mul_expr);
+  expr_ref msb_is_zero = ctx->mk_eq(msb_expr, ctx->mk_zerobv(bvlen));
+  if (a_is_positive) {
+    return msb_is_zero;
+  } else {
+    expr_ref is_neg = ctx->mk_bvslt(a, ctx->mk_zerobv(bvlen));
+    expr_ref msb_is_minusone = ctx->mk_eq(msb_expr, ctx->mk_minusonebv(bvlen));
+    return ctx->mk_ite(is_neg, msb_is_minusone, msb_is_zero);
+  }
+}
+
 void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dshared_ptr<tfg_node> from_node, llvm::BasicBlock const &B, llvm::Function const &F, size_t next_insn_id, tfg_llvm_t const* src_llvm_tfg, tfg &t, map<string, pair<callee_summary_t, dshared_ptr<tfg_llvm_t>>> *function_tfg_map, map<llvm_value_id_t, string_ref>* value_to_name_map, set<string> const *function_call_chain, map<shared_ptr<tfg_edge const>, Instruction *>& eimap, map<string, value_scev_map_t> const& scev_map, bool collapse, context::xml_output_format_t xml_output_format)
 {
   DYN_DEBUG(llvm2tfg, errs() << __func__ << " " << __LINE__ << " " << get_timestamp(as1, sizeof as1) << ": sym exec doing: " << I << "\n");
@@ -1482,13 +1503,17 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     if (is_varsize) {
       expr_ref varsize_expr;
       tie(varsize_expr, state_assumes) = get_expr_adding_edges_for_intermediate_vals(*ArraySize/*, ""*/, state_in, state_assumes, from_node/*, pc_to, B, F*/, t, value_to_name_map);
-      // XXX shall we check for integer overflow during (varsize_expr * local_type_alloc_size) as well?
-      local_size_val = m_ctx->mk_bvmul(varsize_expr, m_ctx->mk_bv_const(varsize_expr->get_sort()->get_size(), local_type_alloc_size));
+      unsigned bvlen = varsize_expr->get_sort()->get_size();
+      expr_ref local_type_alloc_size_expr = m_ctx->mk_bv_const(bvlen, local_type_alloc_size);
+      local_size_val = m_ctx->mk_bvmul(varsize_expr, local_type_alloc_size_expr);
       ASSERT(local_size_val->get_sort()->get_size() == get_word_length());
 
       // add size > 0 assume
-      expr_ref size_is_positive_assume = m_ctx->mk_bvsgt(varsize_expr, m_ctx->mk_zerobv(varsize_expr->get_sort()->get_size()));
+      expr_ref size_is_positive_assume = m_ctx->mk_bvsgt(varsize_expr, m_ctx->mk_zerobv(bvlen));
       state_assumes.insert(size_is_positive_assume);
+      // add no overflow assume for (varsize_expr * local_type_alloc_size)
+      expr_ref no_overflow = gen_no_mul_overflow_assume_expr(varsize_expr, local_type_alloc_size_expr, /*varsize_expr is positive*/true);
+      state_assumes.insert(no_overflow);
     } else {
       local_size_val = m_ctx->mk_bv_const(get_word_length(), local_size);
     }
@@ -2191,26 +2216,10 @@ sym_exec_llvm::exec_gen_expr(const llvm::Instruction& I/*, string Iname*/, const
 
         if (inbounds) { // gep calculation can have undefined result only if it is inbounds
           // scaling cannot have signed overflow
-          unsigned bvlen = get_word_length();
-
-          expr_ref se_index    = m_ctx->mk_bvsign_ext(index, bvlen);
-          expr_ref ze_size     = m_ctx->mk_bvzero_ext(size_expr, bvlen);
-          expr_ref mul_expr    = expr_bvmul(se_index, ze_size);
-          expr_ref msb_expr    = expr_bvextract(2*bvlen-1, bvlen, mul_expr);
-          expr_ref msb_is_zero = m_ctx->mk_eq(msb_expr, m_ctx->mk_zerobv(bvlen));
-          expr_ref overflow_expr;
-          if (itype.isBoundedSequential()) {
-            // if base is array then index must be positive
-            overflow_expr = msb_is_zero;
-          } else {
-            expr_ref is_neg = m_ctx->mk_bvslt(index, m_ctx->mk_zerobv(bvlen));
-            expr_ref msb_is_minusone = m_ctx->mk_eq(msb_expr, m_ctx->mk_minusonebv(bvlen));
-            overflow_expr = m_ctx->mk_ite(is_neg, msb_is_minusone, msb_is_zero);
-          }
+          bool index_is_positive = itype.isBoundedSequential(); // if base is array then index must be positive
+          expr_ref overflow_expr = gen_no_mul_overflow_assume_expr(index, size_expr, index_is_positive);
           expr_ref assume = m_ctx->mk_isindexforsize(overflow_expr, size);
           assumes.insert(assume);
-          //predicate p(precond_t(m_ctx), assume, expr_true(m_ctx), UNDEF_BEHAVIOUR_ASSUME_ISINDEXFORSIZE, predicate::assume);
-          //t.add_assume_pred(cur_pc, p);
         }
       } else {
         unreachable();
