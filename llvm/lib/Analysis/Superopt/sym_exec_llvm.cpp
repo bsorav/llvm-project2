@@ -1554,9 +1554,9 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     state_set_expr(state_out, m_mem_reg, new_mem_expr);
     state_set_expr(state_out, uninit_nonce_key, new_nonce_val);
 
-    // before alloca, the original memlabel was stack
-    expr_ref orig_ml_was_stack_assume = m_ctx->mk_ismemlabel(state_get_expr(state_in, m_mem_alloc_reg, this->get_mem_alloc_sort()), name_expr, local_size_expr, memlabel_t::memlabel_stack());
-    state_assumes.insert(orig_ml_was_stack_assume);
+    // // before alloca, the original memlabel was stack -- this is not sound for allocation in a loop
+    // expr_ref orig_ml_was_stack_assume = m_ctx->mk_ismemlabel(state_get_expr(state_in, m_mem_alloc_reg, this->get_mem_alloc_sort()), name_expr, local_size_expr, memlabel_t::memlabel_stack());
+    // state_assumes.insert(orig_ml_was_stack_assume);
     // alloca returned addr can never be 0
     expr_ref ret_addr_non_zero_assume = m_ctx->mk_not(m_ctx->mk_eq(name_expr, m_ctx->mk_zerobv(get_word_length())));
     state_assumes.insert(ret_addr_non_zero_assume);
