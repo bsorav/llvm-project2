@@ -1509,7 +1509,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
       ASSERT(local_size_val->get_sort()->get_size() == get_word_length());
 
       // add size > 0 assume
-      expr_ref size_is_positive_assume = m_ctx->mk_bvsgt(varsize_expr, m_ctx->mk_zerobv(bvlen));
+      expr_ref size_is_positive_assume = m_ctx->mk_bvsgt(local_size_val, m_ctx->mk_zerobv(bvlen));
       state_assumes.insert(size_is_positive_assume);
       // add no overflow assume for (varsize_expr * local_type_alloc_size)
       expr_ref no_overflow = gen_no_mul_overflow_assume_expr(varsize_expr, local_type_alloc_size_expr, /*varsize_expr is positive*/true);
