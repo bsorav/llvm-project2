@@ -425,7 +425,7 @@ SubprogramLocalsHarvester::handle_location_list(DWARFLocationTable const& locati
   Error E = location_table.visitAbsoluteLocationList(Offset, BaseAddr,
     [U](uint32_t Index) -> llvm::Optional<SectionedAddress>
     { return U->getAddrOffsetSectionItem(Index); },
-    [U,&DataEx,first_only,&loc_exprs,this](llvm::Expected<DWARFLocationExpression> Loc) -> bool
+    [&DataEx,first_only,&loc_exprs,this](llvm::Expected<DWARFLocationExpression> Loc) -> bool
     {
       if (!Loc) {
         consumeError(Loc.takeError());
@@ -488,6 +488,7 @@ SubprogramLocalsHarvester::visit_die(DWARFDie const& die)
     std::string name;
     std::vector<std::tuple<uint64_t,uint64_t,eqspace::expr_ref>> loc_exprs;
     uint64_t low_pc = 0, high_pc = 0;
+    bool low_high_pcs_are_set = false;
     bool high_pc_is_offset = false;
   	for (const auto &AttrSpec : AbbrevDecl->attributes()) {
     	dwarf::Attribute Attr = AttrSpec.Attr;
@@ -517,6 +518,7 @@ SubprogramLocalsHarvester::visit_die(DWARFDie const& die)
           if (llvm::Optional<uint64_t> addr = FormValue.getAsAddress()) {
             low_pc = addr.getValue();
           } else { assert(0 && "unable to decode DW_AT_low_pc"); }
+          low_high_pcs_are_set = true;
     	    break;
     	  case dwarf::DW_AT_high_pc:
           if (llvm::Optional<uint64_t> addr = FormValue.getAsAddress()) {
@@ -528,6 +530,7 @@ SubprogramLocalsHarvester::visit_die(DWARFDie const& die)
     	      this->m_OS << "\t" << formatv("{0} [{1}]", Attr, Form) << " ";
             assert(0 && "unable to decode DW_AT_high_pc");
           }
+          low_high_pcs_are_set = true;
     	    break;
     	  case dwarf::DW_AT_name:
     	    if (llvm::Optional<const char*> cstr = dwarf::toString(FormValue)) {
@@ -551,6 +554,7 @@ SubprogramLocalsHarvester::visit_die(DWARFDie const& die)
 					  low_pc  = this->m_addr_ranges.top().first;
 					  high_pc = this->m_addr_ranges.top().second;
 					  loc_exprs.push_back(make_tuple(low_pc, high_pc, ret));
+            //this->m_OS << formatv("pushed loc_expr: [{0}, {1}], {2}", low_pc, high_pc, expr_string(ret)) << '\n';
   			  } else if (FormValue.isFormClass(DWARFFormValue::FC_SectionOffset)) {
     			  uint64_t Offset = *FormValue.getAsSectionOffset();
     			  if (FormValue.getForm() == dwarf::Form::DW_FORM_loclistx) {
@@ -574,17 +578,25 @@ SubprogramLocalsHarvester::visit_die(DWARFDie const& die)
 
     if (   tag == dwarf::DW_TAG_variable
   	    && loc_exprs.size()) {
+      //this->m_OS << formatv("New variable: {0}: ", name);
+      //for (auto const& l : loc_exprs) this->m_OS << formatv("[{1}, {2}] {3}; ", get<0>(l), get<1>(l), expr_string(get<2>(l)));
+      //this->m_OS << '\n';
   	  this->m_locals.push_back(make_pair(name, loc_exprs));
   	}
-    if (die.isSubprogramDIE()) {
+    if (   die.isSubprogramDIE()
+        && this->m_name.empty()) {
+      //this->m_OS << formatv("New subprogram: {0}", name) << '\n';
       this->m_name = name;
     }
     if (   tag == dwarf::DW_TAG_lexical_block
         || die.isSubprogramDIE()) {
-      if (high_pc_is_offset) {
-        high_pc += low_pc;
+      if (low_high_pcs_are_set) {
+        if (high_pc_is_offset) {
+          high_pc += low_pc;
+        }
+        //this->m_OS << formatv("New low, high: [{0}, {1}]", low_pc, high_pc) << '\n';
+        this->m_addr_ranges.push(make_pair(low_pc, high_pc));
       }
-      this->m_addr_ranges.push(make_pair(low_pc, high_pc));
     }
   }
 
