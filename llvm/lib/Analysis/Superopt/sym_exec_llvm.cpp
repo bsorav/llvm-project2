@@ -471,6 +471,18 @@ sym_exec_llvm::gep_instruction_get_intermediate_value_name(Instruction const& I/
   return ss.str();
 }
 
+string
+sym_exec_llvm::get_poison_value_name(Value const& I, int temp_count) const
+{
+  string base_name =  get_value_name(I);
+  stringstream ss;
+  ss << base_name << ".poison";
+  if (temp_count != 0) {
+    ss << ".temp" << temp_count;
+  }
+  return ss.str();
+}
+
 /*void
 sym_exec_llvm::add_gep_intermediate_vals(Instruction const &I, string const &name)
 {
@@ -884,6 +896,30 @@ expr_ref sym_exec_llvm::icmp_to_expr(ICmpInst::Predicate cmp_kind, const vector<
     ret = m_ctx->mk_not(ret);
 
   return ret;
+}
+
+vector<expr_ref>
+sym_exec_llvm::get_poison_args(const llvm::Instruction& I/*, string vname*/, const state& st, unordered_set<expr_ref> const& state_assumes, dshared_ptr<tfg_node> &from_node/*, pc const &pc_to, llvm::BasicBlock const &B, llvm::Function const &F*/, tfg &t, map<llvm_value_id_t, string_ref>* value_to_name_map)
+{
+  vector<expr_ref> args;
+  for (unsigned i = 0; i < I.getNumOperands(); ++i) {
+    const auto& v = *I.getOperand(i);
+    if (isa<const Instruction>(&v)) {
+      vector<sort_ref> sv = get_value_type_vec(v, m_module->getDataLayout());
+      auto poison_name = get_poison_value_name(v, 0);
+      if (m_poison_set.find(poison_name) != m_poison_set.end()) {
+        args.push_back(state_get_expr(st, get_poison_value_name(v, 0), m_ctx->mk_bool_sort()));
+      }
+      else {
+        args.push_back(expr_false(m_ctx));
+      }
+    }
+    else {
+      // We need this because sometimes we need to check only some args for poison possibility
+      args.push_back(expr_false(m_ctx));
+    }
+  }
+  return args;
 }
 
 pair<vector<expr_ref>, unordered_set<expr_ref>>
@@ -1343,6 +1379,28 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
       cfts.push_back(cft1);
       control_flow_transfer cft2(from_node->get_pc(), get_pc_from_bbindex_and_insn_id(get_basicblock_index(*i->getSuccessor(1)), 0), m_ctx->mk_not(e), cond_assumes);
       cfts.push_back(cft2);
+      // ============================================
+      vector<expr_ref> poison_args = get_poison_args(I/*, ""*/, state_in, state_assumes, from_node/*, pc_to, B, F*/, t, value_to_name_map);
+      expr_ref assume_expr;
+      if (!poison_args.empty())
+      {
+        // if (poison_args.size() == 1)
+        // {
+        //  assume_expr = poison_args.front();
+        vector<expr_ref> temp(1, poison_args[0]);
+        assume_expr = m_ctx->mk_app(expr::OP_NOT, temp);
+        // }
+        // else
+        // {
+        //   assume_expr = m_ctx->mk_app((poison_args.front()->is_bool_sort() ? expr::OP_OR : expr::OP_BVOR), poison_args);
+        // }
+      }
+
+      if (!assume_expr) {
+        assume_expr = expr_true(m_ctx);
+      }
+      state_assumes.insert(assume_expr);
+      //=============================================
     }
     else
       assert(false);
@@ -1575,6 +1633,25 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
       //assumes.insert(p3);
       //t.add_assume_pred(from_node->get_pc(), p3);
     }
+
+    //if address operand in store is poison, it leads to immediate UB.
+    vector<expr_ref> poison_args = get_poison_args(I/*, ""*/, state_in, state_assumes, from_node/*, pc_to, B, F*/, t, value_to_name_map);
+    expr_ref assume_expr;
+    if(!poison_args.empty())
+    {
+      // poison_args[1] gives the expr_ref corresponding to the addr operand since it is the second operand in the instruction
+      //vector<expr_ref> temp(1, poison_args[1]);
+      //vector<expr_ref> temp(poison_args);
+      expr_ref assume_expr_temp = m_ctx->mk_app((poison_args.front()->is_bool_sort()? expr::OP_OR : expr::OP_OR), poison_args);
+      vector<expr_ref> temp(1, assume_expr_temp);
+      assume_expr = m_ctx->mk_app(expr::OP_NOT, temp);
+    }
+
+    if(!assume_expr) {
+      assume_expr = expr_true(m_ctx);
+    }
+    state_assumes.insert(assume_expr);
+
     break;
   }
   case Instruction::Load:
@@ -1642,6 +1719,21 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     state_out = state_in;
     from_node = t.find_node(intermediate_node->get_pc());
     ASSERT(from_node);
+
+    // poison_safety_check: address operand must not be poison otherwise it triggers immediate UB
+    vector<expr_ref> poison_args = get_poison_args(I/*, ""*/, state_in, state_assumes, from_node/*, pv_to, B, F*/, t, value_to_name_map);
+    expr_ref assume_expr;
+    if(!poison_args.empty())
+    {
+      vector<expr_ref> temp(1, poison_args[0]);
+      assume_expr = m_ctx->mk_app(expr::OP_NOT, temp);
+    }
+
+    if(!assume_expr) {
+      assume_expr = expr_true(m_ctx);
+    }
+    state_assumes.insert(assume_expr);
+
     break;
   }
   case Instruction::Call:
@@ -1991,8 +2083,68 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     vector<expr_ref> expr_args;
     tie(expr_args, state_assumes) = get_expr_args(I/*, ""*/, state_in, state_assumes, from_node/*, pc_to, B, F*/, t, value_to_name_map);
     expr_ref insn_expr;
+    unsigned poison_count = 1;
+    expr_ref assume_expr = get_orig_assume_expr(I/*, ""*/, expr_args, state_in, state_assumes, from_node/*, pc_to, B, F*/, t, poison_count);
+
+    if (assume_expr) {
+      string poison_name       = get_poison_value_name(I, poison_count++);
+      state state_poison;
+      state_set_expr(state_poison, poison_name, assume_expr);
+
+      dshared_ptr<tfg_node> poison_node = get_next_intermediate_subsubindex_pc_node(t, from_node);
+      pc cur_pc = from_node->get_pc();
+      shared_ptr<tfg_edge const> e = mk_tfg_edge(mk_itfg_edge(cur_pc, poison_node->get_pc(), state_poison, expr_true(m_ctx)/*, t.get_start_state()*/, state_assumes, this->instruction_to_te_comment(I, from_node->get_pc()/*, bbo*/)));
+      t.add_edge(e);
+      from_node = poison_node;
+
+      assume_expr = get_input_expr(get_poison_value_name(I, poison_count - 1), m_ctx->mk_bool_sort());
+      vector<expr_ref> assume_args(1, assume_expr);
+      assume_expr = m_ctx->mk_app(expr::OP_NOT, assume_args);
+
+      string poison_name_2       = get_poison_value_name(I, poison_count++);
+      state state_poison_2;
+      state_set_expr(state_poison_2, poison_name_2, assume_expr);
+
+      dshared_ptr<tfg_node> poison_node_2 = get_next_intermediate_subsubindex_pc_node(t, from_node);
+      cur_pc = from_node->get_pc();
+      shared_ptr<tfg_edge const> e_2 = mk_tfg_edge(mk_itfg_edge(cur_pc, poison_node_2->get_pc(), state_poison_2, expr_true(m_ctx)/*, t.get_start_state()*/, state_assumes, this->instruction_to_te_comment(I, from_node->get_pc()/*, bbo*/)));
+      t.add_edge(e_2);
+      from_node = poison_node_2;
+      assume_expr = get_input_expr(get_poison_value_name(I, poison_count - 1), m_ctx->mk_bool_sort());
+    }
+
+    vector<expr_ref> poison_args = get_poison_args(I/*, ""*/, state_in, state_assumes, from_node/*, pc_to, B, F*/, t, value_to_name_map);
+
+    if (!poison_args.empty()) {
+      if (assume_expr) {
+        poison_args.push_back(assume_expr);
+      }
+      if (poison_args.size() == 1) {
+	assume_expr = poison_args.front();
+      } else {
+        assume_expr = m_ctx->mk_app((poison_args.front()->is_bool_sort() ? expr::OP_OR : expr::OP_BVOR), poison_args);
+      }
+    }
+
+    if (!assume_expr) {
+      assume_expr = expr_false(m_ctx);
+    }
+
+    string poison_name       = get_poison_value_name(I, 0);
+
+    m_poison_set.insert(poison_name);
+    state state_poison;
+    state_set_expr(state_poison, poison_name, assume_expr);
+
+    dshared_ptr<tfg_node> poison_node = get_next_intermediate_subsubindex_pc_node(t, from_node);
+    pc cur_pc = from_node->get_pc();
+    shared_ptr<tfg_edge const> e = mk_tfg_edge(mk_itfg_edge(cur_pc, poison_node->get_pc(), state_poison, expr_true(m_ctx)/*, t.get_start_state()*/, state_assumes, this->instruction_to_te_comment(I, from_node->get_pc()/*, bbo*/)));
+    t.add_edge(e);
+    from_node = poison_node;
+
     tie(insn_expr, state_assumes) = exec_gen_expr(I/*, ""*/, expr_args, state_in, state_assumes, from_node/*, pc_to, B, F*/, t);
     set_expr(get_value_name(I), insn_expr, state_out);
+
     break;
   }
   DYN_DEBUG(llvm2tfg, errs() << __func__ << " " << __LINE__ << " " << get_timestamp(as1, sizeof as1) << ": sym exec done\n");
@@ -2028,6 +2180,124 @@ sym_exec_common::instruction_to_te_comment(llvm::Instruction const& I, pc const&
   return te_comment_t(/*bbo, */false, from_subindex, ss.str());
 }
 
+// get_orig_assume_expr(): Return the original Assume associated with Instruction
+// This is what we originally had, for eg, is_shiftcount for a shift instruction
+expr_ref
+sym_exec_llvm::get_orig_assume_expr(const llvm::Instruction& I/*, string Iname*/, const vector<expr_ref>& args, state const &state_in, unordered_set<expr_ref> const& state_assumes, dshared_ptr<tfg_node> &from_node/*, pc const &pc_to, llvm::BasicBlock const &B, llvm::Function const &F*/, tfg &t, unsigned& poison_count)
+{
+  pc const &from_pc = from_node->get_pc();
+  expr_ref ret;
+  switch(I.getOpcode())
+  {
+  case Instruction::Add:
+  case Instruction::Mul:
+  case Instruction::Sub:
+  case Instruction::UDiv:
+  case Instruction::SDiv:
+  case Instruction::URem:
+  case Instruction::SRem:
+  case Instruction::Shl:
+  case Instruction::LShr:
+  case Instruction::AShr:
+  case Instruction::And:
+  case Instruction::Or:
+  case Instruction::Xor:
+  {
+    const BinaryOperator* i = cast<const BinaryOperator>(&I);
+    assert(args[0]->get_sort() == args[1]->get_sort());
+    if (   I.getOpcode() == Instruction::Shl
+        || I.getOpcode() == Instruction::LShr
+        || I.getOpcode() == Instruction::AShr) {
+      ASSERT(args[0]->is_bv_sort());
+      ret =  gen_shiftcount_assume_expr(args[1], args[0]->get_sort()->get_size());
+    }
+    if (   I.getOpcode() == Instruction::UDiv
+        || I.getOpcode() == Instruction::SDiv
+        || I.getOpcode() == Instruction::URem
+        || I.getOpcode() == Instruction::SRem) {
+      ASSERT(args[0]->is_bv_sort());
+      ret = gen_no_divbyzero_assume_expr(args[1]);
+      if (   I.getOpcode() == Instruction::SDiv
+          || I.getOpcode() == Instruction::SRem) {
+        expr_ref other_ref = gen_div_no_overflow_assume_expr(args[0], args[1]);
+
+	vector<expr_ref> assume_args;
+	assume_args.push_back(ret);
+	assume_args.push_back(other_ref);
+
+        ret = m_ctx->mk_app((ret->is_bool_sort() ? expr::OP_OR : expr::OP_BVOR), assume_args);
+      }
+    }
+    if (I.getOpcode() == Instruction::Add) {
+      if (i->hasNoSignedWrap()) {
+        vector<expr_ref> signed_args;
+	for (auto arg: args) {
+          signed_args.push_back(m_ctx->mk_bvsign_ext(arg, 1));
+	}
+        auto signed_sum = m_ctx->mk_app(expr::OP_BVADD, signed_args);
+        string poison_name       = get_poison_value_name(I, poison_count++);
+        state state_poison;
+        state_set_expr(state_poison, poison_name, signed_sum);
+
+        dshared_ptr<tfg_node> poison_node = get_next_intermediate_subsubindex_pc_node(t, from_node);
+        pc cur_pc = from_node->get_pc();
+        shared_ptr<tfg_edge const> e = mk_tfg_edge(mk_itfg_edge(cur_pc, poison_node->get_pc(), state_poison, expr_true(m_ctx)/*, t.get_start_state()*/, state_assumes, this->instruction_to_te_comment(I, from_node->get_pc()/*, bbo*/)));
+        t.add_edge(e);
+        from_node = poison_node;
+
+        signed_sum = get_input_expr(get_poison_value_name(I, poison_count - 1), m_ctx->mk_bv_sort(signed_sum->get_sort()->get_size()));
+
+        auto orig_sum = m_ctx->mk_app(expr::OP_BVADD, args);
+        auto signed_orig_sum = m_ctx->mk_bvsign_ext(orig_sum, 1);
+        string poison_name_2       = get_poison_value_name(I, poison_count++);
+        state state_poison_2;
+        state_set_expr(state_poison_2, poison_name_2, signed_orig_sum);
+
+        dshared_ptr<tfg_node> poison_node_2 = get_next_intermediate_subsubindex_pc_node(t, from_node);
+        pc cur_pc_2 = from_node->get_pc();
+        shared_ptr<tfg_edge const> e_2 = mk_tfg_edge(mk_itfg_edge(cur_pc_2, poison_node_2->get_pc(), state_poison_2, expr_true(m_ctx)/*, t.get_start_state()*/, state_assumes, this->instruction_to_te_comment(I, from_node->get_pc()/*, bbo*/)));
+        t.add_edge(e_2);
+        from_node = poison_node_2;
+
+        orig_sum = get_input_expr(get_poison_value_name(I, poison_count - 1), m_ctx->mk_bv_sort(signed_orig_sum->get_sort()->get_size()));
+
+        ret = m_ctx->mk_eq(signed_sum, orig_sum);
+      }
+    }
+    break;
+  }
+  case Instruction::SExt:
+  case Instruction::ZExt:
+  case Instruction::BitCast:
+  case Instruction::AddrSpaceCast:
+  case Instruction::PtrToInt:
+  case Instruction::IntToPtr:
+  case Instruction::Trunc:
+  {
+    break;
+  }
+  case Instruction::Select:
+    break;
+  case Instruction::ICmp:
+  {
+    break;
+  }
+  case Instruction::InsertValue:
+  case Instruction::ExtractValue:
+    assert(false && "insert extract not handled");
+  case Instruction::GetElementPtr:
+  {
+    break;
+  }
+  default:
+    break;
+  }
+
+  return ret;
+}
+
+
+  //errs() << "exec_gen_expr: " << I << " (function " << F.getName() << ")\n";
 //exec_gen_expr(): this is shared common logic for general instruction computation and constant-expression computation;
 //thus these common opcodes are encapsulated in a separate function
 //Returns: resulting expression EXPR_REF, set of UB assumes UNORDERED_SET<EXPR_REF>
@@ -2059,28 +2329,7 @@ sym_exec_llvm::exec_gen_expr(const llvm::Instruction& I/*, string Iname*/, const
     //errs() << "arg1: " << args[1]->to_string_table() << "\n";
     assert(args[0]->get_sort() == args[1]->get_sort());
     expr_ref ret = m_ctx->mk_app(binary_op_to_expr_kind(i->getOpcode(), args[0]->is_bool_sort()), args);
-    unordered_set<expr_ref> assumes = state_assumes;
-    if (   I.getOpcode() == Instruction::Shl
-        || I.getOpcode() == Instruction::LShr
-        || I.getOpcode() == Instruction::AShr) {
-      ASSERT(args[0]->is_bv_sort());
-      assumes.insert(gen_shiftcount_assume_expr(args[1], args[0]->get_sort()->get_size()));
-      //add_shiftcount_assume(args[1], args[0]->get_sort()->get_size(), from_node->get_pc(), t/*assumes*/);
-    }
-    if (   I.getOpcode() == Instruction::UDiv
-        || I.getOpcode() == Instruction::SDiv
-        || I.getOpcode() == Instruction::URem
-        || I.getOpcode() == Instruction::SRem) {
-      ASSERT(args[0]->is_bv_sort());
-      assumes.insert(gen_no_divbyzero_assume_expr(args[1]));
-      //add_divbyzero_assume(args[1], from_node->get_pc(), t/*assumes*/);
-      if (   I.getOpcode() == Instruction::SDiv
-          || I.getOpcode() == Instruction::SRem) {
-        assumes.insert(gen_div_no_overflow_assume_expr(args[0], args[1]));
-        //add_div_no_overflow_assume(args[0], args[1], from_node->get_pc(), t/*assumes*/);
-      }
-    }
-    return make_pair(ret, assumes);
+    return make_pair(ret, state_assumes);
   }
   case Instruction::SExt:
   case Instruction::ZExt:
