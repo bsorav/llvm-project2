@@ -1497,7 +1497,9 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     expr_ref mem_alloc_e = state_get_expr(state_in, m_mem_alloc_reg, this->get_mem_alloc_sort());
     expr_ref uninit_nonce = m_ctx->get_uninit_nonce_expr_for_local_id(local_id, m_srcdst_keyword);
 
-    expr_ref alloca_ptr = m_ctx->mk_alloca_ptr(mem_e, mem_alloc_e, ml_local, local_size_val);
+    //expr_ref alloca_ptr = m_ctx->mk_alloca_ptr(mem_e, mem_alloc_e, ml_local, local_size_val);
+    expr_ref local_alloc_count_var = state_get_expr(state_in, m_local_alloc_count_varname, m_ctx->mk_count_sort());
+    expr_ref alloca_ptr = m_ctx->mk_alloca_ptr(local_alloc_count_var, ml_local);
     // name <- alloca_ptr
     // local_size.id <- size expr
 
@@ -1506,6 +1508,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
 
     state_set_expr(state_out, name, alloca_ptr);
     state_set_expr(state_out, local_size_str, local_size_val);
+    state_set_expr(state_out, m_local_alloc_count_varname, m_ctx->mk_increment_count(local_alloc_count_var));
 
     // == intermediate edge ==
     dshared_ptr<tfg_node> intermediate_node = get_next_intermediate_subsubindex_pc_node(t, from_node);
