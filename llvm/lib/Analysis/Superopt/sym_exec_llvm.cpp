@@ -1103,7 +1103,7 @@ sym_exec_llvm::apply_va_start_function(const CallInst* c, state const& state_in,
   tie(va_list_ptr_expr, assumes) = get_expr_adding_edges_for_intermediate_vals(*va_list_ptr, state_out, assumes, from_node, t, value_to_name_map);
 
   expr_ref vararg_addr = m_ctx->get_consts_struct().get_expr_value(reg_type_local, graph_locals_map_t::vararg_local_id());
-  expr_ref mem_alloc = state_get_expr(state_in, m_mem_alloc_reg, this->get_mem_alloc_sort());
+  expr_ref mem_alloc = state_get_expr(state_in, this->m_mem_alloc_reg, this->get_mem_alloc_sort());
   memlabel_t ml_top = memlabel_t::memlabel_top();
   unsigned count = get_word_length()/get_memory_addressable_size();
   state_set_expr(state_out, m_mem_reg, m_ctx->mk_store(state_get_expr(state_in, m_mem_reg, this->get_mem_sort()), mem_alloc, ml_top, va_list_ptr_expr, vararg_addr, count, false));
@@ -1708,14 +1708,24 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
       fun_expr = m_ctx->mk_var(fun_name, m_ctx->mk_bv_sort(get_word_length()));
     }
     if (   fun_name == LLVM_FUNCTION_NAME_PREFIX G_LLVM_DBG_DECLARE_FUNCTION
-        || fun_name == LLVM_FUNCTION_NAME_PREFIX G_LLVM_DBG_VALUE_FUNCTION
-        || fun_name == LLVM_FUNCTION_NAME_PREFIX G_LLVM_STACKSAVE_FUNCTION
-        || fun_name == LLVM_FUNCTION_NAME_PREFIX G_LLVM_STACKRESTORE_FUNCTION) {
+        || fun_name == LLVM_FUNCTION_NAME_PREFIX G_LLVM_DBG_VALUE_FUNCTION) {
       break;
     }
     if (string_has_prefix(fun_name, LLVM_FUNCTION_NAME_PREFIX G_LLVM_LIFETIME_FUNCTION_PREFIX)) {
       break;
     }
+
+    if (fun_name == LLVM_FUNCTION_NAME_PREFIX G_LLVM_STACKSAVE_FUNCTION) {
+      //cast<CallInst>(I).getIntrinsicID() == Intrinsic::stacksave
+      state_out = this->parse_stacksave_intrinsic(I, t, from_node->get_pc());
+      break;
+    }
+    if (fun_name == LLVM_FUNCTION_NAME_PREFIX G_LLVM_STACKRESTORE_FUNCTION) {
+      //cast<CallInst>(I).getIntrinsicID() == Intrinsic::stackrestore
+      state_out = this->parse_stackrestore_intrinsic(I, t, from_node->get_pc());
+      break;
+    }
+
     if (fun_name == string(LLVM_FUNCTION_NAME_PREFIX) + cur_function_name) {
       fun_name = LLVM_FUNCTION_NAME_PREFIX G_SELFCALL_IDENTIFIER;
       fun_expr = m_ctx->mk_var(fun_name, m_ctx->mk_bv_sort(get_word_length()));
@@ -2828,29 +2838,51 @@ sym_exec_llvm::parse_dbg_value_intrinsic(Instruction const& I, tfg_llvm_t& t, pc
   t.tfg_llvm_add_source_to_llvm_varname_mapping_at_pc(source_varname, llvm_varname, pc_from);
 }
 
-void
-sym_exec_llvm::parse_stacksave_intrinsic(Instruction const& I, tfg_llvm_t& t, pc const& pc_from) const
+state
+sym_exec_llvm::parse_stacksave_intrinsic(Instruction const& I, tfg& t, pc const& pc_from)
 {
   const CallInst& CI = cast<CallInst>(I);
   // llvm.stacksave returns an opaque pointer value which can be passed to
   // stackrestore.  We track scopes using this pointer value as identifier.
   string opaque_varname = string(G_INPUT_KEYWORD ".") + get_value_name(CI);
-  t.tfg_llvm_add_scope_begin_at_pc(opaque_varname, pc_from);
+
+  tfg_llvm_t* t_llvm = dynamic_cast<tfg_llvm_t *>(&t);
+  ASSERT(t_llvm);
+  t_llvm->tfg_llvm_add_scope_begin_at_pc(opaque_varname, pc_from);
+
+  //also let's save the current state of mem.alloc in an SSA var
+  state state_in, state_out;
+  expr_ref mem_alloc_e = state_get_expr(state_in, m_mem_alloc_reg, this->get_mem_alloc_sort());
+  string memalloc_ssa_varname = opaque_varname + "." + G_MEMALLOC_SSA_VARNAME_SUFFIX;
+  m_opaque_varname_to_memalloc_map.insert(make_pair(memalloc_ssa_varname, mem_alloc_e));
+  state_set_expr(state_out, memalloc_ssa_varname, mem_alloc_e);
+  return state_out;
 }
 
-void
-sym_exec_llvm::parse_stackrestore_intrinsic(Instruction const& I, tfg_llvm_t& t, pc const& pc_from) const
+state
+sym_exec_llvm::parse_stackrestore_intrinsic(Instruction const& I, tfg& t, pc const& pc_from)
 {
   const CallInst& CI = cast<CallInst>(I);
+  state state_in, state_out;
 
   Value* v = *CI.arg_operands().begin();
   if (!v) {
-    return;
+    return state_in;
   } else if (const auto *CI = dyn_cast<Constant>(v)) {
-    return;
+    return state_in;
   }
   string opaque_varname = string(G_INPUT_KEYWORD ".") + get_value_name(*v);
-  t.tfg_llvm_add_scope_end_at_pc(opaque_varname, pc_from);
+
+  tfg_llvm_t* t_llvm = dynamic_cast<tfg_llvm_t *>(&t);
+  ASSERT(t_llvm);
+  t_llvm->tfg_llvm_add_scope_end_at_pc(opaque_varname, pc_from);
+
+  //restore the state of mem.alloc using the memalloc map
+  ASSERT(m_opaque_varname_to_memalloc_map.count(opaque_varname));
+  expr_ref saved_memalloc = m_opaque_varname_to_memalloc_map.at(opaque_varname);
+
+  state_set_expr(state_out, this->m_mem_alloc_reg, saved_memalloc);
+  return state_out;
 }
 
 void
@@ -2900,16 +2932,6 @@ sym_exec_llvm::add_edges(const llvm::BasicBlock& B, tfg_llvm_t const* src_llvm_t
         pc_from_for_dbg_parsing = pc(pc_from_dbg.get_type(), pc_from_dbg.get_index(), pc_from_dbg.get_subindex(), 0);
       }
       this->parse_dbg_value_intrinsic(I, t, pc_from_for_dbg_parsing);
-      continue;
-    }
-
-    if (isa<CallInst>(I) && cast<CallInst>(I).getIntrinsicID() == Intrinsic::stacksave) {
-      this->parse_stacksave_intrinsic(I, t, pc_from);
-      continue;
-    }
-
-    if (isa<CallInst>(I) && cast<CallInst>(I).getIntrinsicID() == Intrinsic::stackrestore) {
-      this->parse_stackrestore_intrinsic(I, t, pc_from);
       continue;
     }
 
