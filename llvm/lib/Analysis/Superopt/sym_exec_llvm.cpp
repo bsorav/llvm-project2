@@ -1505,7 +1505,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
 
     //expr_ref alloca_ptr = m_ctx->mk_alloca_ptr(mem_e, mem_alloc_e, ml_local, local_size_val);
     expr_ref local_alloc_count_var = state_get_expr(state_in, this->get_local_alloc_count_varname(), m_ctx->mk_count_sort());
-    expr_ref alloca_ptr = m_ctx->mk_alloca_ptr(local_alloc_count_var, ml_local, local_size_val);
+    expr_ref alloca_ptr = m_ctx->mk_alloca_ptr(local_alloc_count_var, mem_alloc_e, ml_local, local_size_val);
     // name <- alloca_ptr
     // local_size.id <- size expr
 
