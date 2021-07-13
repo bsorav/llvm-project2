@@ -2858,7 +2858,8 @@ sym_exec_llvm::parse_stacksave_intrinsic(Instruction const& I, tfg& t, pc const&
   state state_in, state_out;
   expr_ref mem_alloc_e = state_get_expr(state_in, m_mem_alloc_reg, this->get_mem_alloc_sort());
   string memalloc_ssa_varname = opaque_varname + "." + G_MEMALLOC_SSA_VARNAME_SUFFIX;
-  m_opaque_varname_to_memalloc_map.insert(make_pair(memalloc_ssa_varname, mem_alloc_e));
+  expr_ref memalloc_ssa_var = m_ctx->mk_var(string(G_INPUT_KEYWORD ".") + memalloc_ssa_varname, this->get_mem_alloc_sort());
+  m_opaque_varname_to_memalloc_map.insert(make_pair(opaque_varname, memalloc_ssa_var));
   state_set_expr(state_out, memalloc_ssa_varname, mem_alloc_e);
   return state_out;
 }
@@ -2880,6 +2881,14 @@ sym_exec_llvm::parse_stackrestore_intrinsic(Instruction const& I, tfg& t, pc con
   tfg_llvm_t* t_llvm = dynamic_cast<tfg_llvm_t *>(&t);
   ASSERT(t_llvm);
   t_llvm->tfg_llvm_add_scope_end_at_pc(opaque_varname, pc_from);
+
+  if (!m_opaque_varname_to_memalloc_map.count(opaque_varname)) {
+    cout << _FNLN_ << ": opaque_varname = " << opaque_varname << endl;
+    cout << "m_opaque_varname_memalloc_map (size " << m_opaque_varname_to_memalloc_map.size() << ") =\n";
+    for (auto const& v : m_opaque_varname_to_memalloc_map) {
+      cout << v.first << " -> " << expr_string(v.second) << endl;
+    }
+  }
 
   //restore the state of mem.alloc using the memalloc map
   ASSERT(m_opaque_varname_to_memalloc_map.count(opaque_varname));
