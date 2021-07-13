@@ -1102,7 +1102,8 @@ sym_exec_llvm::apply_va_start_function(const CallInst* c, state const& state_in,
   // store vararg addr at the location pointed to by va_list_ptr
   tie(va_list_ptr_expr, assumes) = get_expr_adding_edges_for_intermediate_vals(*va_list_ptr, state_out, assumes, from_node, t, value_to_name_map);
 
-  expr_ref vararg_addr = m_ctx->get_consts_struct().get_expr_value(reg_type_local, graph_locals_map_t::vararg_local_id());
+  //expr_ref vararg_addr = m_ctx->get_consts_struct().get_expr_value(reg_type_local, graph_locals_map_t::vararg_local_id());
+  expr_ref vararg_addr = m_ctx->get_consts_struct().get_local_addr(reg_type_local, graph_locals_map_t::vararg_local_id(), m_srcdst_keyword);
   expr_ref mem_alloc = state_get_expr(state_in, this->m_mem_alloc_reg, this->get_mem_alloc_sort());
   memlabel_t ml_top = memlabel_t::memlabel_top();
   unsigned count = get_word_length()/get_memory_addressable_size();
@@ -1457,7 +1458,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
   case Instruction::Alloca:
   {
     const AllocaInst* a =  cast<const AllocaInst>(&I);
-    string name = get_value_name(*a);
+    string iname = get_value_name(*a);
     Type *ElTy = a->getAllocatedType();
     Value const* ArraySize = a->getArraySize();
     unsigned align = a->getAlignment();
@@ -1470,6 +1471,8 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     }
 
     size_t local_id = m_local_num++;
+
+    string name = m_srcdst_keyword + string("." G_LOCAL_KEYWORD ".") + int_to_string(local_id);
 
     m_local_refs.insert(make_pair(local_id, graph_local_t(name, local_size, align, is_varsize)));
 
@@ -1537,6 +1540,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     state_set_expr(state_out, m_mem_alloc_reg, new_mem_alloc_expr);
     state_set_expr(state_out, m_mem_reg, new_mem_expr);
     state_set_expr(state_out, uninit_nonce_key, new_nonce_val);
+    state_set_expr(state_out, iname, name_expr);
 
     // before alloca, the original memlabel was stack
     expr_ref orig_ml_was_stack_assume = m_ctx->mk_ismemlabel(state_get_expr(state_in, m_mem_alloc_reg, this->get_mem_alloc_sort()), name_expr, local_size_expr, memlabel_t::memlabel_stack());
