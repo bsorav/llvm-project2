@@ -1517,7 +1517,6 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
 
     state_set_expr(state_out, name, alloca_ptr);
     state_set_expr(state_out, local_size_str, local_size_val);
-    state_set_expr(state_out, this->get_local_alloc_count_varname(), m_ctx->mk_increment_count(local_alloc_count_var));
 
     // == intermediate edge ==
     dshared_ptr<tfg_node> intermediate_node = get_next_intermediate_subsubindex_pc_node(t, from_node);
@@ -1541,6 +1540,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     state_set_expr(state_out, m_mem_reg, new_mem_expr);
     //state_set_expr(state_out, uninit_nonce_key, new_nonce_val);
     state_set_expr(state_out, iname, name_expr);
+    state_set_expr(state_out, this->get_local_alloc_count_varname(), m_ctx->mk_increment_count(local_alloc_count_var));
 
     // before alloca, the original memlabel was stack
     expr_ref orig_ml_was_stack_assume = m_ctx->mk_ismemlabel(state_get_expr(state_in, m_mem_alloc_reg, this->get_mem_alloc_sort()), name_expr, local_size_expr, memlabel_t::memlabel_stack());
