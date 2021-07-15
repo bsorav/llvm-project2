@@ -194,8 +194,9 @@ private:
   void parse_dbg_declare_intrinsic(llvm::Instruction const& I, tfg_llvm_t& t, pc const& pc_from) const;
   void parse_dbg_label_intrinsic(llvm::Instruction const& I, tfg_llvm_t& t) const;
   //shared_ptr<tfg_node> get_next_intermediate_subsubindex_pc_node(tfg &t, shared_ptr<tfg_node> const &from_node);
-  void parse_stacksave_intrinsic(llvm::Instruction const& I, tfg_llvm_t& t, pc const& pc_from) const;
-  void parse_stackrestore_intrinsic(llvm::Instruction const& I, tfg_llvm_t& t, pc const& pc_from) const;
+  state parse_stacksave_intrinsic(llvm::Instruction const& I, tfg& t, pc const& pc_from);
+  state parse_stackrestore_intrinsic(llvm::Instruction const& I, tfg& t, pc const& pc_from);
+  string get_local_alloc_count_varname() const;
 
   pair<expr_ref,unordered_set<expr_ref>> exec_gen_expr_casts(const llvm::CastInst& I, expr_ref arg, unordered_set<expr_ref> const& state_assumes/*, pc const &from_pc, tfg &t*/);
   static string getTypeString(llvm::Type *t);
@@ -211,8 +212,12 @@ private:
   llvm::Function &m_function;
   map<string, llvm::BasicBlock const *> m_pc2bb_cache;
 
+  map<string, expr_ref> m_opaque_varname_to_memalloc_map;
+
   //see https://docs.microsoft.com/en-us/cpp/build/x64-calling-convention?view=msvc-160 where it says that the value is ROUND_TO_NEAREST at the start of program execution (x86 calling conventions).  XXX: We are taking some liberty here by extending this assumption to the start of every function; a more precise way to model this would involve using a variable (instead of a constant) for the rounding mode at the start pc
   expr_ref m_rounding_mode_at_start_pc;
+
+  string const m_local_alloc_count_varname = "local_alloc_count";
 };
 
 #endif
