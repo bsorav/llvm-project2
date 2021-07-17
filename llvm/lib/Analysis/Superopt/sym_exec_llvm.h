@@ -109,7 +109,7 @@ private:
   string llvm_instruction_get_md5sum_name(llvm::Instruction const& I) const;
 
   string gep_instruction_get_intermediate_value_name(llvm::Instruction const& I/*string base_name*/, unsigned index_counter, int intermediate_value_num) const;
-  string get_poison_value_name(llvm::Value const& I, int temp_count) const;
+  string get_poison_value_name(llvm::Value const& I) const;
   string constexpr_instruction_get_name(llvm::Instruction const& I) const;
 
   //llvm::BasicBlock const *get_basic_block_for_pc(const llvm::Function& F, pc const &p);
@@ -204,7 +204,7 @@ private:
 
   static map<nextpc_id_t, callee_summary_t> get_callee_summaries_for_tfg(map<nextpc_id_t, string> const &nextpc_map, map<string, callee_summary_t> const &callee_summaries);
 
-  expr_ref get_orig_assume_expr(const llvm::Instruction& I/*, string Iname*/, const vector<expr_ref>& args, state const &state_in, unordered_set<expr_ref> const& state_assumes, dshared_ptr<tfg_node> &from_node/*, pc const &pc_to, llvm::BasicBlock const &B, llvm::Function const &F*/, tfg &t, unsigned& poison_count);
+  expr_ref get_orig_assume_expr(const llvm::Instruction& I/*, string Iname*/, const vector<expr_ref>& args, state const &state_in, unordered_set<expr_ref> const& state_assumes, dshared_ptr<tfg_node> &from_node/*, pc const &pc_to, llvm::BasicBlock const &B, llvm::Function const &F*/, tfg &t);
 
   //const std::unique_ptr<llvm::Module>& m_module;
   llvm::Module const *m_module;
