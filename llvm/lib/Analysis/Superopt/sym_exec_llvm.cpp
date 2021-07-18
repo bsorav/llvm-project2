@@ -3063,6 +3063,7 @@ sym_exec_llvm::process_phi_nodes(tfg &t, map<llvm_value_id_t, string_ref>* value
 
   DYN_DEBUG2(llvm2tfg, cout << __func__ << " " << __LINE__ << " " << get_timestamp(as1, sizeof as1) << ": B_to->getInstList().size() = " << B_to->getInstList().size() << endl);
   map<string, sort_ref> changed_varnames;
+  map<string, string> phi_tmpvarname;
   int inum = 0;
   for (const llvm::Instruction& I : *B_to) {
     string varname;
@@ -3080,7 +3081,8 @@ sym_exec_llvm::process_phi_nodes(tfg &t, map<llvm_value_id_t, string_ref>* value
     DYN_DEBUG2(llvm2tfg, cout << __func__ << " " << __LINE__ << " " << get_timestamp(as1, sizeof as1) << ": after adding expr edges: from_node = " << from_node->get_pc() << ": pc_to_phi_node = " << pc_to_phi_node->get_pc() << ", val = " << expr_string(val) << endl);
     //string varname = get_value_name(*phi);
     changed_varnames.insert(make_pair(varname, val->get_sort()));
-    state_set_expr(state_out, varname + PHI_NODE_TMPVAR_SUFFIX, val); //first update the tmpvars (do not want updates of one phi-node to influene the rhs of another phi-node.
+    phi_tmpvarname[varname] = varname + PHI_NODE_TMPVAR_SUFFIX + "." + get_basicblock_index(*B_from);
+    state_set_expr(state_out, phi_tmpvarname.at(varname), val); //first update the tmpvars (do not want updates of one phi-node to influene the rhs of another phi-node.
 
     dshared_ptr<tfg_node> pc_to_phi_dst_node = get_next_intermediate_subsubindex_pc_node(t, from_node);
     DYN_DEBUG2(llvm2tfg, cout << __func__ << " " << __LINE__ << " " << get_timestamp(as1, sizeof as1) << ": from_node = " << from_node->get_pc() << ": pc_to_phi_node = " << pc_to_phi_node->get_pc() << ", pc_to_phi_dst_node = " << pc_to_phi_dst_node->get_pc() << endl);
@@ -3104,8 +3106,9 @@ sym_exec_llvm::process_phi_nodes(tfg &t, map<llvm_value_id_t, string_ref>* value
   for (const auto &cvarname_sort : changed_varnames) {
     string const &cvarname = cvarname_sort.first;
     sort_ref const &cvarsort = cvarname_sort.second;
+    string const& phi_tmpvarname_for_cvarname = phi_tmpvarname.at(cvarname);
     state state_out;
-    state_set_expr(state_out, cvarname, m_ctx->mk_var(string(G_INPUT_KEYWORD ".") + cvarname + PHI_NODE_TMPVAR_SUFFIX, cvarsort));
+    state_set_expr(state_out, cvarname, m_ctx->mk_var(string(G_INPUT_KEYWORD ".") + phi_tmpvarname_for_cvarname, cvarsort));
     dshared_ptr<tfg_node> pc_to_phi_dst_node = get_next_intermediate_subsubindex_pc_node(t, from_node);
     auto e = mk_tfg_edge(mk_itfg_edge(pc_to_phi_node->get_pc(), pc_to_phi_dst_node->get_pc(), state_out, expr_true(m_ctx)/*, t.get_start_state()*/, {}, te_comment));
     eimap.insert(make_pair(e, (Instruction*)&I));
