@@ -91,8 +91,8 @@ NoGenScev("no-gen-scev", cl::desc("<no-gen-scev. don't generate potential scev r
 static cl::opt<bool>
 Progress("progress", cl::desc("<progress. keep printing progress involving time/mem stats>"), cl::init(false));
 
-static cl::opt<bool>
-NoCollapse("no-collapse", cl::desc("<no-collapse. Do not collapse basic blocks into single edges>"), cl::init(false));
+//static cl::opt<bool>
+//NoCollapse("no-collapse", cl::desc("<no-collapse. Do not collapse basic blocks into single edges>"), cl::init(false));
 
 //static void diagnosticHandler(const DiagnosticInfo &DI, void *Context) {
 //  assert(DI.getSeverity() == DS_Error && "Only expecting errors");
@@ -252,7 +252,7 @@ main(int argc, char **argv)
     progress_flag = 1;
   }
 
-  map<string, pair<callee_summary_t, dshared_ptr<tfg_llvm_t>>> function_tfg_map = sym_exec_llvm::get_function_tfg_map(M1.get(), FunNamesVec, DisableModelingOfUninitVarUB ? true : false, ctx, src_llptfg, !NoGenScev, !NoCollapse, nullptr, xml_output_format);
+  map<string, pair<callee_summary_t, dshared_ptr<tfg_llvm_t>>> function_tfg_map = sym_exec_llvm::get_function_tfg_map(M1.get(), FunNamesVec, DisableModelingOfUninitVarUB ? true : false, ctx, src_llptfg, !NoGenScev, nullptr, xml_output_format);
 
   string llvm_header = M1->get_llvm_header_as_string();
   list<string> type_decls = M1->get_type_declarations_as_string();

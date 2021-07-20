@@ -1,7 +1,7 @@
 #ifndef EQCHECKSTATE_LLVM_H
 #define EQCHECKSTATE_LLVM_H
 
-#include "gsupport/pc.h"
+#include "expr/pc.h"
 #include "expr/expr.h"
 
 #include <unordered_set>
