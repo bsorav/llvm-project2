@@ -62,14 +62,14 @@ public:
   string get_value_name(const llvm::Value& v) const;
   static string get_value_name_using_srcdst_keyword(const llvm::Value& v, string const& srcdst_keyword);
   static list<pair<string, unsigned>> get_fun_names(llvm::Module const *M);
-  static pair<graph_symbol_map_t, map<pair<symbol_id_t, offset_t>, vector<char>>> get_symbol_map_and_string_contents(llvm::Module const *M, list<pair<string, unsigned>> const &fun_names, tfg_llvm_t const* src_llvm_tfg);
-  static graph_symbol_map_t get_symbol_map(llvm::Module const *M, tfg_llvm_t const* src_llvm_tfg);
-  static map<pair<symbol_id_t, offset_t>, vector<char>> get_string_contents(llvm::Module const *M, tfg_llvm_t const* src_llvm_tfg);
+  static pair<graph_symbol_map_t, map<pair<symbol_id_t, offset_t>, vector<char>>> get_symbol_map_and_string_contents(llvm::Module const *M, list<pair<string, unsigned>> const &fun_names, dshared_ptr<tfg_llvm_t const> src_llvm_tfg);
+  static graph_symbol_map_t get_symbol_map(llvm::Module const *M, dshared_ptr<tfg_llvm_t const> src_llvm_tfg);
+  static map<pair<symbol_id_t, offset_t>, vector<char>> get_string_contents(llvm::Module const *M, dshared_ptr<tfg_llvm_t const> src_llvm_tfg);
   static unsigned get_num_insn(const llvm::Function& f);
   context *get_context() const { return m_ctx; }
   list<pair<string, unsigned>> const &get_fun_names() const { return *m_fun_names; }
   bool gen_callee_summary() const { return m_gen_callee_summary; }
-  static symbol_id_t get_symbol_id_for_name(string const& name, tfg_llvm_t const* src_llvm_tfg, symbol_id_t input_symbol_id);
+  static symbol_id_t get_symbol_id_for_name(string const& name, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, symbol_id_t input_symbol_id);
 
 protected:
   te_comment_t phi_node_to_te_comment(/*bbl_order_descriptor_t const& bbo, */int inum, llvm::Instruction const& I) const;
