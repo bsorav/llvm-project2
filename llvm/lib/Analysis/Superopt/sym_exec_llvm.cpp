@@ -586,7 +586,9 @@ void sym_exec_llvm::populate_state_template(const llvm::Function& F)
     Type* ty = v.getType();
     unsigned size = dl.getTypeAllocSize(ty);
     unsigned align = dl.getPrefTypeAlignment(ty);
-    m_local_refs.insert(make_pair(m_local_num++, graph_local_t(argname, size, align)));
+    //m_local_refs.insert(make_pair(m_local_num++, graph_local_t(argname, size, align)));
+    m_local_refs.insert(make_pair(m_local_num, graph_local_t(argname, size, align)));
+    m_local_num = m_local_num.increment_by_one();
   }
   if (F.isVarArg()) {
     expr_ref argvar = m_ctx->get_vararg_local_expr();
@@ -1491,9 +1493,14 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
       local_size *= constArraySize->getZExtValue();
     }
 
-    size_t local_id = m_local_num++;
+    //size_t local_id = m_local_num++;
+    allocsite_t local_id = m_local_num;
+    //cout << _FNLN_ << ": m_local_num = " << m_local_num.allocsite_to_string() << endl;
+    m_local_num = m_local_num.increment_by_one();
+    //cout << _FNLN_ << ": m_local_num = " << m_local_num.allocsite_to_string() << endl;
 
-    string name = m_srcdst_keyword + string("." G_LOCAL_KEYWORD ".") + int_to_string(local_id);
+    //string name = m_srcdst_keyword + string("." G_LOCAL_KEYWORD ".") + int_to_string(local_id);
+    string name = m_srcdst_keyword + string("." G_LOCAL_KEYWORD ".") + local_id.allocsite_to_string();
 
     m_local_refs.insert(make_pair(local_id, graph_local_t(name, local_size, align, is_varsize)));
 
@@ -3230,7 +3237,7 @@ sym_exec_llvm::sym_exec_preprocess_tfg(string const &name, tfg_llvm_t& t_src, ma
   DYN_DEBUG(llvm2tfg, cout << _FNLN_ << ": name = " << name << endl);
   //context* ctx = this->get_context();
   //consts_struct_t &cs = ctx->get_consts_struct();
-  map<local_id_t, graph_local_t> local_refs = this->get_local_refs();
+  map<allocsite_t, graph_local_t> const& local_refs = this->get_local_refs();
 
   pc start_pc = this->get_start_pc();
   t_src.add_extra_node_at_start_pc(start_pc);

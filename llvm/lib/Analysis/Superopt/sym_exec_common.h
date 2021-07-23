@@ -2,9 +2,13 @@
 #define EQCHECKSYM_EXEC_COMMON_H
 
 #include "support/dshared_ptr.h"
+
 #include "expr/expr.h"
-#include "state_llvm.h"
+#include "expr/allocsite.h"
+
 #include "tfg/tfg.h"
+
+#include "state_llvm.h"
 #include "llvm/IR/Module.h"
 /*#include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
@@ -57,7 +61,7 @@ public:
 
   static bool update_function_call_args_and_retvals_with_atlocals(dshared_ptr<tfg> t_src);
 
-  map<local_id_t, graph_local_t> const &get_local_refs() { return m_local_refs; }
+  map<allocsite_t, graph_local_t> const &get_local_refs() { return m_local_refs; }
   graph_symbol_map_t const &get_symbol_map() { return *m_symbol_map; }
   string get_value_name(const llvm::Value& v) const;
   static string get_value_name_using_srcdst_keyword(const llvm::Value& v, string const& srcdst_keyword);
@@ -205,9 +209,9 @@ protected:
   string m_mem_reg;
   string m_mem_alloc_reg;
   //string m_io_reg;
-  int m_local_num;
+  allocsite_t m_local_num;
   //string m_ret_reg;
-  map<local_id_t, graph_local_t> m_local_refs;
+  map<allocsite_t, graph_local_t> m_local_refs;
   //map<string, string> m_basicblock_name_map;
   map<string, int> m_basicblock_idx_map;
   list<pair<string, sort_ref>> m_state_templ;
