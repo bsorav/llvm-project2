@@ -3261,6 +3261,8 @@ sym_exec_llvm::sym_exec_preprocess_tfg(string const &name, tfg_llvm_t& t_src, ma
   t_src.set_locals_map(local_refs);
   t_src.tfg_initialize_uninit_nonce_on_start_edge(map_get_keys(local_refs), m_srcdst_keyword);
 
+  t_src.tfg_llvm_add_start_pc_preconditions(m_srcdst_keyword);
+
   DYN_DEBUG(llvm2tfg, cout << _FNLN_ << ": name = " << name << ": calling tfg_preprocess()\n");
   t_src.tfg_preprocess(false, src_llvm_tfg, sorted_bbl_indices, {}, xml_output_format);
   DYN_DEBUG(llvm2tfg, cout << _FNLN_ << ": name = " << name << ": done tfg_preprocess().\n" << endl);
@@ -3651,13 +3653,19 @@ sym_exec_llvm::get_start_pc() const
 void
 sym_exec_common::get_tfg_common(tfg &t)
 {
-  map<string_ref, expr_ref> arg_exprs;
+  map<string_ref, graph_arg_t> arg_exprs;
   //unordered_set<predicate> assumes;
   for (const auto& arg : m_arguments) {
     pair<argnum_t, expr_ref> const &a = arg.second;
     stringstream ss;
     ss << LLVM_METHOD_ARG_PREFIX << a.first;
-    arg_exprs.insert(make_pair(mk_string_ref(ss.str()), a.second));
+    string argname = ss.str();
+
+    ss.str("");
+    allocsite_t allocsite = allocsite_t::allocsite_arg(a.first);
+    ss << string(G_INPUT_KEYWORD ".") << m_srcdst_keyword << "." << G_LOCAL_KEYWORD << "." << allocsite.allocsite_to_string();
+    expr_ref arg_addr = m_ctx->mk_var(ss.str(), m_ctx->get_addr_sort());
+    arg_exprs.insert(make_pair(mk_string_ref(argname), graph_arg_t(arg_addr, a.second)));
   }
   //t->add_assumes(pc::start(), assumes);
 
