@@ -580,6 +580,7 @@ void sym_exec_llvm::populate_state_template(const llvm::Function& F)
     string argname = name/* + SRC_INPUT_ARG_NAME_SUFFIX*/;
     expr_ref argvar = m_ctx->get_input_expr_for_key(mk_string_ref(argname), s);
     m_arguments[name] = make_pair(argnum, argvar);
+    allocsite_t allocsite = allocsite_t::allocsite_arg(argnum);
     argnum++;
     //m_state_templ.push_back({argname, s});
 
@@ -587,8 +588,8 @@ void sym_exec_llvm::populate_state_template(const llvm::Function& F)
     unsigned size = dl.getTypeAllocSize(ty);
     unsigned align = dl.getPrefTypeAlignment(ty);
     //m_local_refs.insert(make_pair(m_local_num++, graph_local_t(argname, size, align)));
-    m_local_refs.insert(make_pair(m_local_num, graph_local_t(argname, size, align)));
-    m_local_num = m_local_num.increment_by_one();
+    m_local_refs.insert(make_pair(allocsite, graph_local_t(argname, size, align)));
+    //m_local_num = m_local_num.increment_by_one();
   }
   if (F.isVarArg()) {
     expr_ref argvar = m_ctx->get_vararg_local_expr();
@@ -1494,9 +1495,10 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     }
 
     //size_t local_id = m_local_num++;
-    allocsite_t local_id = m_local_num;
+    //allocsite_t local_id = m_local_num;
+    allocsite_t local_id(from_node->get_pc());
     //cout << _FNLN_ << ": m_local_num = " << m_local_num.allocsite_to_string() << endl;
-    m_local_num = m_local_num.increment_by_one();
+    //m_local_num = m_local_num.increment_by_one();
     //cout << _FNLN_ << ": m_local_num = " << m_local_num.allocsite_to_string() << endl;
 
     //string name = m_srcdst_keyword + string("." G_LOCAL_KEYWORD ".") + int_to_string(local_id);
