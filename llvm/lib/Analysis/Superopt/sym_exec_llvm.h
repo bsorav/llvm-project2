@@ -197,6 +197,7 @@ private:
   state parse_stacksave_intrinsic(llvm::Instruction const& I, tfg& t, pc const& pc_from);
   state parse_stackrestore_intrinsic(llvm::Instruction const& I, tfg& t, pc const& pc_from);
   string get_local_alloc_count_varname() const;
+  string get_local_alloc_count_ssa_varname(pc const& p) const;
 
   pair<expr_ref,unordered_set<expr_ref>> exec_gen_expr_casts(const llvm::CastInst& I, expr_ref arg, unordered_set<expr_ref> const& state_assumes/*, pc const &from_pc, tfg &t*/);
   static string getTypeString(llvm::Type *t);

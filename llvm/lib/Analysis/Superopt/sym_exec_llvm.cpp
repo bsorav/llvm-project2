@@ -1197,6 +1197,14 @@ sym_exec_llvm::get_local_alloc_count_varname() const
   return this->get_srcdst_keyword() + "." + G_LOCAL_ALLOC_COUNT_VARNAME/*m_local_alloc_count_varname*/;
 }
 
+string
+sym_exec_llvm::get_local_alloc_count_ssa_varname(pc const& p) const
+{
+  return this->get_srcdst_keyword() + "." + G_LOCAL_ALLOC_COUNT_SSA_VARNAME + "." + p.to_string();
+}
+
+
+
 pair<unordered_set<expr_ref>,unordered_set<expr_ref>>
 sym_exec_llvm::apply_general_function(const CallInst* c, expr_ref fun_name_expr, string const &fun_name, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, Function *F, state const &state_in, state &state_out, unordered_set<expr_ref> const& state_assumes, string const &cur_function_name, dshared_ptr<tfg_node> &from_node/*, pc const &pc_to, llvm::BasicBlock const &B, llvm::Function const &curF*/, tfg &t, map<string, pair<callee_summary_t, dshared_ptr<tfg_llvm_t>>> *function_tfg_map, map<llvm_value_id_t, string_ref>* value_to_name_map, set<string> const *function_call_chain, map<string, value_scev_map_t> const& scev_map, context::xml_output_format_t xml_output_format)
 {
@@ -1541,8 +1549,11 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     //expr_ref uninit_nonce = m_ctx->get_uninit_nonce_expr_for_local_id(local_id, m_srcdst_keyword);
 
     //expr_ref alloca_ptr = m_ctx->mk_alloca_ptr(mem_e, mem_alloc_e, ml_local, local_size_val);
-    expr_ref local_alloc_count_var = state_get_expr(state_in, this->get_local_alloc_count_varname(), m_ctx->mk_count_sort());
-    expr_ref alloca_ptr = m_ctx->mk_alloca_ptr(local_alloc_count_var, mem_alloc_e, ml_local, local_size_val);
+    string local_alloc_count_varname = this->get_local_alloc_count_varname();
+    string local_alloc_count_ssa_varname = this->get_local_alloc_count_ssa_varname(from_node->get_pc());
+    expr_ref local_alloc_count_var = state_get_expr(state_in, local_alloc_count_varname, m_ctx->mk_count_sort());
+    //expr_ref alloca_ptr = m_ctx->mk_alloca_ptr(local_alloc_count_var, mem_alloc_e, ml_local, local_size_val);
+    expr_ref alloca_ptr = m_ctx->get_local_ptr_expr_for_id(local_id, local_alloc_count_var, mem_alloc_e, ml_local, local_size_val);
     // name <- alloca_ptr
     // local_size.id <- size expr
 
@@ -1550,6 +1561,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     string local_size_str = m_ctx->get_key_from_input_expr(local_size_expr)->get_str();
 
     state_set_expr(state_out, name, alloca_ptr);
+    state_set_expr(state_out, local_alloc_count_ssa_varname, local_alloc_count_var);
     state_set_expr(state_out, local_size_str, local_size_val);
 
     // == intermediate edge ==
