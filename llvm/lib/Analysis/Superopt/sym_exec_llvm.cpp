@@ -691,8 +691,8 @@ sym_exec_llvm::get_expr_adding_edges_for_intermediate_vals(const Value& v/*, str
   } else if (isa<const Argument>(&v)) {
     ASSERT(m_arguments.count(get_value_name(v)));
     if (m_undef_set.count(get_value_name(v))) {
-      //expr_ref undef_arg = get_undef_args(v, state_in, state_assumes, from_node/*, pc_to, B, F*/, t, value_to_name_map);
-      //return make_pair(undef_arg, state_assumes);
+      expr_ref undef_arg = get_undef_arg(get_value_name(v), state_in, state_assumes, from_node/*, pc_to, B, F*/, t, value_to_name_map);
+      return make_pair(undef_arg, state_assumes);
     }
     return make_pair(m_arguments.at(get_value_name(v)).second, state_assumes);
   } else if (isa<const Instruction>(&v)) {
@@ -880,30 +880,30 @@ expr_ref sym_exec_llvm::icmp_to_expr(ICmpInst::Predicate cmp_kind, const vector<
   return ret;
 }
 
-//expr_ref
-//sym_exec_llvm::get_undef_args(const llvm::Instruction& I/*, string vname*/, const state& st, unordered_set<expr_ref> const& state_assumes, dshared_ptr<tfg_node> &from_node/*, pc const &pc_to, llvm::BasicBlock const &B, llvm::Function const &F*/, tfg &t, map<llvm_value_id_t, string_ref>* value_to_name_map)
-//{
-//  
-//  vector<expr_ref> args;
-//  for (unsigned i = 0; i < I.getNumOperands(); ++i) {
-//    const auto& v = *I.getOperand(i);
-//    if (isa<const Instruction>(&v)) {
-//      vector<sort_ref> sv = get_value_type_vec(v, m_module->getDataLayout());
-//      auto poison_name = get_poison_value_name(v);
-//      if (m_poison_set.find(poison_name) != m_poison_set.end()) {
-//        args.push_back(state_get_expr(st, get_poison_value_name(v), m_ctx->mk_bool_sort()));
-//      }
-//      else {
-//        args.push_back(expr_false(m_ctx));
-//      }
-//    }
-//    else {
-//      // We need this because sometimes we need to check only some args for poison possibility
-//      args.push_back(expr_false(m_ctx));
-//    }
-//  }
-//  return args;
-//}
+expr_ref
+sym_exec_llvm::get_undef_arg(string vname, const state& st, unordered_set<expr_ref> const& state_assumes, dshared_ptr<tfg_node> &from_node/*, pc const &pc_to, llvm::BasicBlock const &B, llvm::Function const &F*/, tfg &t, map<llvm_value_id_t, string_ref>* value_to_name_map)
+{
+  string undef_name = vname + ".is_undef";
+  auto var_count = m_undef_set[vname]++;
+
+  string read_name = vname + ".undef." + to_string(var_count);
+  auto orig_var = m_arguments.at(vname).second;
+  auto undef_expr = state_get_expr(st, undef_name, m_ctx->mk_bool_sort());
+
+  state state_undef;
+  auto new_var = m_ctx->mk_opundef(undef_expr, orig_var);
+  state_set_expr(state_undef, undef_name, new_var);
+
+  dshared_ptr<tfg_node> undef_node = get_next_intermediate_subsubindex_pc_node(t, from_node);
+  pc cur_pc = from_node->get_pc();
+  int from_subindex = cur_pc.get_subindex();
+  te_comment_t  comment (false, from_subindex, read_name);
+  shared_ptr<tfg_edge const> e = mk_tfg_edge(mk_itfg_edge(cur_pc, undef_node->get_pc(), state_undef, expr_true(m_ctx)/*, t.get_start_state()*/, state_assumes, comment));
+  t.add_edge(e);
+  from_node = undef_node;
+
+  return state_get_expr(state_undef, undef_name, new_var->get_sort());
+}
 
 vector<expr_ref>
 sym_exec_llvm::get_poison_args(const llvm::Instruction& I/*, string vname*/, const state& st, unordered_set<expr_ref> const& state_assumes, dshared_ptr<tfg_node> &from_node/*, pc const &pc_to, llvm::BasicBlock const &B, llvm::Function const &F*/, tfg &t, map<llvm_value_id_t, string_ref>* value_to_name_map)

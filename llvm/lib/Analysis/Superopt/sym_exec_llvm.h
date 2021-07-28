@@ -175,7 +175,7 @@ private:
   pair<vector<expr_ref>,unordered_set<expr_ref>> get_expr_args(const llvm::Instruction& I/*, string vname*/, const state& st, unordered_set<expr_ref> const& state_assumes, dshared_ptr<tfg_node> &from_node/*, pc const &pc_to, llvm::BasicBlock const &B, llvm::Function const &F*/, tfg &t, map<llvm_value_id_t, string_ref>* value_to_name_map);
 
   vector<expr_ref> get_poison_args(const llvm::Instruction& I/*, string vname*/, const state& st, unordered_set<expr_ref> const& state_assumes, dshared_ptr<tfg_node> &from_node/*, pc const &pc_to, llvm::BasicBlock const &B, llvm::Function const &F*/, tfg &t, map<llvm_value_id_t, string_ref>* value_to_name_map);
-  //expr_ref get_undef_args(const llvm::Value& v/*, string vname*/, const state& st, unordered_set<expr_ref> const& state_assumes, dshared_ptr<tfg_node> &from_node/*, pc const &pc_to, llvm::BasicBlock const &B, llvm::Function const &F*/, tfg &t, map<llvm_value_id_t, string_ref>* value_to_name_map);
+  expr_ref get_undef_arg(string vname, const state& st, unordered_set<expr_ref> const& state_assumes, dshared_ptr<tfg_node> &from_node/*, pc const &pc_to, llvm::BasicBlock const &B, llvm::Function const &F*/, tfg &t, map<llvm_value_id_t, string_ref>* value_to_name_map);
 
   void add_gep_intermediate_vals(llvm::Instruction const &I, string const &name);
   void populate_state_template(const llvm::Function& F);
