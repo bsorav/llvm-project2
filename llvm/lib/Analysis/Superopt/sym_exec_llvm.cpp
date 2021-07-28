@@ -1191,17 +1191,17 @@ sym_exec_common::function_belongs_to_program(string const &fun_name) const
   return false;
 }
 
-string
-sym_exec_llvm::get_local_alloc_count_varname() const
-{
-  return this->get_srcdst_keyword() + "." + G_LOCAL_ALLOC_COUNT_VARNAME/*m_local_alloc_count_varname*/;
-}
+//string
+//sym_exec_llvm::get_local_alloc_count_varname() const
+//{
+//  return this->get_srcdst_keyword() + "." + G_LOCAL_ALLOC_COUNT_VARNAME/*m_local_alloc_count_varname*/;
+//}
 
-string
-sym_exec_llvm::get_local_alloc_count_ssa_varname(pc const& p) const
-{
-  return this->get_srcdst_keyword() + "." + G_LOCAL_ALLOC_COUNT_SSA_VARNAME + "." + p.to_string();
-}
+//string
+//sym_exec_llvm::get_local_alloc_count_ssa_varname(pc const& p) const
+//{
+//  return this->get_srcdst_keyword() + "." + G_LOCAL_ALLOC_COUNT_SSA_VARNAME + "." + p.to_string();
+//}
 
 
 
@@ -1549,8 +1549,9 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     //expr_ref uninit_nonce = m_ctx->get_uninit_nonce_expr_for_local_id(local_id, m_srcdst_keyword);
 
     //expr_ref alloca_ptr = m_ctx->mk_alloca_ptr(mem_e, mem_alloc_e, ml_local, local_size_val);
-    string local_alloc_count_varname = this->get_local_alloc_count_varname();
-    string local_alloc_count_ssa_varname = this->get_local_alloc_count_ssa_varname(from_node->get_pc());
+    string local_alloc_count_varname = m_ctx->get_local_alloc_count_varname(this->get_srcdst_keyword())->get_str();
+    //string local_alloc_count_ssa_varname = this->get_local_alloc_count_ssa_varname(from_node->get_pc());
+    string local_alloc_count_ssa_varname = m_ctx->get_local_alloc_count_ssa_varname(this->get_srcdst_keyword(), local_id)->get_str();
     expr_ref local_alloc_count_var = state_get_expr(state_in, local_alloc_count_varname, m_ctx->mk_count_sort());
     //expr_ref alloca_ptr = m_ctx->mk_alloca_ptr(local_alloc_count_var, mem_alloc_e, ml_local, local_size_val);
     expr_ref alloca_ptr = m_ctx->get_local_ptr_expr_for_id(local_id, local_alloc_count_var, mem_alloc_e, ml_local, local_size_val);
@@ -1586,7 +1587,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     state_set_expr(state_out, m_mem_reg, new_mem_expr);
     //state_set_expr(state_out, uninit_nonce_key, new_nonce_val);
     state_set_expr(state_out, iname, name_expr);
-    state_set_expr(state_out, this->get_local_alloc_count_varname(), m_ctx->mk_increment_count(local_alloc_count_var));
+    state_set_expr(state_out, m_ctx->get_local_alloc_count_varname(this->get_srcdst_keyword())->get_str(), m_ctx->mk_increment_count(local_alloc_count_var));
 
     // // before alloca, the original memlabel was stack -- this is not sound for allocation in a loop
     // expr_ref orig_ml_was_stack_assume = m_ctx->mk_ismemlabel(state_get_expr(state_in, m_mem_alloc_reg, this->get_mem_alloc_sort()), name_expr, local_size_expr, memlabel_t::memlabel_stack());
