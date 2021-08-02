@@ -580,13 +580,16 @@ void sym_exec_llvm::populate_state_template(const llvm::Function& F)
     string argname = name/* + SRC_INPUT_ARG_NAME_SUFFIX*/;
     expr_ref argvar = m_ctx->get_input_expr_for_key(mk_string_ref(argname), s);
     m_arguments[name] = make_pair(argnum, argvar);
+    allocsite_t allocsite = allocsite_t::allocsite_arg(argnum);
     argnum++;
     //m_state_templ.push_back({argname, s});
 
     Type* ty = v.getType();
     unsigned size = dl.getTypeAllocSize(ty);
     unsigned align = dl.getPrefTypeAlignment(ty);
-    m_local_refs.insert(make_pair(m_local_num++, graph_local_t(argname, size, align)));
+    //m_local_refs.insert(make_pair(m_local_num++, graph_local_t(argname, size, align)));
+    m_local_refs.insert(make_pair(allocsite, graph_local_t(argname, size, align)));
+    //m_local_num = m_local_num.increment_by_one();
   }
   if (F.isVarArg()) {
     expr_ref argvar = m_ctx->get_vararg_local_expr();
@@ -1188,11 +1191,19 @@ sym_exec_common::function_belongs_to_program(string const &fun_name) const
   return false;
 }
 
-string
-sym_exec_llvm::get_local_alloc_count_varname() const
-{
-  return this->get_srcdst_keyword() + "." + G_LOCAL_ALLOC_COUNT_VARNAME/*m_local_alloc_count_varname*/;
-}
+//string
+//sym_exec_llvm::get_local_alloc_count_varname() const
+//{
+//  return this->get_srcdst_keyword() + "." + G_LOCAL_ALLOC_COUNT_VARNAME/*m_local_alloc_count_varname*/;
+//}
+
+//string
+//sym_exec_llvm::get_local_alloc_count_ssa_varname(pc const& p) const
+//{
+//  return this->get_srcdst_keyword() + "." + G_LOCAL_ALLOC_COUNT_SSA_VARNAME + "." + p.to_string();
+//}
+
+
 
 pair<unordered_set<expr_ref>,unordered_set<expr_ref>>
 sym_exec_llvm::apply_general_function(const CallInst* c, expr_ref fun_name_expr, string const &fun_name, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, Function *F, state const &state_in, state &state_out, unordered_set<expr_ref> const& state_assumes, string const &cur_function_name, dshared_ptr<tfg_node> &from_node/*, pc const &pc_to, llvm::BasicBlock const &B, llvm::Function const &curF*/, tfg &t, map<string, pair<callee_summary_t, dshared_ptr<tfg_llvm_t>>> *function_tfg_map, map<llvm_value_id_t, string_ref>* value_to_name_map, set<string> const *function_call_chain, map<string, value_scev_map_t> const& scev_map, context::xml_output_format_t xml_output_format)
@@ -1491,9 +1502,15 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
       local_size *= constArraySize->getZExtValue();
     }
 
-    size_t local_id = m_local_num++;
+    //size_t local_id = m_local_num++;
+    //allocsite_t local_id = m_local_num;
+    allocsite_t local_id(from_node->get_pc());
+    //cout << _FNLN_ << ": m_local_num = " << m_local_num.allocsite_to_string() << endl;
+    //m_local_num = m_local_num.increment_by_one();
+    //cout << _FNLN_ << ": m_local_num = " << m_local_num.allocsite_to_string() << endl;
 
-    string name = m_srcdst_keyword + string("." G_LOCAL_KEYWORD ".") + int_to_string(local_id);
+    //string name = m_srcdst_keyword + string("." G_LOCAL_KEYWORD ".") + int_to_string(local_id);
+    string name = m_srcdst_keyword + string("." G_LOCAL_KEYWORD ".") + local_id.allocsite_to_string();
 
     m_local_refs.insert(make_pair(local_id, graph_local_t(name, local_size, align, is_varsize)));
 
@@ -1532,8 +1549,12 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     //expr_ref uninit_nonce = m_ctx->get_uninit_nonce_expr_for_local_id(local_id, m_srcdst_keyword);
 
     //expr_ref alloca_ptr = m_ctx->mk_alloca_ptr(mem_e, mem_alloc_e, ml_local, local_size_val);
-    expr_ref local_alloc_count_var = state_get_expr(state_in, this->get_local_alloc_count_varname(), m_ctx->mk_count_sort());
-    expr_ref alloca_ptr = m_ctx->mk_alloca_ptr(local_alloc_count_var, mem_alloc_e, ml_local, local_size_val);
+    string local_alloc_count_varname = m_ctx->get_local_alloc_count_varname(this->get_srcdst_keyword())->get_str();
+    //string local_alloc_count_ssa_varname = this->get_local_alloc_count_ssa_varname(from_node->get_pc());
+    string local_alloc_count_ssa_varname = m_ctx->get_local_alloc_count_ssa_varname(this->get_srcdst_keyword(), local_id)->get_str();
+    expr_ref local_alloc_count_var = state_get_expr(state_in, local_alloc_count_varname, m_ctx->mk_count_sort());
+    //expr_ref alloca_ptr = m_ctx->mk_alloca_ptr(local_alloc_count_var, mem_alloc_e, ml_local, local_size_val);
+    expr_ref alloca_ptr = m_ctx->get_local_ptr_expr_for_id(local_id, local_alloc_count_var, mem_alloc_e, ml_local, local_size_val);
     // name <- alloca_ptr
     // local_size.id <- size expr
 
@@ -1541,6 +1562,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     string local_size_str = m_ctx->get_key_from_input_expr(local_size_expr)->get_str();
 
     state_set_expr(state_out, name, alloca_ptr);
+    state_set_expr(state_out, local_alloc_count_ssa_varname, local_alloc_count_var);
     state_set_expr(state_out, local_size_str, local_size_val);
 
     // == intermediate edge ==
@@ -1565,7 +1587,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     state_set_expr(state_out, m_mem_reg, new_mem_expr);
     //state_set_expr(state_out, uninit_nonce_key, new_nonce_val);
     state_set_expr(state_out, iname, name_expr);
-    state_set_expr(state_out, this->get_local_alloc_count_varname(), m_ctx->mk_increment_count(local_alloc_count_var));
+    state_set_expr(state_out, m_ctx->get_local_alloc_count_varname(this->get_srcdst_keyword())->get_str(), m_ctx->mk_increment_count(local_alloc_count_var));
 
     // // before alloca, the original memlabel was stack -- this is not sound for allocation in a loop
     // expr_ref orig_ml_was_stack_assume = m_ctx->mk_ismemlabel(state_get_expr(state_in, m_mem_alloc_reg, this->get_mem_alloc_sort()), name_expr, local_size_expr, memlabel_t::memlabel_stack());
@@ -3230,7 +3252,7 @@ sym_exec_llvm::sym_exec_preprocess_tfg(string const &name, tfg_llvm_t& t_src, ma
   DYN_DEBUG(llvm2tfg, cout << _FNLN_ << ": name = " << name << endl);
   //context* ctx = this->get_context();
   //consts_struct_t &cs = ctx->get_consts_struct();
-  map<local_id_t, graph_local_t> local_refs = this->get_local_refs();
+  map<allocsite_t, graph_local_t> const& local_refs = this->get_local_refs();
 
   pc start_pc = this->get_start_pc();
   t_src.add_extra_node_at_start_pc(start_pc);
@@ -3253,6 +3275,8 @@ sym_exec_llvm::sym_exec_preprocess_tfg(string const &name, tfg_llvm_t& t_src, ma
   ASSERT(t_src.get_locals_map().size() == 0);
   t_src.set_locals_map(local_refs);
   t_src.tfg_initialize_uninit_nonce_on_start_edge(map_get_keys(local_refs), m_srcdst_keyword);
+
+  t_src.tfg_llvm_add_start_pc_preconditions(m_srcdst_keyword);
 
   DYN_DEBUG(llvm2tfg, cout << _FNLN_ << ": name = " << name << ": calling tfg_preprocess()\n");
   t_src.tfg_preprocess(false, src_llvm_tfg, sorted_bbl_indices, {}, xml_output_format);
@@ -3644,13 +3668,19 @@ sym_exec_llvm::get_start_pc() const
 void
 sym_exec_common::get_tfg_common(tfg &t)
 {
-  map<string_ref, expr_ref> arg_exprs;
+  map<string_ref, graph_arg_t> arg_exprs;
   //unordered_set<predicate> assumes;
   for (const auto& arg : m_arguments) {
     pair<argnum_t, expr_ref> const &a = arg.second;
     stringstream ss;
     ss << LLVM_METHOD_ARG_PREFIX << a.first;
-    arg_exprs.insert(make_pair(mk_string_ref(ss.str()), a.second));
+    string argname = ss.str();
+
+    ss.str("");
+    allocsite_t allocsite = allocsite_t::allocsite_arg(a.first);
+    ss << string(G_INPUT_KEYWORD ".") << m_srcdst_keyword << "." << G_LOCAL_KEYWORD << "." << allocsite.allocsite_to_string();
+    expr_ref arg_addr = m_ctx->mk_var(ss.str(), m_ctx->get_addr_sort());
+    arg_exprs.insert(make_pair(mk_string_ref(argname), graph_arg_t(arg_addr, a.second)));
   }
   //t->add_assumes(pc::start(), assumes);
 

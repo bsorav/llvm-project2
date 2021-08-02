@@ -80,7 +80,7 @@ static cl::opt<bool>
 DryRun("dry-run", cl::desc("<dry-run. only print the function names and their sizes>"), cl::init(false));
 
 static cl::opt<std::string>
-DynDebug("dyn_debug", cl::desc("<dyn_debug.  enable dynamic debugging for debug-class(es).  Expects comma-separated list of debug-classes with optional level e.g. -dyn_debug=compute_liveness,sprels,alias_analysis=2"), cl::init(""));
+DynDebug("dyn-debug", cl::desc("<dyn_debug.  enable dynamic debugging for debug-class(es).  Expects comma-separated list of debug-classes with optional level e.g. -dyn_debug=compute_liveness,sprels,alias_analysis=2"), cl::init(""));
 
 static cl::opt<std::string>
 XmlOutputFormat("xml-output-format", cl::desc("<xml-output-format.  Format to use during xml printing.  [html|text-color|text-nocolor]"), cl::init("text-color"));
