@@ -97,7 +97,7 @@ SemanticAAResult::alias(const MemoryLocation &LocA,
   uint64_t sizeA = LocA.Size.isPrecise() ? LocA.Size.getValue() : SEMANTICAA_LOCSIZE_UNKNOWN;
   uint64_t sizeB = LocB.Size.isPrecise() ? LocB.Size.getValue() : SEMANTICAA_LOCSIZE_UNKNOWN;
 
-  return convertTfgAliasResultToAliasResult(tfg_llvm_t::get_aliasing_relationship_between_memaccesses(*m_function_tfg_map, fname, nameA, sizeA, nameB, sizeB));
+  return convertTfgAliasResultToAliasResult(m_function_tfg_map->ftmap_get_aliasing_relationship_between_memaccesses(fname, nameA, sizeA, nameB, sizeB));
 
   // Check if there is a predicate corresponding to LocA and LocB
   //if ((predicates.count(LocA.Ptr) && predicates[LocA.Ptr].count(LocB.Ptr)) ||

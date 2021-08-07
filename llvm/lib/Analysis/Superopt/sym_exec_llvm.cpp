@@ -1009,7 +1009,7 @@ sym_exec_llvm::exec_gen_expr_casts(const llvm::CastInst& I, expr_ref arg, unorde
 }
 
 pair<unordered_set<expr_ref>,unordered_set<expr_ref>>
-sym_exec_llvm::apply_memcpy_function(const CallInst* c, expr_ref fun_name_expr, string const &fun_name, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, Function *F, state const &state_in, state &state_out, unordered_set<expr_ref> const& state_assumes, string const &cur_function_name, dshared_ptr<tfg_node> &from_node/*, pc const &pc_to, llvm::BasicBlock const &B*/, llvm::Function const &curF, tfg &t, map<string, pair<callee_summary_t, dshared_ptr<tfg_llvm_t>>> *function_tfg_map, map<llvm_value_id_t, string_ref>* value_to_name_map, set<string> const *function_call_chain, map<string, value_scev_map_t> const& scev_map, context::xml_output_format_t xml_output_format)
+sym_exec_llvm::apply_memcpy_function(const CallInst* c, expr_ref fun_name_expr, string const &fun_name, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, Function *F, state const &state_in, state &state_out, unordered_set<expr_ref> const& state_assumes, string const &cur_function_name, dshared_ptr<tfg_node> &from_node/*, pc const &pc_to, llvm::BasicBlock const &B*/, llvm::Function const &curF, tfg &t/*, map<string, pair<callee_summary_t, dshared_ptr<tfg_llvm_t>>> *function_tfg_map*/, map<llvm_value_id_t, string_ref>* value_to_name_map/*, set<string> const *function_call_chain*/, map<string, value_scev_map_t> const& scev_map, context::xml_output_format_t xml_output_format)
 {
   const auto& memcpy_dst = c->getArgOperand(0);
   const auto& memcpy_src = c->getArgOperand(1);
@@ -1090,7 +1090,7 @@ sym_exec_llvm::apply_memcpy_function(const CallInst* c, expr_ref fun_name_expr, 
     ASSERT(from_node);
   } else {
     //cout << __func__ << " " << __LINE__ << ": memcpy_nbytes_expr = " << expr_string(memcpy_nbytes_expr) << endl;
-    tie(assumes, succ_assumes) = apply_general_function(c, fun_name_expr, fun_name, src_llvm_tfg, F, state_in, state_out, assumes, cur_function_name, from_node/*, pc_to, B, curF*/, t, function_tfg_map, value_to_name_map, function_call_chain, scev_map, xml_output_format);
+    tie(assumes, succ_assumes) = apply_general_function(c, fun_name_expr, fun_name, src_llvm_tfg, F, state_in, state_out, assumes, cur_function_name, from_node/*, pc_to, B, curF*/, t/*, function_tfg_map*/, value_to_name_map/*, function_call_chain*/, scev_map, xml_output_format);
   }
   return make_pair(state_assumes, succ_assumes);
 }
@@ -1147,38 +1147,38 @@ sym_exec_llvm::function_get_num_bbls(const Function *F)
   return ret;
 }
 
-pair<callee_summary_t, dshared_ptr<tfg_llvm_t>> const&
-sym_exec_llvm::get_callee_summary(Function *F, string const &fun_name, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, map<string, pair<callee_summary_t, dshared_ptr<tfg_llvm_t>>> &function_tfg_map, map<llvm_value_id_t, string_ref>* value_to_name_map, set<string> const &function_call_chain, map<string, value_scev_map_t> const& scev_map, context::xml_output_format_t xml_output_format)
-{
-  //cout.flush();
-  //cout << __func__ << " " << __LINE__ << endl;
-  //cout.flush();
-  if (function_tfg_map.count(fun_name)) {
-    //cout << __func__ << " " << __LINE__ << endl;
-    return function_tfg_map.at(fun_name);
-  }
-  //cout << __func__ << " " << __LINE__ << endl;
-  context *ctx = g_ctx; //new context(context::config(600, 600));
-  //ctx->parse_consts_db(CONSTS_DB_FILENAME);
-  //ctx->parse_consts_db("~/superopt/consts_db.in"); //XXX: fixme
-
-  cout << __func__ << " " << __LINE__ << ": getting callee summary for " << fun_name << ": function_call_chain.size() = " << function_call_chain.size() << ", chain:";
-  for (const auto &f : function_call_chain) {
-    cout << " " << f;
-  }
-  cout << endl;
-  dshared_ptr<tfg_llvm_t> t = sym_exec_llvm::get_preprocessed_tfg(*F, m_module, fun_name, ctx, src_llvm_tfg, function_tfg_map, value_to_name_map, function_call_chain, this->gen_callee_summary(), false, scev_map, this->get_srcdst_keyword(), xml_output_format);
- cout << __func__ << " " << __LINE__ << ": done callee summary for " << fun_name << ": function_call_chain.size() = " << function_call_chain.size() << ", chain:";
-  for (const auto &f : function_call_chain) {
-    cout << " " << f;
-  }
-  cout << endl;
-  //cout << __func__ << " " << __LINE__ << ": TFG =\n" << t->graph_to_string() << endl;
-  auto ret = make_pair(t->get_summary_for_calling_functions(), std::move(t));
-  function_tfg_map.insert(make_pair(fun_name, std::move(ret)));
-  //delete ctx; //we are returning tfg which contains references to ctx, so do not delete ctx
-  return function_tfg_map.at(fun_name);
-}
+//pair<callee_summary_t, dshared_ptr<tfg_llvm_t>> const&
+//sym_exec_llvm::get_callee_summary(Function *F, string const &fun_name, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, map<string, pair<callee_summary_t, dshared_ptr<tfg_llvm_t>>> &function_tfg_map, map<llvm_value_id_t, string_ref>* value_to_name_map, set<string> const &function_call_chain, map<string, value_scev_map_t> const& scev_map, context::xml_output_format_t xml_output_format)
+//{
+//  //cout.flush();
+//  //cout << __func__ << " " << __LINE__ << endl;
+//  //cout.flush();
+//  if (function_tfg_map.count(fun_name)) {
+//    //cout << __func__ << " " << __LINE__ << endl;
+//    return function_tfg_map.at(fun_name);
+//  }
+//  //cout << __func__ << " " << __LINE__ << endl;
+//  context *ctx = g_ctx; //new context(context::config(600, 600));
+//  //ctx->parse_consts_db(CONSTS_DB_FILENAME);
+//  //ctx->parse_consts_db("~/superopt/consts_db.in"); //XXX: fixme
+//
+//  cout << __func__ << " " << __LINE__ << ": getting callee summary for " << fun_name << ": function_call_chain.size() = " << function_call_chain.size() << ", chain:";
+//  for (const auto &f : function_call_chain) {
+//    cout << " " << f;
+//  }
+//  cout << endl;
+//  dshared_ptr<tfg_llvm_t> t = sym_exec_llvm::get_preprocessed_tfg(*F, m_module, fun_name, ctx, src_llvm_tfg, function_tfg_map, value_to_name_map, function_call_chain, this->gen_callee_summary(), false, scev_map, this->get_srcdst_keyword(), xml_output_format);
+// cout << __func__ << " " << __LINE__ << ": done callee summary for " << fun_name << ": function_call_chain.size() = " << function_call_chain.size() << ", chain:";
+//  for (const auto &f : function_call_chain) {
+//    cout << " " << f;
+//  }
+//  cout << endl;
+//  //cout << __func__ << " " << __LINE__ << ": TFG =\n" << t->graph_to_string() << endl;
+//  auto ret = make_pair(t->get_summary_for_calling_functions(), std::move(t));
+//  function_tfg_map.insert(make_pair(fun_name, std::move(ret)));
+//  //delete ctx; //we are returning tfg which contains references to ctx, so do not delete ctx
+//  return function_tfg_map.at(fun_name);
+//}
 
 bool
 sym_exec_common::function_belongs_to_program(string const &fun_name) const
@@ -1206,7 +1206,7 @@ sym_exec_common::function_belongs_to_program(string const &fun_name) const
 
 
 pair<unordered_set<expr_ref>,unordered_set<expr_ref>>
-sym_exec_llvm::apply_general_function(const CallInst* c, expr_ref fun_name_expr, string const &fun_name, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, Function *F, state const &state_in, state &state_out, unordered_set<expr_ref> const& state_assumes, string const &cur_function_name, dshared_ptr<tfg_node> &from_node/*, pc const &pc_to, llvm::BasicBlock const &B, llvm::Function const &curF*/, tfg &t, map<string, pair<callee_summary_t, dshared_ptr<tfg_llvm_t>>> *function_tfg_map, map<llvm_value_id_t, string_ref>* value_to_name_map, set<string> const *function_call_chain, map<string, value_scev_map_t> const& scev_map, context::xml_output_format_t xml_output_format)
+sym_exec_llvm::apply_general_function(const CallInst* c, expr_ref fun_name_expr, string const &fun_name, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, Function *F, state const &state_in, state &state_out, unordered_set<expr_ref> const& state_assumes, string const &cur_function_name, dshared_ptr<tfg_node> &from_node/*, pc const &pc_to, llvm::BasicBlock const &B, llvm::Function const &curF*/, tfg &t/*, map<string, pair<callee_summary_t, dshared_ptr<tfg_llvm_t>>> *function_tfg_map*/, map<llvm_value_id_t, string_ref>* value_to_name_map/*, set<string> const *function_call_chain*/, map<string, value_scev_map_t> const& scev_map, context::xml_output_format_t xml_output_format)
 {
   vector<expr_ref> args;
   vector<sort_ref> args_type;
@@ -1216,11 +1216,13 @@ sym_exec_llvm::apply_general_function(const CallInst* c, expr_ref fun_name_expr,
   string fname = fun_name == "" ? "" : fun_name.substr(string(LLVM_FUNCTION_NAME_PREFIX).size());
   if (m_callee_summaries.count(fun_name)) {
     csum = m_callee_summaries.at(fun_name);
-  } else if (   F != NULL
+  }
+#if 0
+  else if (   F != NULL
              && function_call_chain
              && function_belongs_to_program(fun_name)
-             && !set_belongs(*function_call_chain, fname)
-             && this->gen_callee_summary()) {
+             && !set_belongs(*function_call_chain, fname)/*
+             && this->gen_callee_summary()*/) {
     ASSERT(fun_name.substr(0, string(LLVM_FUNCTION_NAME_PREFIX).size()) == LLVM_FUNCTION_NAME_PREFIX);
     pair<callee_summary_t, dshared_ptr<tfg_llvm_t>> const& csum_callee_tfg = get_callee_summary(F, fname, src_llvm_tfg, *function_tfg_map, value_to_name_map, *function_call_chain, scev_map, xml_output_format);
     DYN_DEBUG(llvm2tfg, cout << "Doing resume: " << t.get_name() << endl);
@@ -1232,7 +1234,9 @@ sym_exec_llvm::apply_general_function(const CallInst* c, expr_ref fun_name_expr,
       }
     }
     m_callee_summaries[fname] = csum;
-  } else {
+  }
+#endif
+  else {
     DYN_DEBUG(llvm2tfg, cout << "Could not get callee summary for " << fun_name << ": F = " << F << endl);
   }
 
@@ -1369,7 +1373,7 @@ gen_no_mul_overflow_assume_expr(expr_ref const& a, expr_ref const& b, bool a_is_
   }
 }
 
-void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dshared_ptr<tfg_node> from_node, llvm::BasicBlock const &B, llvm::Function const &F, size_t next_insn_id, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, tfg &t, map<string, pair<callee_summary_t, dshared_ptr<tfg_llvm_t>>> *function_tfg_map, map<llvm_value_id_t, string_ref>* value_to_name_map, set<string> const *function_call_chain, map<shared_ptr<tfg_edge const>, Instruction *>& eimap, map<string, value_scev_map_t> const& scev_map, context::xml_output_format_t xml_output_format)
+void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dshared_ptr<tfg_node> from_node, llvm::BasicBlock const &B, llvm::Function const &F, size_t next_insn_id, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, tfg &t/*, map<string, pair<callee_summary_t, dshared_ptr<tfg_llvm_t>>> *function_tfg_map*/, map<llvm_value_id_t, string_ref>* value_to_name_map/*, set<string> const *function_call_chain*/, map<shared_ptr<tfg_edge const>, Instruction *>& eimap, map<string, value_scev_map_t> const& scev_map, context::xml_output_format_t xml_output_format)
 {
   DYN_DEBUG(llvm2tfg, errs() << __func__ << " " << __LINE__ << " " << get_timestamp(as1, sizeof as1) << ": sym exec doing: " << I << "\n");
   unordered_set<expr_ref> state_assumes;
@@ -1784,7 +1788,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     string memcpy_fn = LLVM_FUNCTION_NAME_PREFIX G_LLVM_MEMCPY_FUNCTION;
     unordered_set<expr_ref> succ_assumes;
     if (fun_name.substr(0, memcpy_fn.length()) == memcpy_fn) {
-      tie(state_assumes, succ_assumes) = apply_memcpy_function(c, fun_expr, fun_name, src_llvm_tfg, calleeF, state_in, state_out, state_assumes, cur_function_name, from_node/*, pc_to, B,*/, F, t, function_tfg_map, value_to_name_map, function_call_chain, scev_map, xml_output_format);
+      tie(state_assumes, succ_assumes) = apply_memcpy_function(c, fun_expr, fun_name, src_llvm_tfg, calleeF, state_in, state_out, state_assumes, cur_function_name, from_node/*, pc_to, B,*/, F, t/*, function_tfg_map*/, value_to_name_map/*, function_call_chain*/, scev_map, xml_output_format);
     } else if (fun_name == LLVM_FUNCTION_NAME_PREFIX G_LLVM_VA_START_FUNCTION) {
       tie(state_assumes, succ_assumes) = apply_va_start_function(c, state_in, state_out, state_assumes, from_node, t, value_to_name_map);
     } else if (fun_name == LLVM_FUNCTION_NAME_PREFIX G_LLVM_VA_COPY_FUNCTION) {
@@ -1792,7 +1796,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     } else if (fun_name == LLVM_FUNCTION_NAME_PREFIX G_LLVM_VA_END_FUNCTION) {
       //NOP
     } else {
-      tie(state_assumes, succ_assumes) = apply_general_function(c, fun_expr, fun_name, src_llvm_tfg, calleeF, state_in, state_out, state_assumes, cur_function_name, from_node/*, pc_to, B, F*/, t, function_tfg_map, value_to_name_map, function_call_chain, scev_map, xml_output_format);
+      tie(state_assumes, succ_assumes) = apply_general_function(c, fun_expr, fun_name, src_llvm_tfg, calleeF, state_in, state_out, state_assumes, cur_function_name, from_node/*, pc_to, B, F*/, t/*, function_tfg_map*/, value_to_name_map/*, function_call_chain*/, scev_map, xml_output_format);
     }
 
     if (succ_assumes.size()) {
@@ -2669,22 +2673,35 @@ sym_exec_llvm::sym_exec_populate_tfg_scev_map(tfg_llvm_t& t_src, value_scev_map_
 }
 
 dshared_ptr<tfg_llvm_t>
-sym_exec_llvm::get_tfg(dshared_ptr<tfg_llvm_t const> src_llvm_tfg, map<string, pair<callee_summary_t, dshared_ptr<tfg_llvm_t>>> *function_tfg_map, map<llvm_value_id_t, string_ref>* value_to_name_map, set<string> const *function_call_chain, map<shared_ptr<tfg_edge const>, Instruction *>& eimap, map<string, value_scev_map_t> const& scev_map, context::xml_output_format_t xml_output_format)
+sym_exec_llvm::get_tfg(llvm::Function& F, llvm::Module const *M, string const &name, context *ctx, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, map<llvm_value_id_t, string_ref>* value_to_name_map, map<shared_ptr<tfg_edge const>, Instruction *>& eimap, map<string, value_scev_map_t> const& scev_map, string const& srcdst_keyword, context::xml_output_format_t xml_output_format)
 {
-  llvm::Function const &F = m_function;
-  populate_state_template(F);
+  autostop_timer func_timer(__func__);
+
+  const DataLayout &dl = M->getDataLayout();
+  unsigned pointer_size = dl.getPointerSize();
+  //cout << __func__ << " " << __LINE__ << ": pointer_size = " << pointer_size << endl;
+  ASSERT(pointer_size == DWORD_LEN/BYTE_LEN || pointer_size == QWORD_LEN/BYTE_LEN);
+  sym_exec_llvm se(ctx, M, F, src_llvm_tfg/*, gen_callee_summary*/, BYTE_LEN, pointer_size * BYTE_LEN, srcdst_keyword);
+
+  list<string> sorted_bbl_indices;
+  for (BasicBlock const& BB: F) {
+    sorted_bbl_indices.push_back(se.get_basicblock_index(BB));
+  }
+
+  //llvm::Function const &F = m_function;
+  se.populate_state_template(F);
   state start_state;
-  get_state_template(pc::start(), start_state);
+  se.get_state_template(pc::start(), start_state);
   stringstream ss;
-  ss << m_srcdst_keyword << "." G_LLVM_PREFIX "." << functionGetName(F);
-  dshared_ptr<tfg_llvm_t> t = make_dshared<tfg_llvm_t>(ss.str(), m_ctx);
+  ss << srcdst_keyword << "." G_LLVM_PREFIX "." << se.functionGetName(F);
+  dshared_ptr<tfg_llvm_t> t = make_dshared<tfg_llvm_t>(ss.str(), ctx);
   ASSERT(t);
   t->set_start_state(start_state);
 
   //this->populate_bbl_order_map();
 
   for(const BasicBlock& B : F) {
-    add_edges(B, src_llvm_tfg, *t, F, function_tfg_map, value_to_name_map, function_call_chain, eimap, scev_map, xml_output_format);
+    se.add_edges(B, src_llvm_tfg, *t, F/*, function_tfg_map*/, value_to_name_map/*, function_call_chain*/, eimap, scev_map, xml_output_format);
   }
 
   //for (const auto& arg : F.args()) {
@@ -2694,7 +2711,7 @@ sym_exec_llvm::get_tfg(dshared_ptr<tfg_llvm_t const> src_llvm_tfg, map<string, p
   //  add_type_and_align_assumes(Elname, ElTy, a.second, pc::start(), *t/*, assumes*/, UNDEF_BEHAVIOUR_ASSUME_ARG_ISLANGTYPE);
   //}
 
-  this->get_tfg_common(*t);
+  se.get_tfg_common(*t);
   return t;
 }
 
@@ -2934,7 +2951,7 @@ sym_exec_llvm::parse_stackrestore_intrinsic(Instruction const& I, tfg& t, pc con
 }
 
 void
-sym_exec_llvm::add_edges(const llvm::BasicBlock& B, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, tfg_llvm_t& t, const llvm::Function& F, map<string, pair<callee_summary_t, dshared_ptr<tfg_llvm_t>>> *function_tfg_map, map<llvm_value_id_t, string_ref>* value_to_name_map, set<string> const *function_call_chain, map<shared_ptr<tfg_edge const>, Instruction *>& eimap, map<string, value_scev_map_t> const& scev_map, context::xml_output_format_t xml_output_format)
+sym_exec_llvm::add_edges(const llvm::BasicBlock& B, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, tfg_llvm_t& t, const llvm::Function& F/*, map<string, pair<callee_summary_t, dshared_ptr<tfg_llvm_t>>> *function_tfg_map*/, map<llvm_value_id_t, string_ref>* value_to_name_map/*, set<string> const *function_call_chain*/, map<shared_ptr<tfg_edge const>, Instruction *>& eimap, map<string, value_scev_map_t> const& scev_map, context::xml_output_format_t xml_output_format)
 {
   //errs() << "Doing BB: " << get_basicblock_name(B) << "\n";
   //errs() << "t.get_edges().size() = " << t.get_edges().size() << "\n";
@@ -3010,7 +3027,7 @@ sym_exec_llvm::add_edges(const llvm::BasicBlock& B, dshared_ptr<tfg_llvm_t const
     insn_id++;
 
     //exec(t.get_start_state(), I, from_node, B, F, insn_id, t, function_tfg_map, function_call_chain, eimap);
-    exec(state(), I, from_node, B, F, insn_id, src_llvm_tfg, t, function_tfg_map, value_to_name_map, function_call_chain, eimap, scev_map, xml_output_format);
+    exec(state(), I, from_node, B, F, insn_id, src_llvm_tfg, t/*, function_tfg_map*/, value_to_name_map/*, function_call_chain*/, eimap, scev_map, xml_output_format);
   }
 }
 
@@ -3245,45 +3262,46 @@ sym_exec_llvm::get_cur_rounding_mode_var() const
   return m_ctx->mk_var(string(G_INPUT_KEYWORD ".") + this->get_cur_rounding_mode_varname(), m_rounding_mode_at_start_pc->get_sort());
 }
 
-void
-sym_exec_llvm::sym_exec_preprocess_tfg(string const &name, tfg_llvm_t& t_src, map<string, pair<callee_summary_t, dshared_ptr<tfg_llvm_t>>> &function_tfg_map, list<string> const& sorted_bbl_indices, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, context::xml_output_format_t xml_output_format)
-{
-  autostop_timer func_timer(__func__);
-  DYN_DEBUG(llvm2tfg, cout << _FNLN_ << ": name = " << name << endl);
-  //context* ctx = this->get_context();
-  //consts_struct_t &cs = ctx->get_consts_struct();
-  map<allocsite_t, graph_local_t> const& local_refs = this->get_local_refs();
-
-  pc start_pc = this->get_start_pc();
-  t_src.add_extra_node_at_start_pc(start_pc);
-
-  unordered_set<expr_ref> const& arg_assumes = this->gen_arg_assumes();
-  t_src.add_assumes_to_start_edge(arg_assumes);
-
-  t_src.tfg_initialize_rounding_mode_on_start_edge(this->get_cur_rounding_mode_varname(), m_rounding_mode_at_start_pc);
-
-  t_src.set_symbol_map_for_touched_symbols(*m_symbol_map, m_touched_symbols);
-  t_src.set_string_contents_for_touched_symbols_at_zero_offset(*m_string_contents, m_touched_symbols);
-  t_src.remove_function_name_from_symbols(name);
-  t_src.populate_exit_return_values_for_llvm_method();
-  t_src.canonicalize_llvm_nextpcs(src_llvm_tfg);
-  t_src.tfg_llvm_interpret_intrinsic_fcalls();
-
-  map<nextpc_id_t, callee_summary_t> nextpc_id_csum = sym_exec_llvm::get_callee_summaries_for_tfg(t_src.get_nextpc_map(), m_callee_summaries);
-  t_src.set_callee_summaries(nextpc_id_csum);
-
-  ASSERT(t_src.get_locals_map().size() == 0);
-  t_src.set_locals_map(local_refs);
-  t_src.tfg_initialize_uninit_nonce_on_start_edge(map_get_keys(local_refs), m_srcdst_keyword);
-
-  t_src.tfg_llvm_add_start_pc_preconditions(m_srcdst_keyword);
-
-  DYN_DEBUG(llvm2tfg, cout << _FNLN_ << ": name = " << name << ": calling tfg_preprocess()\n");
-  t_src.tfg_preprocess(false, src_llvm_tfg, sorted_bbl_indices, {}, xml_output_format);
-  DYN_DEBUG(llvm2tfg, cout << _FNLN_ << ": name = " << name << ": done tfg_preprocess().\n" << endl);
-  DYN_DEBUG2(llvm2tfg, cout << _FNLN_ << ": name = " << name << ": after tfg_preprocess(), TFG:\n" << t_src.graph_to_string() << endl);
-  //cout << _FNLN_ << ": " << get_timestamp(as1, sizeof as1) << ": returning\n";
-}
+//void
+//sym_exec_llvm::sym_exec_preprocess_tfg(string const &name, tfg_llvm_t& t_src, map<string, pair<callee_summary_t, dshared_ptr<tfg_llvm_t>>> &function_tfg_map, list<string> const& sorted_bbl_indices, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, context::xml_output_format_t xml_output_format)
+//{
+//  autostop_timer func_timer(__func__);
+//  DYN_DEBUG(llvm2tfg, cout << _FNLN_ << ": name = " << name << endl);
+//  //context* ctx = this->get_context();
+//  //consts_struct_t &cs = ctx->get_consts_struct();
+//  map<allocsite_t, graph_local_t> const& local_refs = this->get_local_refs();
+//
+//  //pc start_pc = this->get_start_pc();
+//  pc start_pc = sym_exec_llvm::get_start_pc(m_function);
+//  t_src.add_extra_node_at_start_pc(start_pc);
+//
+//  unordered_set<expr_ref> const& arg_assumes = this->gen_arg_assumes();
+//  t_src.add_assumes_to_start_edge(arg_assumes);
+//
+//  t_src.tfg_initialize_rounding_mode_on_start_edge(this->get_cur_rounding_mode_varname(), m_rounding_mode_at_start_pc);
+//
+//  t_src.set_symbol_map_for_touched_symbols(*m_symbol_map, m_touched_symbols);
+//  t_src.set_string_contents_for_touched_symbols_at_zero_offset(*m_string_contents, m_touched_symbols);
+//  t_src.remove_function_name_from_symbols(name);
+//  t_src.populate_exit_return_values_for_llvm_method();
+//  t_src.canonicalize_llvm_nextpcs(src_llvm_tfg);
+//  t_src.tfg_llvm_interpret_intrinsic_fcalls();
+//
+//  map<nextpc_id_t, callee_summary_t> nextpc_id_csum = sym_exec_llvm::get_callee_summaries_for_tfg(t_src.get_nextpc_map(), m_callee_summaries);
+//  t_src.set_callee_summaries(nextpc_id_csum);
+//
+//  ASSERT(t_src.get_locals_map().size() == 0);
+//  t_src.set_locals_map(local_refs);
+//  t_src.tfg_initialize_uninit_nonce_on_start_edge(map_get_keys(local_refs), m_srcdst_keyword);
+//
+//  t_src.tfg_llvm_add_start_pc_preconditions(m_srcdst_keyword);
+//
+//  //DYN_DEBUG(llvm2tfg, cout << _FNLN_ << ": name = " << name << ": calling tfg_preprocess()\n");
+//  //t_src.tfg_preprocess(false, src_llvm_tfg, sorted_bbl_indices, {}, xml_output_format);
+//  //DYN_DEBUG(llvm2tfg, cout << _FNLN_ << ": name = " << name << ": done tfg_preprocess().\n" << endl);
+//  //DYN_DEBUG2(llvm2tfg, cout << _FNLN_ << ": name = " << name << ": after tfg_preprocess(), TFG:\n" << t_src.graph_to_string() << endl);
+//  //cout << _FNLN_ << ": " << get_timestamp(as1, sizeof as1) << ": returning\n";
+//}
 
 bool
 sym_exec_common::update_function_call_args_and_retvals_with_atlocals(dshared_ptr<tfg> t_src)
@@ -3304,83 +3322,62 @@ sym_exec_llvm::gen_arg_assumes() const
   return arg_assumes;
 }
 
-dshared_ptr<tfg_llvm_t>
-sym_exec_llvm::get_preprocessed_tfg_common(string const &name, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, map<string, pair<callee_summary_t, dshared_ptr<tfg_llvm_t>>> &function_tfg_map, map<llvm_value_id_t, string_ref>* value_to_name_map, set<string> function_call_chain, list<string> const& sorted_bbl_indices, bool DisableModelingOfUninitVarUB, map<string, value_scev_map_t> const& scev_map, context::xml_output_format_t xml_output_format)
-{
-  autostop_timer func_timer(__func__);
-  DYN_DEBUG(llvm2tfg,
-    errs() << "Doing: " << name << "\n";
-    errs().flush();
-    outs() << "Doing: " << name << "\n";
-    outs().flush();
-  );
-  function_call_chain.insert(name);
-  map<shared_ptr<tfg_edge const>, Instruction *> eimap;
-  DYN_DEBUG(llvm2tfg, outs() << _FNLN_ << ": " << get_timestamp(as1, sizeof as1) << ": Calling get_tfg() on " << name << ".\n");
-  dshared_ptr<tfg_llvm_t> t_src = this->get_tfg(src_llvm_tfg, &function_tfg_map, value_to_name_map, &function_call_chain, eimap, scev_map, xml_output_format);
-  DYN_DEBUG(llvm2tfg, outs() << _FNLN_ << ": " << get_timestamp(as1, sizeof as1) << ": Done get_tfg() on " << name << ". Calling sym_exec_preprocess_tfg()\n");
-  this->sym_exec_preprocess_tfg(name, *t_src, function_tfg_map, sorted_bbl_indices, src_llvm_tfg, xml_output_format);
-  //cout << _FNLN_ << ": " << get_timestamp(as1, sizeof as1) << ": returned from sym_exec_preprocess_tfg\n";
-  if (scev_map.count(name)) {
-    this->sym_exec_populate_tfg_scev_map(*t_src, scev_map.at(name));
-  }
-  DYN_DEBUG(llvm2tfg,
-    errs() << "Doing done: " << name << "\n";
-    errs().flush();
-    outs() << "Doing done: " << name << "\n";
-    outs().flush();
-  );
+//dshared_ptr<tfg_llvm_t>
+//sym_exec_llvm::get_preprocessed_tfg_common(string const &name, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, map<string, pair<callee_summary_t, dshared_ptr<tfg_llvm_t>>> &function_tfg_map, map<llvm_value_id_t, string_ref>* value_to_name_map, set<string> function_call_chain, list<string> const& sorted_bbl_indices, bool DisableModelingOfUninitVarUB, map<string, value_scev_map_t> const& scev_map, context::xml_output_format_t xml_output_format)
+//{
+//  autostop_timer func_timer(__func__);
+//  DYN_DEBUG(llvm2tfg,
+//    errs() << "Doing: " << name << "\n";
+//    errs().flush();
+//    outs() << "Doing: " << name << "\n";
+//    outs().flush();
+//  );
+//  function_call_chain.insert(name);
+//  map<shared_ptr<tfg_edge const>, Instruction *> eimap;
+//  DYN_DEBUG(llvm2tfg, outs() << _FNLN_ << ": " << get_timestamp(as1, sizeof as1) << ": Calling get_tfg() on " << name << ".\n");
+//  dshared_ptr<tfg_llvm_t> t_src = this->get_tfg(src_llvm_tfg, &function_tfg_map, value_to_name_map, &function_call_chain, eimap, scev_map, xml_output_format);
+//  DYN_DEBUG(llvm2tfg, outs() << _FNLN_ << ": " << get_timestamp(as1, sizeof as1) << ": Done get_tfg() on " << name << ". Calling sym_exec_preprocess_tfg()\n");
+//  this->sym_exec_preprocess_tfg(name, *t_src, function_tfg_map, sorted_bbl_indices, src_llvm_tfg, xml_output_format);
+//  //cout << _FNLN_ << ": " << get_timestamp(as1, sizeof as1) << ": returned from sym_exec_preprocess_tfg\n";
+//  if (scev_map.count(name)) {
+//    this->sym_exec_populate_tfg_scev_map(*t_src, scev_map.at(name));
+//  }
+//  DYN_DEBUG(llvm2tfg,
+//    errs() << "Doing done: " << name << "\n";
+//    errs().flush();
+//    outs() << "Doing done: " << name << "\n";
+//    outs().flush();
+//  );
+//
+//  if (!DisableModelingOfUninitVarUB) {
+//    //map<pc, map<graph_loc_id_t, bool>> init_status;
+//    list<pc> exit_pcs;
+//    //t_src->populate_loc_definedness();
+//    //init_status = t_src->determine_initialization_status_for_locs();
+//    t_src->get_exit_pcs(exit_pcs);
+//    for (auto exit_pc : exit_pcs) {
+//      if (t_src->return_register_is_uninit_at_exit(G_LLVM_RETURN_REGISTER_NAME, exit_pc/*, init_status*/)) {
+//        t_src->eliminate_return_reg_at_exit(G_LLVM_RETURN_REGISTER_NAME, exit_pc);
+//      }
+//    }
+//  }
+//  //cout << _FNLN_ << ": " << get_timestamp(as1, sizeof as1) << ": returning\n";
+//  return t_src;
+//}
 
-  if (!DisableModelingOfUninitVarUB) {
-    //map<pc, map<graph_loc_id_t, bool>> init_status;
-    list<pc> exit_pcs;
-    //t_src->populate_loc_definedness();
-    //init_status = t_src->determine_initialization_status_for_locs();
-    t_src->get_exit_pcs(exit_pcs);
-    for (auto exit_pc : exit_pcs) {
-      if (t_src->return_register_is_uninit_at_exit(G_LLVM_RETURN_REGISTER_NAME, exit_pc/*, init_status*/)) {
-        t_src->eliminate_return_reg_at_exit(G_LLVM_RETURN_REGISTER_NAME, exit_pc);
-      }
-    }
-  }
-  //cout << _FNLN_ << ": " << get_timestamp(as1, sizeof as1) << ": returning\n";
-  return t_src;
-}
-
-dshared_ptr<tfg_llvm_t>
-sym_exec_llvm::get_preprocessed_tfg(Function &f, Module const *M, string const &name, context *ctx, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, map<string, pair<callee_summary_t, dshared_ptr<tfg_llvm_t>>> &function_tfg_map, map<llvm_value_id_t, string_ref>* value_to_name_map, set<string> function_call_chain, bool gen_callee_summary, bool DisableModelingOfUninitVarUB, map<string, value_scev_map_t> const& scev_map, string const& srcdst_keyword, context::xml_output_format_t xml_output_format)
-{
-  autostop_timer func_timer(__func__);
-
-  //list<pair<string, unsigned>> fun_names;
-  //sym_exec_common::get_fun_names(M, fun_names);
-
-  //pair<graph_symbol_map_t, map<symbol_id_t, vector<char>>> symbol_map_and_string_contents = sym_exec_common::get_symbol_map_and_string_contents(M, fun_names);
-  //graph_symbol_map_t const& symbol_map = symbol_map_and_string_contents.first;
-  //map<symbol_id_t, vector<char>> const &string_contents = symbol_map_and_string_contents.second;
-  //consts_struct_t const& cs = ctx->get_consts_struct();
-
-  const DataLayout &dl = M->getDataLayout();
-  unsigned pointer_size = dl.getPointerSize();
-  //cout << __func__ << " " << __LINE__ << ": pointer_size = " << pointer_size << endl;
-  ASSERT(pointer_size == DWORD_LEN/BYTE_LEN || pointer_size == QWORD_LEN/BYTE_LEN);
-  sym_exec_llvm se(ctx, M, f, src_llvm_tfg, gen_callee_summary, BYTE_LEN, pointer_size * BYTE_LEN, srcdst_keyword);
-
-  list<string> sorted_bbl_indices;
-  for (BasicBlock const& BB: f) {
-    sorted_bbl_indices.push_back(se.get_basicblock_index(BB));
-  }
-
-  return se.get_preprocessed_tfg_common(name, src_llvm_tfg, function_tfg_map, value_to_name_map, function_call_chain, sorted_bbl_indices, DisableModelingOfUninitVarUB, scev_map, xml_output_format);
-}
-
-dshared_ptr<tfg>
-sym_exec_llvm::get_preprocessed_tfg_for_machine_function(MachineFunction const &mf, Function const &f, Module const *M, string const &name, context *ctx, list<pair<string, unsigned>> const &fun_names, graph_symbol_map_t const &symbol_map, map<pair<symbol_id_t, offset_t>, vector<char>> const &string_contents, consts_struct_t &cs, map<string, pair<callee_summary_t, dshared_ptr<tfg>>> &function_tfg_map, set<string> function_call_chain, bool gen_callee_summary, bool DisableModelingOfUninitVarUB)
-{
-  NOT_IMPLEMENTED();
-  //sym_exec_mir se(ctx, cs, M, f, mf, fun_names, symbol_map, string_contents, gen_callee_summary, BYTE_LEN, DWORD_LEN);
-  //return get_preprocessed_tfg_common(se, name, function_tfg_map, function_call_chain, DisableModelingOfUninitVarUB);
-}
+//dshared_ptr<tfg_llvm_t>
+//sym_exec_llvm::get_preprocessed_tfg(Function &f, Module const *M, string const &name, context *ctx, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, map<string, pair<callee_summary_t, dshared_ptr<tfg_llvm_t>>> &function_tfg_map, map<llvm_value_id_t, string_ref>* value_to_name_map, set<string> function_call_chain, bool gen_callee_summary, bool DisableModelingOfUninitVarUB, map<string, value_scev_map_t> const& scev_map, string const& srcdst_keyword, context::xml_output_format_t xml_output_format)
+//{
+//  return se.get_preprocessed_tfg_common(name, src_llvm_tfg, function_tfg_map, value_to_name_map, function_call_chain, sorted_bbl_indices, DisableModelingOfUninitVarUB, scev_map, xml_output_format);
+//}
+//
+//dshared_ptr<tfg>
+//sym_exec_llvm::get_preprocessed_tfg_for_machine_function(MachineFunction const &mf, Function const &f, Module const *M, string const &name, context *ctx, list<pair<string, unsigned>> const &fun_names, graph_symbol_map_t const &symbol_map, map<pair<symbol_id_t, offset_t>, vector<char>> const &string_contents, consts_struct_t &cs, map<string, pair<callee_summary_t, dshared_ptr<tfg>>> &function_tfg_map, set<string> function_call_chain, bool gen_callee_summary, bool DisableModelingOfUninitVarUB)
+//{
+//  NOT_IMPLEMENTED();
+//  //sym_exec_mir se(ctx, cs, M, f, mf, fun_names, symbol_map, string_contents, gen_callee_summary, BYTE_LEN, DWORD_LEN);
+//  //return get_preprocessed_tfg_common(se, name, function_tfg_map, function_call_chain, DisableModelingOfUninitVarUB);
+//}
 
 
 list<pair<string, unsigned>>
@@ -3532,9 +3529,9 @@ sym_exec_common::get_num_insn(const Function& f)
 }
 
 pc
-sym_exec_llvm::get_start_pc() const
+sym_exec_llvm::get_start_pc(Function const& f)
 {
-  return this->get_pc_from_bbindex_and_insn_id(get_basicblock_index(*m_function.begin()), 0);
+  return get_pc_from_bbindex_and_insn_id(get_basicblock_index(*f.begin()), 0);
 }
 
 //void
@@ -3904,10 +3901,11 @@ sym_exec_llvm::sym_exec_populate_potential_scev_relations(Module* M, string cons
   return scev_map;
 }
 
-map<string, pair<callee_summary_t, dshared_ptr<tfg_llvm_t>>>
+ftmap_t
 sym_exec_llvm::get_function_tfg_map(Module* M, set<string> FunNamesVec, bool DisableModelingOfUninitVarUB, context* ctx, dshared_ptr<llptfg_t const> const& src_llptfg, bool gen_scev, map<llvm_value_id_t, string_ref>* value_to_name_map, context::xml_output_format_t xml_output_format)
 {
-  map<string, pair<callee_summary_t, dshared_ptr<tfg_llvm_t>>> function_tfg_map;
+  //map<string, pair<callee_summary_t, dshared_ptr<tfg_llvm_t>>> function_tfg_map;
+  map<string, dshared_ptr<tfg_llvm_t>> function_tfg_map;
 
   DYN_DEBUG3(llvm2tfg,
     cout.flush();
@@ -3944,9 +3942,7 @@ sym_exec_llvm::get_function_tfg_map(Module* M, set<string> FunNamesVec, bool Dis
     autostop_timer total_timer(string(__func__));
     autostop_timer func_timer(string(__func__) + "." + fname);
 
-    if (function_tfg_map.count(fname)) {
-      continue;
-    }
+    ASSERT(!function_tfg_map.count(fname));
 
     dshared_ptr<tfg_llvm_t const> src_llvm_tfg = dshared_ptr<tfg_llvm_t const>::dshared_nullptr();
     if (src_llptfg) {
@@ -3956,31 +3952,33 @@ sym_exec_llvm::get_function_tfg_map(Module* M, set<string> FunNamesVec, bool Dis
       }
     }
 
-    //errs() << "Doing: " << fname << "\n";
-    //errs().flush();
     {
       stringstream ss;
       ss << "Converting LLVM IR bitcode to Transfer Function Graph (TFG) for function " << fname;
       MSG(ss.str().c_str());
     }
-    bool gen_callee_summary = (FunNamesVec.size() == 0);
-    set<string> function_call_chain;
+    //bool gen_callee_summary = (FunNamesVec.size() == 0);
+    //set<string> function_call_chain;
 
     DYN_DEBUG(llvm2tfg, cout << __func__ << " " << __LINE__ << ": Doing " << fname << endl; cout.flush());
+    map<shared_ptr<tfg_edge const>, Instruction *> eimap;
 
-    dshared_ptr<tfg_llvm_t> t_src = sym_exec_llvm::get_preprocessed_tfg(f, M, fname, ctx, src_llvm_tfg, function_tfg_map, value_to_name_map, function_call_chain, gen_callee_summary, DisableModelingOfUninitVarUB, scev_map, srcdst_keyword, xml_output_format);
+    dshared_ptr<tfg_llvm_t> t_src = sym_exec_llvm::get_tfg(f, M, fname, ctx, src_llvm_tfg/*, function_tfg_map*/, value_to_name_map/*, function_call_chain*//*, gen_callee_summary*//*, DisableModelingOfUninitVarUB*/, eimap, scev_map, srcdst_keyword, xml_output_format);
 
-    callee_summary_t csum = t_src->get_summary_for_calling_functions();
-    function_tfg_map.insert(make_pair(fname, make_pair(csum, std::move(t_src))));
+    //dshared_ptr<tfg_llvm_t> t_src = sym_exec_llvm::get_preprocessed_tfg(f, M, fname, ctx, src_llvm_tfg, function_tfg_map, value_to_name_map, function_call_chain, gen_callee_summary, DisableModelingOfUninitVarUB, scev_map, srcdst_keyword, xml_output_format);
+
+    //callee_summary_t csum = t_src->get_summary_for_calling_functions();
+    //function_tfg_map.insert(make_pair(fname, make_pair(csum, std::move(t_src))));
+    function_tfg_map.insert(make_pair(fname, t_src));
   }
 
   DYN_DEBUG(get_function_tfg_map_debug,
     for (auto const& p : function_tfg_map) {
       cout << __func__ << " " << __LINE__ << ": TFG for " << p.first << ":\n";
-      p.second.second->graph_to_stream(cout); cout << endl;
+      p.second->graph_to_stream(cout); cout << endl;
     }
   );
-  return function_tfg_map;
+  return ftmap_t(function_tfg_map);
 }
 
 llvm_value_id_t
