@@ -2712,6 +2712,37 @@ sym_exec_llvm::get_tfg(llvm::Function& F, llvm::Module const *M, string const &n
   //}
 
   se.get_tfg_common(*t);
+
+  if (scev_map.count(name)) {
+    se.sym_exec_populate_tfg_scev_map(*t, scev_map.at(name));
+  }
+
+  map<allocsite_t, graph_local_t> const& local_refs = se.get_local_refs();
+
+  //pc start_pc = this->get_start_pc();
+  pc start_pc = sym_exec_llvm::get_start_pc(se.m_function);
+  t->add_extra_node_at_start_pc(start_pc);
+
+  unordered_set<expr_ref> const& arg_assumes = se.gen_arg_assumes();
+  t->add_assumes_to_start_edge(arg_assumes);
+
+  t->tfg_initialize_rounding_mode_on_start_edge(se.get_cur_rounding_mode_varname(), se.m_rounding_mode_at_start_pc);
+
+  t->set_symbol_map_for_touched_symbols(*se.m_symbol_map, se.m_touched_symbols);
+  t->set_string_contents_for_touched_symbols_at_zero_offset(*se.m_string_contents, se.m_touched_symbols);
+  t->remove_function_name_from_symbols(name);
+  t->populate_exit_return_values_for_llvm_method();
+  t->canonicalize_llvm_nextpcs(src_llvm_tfg);
+  t->tfg_llvm_interpret_intrinsic_fcalls();
+
+  ASSERT(t->get_locals_map().size() == 0);
+  t->set_locals_map(local_refs);
+  t->tfg_initialize_uninit_nonce_on_start_edge(map_get_keys(local_refs), se.m_srcdst_keyword);
+
+  t->tfg_llvm_add_start_pc_preconditions(se.m_srcdst_keyword);
+  t->tfg_llvm_set_sorted_bbl_indices(sorted_bbl_indices);
+  t->tfg_preprocess(false, src_llvm_tfg/*, xml_output_format*/);
+
   return t;
 }
 
@@ -3902,7 +3933,7 @@ sym_exec_llvm::sym_exec_populate_potential_scev_relations(Module* M, string cons
 }
 
 ftmap_t
-sym_exec_llvm::get_function_tfg_map(Module* M, set<string> FunNamesVec, bool DisableModelingOfUninitVarUB, context* ctx, dshared_ptr<llptfg_t const> const& src_llptfg, bool gen_scev, map<llvm_value_id_t, string_ref>* value_to_name_map, context::xml_output_format_t xml_output_format)
+sym_exec_llvm::get_function_tfg_map(Module* M, set<string> FunNamesVec/*, bool DisableModelingOfUninitVarUB*/, context* ctx, dshared_ptr<llptfg_t const> const& src_llptfg, bool gen_scev, map<llvm_value_id_t, string_ref>* value_to_name_map, context::xml_output_format_t xml_output_format)
 {
   //map<string, pair<callee_summary_t, dshared_ptr<tfg_llvm_t>>> function_tfg_map;
   map<string, dshared_ptr<tfg_llvm_t>> function_tfg_map;

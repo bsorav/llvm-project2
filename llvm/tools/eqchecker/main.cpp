@@ -252,7 +252,8 @@ main(int argc, char **argv)
     progress_flag = 1;
   }
 
-  ftmap_t function_tfg_map = sym_exec_llvm::get_function_tfg_map(M1.get(), FunNamesVec, DisableModelingOfUninitVarUB ? true : false, ctx, src_llptfg, !NoGenScev, nullptr, xml_output_format);
+  ftmap_t function_tfg_map = sym_exec_llvm::get_function_tfg_map(M1.get(), FunNamesVec/*, DisableModelingOfUninitVarUB ? true : false*/, ctx, src_llptfg, !NoGenScev, nullptr, xml_output_format);
+  function_tfg_map.ftmap_preprocess();
 
   string llvm_header = M1->get_llvm_header_as_string();
   list<string> type_decls = M1->get_type_declarations_as_string();
