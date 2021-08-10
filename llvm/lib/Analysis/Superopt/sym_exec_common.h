@@ -217,7 +217,7 @@ protected:
   list<pair<string, sort_ref>> m_state_templ;
   //map<string, string> m_value_name_map;
   map<string, pair<argnum_t, expr_ref>> m_arguments;
-  map<string, callee_summary_t> m_callee_summaries;
+  //map<string, callee_summary_t> m_callee_summaries;
   std::set<symbol_id_t> m_touched_symbols;
   int m_memlabel_varnum;
   //map<pc, pc> m_next_phi_pc;

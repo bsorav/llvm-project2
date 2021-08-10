@@ -1212,11 +1212,11 @@ sym_exec_llvm::apply_general_function(const CallInst* c, expr_ref fun_name_expr,
   vector<sort_ref> args_type;
   pc const &from_pc = from_node->get_pc();
 
-  callee_summary_t csum;
-  string fname = fun_name == "" ? "" : fun_name.substr(string(LLVM_FUNCTION_NAME_PREFIX).size());
-  if (m_callee_summaries.count(fun_name)) {
-    csum = m_callee_summaries.at(fun_name);
-  }
+  //callee_summary_t csum;
+  //string fname = fun_name == "" ? "" : fun_name.substr(string(LLVM_FUNCTION_NAME_PREFIX).size());
+  //if (m_callee_summaries.count(fun_name)) {
+  //  csum = m_callee_summaries.at(fun_name);
+  //}
 #if 0
   else if (   F != NULL
              && function_call_chain
@@ -1236,9 +1236,9 @@ sym_exec_llvm::apply_general_function(const CallInst* c, expr_ref fun_name_expr,
     m_callee_summaries[fname] = csum;
   }
 #endif
-  else {
-    DYN_DEBUG(llvm2tfg, cout << "Could not get callee summary for " << fun_name << ": F = " << F << endl);
-  }
+  //else {
+  //  DYN_DEBUG(llvm2tfg, cout << "Could not get callee summary for " << fun_name << ": F = " << F << endl);
+  //}
 
   expr_ref ml_read_expr = m_ctx->memlabel_var(t.get_name()->get_str(), m_memlabel_varnum); //csum.get_read_memlabel();
   m_memlabel_varnum++;
