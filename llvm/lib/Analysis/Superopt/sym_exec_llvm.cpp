@@ -1502,37 +1502,21 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
       local_size *= constArraySize->getZExtValue();
     }
 
-    //size_t local_id = m_local_num++;
-    //allocsite_t local_id = m_local_num;
     allocsite_t local_id(from_node->get_pc());
-    //cout << _FNLN_ << ": m_local_num = " << m_local_num.allocsite_to_string() << endl;
-    //m_local_num = m_local_num.increment_by_one();
-    //cout << _FNLN_ << ": m_local_num = " << m_local_num.allocsite_to_string() << endl;
-
-    //string name = m_srcdst_keyword + string("." G_LOCAL_KEYWORD ".") + int_to_string(local_id);
-    string name = m_srcdst_keyword + string("." G_LOCAL_KEYWORD ".") + local_id.allocsite_to_string();
-
-    m_local_refs.insert(make_pair(local_id, graph_local_t(name, local_size, align, is_varsize)));
-
     memlabel_t ml_local = memlabel_t::memlabel_local(local_id);
+    expr_ref local_addr_var = m_cs.get_local_addr(reg_type_local, local_id, m_srcdst_keyword);
 
-    //expr_ref local_addr = m_ctx->mk_var(local_str, m_ctx->mk_bv_sort(get_word_length()));
-    //string typeString = getTypeString(ElTy);
-    //typeString = typeString + "*";
-    //langtype_ref lt = mk_langtype_ref(typeString);
-    //predicate p(precond_t(m_ctx), m_ctx->mk_islangtype(local_addr, lt), expr_true(m_ctx), UNDEF_BEHAVIOUR_ASSUME_ALLOCA_ISLANGTYPE, predicate::assume);
-    //assumes.insert(p);
-    //t.add_assume_pred(from_node->get_pc(), p);
+    string local_addr_key = m_ctx->get_key_from_input_expr(local_addr_var)->get_str();
+    m_local_refs.insert(make_pair(local_id, graph_local_t(local_addr_key, local_size, align, is_varsize)));
 
-    expr_ref name_expr = m_ctx->get_input_expr_for_key(mk_string_ref(name), m_ctx->mk_bv_sort(get_word_length()));
     expr_ref local_size_val;
     if (is_varsize) {
       expr_ref varsize_expr;
       tie(varsize_expr, state_assumes) = get_expr_adding_edges_for_intermediate_vals(*ArraySize/*, ""*/, state_in, state_assumes, from_node/*, pc_to, B, F*/, t, value_to_name_map);
       unsigned bvlen = varsize_expr->get_sort()->get_size();
+      ASSERT(bvlen == get_word_length());
       expr_ref local_type_alloc_size_expr = m_ctx->mk_bv_const(bvlen, local_type_alloc_size);
       local_size_val = m_ctx->mk_bvmul(varsize_expr, local_type_alloc_size_expr);
-      ASSERT(local_size_val->get_sort()->get_size() == get_word_length());
 
       // add size > 0 assume
       expr_ref size_is_positive_assume = m_ctx->mk_bvsgt(local_size_val, m_ctx->mk_zerobv(bvlen));
@@ -1543,66 +1527,78 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     } else {
       local_size_val = m_ctx->mk_bv_const(get_word_length(), local_size);
     }
-
-    expr_ref mem_e = state_get_expr(state_in, m_mem_reg, this->get_mem_sort());
-    expr_ref mem_alloc_e = state_get_expr(state_in, m_mem_alloc_reg, this->get_mem_alloc_sort());
-    //expr_ref uninit_nonce = m_ctx->get_uninit_nonce_expr_for_local_id(local_id, m_srcdst_keyword);
-
-    //expr_ref alloca_ptr = m_ctx->mk_alloca_ptr(mem_e, mem_alloc_e, ml_local, local_size_val);
+    // == intermediate edge 0 ==
     string local_alloc_count_varname = m_ctx->get_local_alloc_count_varname(this->get_srcdst_keyword())->get_str();
-    //string local_alloc_count_ssa_varname = this->get_local_alloc_count_ssa_varname(from_node->get_pc());
-    string local_alloc_count_ssa_varname = m_ctx->get_local_alloc_count_ssa_varname(this->get_srcdst_keyword(), local_id)->get_str();
     expr_ref local_alloc_count_var = state_get_expr(state_in, local_alloc_count_varname, m_ctx->mk_count_sort());
-    //expr_ref alloca_ptr = m_ctx->mk_alloca_ptr(local_alloc_count_var, mem_alloc_e, ml_local, local_size_val);
-    expr_ref alloca_ptr = m_ctx->get_local_ptr_expr_for_id(local_id, local_alloc_count_var, mem_alloc_e, ml_local, local_size_val);
-    // name <- alloca_ptr
+    expr_ref local_size_var = m_ctx->get_local_size_expr_for_id(local_id, local_alloc_count_var, m_ctx->mk_bv_sort(get_word_length()), m_srcdst_keyword);
     // local_size.id <- size expr
+    state_set_expr(state_out, m_ctx->get_key_from_input_expr(local_size_var)->get_str(), local_size_val);
+    dshared_ptr<tfg_node> intermediate_node0 = get_next_intermediate_subsubindex_pc_node(t, from_node);
+    ASSERT(intermediate_node0);
+    tfg_edge_ref e0 = mk_tfg_edge(mk_itfg_edge(from_node->get_pc(), intermediate_node0->get_pc(), state_out, expr_true(m_ctx), state_assumes, te_comment));
+    t.add_edge(e0);
 
-    expr_ref local_size_expr = m_ctx->get_local_size_expr_for_id(local_id, local_alloc_count_var, m_ctx->mk_bv_sort(get_word_length()), m_srcdst_keyword);
-    string local_size_str = m_ctx->get_key_from_input_expr(local_size_expr)->get_str();
-
-    state_set_expr(state_out, name, alloca_ptr);
-    state_set_expr(state_out, local_alloc_count_ssa_varname, local_alloc_count_var);
-    state_set_expr(state_out, local_size_str, local_size_val);
-
-    // == intermediate edge ==
-    dshared_ptr<tfg_node> intermediate_node = get_next_intermediate_subsubindex_pc_node(t, from_node);
-    ASSERT(intermediate_node);
-    tfg_edge_ref e = mk_tfg_edge(mk_itfg_edge(from_node->get_pc(), intermediate_node->get_pc(), state_out, expr_true(m_ctx)/*, t.get_start_state()*/, state_assumes, te_comment));
-    t.add_edge(e);
-    from_node = intermediate_node;
+    // == intermediate edge 1 ==
+    from_node = intermediate_node0;
     state_out = state_in;
     state_assumes.clear();
 
-    expr_ref new_mem_alloc_expr = m_ctx->mk_alloca(mem_alloc_e, ml_local, name_expr, local_size_expr);
-    expr_ref new_mem_expr = m_ctx->mk_store_uninit(mem_e, new_mem_alloc_expr, ml_local, name_expr, local_size_expr, local_alloc_count_var/*uninit_nonce*/);
-    //expr_ref new_nonce_val = m_ctx->mk_bvadd(uninit_nonce, m_ctx->mk_onebv(uninit_nonce->get_sort()->get_size()));
+    expr_ref mem_alloc_e = state_get_expr(state_in, m_mem_alloc_reg, this->get_mem_alloc_sort());
+    // local.<id>            <- alloca_ptr
+    // local.alloc.count.ssa <- local.alloc.count
+    state_set_expr(state_out, local_addr_key, m_ctx->get_local_ptr_expr_for_id(local_id, local_alloc_count_var, mem_alloc_e, ml_local, local_size_var));
+    state_set_expr(state_out, m_ctx->get_local_alloc_count_ssa_varname(this->get_srcdst_keyword(), local_id)->get_str(), local_alloc_count_var);
+    dshared_ptr<tfg_node> intermediate_node1 = get_next_intermediate_subsubindex_pc_node(t, from_node);
+    ASSERT(intermediate_node1);
+    tfg_edge_ref e1 = mk_tfg_edge(mk_itfg_edge(from_node->get_pc(), intermediate_node1->get_pc(), state_out, expr_true(m_ctx), state_assumes, te_comment));
+    t.add_edge(e1);
 
-    //string uninit_nonce_key = m_ctx->get_key_from_input_expr(uninit_nonce)->get_str();
+    // == intermediate edge 2 ==
+    from_node = intermediate_node1;
+    state_out = state_in;
+    state_assumes.clear();
 
-    // mem.alloc <- alloca
-    // mem <- store_unint
-    // local.id.uninit_nonce <- (local.id.uninit_nonce+1)
-    state_set_expr(state_out, m_mem_alloc_reg, new_mem_alloc_expr);
-    state_set_expr(state_out, m_mem_reg, new_mem_expr);
-    //state_set_expr(state_out, uninit_nonce_key, new_nonce_val);
-    state_set_expr(state_out, iname, name_expr);
-    state_set_expr(state_out, m_ctx->get_local_alloc_count_varname(this->get_srcdst_keyword())->get_str(), m_ctx->mk_increment_count(local_alloc_count_var));
-
-    // // before alloca, the original memlabel was stack -- this is not sound for allocation in a loop
-    // expr_ref orig_ml_was_stack_assume = m_ctx->mk_ismemlabel(state_get_expr(state_in, m_mem_alloc_reg, this->get_mem_alloc_sort()), name_expr, local_size_expr, memlabel_t::memlabel_stack());
-    // state_assumes.insert(orig_ml_was_stack_assume);
     // alloca returned addr can never be 0
-    expr_ref ret_addr_non_zero_assume = m_ctx->mk_not(m_ctx->mk_eq(name_expr, m_ctx->mk_zerobv(get_word_length())));
-    state_assumes.insert(ret_addr_non_zero_assume);
+    expr_ref ret_addr_non_zero = m_ctx->mk_not(m_ctx->mk_eq(local_addr_var, m_ctx->mk_zerobv(get_word_length())));
+    state_assumes.insert(ret_addr_non_zero);
     // alloca returned addr does not cause overflow: alloca_ptr <= (alloca_ptr + size - 1)
-    expr_ref ret_addr_no_overflow = m_ctx->mk_bvule(name_expr, m_ctx->mk_bvadd(name_expr, m_ctx->mk_bvsub(local_size_expr, m_ctx->mk_onebv(get_word_length()))));
+    expr_ref ret_addr_no_overflow = m_ctx->mk_bvule(local_addr_var, m_ctx->mk_bvadd(local_addr_var, m_ctx->mk_bvsub(local_size_var, m_ctx->mk_onebv(get_word_length()))));
     state_assumes.insert(ret_addr_no_overflow);
     if (align != 0) {
       // alloca returned addr is aligned
-      expr_ref isaligned_assume = m_ctx->mk_islangaligned(name_expr, align);
-      state_assumes.insert(isaligned_assume);
+      expr_ref isaligned = m_ctx->mk_islangaligned(local_addr_var, align);
+      state_assumes.insert(isaligned);
     }
+    // <llvm-var> <- local.<id>
+    state_set_expr(state_out, iname, local_addr_var);
+    dshared_ptr<tfg_node> intermediate_node2 = get_next_intermediate_subsubindex_pc_node(t, from_node);
+    ASSERT(intermediate_node2);
+    tfg_edge_ref e2 = mk_tfg_edge(mk_itfg_edge(from_node->get_pc(), intermediate_node2->get_pc(), state_out, expr_true(m_ctx), state_assumes, te_comment));
+    t.add_edge(e2);
+
+    // == intermediate edge 3 ==
+    from_node = intermediate_node2;
+    state_out = state_in;
+    state_assumes.clear();
+
+    // mem.alloc <- alloca
+    state_set_expr(state_out, m_mem_alloc_reg, m_ctx->mk_alloca(mem_alloc_e, ml_local, local_addr_var, local_size_var));
+    dshared_ptr<tfg_node> intermediate_node3 = get_next_intermediate_subsubindex_pc_node(t, from_node);
+    ASSERT(intermediate_node3);
+    tfg_edge_ref e3 = mk_tfg_edge(mk_itfg_edge(from_node->get_pc(), intermediate_node3->get_pc(), state_out, expr_true(m_ctx), state_assumes, te_comment));
+    t.add_edge(e3);
+
+    // == store_unint edge ==
+    from_node = intermediate_node3;
+    state_out = state_in;
+    state_assumes.clear();
+
+    expr_ref mem_e = state_get_expr(state_in, m_mem_reg, this->get_mem_sort());
+    // mem               <- store_unint
+    // local.alloc.count <- local.alloc.count+1
+    state_set_expr(state_out, m_mem_reg, m_ctx->mk_store_uninit(mem_e, mem_alloc_e, ml_local, local_addr_var, local_size_var, local_alloc_count_var));
+    state_set_expr(state_out, m_ctx->get_local_alloc_count_varname(this->get_srcdst_keyword())->get_str(), m_ctx->mk_increment_count(local_alloc_count_var));
+
     break;
   }
   case Instruction::Store:
