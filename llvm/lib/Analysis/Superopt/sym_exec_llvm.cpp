@@ -2873,16 +2873,11 @@ state
 sym_exec_llvm::parse_stacksave_intrinsic(Instruction const& I, tfg& t, pc const& pc_from)
 {
   const CallInst& CI = cast<CallInst>(I);
-  // llvm.stacksave returns an opaque pointer value which can be passed to
-  // stackrestore.  We track scopes using this pointer value as identifier.
+  // llvm.stacksave returns an opaque pointer value which can be passed to stackrestore.
   string opaque_keyname = get_value_name(CI);
   string opaque_varname = string(G_INPUT_KEYWORD ".") + opaque_keyname;
 
-  tfg_llvm_t* t_llvm = dynamic_cast<tfg_llvm_t *>(&t);
-  ASSERT(t_llvm);
-  t_llvm->tfg_llvm_add_scope_begin_at_pc(opaque_varname, pc_from);
-
-  //also let's save the current state of mem.alloc in an SSA var
+  //let's save the current state of mem.alloc in an SSA var
   state state_in, state_out;
   expr_ref mem_alloc_e = state_get_expr(state_in, m_mem_alloc_reg, this->get_mem_alloc_sort());
   string memalloc_ssa_varname = opaque_keyname + "." + G_MEMALLOC_SSA_VARNAME_SUFFIX;
@@ -2907,10 +2902,6 @@ sym_exec_llvm::parse_stackrestore_intrinsic(Instruction const& I, tfg& t, pc con
     return state_in;
   }
   string opaque_varname = string(G_INPUT_KEYWORD ".") + get_value_name(*v);
-
-  tfg_llvm_t* t_llvm = dynamic_cast<tfg_llvm_t *>(&t);
-  ASSERT(t_llvm);
-  t_llvm->tfg_llvm_add_scope_end_at_pc(opaque_varname, pc_from);
 
   if (!m_opaque_varname_to_memalloc_map.count(opaque_varname)) {
     cout << _FNLN_ << ": opaque_varname = " << opaque_varname << endl;
