@@ -1108,7 +1108,7 @@ sym_exec_llvm::apply_va_start_function(const CallInst* c, state const& state_in,
   tie(va_list_ptr_expr, assumes) = get_expr_adding_edges_for_intermediate_vals(*va_list_ptr, state_out, assumes, from_node, t, value_to_name_map);
 
   //expr_ref vararg_addr = m_ctx->get_consts_struct().get_expr_value(reg_type_local, graph_locals_map_t::vararg_local_id());
-  expr_ref vararg_addr = m_ctx->get_consts_struct().get_local_addr(reg_type_local, allocstack_t::allocstack_singleton(fname, graph_locals_map_t::vararg_local_id()), m_srcdst_keyword);
+  expr_ref vararg_addr = m_ctx->get_consts_struct().get_local_addr(reg_type_local, graph_locals_map_t::vararg_local_id(), m_srcdst_keyword);
   expr_ref mem_alloc = state_get_expr(state_in, this->m_mem_alloc_reg, this->get_mem_alloc_sort());
   memlabel_t ml_top = memlabel_t::memlabel_top();
   unsigned count = get_word_length()/get_memory_addressable_size();
@@ -1511,7 +1511,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     allocsite_t local_id(from_node->get_pc());
     allocstack_t local_id_stack = allocstack_t::allocstack_singleton(mk_string_ref(cur_function_name), local_id);
     memlabel_t ml_local = memlabel_t::memlabel_local(local_id_stack);
-    expr_ref local_addr_var = m_cs.get_local_addr(reg_type_local, local_id_stack, m_srcdst_keyword);
+    expr_ref local_addr_var = m_cs.get_local_addr(reg_type_local, local_id, m_srcdst_keyword);
 
     string local_addr_key = m_ctx->get_key_from_input_expr(local_addr_var)->get_str();
     m_local_refs.insert(make_pair(local_id, graph_local_t(local_addr_key, local_size, align, is_varsize)));
