@@ -1543,6 +1543,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     state_out = state_in;
     state_assumes.clear();
 
+    expr_ref mem_e = state_get_expr(state_in, m_mem_reg, this->get_mem_sort());
     expr_ref mem_alloc_e = state_get_expr(state_in, m_mem_alloc_reg, this->get_mem_alloc_sort());
     // local.<id>            <- alloca_ptr
     // local.alloc.count.ssa <- local.alloc.count
@@ -1582,23 +1583,22 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     state_assumes.clear();
 
     // mem.alloc <- alloca
-    state_set_expr(state_out, m_mem_alloc_reg, m_ctx->mk_alloca(mem_alloc_e, ml_local, local_addr_var, local_size_var));
+    // mem       <- store_unint
+    expr_ref new_mem_alloc = m_ctx->mk_alloca(mem_alloc_e, ml_local, local_addr_var, local_size_var);
+    state_set_expr(state_out, m_mem_alloc_reg, new_mem_alloc);
+    state_set_expr(state_out, m_mem_reg, m_ctx->mk_store_uninit(mem_e, new_mem_alloc, ml_local, local_addr_var, local_size_var, local_alloc_count_var));
     dshared_ptr<tfg_node> intermediate_node3 = get_next_intermediate_subsubindex_pc_node(t, from_node);
     ASSERT(intermediate_node3);
     tfg_edge_ref e3 = mk_tfg_edge(mk_itfg_edge(from_node->get_pc(), intermediate_node3->get_pc(), state_out, expr_true(m_ctx), state_assumes, te_comment));
     t.add_edge(e3);
 
-    // == store_unint edge ==
+    // == intermediate edge 4 ==
     from_node = intermediate_node3;
     state_out = state_in;
     state_assumes.clear();
 
-    expr_ref mem_e = state_get_expr(state_in, m_mem_reg, this->get_mem_sort());
-    // mem               <- store_unint
     // local.alloc.count <- local.alloc.count+1
-    state_set_expr(state_out, m_mem_reg, m_ctx->mk_store_uninit(mem_e, mem_alloc_e, ml_local, local_addr_var, local_size_var, local_alloc_count_var));
     state_set_expr(state_out, m_ctx->get_local_alloc_count_varname(this->get_srcdst_keyword())->get_str(), m_ctx->mk_increment_count(local_alloc_count_var));
-
     break;
   }
   case Instruction::Store:
