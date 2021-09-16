@@ -1509,7 +1509,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     }
 
     allocsite_t local_id(from_node->get_pc());
-    allocstack_t local_id_stack = allocstack_t::allocstack_singleton(mk_string_ref(cur_function_name), local_id);
+    allocstack_t local_id_stack = allocstack_t::allocstack_singleton(DUMMY_FNAME, local_id);
     memlabel_t ml_local = memlabel_t::memlabel_local(local_id_stack);
     expr_ref local_addr_var = m_cs.get_local_addr(reg_type_local, local_id, m_srcdst_keyword);
 
@@ -1801,11 +1801,24 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     if (succ_assumes.size()) {
       // create extra edge for adding assumes related to the function return value target
       dshared_ptr<tfg_node> intermediate_node = get_next_intermediate_subsubindex_pc_node(t, from_node);
-      tfg_edge_ref e = mk_tfg_edge(mk_itfg_edge(from_node->get_pc(), intermediate_node->get_pc(), state_out, expr_true(m_ctx)/*, t.get_start_state()*/, state_assumes, te_comment));
+      tfg_edge_ref e = mk_tfg_edge(mk_itfg_edge(from_node->get_pc(), intermediate_node->get_pc(), state_out, expr_true(m_ctx), state_assumes, te_comment));
       t.add_edge(e);
 
       state_assumes = succ_assumes;
       state_out = state_in;
+      from_node = t.find_node(intermediate_node->get_pc());
+      ASSERT(from_node);
+    }
+
+    state state_out_heap_allocfree;
+    unordered_set<expr_ref> heap_allocfree_assumes;
+    if (ftmap_t::function_name_represents_mallocfree(fun_name, from_node->get_pc(), state_out, m_mem_alloc_reg, m_mem_reg, m_memory_addressable_size, state_out_heap_allocfree, heap_allocfree_assumes)) {
+      dshared_ptr<tfg_node> intermediate_node = get_next_intermediate_subsubindex_pc_node(t, from_node);
+      tfg_edge_ref e = mk_tfg_edge(mk_itfg_edge(from_node->get_pc(), intermediate_node->get_pc(), state_out, expr_true(m_ctx), state_assumes, te_comment));
+      t.add_edge(e);
+
+      state_assumes = heap_allocfree_assumes;
+      state_out = state_out_heap_allocfree;
       from_node = t.find_node(intermediate_node->get_pc());
       ASSERT(from_node);
     }
