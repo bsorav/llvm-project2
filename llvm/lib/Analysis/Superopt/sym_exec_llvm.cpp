@@ -2741,8 +2741,13 @@ sym_exec_llvm::get_tfg(llvm::Function& F, llvm::Module const *M, string const &n
 
   t->tfg_initialize_rounding_mode_on_start_edge(se.get_cur_rounding_mode_varname(), se.m_rounding_mode_at_start_pc);
 
-  t->set_symbol_map_for_touched_symbols(*se.m_symbol_map, se.m_touched_symbols);
-  t->set_string_contents_for_touched_symbols_at_zero_offset(*se.m_string_contents, se.m_touched_symbols);
+  //t->set_symbol_map_for_touched_symbols(*se.m_symbol_map, se.m_touched_symbols);
+  //t->set_string_contents_for_touched_symbols_at_zero_offset(*se.m_string_contents, se.m_touched_symbols);
+
+  set<symbol_id_t> all_symbols = map_get_keys(se.m_symbol_map->get_map());
+  t->set_symbol_map_for_touched_symbols(*se.m_symbol_map, all_symbols);
+  t->set_string_contents_for_touched_symbols_at_zero_offset(*se.m_string_contents, all_symbols);
+
   t->remove_function_name_from_symbols(name);
   t->populate_exit_return_values_for_llvm_method();
   t->canonicalize_llvm_nextpcs(src_llvm_tfg);
