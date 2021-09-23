@@ -252,8 +252,10 @@ main(int argc, char **argv)
     progress_flag = 1;
   }
 
-  ftmap_t function_tfg_map = sym_exec_llvm::get_function_tfg_map(M1.get(), FunNamesVec/*, DisableModelingOfUninitVarUB ? true : false*/, ctx, src_llptfg, !NoGenScev, nullptr, xml_output_format);
-  function_tfg_map.ftmap_run_pointsto_analysis(xml_output_format);
+  dshared_ptr<ftmap_t> function_tfg_map = sym_exec_llvm::get_function_tfg_map(M1.get(), FunNamesVec/*, DisableModelingOfUninitVarUB ? true : false*/, ctx, src_llptfg, !NoGenScev, nullptr, xml_output_format);
+  function_tfg_map->ftmap_run_pointsto_analysis(xml_output_format);
+  //t->tfg_populate_relevant_memlabels(src_llvm_tfg);
+  function_tfg_map->ftmap_add_start_pc_preconditions_for_each_tfg(/*se.m_srcdst_keyword*/);
 
   string llvm_header = M1->get_llvm_header_as_string();
   list<string> type_decls = M1->get_type_declarations_as_string();
@@ -268,7 +270,7 @@ main(int argc, char **argv)
   list<string> llvm_metadata = M1->get_metadata_as_string();
 
   autostop_timer func2_timer(string(__func__) + ".2");
-  llptfg_t llptfg(llvm_header, type_decls, globals_with_initializers, function_decls, function_tfg_map, fname_signature_map, fname_attributes_map.first, fname_linker_status_map, fname_attributes_map.second, llvm_metadata);
+  llptfg_t llptfg(llvm_header, type_decls, globals_with_initializers, function_decls, *function_tfg_map, fname_signature_map, fname_attributes_map.first, fname_linker_status_map, fname_attributes_map.second, llvm_metadata);
   llptfg.print(outputStream);
   //for (auto ft : function_tfg_map) {
   //  string const &fname = ft.first;

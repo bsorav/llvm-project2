@@ -2760,8 +2760,6 @@ sym_exec_llvm::get_tfg(llvm::Function& F, llvm::Module const *M, string const &n
 
   t->tfg_llvm_set_sorted_bbl_indices(sorted_bbl_indices);
   t->tfg_preprocess(false/*, src_llvm_tfg*//*, xml_output_format*/);
-  t->tfg_populate_relevant_memlabels(src_llvm_tfg);
-  t->tfg_llvm_add_start_pc_preconditions(se.m_srcdst_keyword);
 
   return t;
 }
@@ -3943,7 +3941,7 @@ sym_exec_llvm::sym_exec_populate_potential_scev_relations(Module* M, string cons
   return scev_map;
 }
 
-ftmap_t
+dshared_ptr<ftmap_t>
 sym_exec_llvm::get_function_tfg_map(Module* M, set<string> FunNamesVec/*, bool DisableModelingOfUninitVarUB*/, context* ctx, dshared_ptr<llptfg_t const> const& src_llptfg, bool gen_scev, map<llvm_value_id_t, string_ref>* value_to_name_map, context::xml_output_format_t xml_output_format)
 {
   //map<string, pair<callee_summary_t, dshared_ptr<tfg_llvm_t>>> function_tfg_map;
@@ -4020,7 +4018,7 @@ sym_exec_llvm::get_function_tfg_map(Module* M, set<string> FunNamesVec/*, bool D
       p.second->graph_to_stream(cout); cout << endl;
     }
   );
-  return ftmap_t(function_tfg_map);
+  return make_dshared<ftmap_t>(function_tfg_map);
 }
 
 llvm_value_id_t
