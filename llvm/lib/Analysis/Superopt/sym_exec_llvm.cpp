@@ -1813,7 +1813,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
 
     state state_out_heap_allocfree;
     unordered_set<expr_ref> heap_allocfree_assumes;
-    if (ftmap_t::function_name_represents_mallocfree(fun_name, from_node->get_pc(), fcall_state, m_mem_alloc_reg, m_mem_reg, m_word_length, state_out_heap_allocfree, heap_allocfree_assumes)) {
+    if (ftmap_t::function_name_represents_mallocfree(cur_function_name, fun_name, from_node->get_pc(), fcall_state, m_mem_alloc_reg, m_mem_reg, m_word_length, state_out_heap_allocfree, heap_allocfree_assumes)) {
       dshared_ptr<tfg_node> intermediate_node = get_next_intermediate_subsubindex_pc_node(t, from_node);
       tfg_edge_ref e = mk_tfg_edge(mk_itfg_edge(from_node->get_pc(), intermediate_node->get_pc(), state_out, expr_true(m_ctx), state_assumes, te_comment));
       t.add_edge(e);
@@ -3945,7 +3945,7 @@ dshared_ptr<ftmap_t>
 sym_exec_llvm::get_function_tfg_map(Module* M, set<string> FunNamesVec/*, bool DisableModelingOfUninitVarUB*/, context* ctx, dshared_ptr<llptfg_t const> const& src_llptfg, bool gen_scev, map<llvm_value_id_t, string_ref>* value_to_name_map, context::xml_output_format_t xml_output_format)
 {
   //map<string, pair<callee_summary_t, dshared_ptr<tfg_llvm_t>>> function_tfg_map;
-  map<string, dshared_ptr<tfg_llvm_t>> function_tfg_map;
+  map<string, dshared_ptr<tfg>> function_tfg_map;
 
   DYN_DEBUG3(llvm2tfg,
     cout.flush();
@@ -3986,9 +3986,10 @@ sym_exec_llvm::get_function_tfg_map(Module* M, set<string> FunNamesVec/*, bool D
 
     dshared_ptr<tfg_llvm_t const> src_llvm_tfg = dshared_ptr<tfg_llvm_t const>::dshared_nullptr();
     if (src_llptfg) {
-      map<string, dshared_ptr<tfg_llvm_t>> const& src_fname_tfg_map = src_llptfg->get_function_tfg_map();
+      map<string, dshared_ptr<tfg>> const& src_fname_tfg_map = src_llptfg->get_function_tfg_map();
       if (src_fname_tfg_map.count(fname)) {
-        src_llvm_tfg = src_fname_tfg_map.at(fname);
+        src_llvm_tfg = dynamic_pointer_cast<tfg_llvm_t>(src_fname_tfg_map.at(fname));
+        ASSERT(src_llvm_tfg);
       }
     }
 
