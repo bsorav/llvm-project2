@@ -1507,7 +1507,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     expr_ref local_addr_var = m_cs.get_local_addr(reg_type_local, local_id, m_srcdst_keyword);
 
     string local_addr_key = m_ctx->get_key_from_input_expr(local_addr_var)->get_str();
-    m_local_refs.insert(make_pair(local_id, graph_local_t(local_addr_key, local_size, align, is_varsize)));
+    m_local_refs.insert(make_pair(local_id, graph_local_t(iname, local_size, align, is_varsize)));
 
     expr_ref local_size_val;
     if (is_varsize) {
