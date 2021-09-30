@@ -1559,17 +1559,17 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     state_out = state_in;
     state_assumes.clear();
 
-    // alloca returned addr can never be 0
-    expr_ref ret_addr_non_zero = m_ctx->mk_not(m_ctx->mk_eq(local_addr_var, m_ctx->mk_zerobv(get_word_length())));
-    state_assumes.insert(ret_addr_non_zero);
-    // alloca returned addr does not cause overflow: alloca_ptr <= (alloca_ptr + size - 1)
-    expr_ref ret_addr_no_overflow = m_ctx->mk_bvule(local_addr_var, m_ctx->mk_bvadd(local_addr_var, m_ctx->mk_bvsub(local_size_var, m_ctx->mk_onebv(get_word_length()))));
-    state_assumes.insert(ret_addr_no_overflow);
-    if (align != 0) {
-      // alloca returned addr is aligned
-      expr_ref isaligned = m_ctx->mk_islangaligned(local_addr_var, align);
-      state_assumes.insert(isaligned);
-    }
+    //// alloca returned addr can never be 0
+    //expr_ref ret_addr_non_zero = m_ctx->mk_not(m_ctx->mk_eq(local_addr_var, m_ctx->mk_zerobv(get_word_length())));
+    //state_assumes.insert(ret_addr_non_zero);
+    //// alloca returned addr does not cause overflow: alloca_ptr <= (alloca_ptr + size - 1)
+    //expr_ref ret_addr_no_overflow = m_ctx->mk_bvule(local_addr_var, m_ctx->mk_bvadd(local_addr_var, m_ctx->mk_bvsub(local_size_var, m_ctx->mk_onebv(get_word_length()))));
+    //state_assumes.insert(ret_addr_no_overflow);
+    //if (align != 0) {
+    //  // alloca returned addr is aligned
+    //  expr_ref isaligned = m_ctx->mk_islangaligned(local_addr_var, align);
+    //  state_assumes.insert(isaligned);
+    //}
     // <llvm-var> <- local.<id>
     state_set_expr(state_out, iname, local_addr_var);
     dshared_ptr<tfg_node> intermediate_node2 = get_next_intermediate_subsubindex_pc_node(t, from_node);
