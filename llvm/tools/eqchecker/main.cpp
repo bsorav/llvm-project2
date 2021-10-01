@@ -253,7 +253,7 @@ main(int argc, char **argv)
   }
 
   dshared_ptr<ftmap_t> function_tfg_map = sym_exec_llvm::get_function_tfg_map(M1.get(), FunNamesVec/*, DisableModelingOfUninitVarUB ? true : false*/, ctx, src_llptfg, !NoGenScev, nullptr, xml_output_format);
-  function_tfg_map->ftmap_run_pointsto_analysis(false, dshared_ptr<tfg_llvm_t const>::dshared_nullptr(), {}, xml_output_format);
+  function_tfg_map->ftmap_run_pointsto_analysis(false, dshared_ptr<tfg_llvm_t const>::dshared_nullptr(), {}, true, xml_output_format);
   //t->tfg_populate_relevant_memlabels(src_llvm_tfg);
   function_tfg_map->ftmap_add_start_pc_preconditions_for_each_tfg(/*se.m_srcdst_keyword*/);
 
