@@ -185,7 +185,7 @@ sym_exec_llvm::get_const_value_expr(const llvm::Value& v/*, string vname*/, cons
   {
     unsigned size = c->getBitWidth();
     if(size > 1)
-      return make_pair(m_ctx->mk_bv_const(size, c->getZExtValue()), state_assumes);
+      return make_pair(m_ctx->mk_nondet_bv_const(size, c->getZExtValue()), state_assumes);
     else if(c->getZExtValue() == 0)
       return make_pair(m_ctx->mk_bool_false(), state_assumes);
     else
@@ -318,9 +318,11 @@ vector<sort_ref> sym_exec_common::get_type_sort_vec(llvm::Type* t, DataLayout co
   {
     unsigned size = itype->getBitWidth();
     if(size == 1) {
-      sv.push_back(m_ctx->mk_bool_sort());
+      //sv.push_back(m_ctx->mk_bool_sort());
+      sv.push_back(m_ctx->mk_nondet_bool_sort());
     } else {
-      sv.push_back(m_ctx->mk_bv_sort(size));
+      //sv.push_back(m_ctx->mk_bv_sort(size));
+      sv.push_back(m_ctx->mk_nondet_bv_sort(size));
     }
     return sv;
   }
@@ -395,9 +397,9 @@ sym_exec_llvm::getTypeString(Type *T)
 
 unsigned sym_exec_common::get_bv_bool_size(sort_ref e) const
 {
-  if(e->is_bv_kind())
+  if(e->is_bv_kind() || e->is_nondet_bv_kind())
     return e->get_size();
-  else if(e->is_bool_kind())
+  else if(e->is_bool_kind() || e->is_nondet_bool_kind())
     return 1;
   else
     unreachable();
@@ -680,10 +682,10 @@ sym_exec_llvm::get_expr_adding_edges_for_intermediate_vals(const Value& v/*, str
 {
   if (isa<const UndefValue>(&v)) {
     sort_ref s = get_type_sort(v.getType(), m_module->getDataLayout());
-    if (!(s->is_bv_kind() || s->is_bool_kind())) {
+    if (!(s->is_bv_kind() || s->is_bool_kind() || s->is_nondet_bool_kind() || s->is_nondet_bv_kind())) {
       cout << __func__ << " " << __LINE__ << ": s = " << s->to_string() << endl;
     }
-    ASSERT(s->is_bv_kind() || s->is_bool_kind());
+    ASSERT(s->is_bv_kind() || s->is_bool_kind() || s->is_nondet_bool_kind() || s->is_nondet_bv_kind());
     expr_ref a = m_ctx->mk_var(LLVM_UNDEF_VARIABLE_NAME, s);
     return make_pair(a, state_assumes);
   } else if (isa<const Constant>(&v)) {
@@ -1243,9 +1245,9 @@ sym_exec_llvm::apply_general_function(const CallInst* c, expr_ref fun_name_expr,
     for (size_t r = 0; r < ret_sort_vec.size(); r++) {
       sort_ref ret_sort = ret_sort_vec.at(r);
       size_t bvsize;
-      if (ret_sort->is_bv_kind()) {
+      if (ret_sort->is_bv_kind() || ret_sort->is_nondet_bv_kind()) {
         bvsize = ret_sort->get_size();
-      } else if (ret_sort->is_bool_kind()) {
+      } else if (ret_sort->is_bool_kind() || ret_sort->is_nondet_bool_kind()) {
         bvsize = 1;
       } else NOT_REACHED();
 
@@ -1439,7 +1441,8 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     for (size_t i = 0; i < LLVM_NUM_CALLEE_SAVE_REGS; i++) {
       stringstream ss;
       ss << G_INPUT_KEYWORD "." << m_srcdst_keyword << "." LLVM_CALLEE_SAVE_REGNAME << "." << i;
-      expr_ref csreg = m_ctx->mk_var(ss.str(), m_ctx->mk_bv_sort(ETFG_EXREG_LEN(ETFG_EXREG_GROUP_GPRS)));
+      expr_ref csreg = m_ctx->mk_var(ss.str(), m_ctx->mk_nondet_bv_sort(ETFG_EXREG_LEN(ETFG_EXREG_GROUP_GPRS)));
+      //expr_ref csreg = m_ctx->mk_var(ss.str(), m_ctx->mk_bv_sort(ETFG_EXREG_LEN(ETFG_EXREG_GROUP_GPRS)));
       state_set_expr(state_out, m_srcdst_keyword + ("." G_LLVM_HIDDEN_REGISTER_NAME), m_ctx->mk_bvxor(state_get_expr(state_out, m_srcdst_keyword + "." G_LLVM_HIDDEN_REGISTER_NAME, csreg->get_sort()), csreg));
     }
     control_flow_transfer cft(from_node->get_pc(), pc(pc::exit), m_ctx->mk_bool_true(), m_cs.get_retaddr_const(), {});
@@ -1586,7 +1589,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     //  break;
     //}
     sort_ref value_type = get_value_type(*l, m_module->getDataLayout());
-    ASSERTCHECK(value_type->is_bv_kind(), cout << __func__ << " " << __LINE__ << ": value_type = " << value_type->to_string() << endl);
+    ASSERTCHECK(value_type->is_bv_kind() || value_type->is_nondet_bv_kind(), cout << __func__ << " " << __LINE__ << ": value_type = " << value_type->to_string() << endl);
     memlabel_t ml_top;
     memlabel_t::keyword_to_memlabel(&ml_top, G_MEMLABEL_TOP_SYMBOL, MEMSIZE_MAX);
     unsigned count = value_type->get_size()/get_memory_addressable_size();
@@ -2639,7 +2642,8 @@ sym_exec_llvm::expand_switch(tfg &t, dshared_ptr<tfg_node> const &from_node, vec
     state_set_expr(state_to_newvar, new_varname, edgecond);
     // edge for setting switch tmpvar
     shared_ptr<tfg_edge const> e1 = mk_tfg_edge(mk_itfg_edge(cur_node->get_pc(), intermediate_pc, state_to_newvar, expr_true(m_ctx)/*, t.get_start_state()*/, assumes, te_comment));
-    expr_ref new_var = get_input_expr(new_varname, m_ctx->mk_bool_sort());
+    //expr_ref new_var = get_input_expr(new_varname, m_ctx->mk_bool_sort());
+    expr_ref new_var = get_input_expr(new_varname, m_ctx->mk_nondet_bool_sort());
     //new_cfts.push_back(control_flow_transfer(intermediate_pc, to_pc, new_var));
     // edge for case jump
     shared_ptr<tfg_edge const> ep = mk_tfg_edge(mk_itfg_edge(intermediate_pc, to_pc, state_to, new_var/*, t.get_start_state()*/, {}, te_comment));
