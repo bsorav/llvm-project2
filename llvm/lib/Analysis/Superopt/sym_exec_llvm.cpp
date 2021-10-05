@@ -1509,7 +1509,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     }
 
     allocsite_t local_id(from_node->get_pc());
-    allocstack_t local_id_stack = allocstack_t::allocstack_singleton(DUMMY_FNAME, local_id);
+    allocstack_t local_id_stack = allocstack_t::allocstack_singleton(cur_function_name, local_id);
     memlabel_t ml_local = memlabel_t::memlabel_local(local_id_stack);
     expr_ref local_addr_var = m_cs.get_local_addr(reg_type_local, local_id, m_srcdst_keyword);
 
