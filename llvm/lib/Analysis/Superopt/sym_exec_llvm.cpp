@@ -1514,7 +1514,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     expr_ref local_addr_var = m_cs.get_local_addr(reg_type_local, local_id, m_srcdst_keyword);
 
     string local_addr_key = m_ctx->get_key_from_input_expr(local_addr_var)->get_str();
-    m_local_refs.insert(make_pair(local_id, graph_local_t(local_addr_key, local_size, align, is_varsize)));
+    m_local_refs.insert(make_pair(local_id, graph_local_t(iname, local_size, align, is_varsize)));
 
     expr_ref local_size_val;
     if (is_varsize) {
@@ -1566,17 +1566,17 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     state_out = state_in;
     state_assumes.clear();
 
-    // alloca returned addr can never be 0
-    expr_ref ret_addr_non_zero = m_ctx->mk_not(m_ctx->mk_eq(local_addr_var, m_ctx->mk_zerobv(get_word_length())));
-    state_assumes.insert(ret_addr_non_zero);
-    // alloca returned addr does not cause overflow: alloca_ptr <= (alloca_ptr + size - 1)
-    expr_ref ret_addr_no_overflow = m_ctx->mk_bvule(local_addr_var, m_ctx->mk_bvadd(local_addr_var, m_ctx->mk_bvsub(local_size_var, m_ctx->mk_onebv(get_word_length()))));
-    state_assumes.insert(ret_addr_no_overflow);
-    if (align != 0) {
-      // alloca returned addr is aligned
-      expr_ref isaligned = m_ctx->mk_islangaligned(local_addr_var, align);
-      state_assumes.insert(isaligned);
-    }
+    //// alloca returned addr can never be 0
+    //expr_ref ret_addr_non_zero = m_ctx->mk_not(m_ctx->mk_eq(local_addr_var, m_ctx->mk_zerobv(get_word_length())));
+    //state_assumes.insert(ret_addr_non_zero);
+    //// alloca returned addr does not cause overflow: alloca_ptr <= (alloca_ptr + size - 1)
+    //expr_ref ret_addr_no_overflow = m_ctx->mk_bvule(local_addr_var, m_ctx->mk_bvadd(local_addr_var, m_ctx->mk_bvsub(local_size_var, m_ctx->mk_onebv(get_word_length()))));
+    //state_assumes.insert(ret_addr_no_overflow);
+    //if (align != 0) {
+    //  // alloca returned addr is aligned
+    //  expr_ref isaligned = m_ctx->mk_islangaligned(local_addr_var, align);
+    //  state_assumes.insert(isaligned);
+    //}
     // <llvm-var> <- local.<id>
     state_set_expr(state_out, iname, local_addr_var);
     dshared_ptr<tfg_node> intermediate_node2 = get_next_intermediate_subsubindex_pc_node(t, from_node);
@@ -3713,8 +3713,9 @@ sym_exec_common::get_tfg_common(tfg &t)
     ss << LLVM_METHOD_ARG_PREFIX << a.first;
     string argname = ss.str();
 
+    allocsite_t allocsite = m_ctx->is_vararg_local_expr(a.second) ? graph_locals_map_t::vararg_local_id()
+                                                                  : allocsite_t::allocsite_arg(a.first);
     ss.str("");
-    allocsite_t allocsite = allocsite_t::allocsite_arg(a.first);
     ss << string(G_INPUT_KEYWORD ".") << m_srcdst_keyword << "." << G_LOCAL_KEYWORD << "." << allocsite.allocsite_to_string();
     expr_ref arg_addr = m_ctx->mk_var(ss.str(), m_ctx->get_addr_sort());
     arg_exprs.insert(make_pair(mk_string_ref(argname), graph_arg_t(arg_addr, a.second)));
