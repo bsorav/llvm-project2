@@ -534,6 +534,7 @@ void sym_exec_common::populate_state_template_common()
   //}
   //m_state_templ.push_back({G_SRC_KEYWORD "." G_LLVM_HIDDEN_REGISTER_NAME, m_ctx->mk_bv_sort(ETFG_EXREG_LEN(ETFG_EXREG_GROUP_GPRS))});
   m_state_templ.push_back({m_mem_reg, mem_sort});
+  m_state_templ.push_back({m_mem_alloc_reg, get_mem_alloc_sort()});
   //m_state_templ.push_back({m_io_reg, io_sort});
 
   //m_state_templ.push_back({G_SRC_KEYWORD "." LLVM_CONTAINS_FLOAT_OP_SYMBOL, m_ctx->mk_bool_sort()});
