@@ -753,7 +753,7 @@ expr_ref
 sym_exec_common::state_get_expr(state const &st, string const &key, sort_ref const& s) const
 {
   if (st.has_expr(key)) {
-    return st.get_expr(key, st);
+    return st.get_expr(key);
   } else {
     return get_input_expr(key, s);
   }
@@ -1243,7 +1243,8 @@ sym_exec_llvm::apply_general_function(const CallInst* c, expr_ref fun_name_expr,
   m_memlabel_varnum++;
 
   expr_ref mem = state_get_expr(state_in, m_mem_reg, this->get_mem_sort());
-  expr_ref mem_alloc = get_corresponding_mem_alloc_from_mem_expr(mem);
+  expr_ref mem_alloc = state_get_expr(state_in, m_mem_alloc_reg, this->get_mem_alloc_sort());
+  //expr_ref mem_alloc = get_corresponding_mem_alloc_from_mem_expr(mem);
   //expr_ref zerobv = m_ctx->mk_zerobv(DWORD_LEN);
   args.push_back(ml_read_expr);
   args_type.push_back(ml_read_expr->get_sort());
