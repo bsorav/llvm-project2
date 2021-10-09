@@ -3709,13 +3709,11 @@ sym_exec_common::get_tfg_common(tfg &t)
   //unordered_set<predicate> assumes;
   for (const auto& arg : m_arguments) {
     pair<argnum_t, expr_ref> const &a = arg.second;
-    stringstream ss;
-    ss << LLVM_METHOD_ARG_PREFIX << a.first;
-    string argname = ss.str();
+    string argname = graph_arg_regs_t::get_argname_from_argnum(a.first);
 
     allocsite_t allocsite = m_ctx->is_vararg_local_expr(a.second) ? graph_locals_map_t::vararg_local_id()
                                                                   : allocsite_t::allocsite_arg(a.first);
-    ss.str("");
+    stringstream ss;
     ss << string(G_INPUT_KEYWORD ".") << m_srcdst_keyword << "." << G_LOCAL_KEYWORD << "." << allocsite.allocsite_to_string();
     expr_ref arg_addr = m_ctx->mk_var(ss.str(), m_ctx->get_addr_sort());
     arg_exprs.insert(make_pair(mk_string_ref(argname), graph_arg_t(arg_addr, a.second)));
