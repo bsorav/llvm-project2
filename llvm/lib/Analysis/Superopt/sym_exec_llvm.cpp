@@ -1412,9 +1412,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
       control_flow_transfer cft2(from_node->get_pc(), get_pc_from_bbindex_and_insn_id(get_basicblock_index(*i->getSuccessor(1)), 0), m_ctx->mk_not(e), cond_assumes);
       cfts.push_back(cft2);
 
-      if (model_llvm_semantics) {
-        add_poison_freedom_assume(e, state_assumes);
-      }
+      transfer_poison_values("", e, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map);
     }
     else
       assert(false);
@@ -1469,9 +1467,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     cfts = expand_switch(t, from_node, cfts, state_out, cond_assumes, te_comment, (Instruction *)&I, B, F, eimap);
     //cout << __func__ << " " << __LINE__ << ": cft cond = " << expr_string(cft.get_condition()) << ", src = " << cft.get_from_pc() << ", dest = " << cft.get_to_pc() << endl;
 
-    if (model_llvm_semantics) {
-      add_poison_freedom_assume(CondVal, state_assumes);
-    }
+    transfer_poison_values("", CondVal, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map);
     break;
   }
   case Instruction::Ret:
@@ -1681,9 +1677,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
       //t.add_assume_pred(from_node->get_pc(), p3);
     }
 
-    if (model_llvm_semantics) {
-      add_poison_freedom_assume(addr, state_assumes);
-    }
+    transfer_poison_values("", addr, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map);
     break;
   }
   case Instruction::Load:
@@ -1758,9 +1752,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     from_node = t.find_node(intermediate_node->get_pc());
     ASSERT(from_node);
 
-    if (model_llvm_semantics) {
-      add_poison_freedom_assume(addr, state_assumes);
-    }
+    transfer_poison_values("", addr, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map);
     break;
   }
   case Instruction::Call:
@@ -4146,12 +4138,14 @@ sym_exec_llvm::get_poison_value_var(string const& varname) const
 }
 
 void
-sym_exec_llvm::add_poison_freedom_assume(expr_ref const& e, unordered_set<expr_ref>& state_assumes) const
+sym_exec_llvm::transfer_poison_values(string const& varname, expr_ref const& e, unordered_set<expr_ref>& state_assumes, dshared_ptr<tfg_node>& from_node, bool model_llvm_semantics, tfg& t, map<llvm_value_id_t, string_ref>* value_to_name_map)
 {
-  if (e->is_const()) {
+  if (!model_llvm_semantics) {
     return;
   }
+
   expr_list vars = m_ctx->expr_get_vars(e);
+  set<expr_ref> poison_vars;
   for (auto const& v : vars) {
     string varname = v->get_name()->get_str();
     if (!string_has_prefix(varname, G_INPUT_KEYWORD ".")) {
@@ -4163,7 +4157,31 @@ sym_exec_llvm::add_poison_freedom_assume(expr_ref const& e, unordered_set<expr_r
       continue;
     }
     expr_ref poison_var = get_input_expr(poison_varname, m_ctx->mk_bool_sort());
-    state_assumes.insert(m_ctx->mk_not(poison_var));
+    poison_vars.insert(poison_var);
+  }
+
+  expr_ref poison_expr;
+  for (auto const& poison_var : poison_vars) {
+    if (varname == "") {
+      state_assumes.insert(m_ctx->mk_not(poison_var));
+    } else {
+      poison_expr = expr_or(poison_expr, poison_var);
+    }
+  }
+
+  if (varname != "" && poison_expr) {
+    string poison_varname = get_poison_value_varname(varname);
+    if (!set_belongs(m_poison_varnames_seen, varname)) {
+      expr_ref poison_var = get_input_expr(poison_varname, m_ctx->mk_bool_sort());
+      poison_expr = expr_or(poison_var, poison_expr);
+    }
+
+    state state_to_intermediate_val;
+    state_set_expr(state_to_intermediate_val, poison_varname, poison_expr);
+    dshared_ptr<tfg_node> intermediate_node = get_next_intermediate_subsubindex_pc_node(t, from_node);
+    shared_ptr<tfg_edge const> e = mk_tfg_edge(mk_itfg_edge(from_node->get_pc(), intermediate_node->get_pc(), state_to_intermediate_val, expr_true(m_ctx), {}, te_comment_t(-1,-1,"poison")));
+    t.add_edge(e);
+    from_node = intermediate_node;
   }
 }
 
