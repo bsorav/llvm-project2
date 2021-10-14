@@ -55,7 +55,7 @@ public:
   {}
   virtual ~sym_exec_llvm() {}
 
-  void exec(const state& state_in, const llvm::Instruction& I/*, state& state_out, vector<control_flow_transfer>& cfts, bool &expand_switch_flag, unordered_set<predicate> &assumes*/, dshared_ptr<tfg_node> from_node, llvm::BasicBlock const &B, llvm::Function const &F, size_t next_insn_id, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, tfg &t/*, map<string, pair<callee_summary_t, dshared_ptr<tfg_llvm_t>>> *function_tfg_map*/, map<llvm_value_id_t, string_ref>* value_to_name_map/*, set<string> const *function_call_chain*/, map<shared_ptr<tfg_edge const>, llvm::Instruction *>& eimap, map<string, value_scev_map_t> const& scev_map, context::xml_output_format_t xml_output_format);
+  void exec(const state& state_in, const llvm::Instruction& I/*, state& state_out, vector<control_flow_transfer>& cfts, bool &expand_switch_flag, unordered_set<predicate> &assumes*/, dshared_ptr<tfg_node> from_node, llvm::BasicBlock const &B, llvm::Function const &F, size_t next_insn_id, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, bool model_llvm_semantics, tfg &t/*, map<string, pair<callee_summary_t, dshared_ptr<tfg_llvm_t>>> *function_tfg_map*/, map<llvm_value_id_t, string_ref>* value_to_name_map/*, set<string> const *function_call_chain*/, map<shared_ptr<tfg_edge const>, llvm::Instruction *>& eimap, map<string, value_scev_map_t> const& scev_map, context::xml_output_format_t xml_output_format);
 
   string get_cur_rounding_mode_varname() const;
   expr_ref get_cur_rounding_mode_var() const;
@@ -69,7 +69,7 @@ public:
   //sort_ref get_mem_domain() const;
   //sort_ref get_mem_range() const;
 
-  static dshared_ptr<tfg_llvm_t> get_tfg(llvm::Function& F, llvm::Module const *M, string const &name, context *ctx, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, map<llvm_value_id_t, string_ref>* value_to_name_map, map<shared_ptr<tfg_edge const>, llvm::Instruction *>& eimap, map<string, value_scev_map_t> const& scev_map, string const& srcdst_keyword, context::xml_output_format_t xml_output_format);
+  static dshared_ptr<tfg_llvm_t> get_tfg(llvm::Function& F, llvm::Module const *M, string const &name, context *ctx, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, bool model_llvm_semantics, map<llvm_value_id_t, string_ref>* value_to_name_map, map<shared_ptr<tfg_edge const>, llvm::Instruction *>& eimap, map<string, value_scev_map_t> const& scev_map, string const& srcdst_keyword, context::xml_output_format_t xml_output_format);
 
   static pc get_start_pc(llvm::Function const& F);
 
@@ -88,11 +88,14 @@ public:
   //map<symbol_id_t, tuple<string, size_t, bool>> const &get_symbol_map() { return m_symbol_map; }
   //static string get_value_name(const llvm::Value& v);
   //virtual void process_phi_nodes(tfg &t, const llvm::BasicBlock* B_from, const pc& p_to, shared_ptr<tfg_node> const &from_node, const llvm::Function& F, expr_ref edgecond) override;
-  static dshared_ptr<ftmap_t> get_function_tfg_map(llvm::Module* M, set<string> FunNamesVec/*, bool DisableModelingOfUninitVarUB*/, context* ctx, dshared_ptr<llptfg_t const> const& src_llptfg, bool gen_scev, map<llvm_value_id_t, string_ref>* value_to_name_map = nullptr, context::xml_output_format_t xml_output_format = context::XML_OUTPUT_FORMAT_TEXT_NOCOLOR);
+  static dshared_ptr<ftmap_t> get_function_tfg_map(llvm::Module* M, set<string> FunNamesVec/*, bool DisableModelingOfUninitVarUB*/, context* ctx, dshared_ptr<llptfg_t const> const& src_llptfg, bool gen_scev, bool model_llvm_semantics, map<llvm_value_id_t, string_ref>* value_to_name_map = nullptr, context::xml_output_format_t xml_output_format = context::XML_OUTPUT_FORMAT_TEXT_NOCOLOR);
   static map<string, value_scev_map_t> sym_exec_populate_potential_scev_relations(llvm::Module* M, string const& srcdst_keyword);
 
   static scev_toplevel_t<pc> get_scev_toplevel(llvm::Instruction& I, llvm::ScalarEvolution * scev, llvm::LoopInfo const* loopinfo, string const& srcdst_keyword, size_t word_length);
 private:
+  expr_ref get_poison_value_var(string const& varname) const;
+  void add_state_assume(expr_ref const& assume, state const& state_in, unordered_set<expr_ref>& assumes, dshared_ptr<tfg_node>& from_node, bool model_llvm_semantics, tfg& t, map<llvm_value_id_t, string_ref>* value_to_name_map) const;
+  void add_poison_freedom_assume(expr_ref const& e, unordered_set<expr_ref>& state_assumes) const;
   static scev_op_t get_scev_op_from_scev_type(llvm::SCEVTypes scevtype);
   static mybitset get_mybitset_from_apint(llvm::APInt const& apint, uint32_t bitwidth, bool is_signed);
   static pair<mybitset, mybitset> get_bounds_from_range(llvm::ConstantRange const& crange, bool is_signed);
@@ -100,7 +103,7 @@ private:
   static scev_with_bounds_t get_scev_with_bounds(llvm::ScalarEvolution& SE, llvm::SCEV const* scev, string const& srcdst_keyword, size_t word_length);
   static scev_ref get_scev(llvm::ScalarEvolution& SE, llvm::SCEV const* scev, string const& srcdst_keyword, size_t word_length);
   //virtual expr_ref phiInstructionGetIncomingBlockValue(llvm::Instruction const &I/*, state const &start_state*/, shared_ptr<tfg_node> &pc_to_phi_node, pc const &pc_to, llvm::BasicBlock const *B_from, llvm::Function const &F, tfg &t) override;
-  pair<expr_ref,unordered_set<expr_ref>> phiInstructionGetIncomingBlockValue(llvm::Instruction const &I, dshared_ptr<tfg_node> &pc_to_phi_node/*, pc const &pc_to*/, llvm::BasicBlock const *B_from, llvm::Function const &F, tfg &t, map<llvm_value_id_t, string_ref>* value_to_name_map);
+  pair<expr_ref,unordered_set<expr_ref>> phiInstructionGetIncomingBlockValue(llvm::Instruction const &I, dshared_ptr<tfg_node> &pc_to_phi_node/*, pc const &pc_to*/, llvm::BasicBlock const *B_from, llvm::Function const &F, bool model_llvm_semantics, tfg &t, map<llvm_value_id_t, string_ref>* value_to_name_map);
   string functionGetName(llvm::Function const &F) const;
   static string get_basicblock_index(llvm::BasicBlock const &F);
   //virtual string get_basicblock_name(llvm::BasicBlock const &F) const override;
@@ -118,14 +121,14 @@ private:
 
   //llvm::BasicBlock const *get_basic_block_for_pc(const llvm::Function& F, pc const &p);
 
-  pair<unordered_set<expr_ref>,unordered_set<expr_ref>> apply_memcpy_function(const llvm::CallInst* c, expr_ref fun_name_expr, string const &fun_name, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, llvm::Function *F, state const &state_in, state &state_out, unordered_set<expr_ref> const& assumes, string const &cur_function_name, dshared_ptr<tfg_node> &from_node/*, pc const &pc_to, llvm::BasicBlock const &B*/, llvm::Function const &curF, tfg &t/*, map<string, pair<callee_summary_t, dshared_ptr<tfg_llvm_t>>> *function_tfg_map*/, map<llvm_value_id_t, string_ref>* value_to_name_map/*, set<string> const *function_call_chain*/, map<string, value_scev_map_t> const& scev_map, context::xml_output_format_t xml_output_format);
+  pair<unordered_set<expr_ref>,unordered_set<expr_ref>> apply_memcpy_function(const llvm::CallInst* c, expr_ref fun_name_expr, string const &fun_name, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, llvm::Function *F, state const &state_in, state &state_out, unordered_set<expr_ref> const& assumes, string const &cur_function_name, dshared_ptr<tfg_node> &from_node, bool model_llvm_semantics, llvm::Function const &curF, tfg &t/*, map<string, pair<callee_summary_t, dshared_ptr<tfg_llvm_t>>> *function_tfg_map*/, map<llvm_value_id_t, string_ref>* value_to_name_map/*, set<string> const *function_call_chain*/, map<string, value_scev_map_t> const& scev_map, context::xml_output_format_t xml_output_format);
 
   static size_t function_get_num_bbls(const llvm::Function *F);
   pair<callee_summary_t, dshared_ptr<tfg_llvm_t>> const& get_callee_summary(llvm::Function *F, string const &fun_name, dshared_ptr<tfg_llvm_t const> src_llvm_tfg/*, map<string, pair<callee_summary_t, dshared_ptr<tfg_llvm_t>>> &function_tfg_map*/, map<llvm_value_id_t, string_ref>* value_to_name_map/*, set<string> const &function_call_chain*/, map<string, value_scev_map_t> const& scev_map, context::xml_output_format_t xml_output_format);
-  pair<unordered_set<expr_ref>,unordered_set<expr_ref>> apply_general_function(const llvm::CallInst* c, expr_ref fun_name_expr, string const &fun_name, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, llvm::Function *F, state const &state_in, state &state_out, unordered_set<expr_ref> const& assumes, string const &cur_function_name, dshared_ptr<tfg_node> &from_node/*, pc const &pc_to, llvm::BasicBlock const &B, llvm::Function const &curF*/, tfg &t/*, map<string, pair<callee_summary_t, dshared_ptr<tfg_llvm_t>>> *function_tfg_map*/, map<llvm_value_id_t, string_ref>* value_to_name_map/*, set<string> const *function_call_chain*/, map<string, value_scev_map_t> const& scev_map, context::xml_output_format_t xml_output_format);
+  pair<unordered_set<expr_ref>,unordered_set<expr_ref>> apply_general_function(const llvm::CallInst* c, expr_ref fun_name_expr, string const &fun_name, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, llvm::Function *F, state const &state_in, state &state_out, unordered_set<expr_ref> const& assumes, string const &cur_function_name, dshared_ptr<tfg_node> &from_node, bool model_llvm_semantics, tfg &t/*, map<string, pair<callee_summary_t, dshared_ptr<tfg_llvm_t>>> *function_tfg_map*/, map<llvm_value_id_t, string_ref>* value_to_name_map/*, set<string> const *function_call_chain*/, map<string, value_scev_map_t> const& scev_map, context::xml_output_format_t xml_output_format);
   //void add_align_assumes(std::string const &elname, llvm::Type *elTy/*llvm::Value const &arg*/, expr_ref a, pc const&from_pc, tfg &t);
-  pair<unordered_set<expr_ref>,unordered_set<expr_ref>> apply_va_start_function(const llvm::CallInst* c, state const& state_in, state &state_out, unordered_set<expr_ref> const& state_assumes, dshared_ptr<tfg_node>& from_node, tfg& t, map<llvm_value_id_t,string_ref>* value_to_name_map);
-  pair<unordered_set<expr_ref>,unordered_set<expr_ref>> apply_va_copy_function(const llvm::CallInst* c, state const& state_in, state &state_out, unordered_set<expr_ref> const& state_assumes, dshared_ptr<tfg_node>& from_node, tfg& t, map<llvm_value_id_t,string_ref>* value_to_name_map);
+  pair<unordered_set<expr_ref>,unordered_set<expr_ref>> apply_va_start_function(const llvm::CallInst* c, state const& state_in, state &state_out, unordered_set<expr_ref> const& state_assumes, dshared_ptr<tfg_node>& from_node, bool model_llvm_semantics, tfg& t, map<llvm_value_id_t,string_ref>* value_to_name_map);
+  pair<unordered_set<expr_ref>,unordered_set<expr_ref>> apply_va_copy_function(const llvm::CallInst* c, state const& state_in, state &state_out, unordered_set<expr_ref> const& state_assumes, dshared_ptr<tfg_node>& from_node, bool model_llvm_semantics, tfg& t, map<llvm_value_id_t,string_ref>* value_to_name_map);
 
   unordered_set<expr_ref> gen_align_assumes(std::string const &elname, llvm::Type *elTy, sort_ref const& s) const;
   //void add_align_assumes(std::string const &elname, llvm::Type *elTy, expr_ref a, pc const&from_pc, tfg &t) const;
@@ -145,16 +148,16 @@ private:
 
   //pair<shared_ptr<tfg_node>, map<std::string, sort_ref>>
   void
-  process_phi_nodes(tfg &t, map<llvm_value_id_t, string_ref>* value_to_name_map, const llvm::BasicBlock* B_from, const pc& p_to, dshared_ptr<tfg_node> const &from_node, expr_ref edgecond, unordered_set<expr_ref> const& assumes, te_comment_t const& te_comment, llvm::Instruction * I, const llvm::Function& F, map<shared_ptr<tfg_edge const>, llvm::Instruction *>& eimap);
+  process_phi_nodes(tfg &t, map<llvm_value_id_t, string_ref>* value_to_name_map, const llvm::BasicBlock* B_from, const pc& p_to, dshared_ptr<tfg_node> const &from_node, bool model_llvm_semantics, expr_ref edgecond, unordered_set<expr_ref> const& assumes, te_comment_t const& te_comment, llvm::Instruction * I, const llvm::Function& F, map<shared_ptr<tfg_edge const>, llvm::Instruction *>& eimap);
 
   //pair<shared_ptr<tfg_node>, map<std::string, sort_ref>>
   void
-  process_cft(tfg &t, map<llvm_value_id_t, string_ref>* value_to_name_map, dshared_ptr<tfg_node> const &from_node, pc const &pc_to, expr_ref target, expr_ref to_condition, state const &state_to, unordered_set<expr_ref> const& assumes, te_comment_t const& te_comment, llvm::Instruction * I, const llvm::BasicBlock& B, const llvm::Function& F, map<shared_ptr<tfg_edge const>, llvm::Instruction *>& eimap);
+  process_cft(tfg &t, map<llvm_value_id_t, string_ref>* value_to_name_map, dshared_ptr<tfg_node> const &from_node, pc const &pc_to, expr_ref target, expr_ref to_condition, state const &state_to, unordered_set<expr_ref> const& assumes, bool model_llvm_semantics, te_comment_t const& te_comment, llvm::Instruction * I, const llvm::BasicBlock& B, const llvm::Function& F, map<shared_ptr<tfg_edge const>, llvm::Instruction *>& eimap);
 
   void
   process_cft_second_half(tfg &t, dshared_ptr<tfg_node> const &from_node, pc const &pc_to, expr_ref target, expr_ref to_condition, unordered_set<expr_ref> const& assumes, te_comment_t const& te_comment, llvm::Instruction * I, const llvm::BasicBlock & B, const llvm::Function& F, map<std::string, sort_ref> const &phi_regnames, map<shared_ptr<tfg_edge const>, llvm::Instruction *>& eimap);
 
-  void process_cfts(tfg &t, map<llvm_value_id_t, string_ref>* value_to_name_map, dshared_ptr<tfg_node> const &from_node, pc const &pc_to, state const &state_to, unordered_set<expr_ref> const& assumes, te_comment_t const& te_comment, llvm::Instruction * I, vector<control_flow_transfer> const &cfts, llvm::BasicBlock const &B, llvm::Function const &F, map<shared_ptr<tfg_edge const>, llvm::Instruction *>& eimap);
+  void process_cfts(tfg &t, map<llvm_value_id_t, string_ref>* value_to_name_map, dshared_ptr<tfg_node> const &from_node, pc const &pc_to, state const &state_to, unordered_set<expr_ref> const& assumes, bool model_llvm_semantics, te_comment_t const& te_comment, llvm::Instruction * I, vector<control_flow_transfer> const &cfts, llvm::BasicBlock const &B, llvm::Function const &F, map<shared_ptr<tfg_edge const>, llvm::Instruction *>& eimap);
 
   //void process_phi_nodes_second_half(tfg &t, const llvm::BasicBlock* B_from, const pc& p_to, shared_ptr<tfg_node> const &from_node, const llvm::Function& F, expr_ref edgecond, map<string, sort_ref> const &phi_regnames, unordered_set<expr_ref> const& assumes, te_comment_t const& te_comment, llvm::Instruction * I, map<shared_ptr<tfg_edge const>, llvm::Instruction *>& eimap);
 
@@ -168,15 +171,15 @@ private:
 
   //expr_ref mk_fresh_expr(const string& name, const string& prefix, sort_ref s) const;
 
-  pair<expr_ref,unordered_set<expr_ref>> get_const_value_expr(const llvm::Value& v/*, string vname*/, const state& state_in, unordered_set<expr_ref> const& state_assumes, dshared_ptr<tfg_node> &from_node/*, pc const &pc_to, llvm::BasicBlock const *B, llvm::Function const *F*/, tfg &t, map<llvm_value_id_t, string_ref>* value_to_name_map);
+  pair<expr_ref,unordered_set<expr_ref>> get_const_value_expr(const llvm::Value& v/*, string vname*/, const state& state_in, unordered_set<expr_ref> const& state_assumes, dshared_ptr<tfg_node> &from_node, bool model_llvm_semantics, tfg &t, map<llvm_value_id_t, string_ref>* value_to_name_map);
 
-  pair<expr_ref,unordered_set<expr_ref>> get_expr_adding_edges_for_intermediate_vals(const llvm::Value& v/*, string vname*/, const state& state_in, unordered_set<expr_ref> const& state_assumes, dshared_ptr<tfg_node> &from_node/*, pc const &pc_to, llvm::BasicBlock const &B, llvm::Function const &F*/, tfg &t, map<llvm_value_id_t, string_ref>* value_to_name_map);
+  pair<expr_ref,unordered_set<expr_ref>> get_expr_adding_edges_for_intermediate_vals(const llvm::Value& v/*, string vname*/, const state& state_in, unordered_set<expr_ref> const& state_assumes, dshared_ptr<tfg_node> &from_node, bool model_llvm_semantics, tfg &t, map<llvm_value_id_t, string_ref>* value_to_name_map);
 
   //void state_set_expr(state &st, string const &key, expr_ref const &value);
   //expr_ref state_get_expr(state const &st, string const &key);
 
   void set_expr(string const &name/*const llvm::Value& v*/, expr_ref expr, state& st);
-  pair<vector<expr_ref>,unordered_set<expr_ref>> get_expr_args(const llvm::Instruction& I/*, string vname*/, const state& st, unordered_set<expr_ref> const& state_assumes, dshared_ptr<tfg_node> &from_node/*, pc const &pc_to, llvm::BasicBlock const &B, llvm::Function const &F*/, tfg &t, map<llvm_value_id_t, string_ref>* value_to_name_map);
+  pair<vector<expr_ref>,unordered_set<expr_ref>> get_expr_args(const llvm::Instruction& I/*, string vname*/, const state& st, unordered_set<expr_ref> const& state_assumes, dshared_ptr<tfg_node> &from_node, bool model_llvm_semantics, tfg &t, map<llvm_value_id_t, string_ref>* value_to_name_map);
 
   void add_gep_intermediate_vals(llvm::Instruction const &I, string const &name);
   void populate_state_template(const llvm::Function& F);
@@ -188,7 +191,7 @@ private:
   vector<control_flow_transfer> expand_switch(tfg &t, dshared_ptr<tfg_node> const &from_node, vector<control_flow_transfer> const &cfts, state const &state_to, unordered_set<expr_ref> const& cond_assumes, te_comment_t const& te_comment, llvm::Instruction * I, const llvm::BasicBlock& B, const llvm::Function& F, map<shared_ptr<tfg_edge const>, llvm::Instruction *>& eimap);
 
   void process_cft(tfg &t, dshared_ptr<tfg_node> const &from_node, pc const &pc_to, expr_ref target, expr_ref to_condition, state const &state_to, unordered_set<expr_ref> const& assumes, const llvm::BasicBlock& B, const llvm::Function& F);
-  void add_edges(const llvm::BasicBlock& B, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, tfg_llvm_t& t, const llvm::Function& F/*, map<string, pair<callee_summary_t, dshared_ptr<tfg_llvm_t>>> *function_tfg_map*/, map<llvm_value_id_t, string_ref>* value_to_name_map/*, set<string> const *function_call_chain*/, map<shared_ptr<tfg_edge const>, llvm::Instruction *>& eimap, map<string, value_scev_map_t> const& scev_map, context::xml_output_format_t xml_output_format);
+  void add_edges(const llvm::BasicBlock& B, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, bool model_llvm_semantics, tfg_llvm_t& t, const llvm::Function& F/*, map<string, pair<callee_summary_t, dshared_ptr<tfg_llvm_t>>> *function_tfg_map*/, map<llvm_value_id_t, string_ref>* value_to_name_map/*, set<string> const *function_call_chain*/, map<shared_ptr<tfg_edge const>, llvm::Instruction *>& eimap, map<string, value_scev_map_t> const& scev_map, context::xml_output_format_t xml_output_format);
 
   void sym_exec_populate_tfg_scev_map(tfg_llvm_t& t_src, value_scev_map_t const& value_scev_map) const;
 
@@ -201,10 +204,10 @@ private:
   //string get_local_alloc_count_varname() const;
   //string get_local_alloc_count_ssa_varname(pc const& p) const;
 
-  pair<expr_ref,unordered_set<expr_ref>> exec_gen_expr_casts(const llvm::CastInst& I, expr_ref arg, unordered_set<expr_ref> const& state_assumes/*, pc const &from_pc, tfg &t*/);
+  pair<expr_ref,unordered_set<expr_ref>> exec_gen_expr_casts(const llvm::CastInst& I, expr_ref arg, unordered_set<expr_ref> const& state_assumes, pc const &from_pc, bool model_llvm_semantics, tfg &t);
   static string getTypeString(llvm::Type *t);
 
-  pair<expr_ref,unordered_set<expr_ref>> exec_gen_expr(const llvm::Instruction& I/*, string Iname*/, const vector<expr_ref>& args, state const &state_in, unordered_set<expr_ref> const& state_assumes, dshared_ptr<tfg_node> &from_node/*, pc const &pc_to, llvm::BasicBlock const &B, llvm::Function const &F*/, tfg &t);
+  pair<expr_ref,unordered_set<expr_ref>> exec_gen_expr(const llvm::Instruction& I/*, string Iname*/, const vector<expr_ref>& args, state const &state_in, unordered_set<expr_ref> const& state_assumes, dshared_ptr<tfg_node> &from_node, bool model_llvm_semantics, tfg &t, map<llvm_value_id_t, string_ref>* value_to_name_map);
 
   void populate_bbl_order_map();
 

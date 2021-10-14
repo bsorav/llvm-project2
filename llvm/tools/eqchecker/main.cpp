@@ -82,6 +82,9 @@ DryRun("dry-run", cl::desc("<dry-run. only print the function names and their si
 static cl::opt<std::string>
 DynDebug("dyn-debug", cl::desc("<dyn_debug.  enable dynamic debugging for debug-class(es).  Expects comma-separated list of debug-classes with optional level e.g. -dyn_debug=compute_liveness,sprels,alias_analysis=2"), cl::init(""));
 
+static cl::opt<bool>
+llvmSemantics("llvm-semantics", cl::desc("<llvm-semantics.  Model poison and undef values (LLVM semantics) instead of just plain UB."), cl::init(false));
+
 static cl::opt<std::string>
 XmlOutputFormat("xml-output-format", cl::desc("<xml-output-format.  Format to use during xml printing.  [html|text-color|text-nocolor]"), cl::init("text-color"));
 
@@ -252,7 +255,7 @@ main(int argc, char **argv)
     progress_flag = 1;
   }
 
-  dshared_ptr<ftmap_t> function_tfg_map = sym_exec_llvm::get_function_tfg_map(M1.get(), FunNamesVec/*, DisableModelingOfUninitVarUB ? true : false*/, ctx, src_llptfg, !NoGenScev, nullptr, xml_output_format);
+  dshared_ptr<ftmap_t> function_tfg_map = sym_exec_llvm::get_function_tfg_map(M1.get(), FunNamesVec, ctx, src_llptfg, !NoGenScev, llvmSemantics, nullptr, xml_output_format);
   function_tfg_map->ftmap_run_pointsto_analysis(false, dshared_ptr<tfg_llvm_t const>::dshared_nullptr(), {}, true, xml_output_format);
   //t->tfg_populate_relevant_memlabels(src_llvm_tfg);
   function_tfg_map->ftmap_add_start_pc_preconditions_for_each_tfg(/*se.m_srcdst_keyword*/);
