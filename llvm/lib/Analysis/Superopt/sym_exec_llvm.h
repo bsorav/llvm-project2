@@ -93,8 +93,9 @@ public:
 
   static scev_toplevel_t<pc> get_scev_toplevel(llvm::Instruction& I, llvm::ScalarEvolution * scev, llvm::LoopInfo const* loopinfo, string const& srcdst_keyword, size_t word_length);
 private:
+  string get_poison_value_varname(string const& varname) const;
   expr_ref get_poison_value_var(string const& varname) const;
-  void add_state_assume(expr_ref const& assume, state const& state_in, unordered_set<expr_ref>& assumes, dshared_ptr<tfg_node>& from_node, bool model_llvm_semantics, tfg& t, map<llvm_value_id_t, string_ref>* value_to_name_map) const;
+  void add_state_assume(string const& varname, expr_ref const& assume, state const& state_in, unordered_set<expr_ref>& assumes, dshared_ptr<tfg_node>& from_node, bool model_llvm_semantics, tfg& t, map<llvm_value_id_t, string_ref>* value_to_name_map) const;
   void add_poison_freedom_assume(expr_ref const& e, unordered_set<expr_ref>& state_assumes) const;
   static scev_op_t get_scev_op_from_scev_type(llvm::SCEVTypes scevtype);
   static mybitset get_mybitset_from_apint(llvm::APInt const& apint, uint32_t bitwidth, bool is_signed);
@@ -171,15 +172,15 @@ private:
 
   //expr_ref mk_fresh_expr(const string& name, const string& prefix, sort_ref s) const;
 
-  pair<expr_ref,unordered_set<expr_ref>> get_const_value_expr(const llvm::Value& v/*, string vname*/, const state& state_in, unordered_set<expr_ref> const& state_assumes, dshared_ptr<tfg_node> &from_node, bool model_llvm_semantics, tfg &t, map<llvm_value_id_t, string_ref>* value_to_name_map);
+  pair<expr_ref,unordered_set<expr_ref>> get_const_value_expr(const llvm::Value& v, string const& vname, const state& state_in, unordered_set<expr_ref> const& state_assumes, dshared_ptr<tfg_node> &from_node, bool model_llvm_semantics, tfg &t, map<llvm_value_id_t, string_ref>* value_to_name_map);
 
-  pair<expr_ref,unordered_set<expr_ref>> get_expr_adding_edges_for_intermediate_vals(const llvm::Value& v/*, string vname*/, const state& state_in, unordered_set<expr_ref> const& state_assumes, dshared_ptr<tfg_node> &from_node, bool model_llvm_semantics, tfg &t, map<llvm_value_id_t, string_ref>* value_to_name_map);
+  pair<expr_ref,unordered_set<expr_ref>> get_expr_adding_edges_for_intermediate_vals(const llvm::Value& v, string const& vname, const state& state_in, unordered_set<expr_ref> const& state_assumes, dshared_ptr<tfg_node> &from_node, bool model_llvm_semantics, tfg &t, map<llvm_value_id_t, string_ref>* value_to_name_map);
 
   //void state_set_expr(state &st, string const &key, expr_ref const &value);
   //expr_ref state_get_expr(state const &st, string const &key);
 
   void set_expr(string const &name/*const llvm::Value& v*/, expr_ref expr, state& st);
-  pair<vector<expr_ref>,unordered_set<expr_ref>> get_expr_args(const llvm::Instruction& I/*, string vname*/, const state& st, unordered_set<expr_ref> const& state_assumes, dshared_ptr<tfg_node> &from_node, bool model_llvm_semantics, tfg &t, map<llvm_value_id_t, string_ref>* value_to_name_map);
+  pair<vector<expr_ref>,unordered_set<expr_ref>> get_expr_args(const llvm::Instruction& I, string const& vname, const state& st, unordered_set<expr_ref> const& state_assumes, dshared_ptr<tfg_node> &from_node, bool model_llvm_semantics, tfg &t, map<llvm_value_id_t, string_ref>* value_to_name_map);
 
   void add_gep_intermediate_vals(llvm::Instruction const &I, string const &name);
   void populate_state_template(const llvm::Function& F);
@@ -207,7 +208,7 @@ private:
   pair<expr_ref,unordered_set<expr_ref>> exec_gen_expr_casts(const llvm::CastInst& I, expr_ref arg, unordered_set<expr_ref> const& state_assumes, pc const &from_pc, bool model_llvm_semantics, tfg &t);
   static string getTypeString(llvm::Type *t);
 
-  pair<expr_ref,unordered_set<expr_ref>> exec_gen_expr(const llvm::Instruction& I/*, string Iname*/, const vector<expr_ref>& args, state const &state_in, unordered_set<expr_ref> const& state_assumes, dshared_ptr<tfg_node> &from_node, bool model_llvm_semantics, tfg &t, map<llvm_value_id_t, string_ref>* value_to_name_map);
+  pair<expr_ref,unordered_set<expr_ref>> exec_gen_expr(const llvm::Instruction& I, string const& Iname, const vector<expr_ref>& args, state const &state_in, unordered_set<expr_ref> const& state_assumes, dshared_ptr<tfg_node> &from_node, bool model_llvm_semantics, tfg &t, map<llvm_value_id_t, string_ref>* value_to_name_map);
 
   void populate_bbl_order_map();
 
