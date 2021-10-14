@@ -735,7 +735,7 @@ sym_exec_llvm::get_expr_adding_edges_for_intermediate_vals(const Value& v, strin
 //}
 
 void
-sym_exec_common::state_set_expr(state &st, string const &key, expr_ref const &value)
+sym_exec_common::state_set_expr(state &st, string const &key, expr_ref const &value) const
 {
   st.set_expr_in_map(key, value);
 }
@@ -4151,23 +4151,43 @@ sym_exec_llvm::add_poison_freedom_assume(expr_ref const& e, unordered_set<expr_r
   if (e->is_const()) {
     return;
   }
-  if (e->is_var()) {
-    string const& varname = e->get_name()->get_str();
-    expr_ref poison_var = get_poison_value_var(varname);
+  expr_list vars = m_ctx->expr_get_vars(e);
+  for (auto const& v : vars) {
+    string varname = v->get_name()->get_str();
+    if (!string_has_prefix(varname, G_INPUT_KEYWORD ".")) {
+      continue;
+    }
+    varname = varname.substr(strlen(G_INPUT_KEYWORD "."));
+    string poison_varname = get_poison_value_varname(varname);
+    if (!set_belongs(m_poison_varnames_seen, poison_varname)) {
+      continue;
+    }
+    expr_ref poison_var = get_input_expr(poison_varname, m_ctx->mk_bool_sort());
     state_assumes.insert(m_ctx->mk_not(poison_var));
-    return;
   }
-  cout << _FNLN_ << ": for some reason, we want to assert poison freedom for a non-var expression:\n" << expr_string(e) << endl;
-  NOT_REACHED();
 }
 
 void
-sym_exec_llvm::add_state_assume(string const& varname, expr_ref const& assume, state const& state_in, unordered_set<expr_ref>& assumes, dshared_ptr<tfg_node>& from_node, bool model_llvm_semantics, tfg& t, map<llvm_value_id_t, string_ref>* value_to_name_map) const
+sym_exec_llvm::add_state_assume(string const& varname, expr_ref const& assume, state const& state_in, unordered_set<expr_ref>& assumes, dshared_ptr<tfg_node>& from_node, bool model_llvm_semantics, tfg& t, map<llvm_value_id_t, string_ref>* value_to_name_map)
 {
   if (model_llvm_semantics && varname != "") {
     string poison_varname = get_poison_value_varname(varname);
-    expr_ref poison_var = get_input_expr(poison_varname, m_ctx->mk_bool_sort());
-    NOT_IMPLEMENTED();
+    expr_ref poison_expr;
+
+    if (set_belongs(m_poison_varnames_seen, poison_varname)) {
+      expr_ref poison_var = get_input_expr(poison_varname, m_ctx->mk_bool_sort());
+      poison_expr = m_ctx->mk_or(poison_var, assume);
+    } else {
+      poison_expr = assume;
+    }
+    m_poison_varnames_seen.insert(poison_varname);
+
+    state state_to_intermediate_val;
+    state_set_expr(state_to_intermediate_val, poison_varname, poison_expr);
+    dshared_ptr<tfg_node> intermediate_node = get_next_intermediate_subsubindex_pc_node(t, from_node);
+    shared_ptr<tfg_edge const> e = mk_tfg_edge(mk_itfg_edge(from_node->get_pc(), intermediate_node->get_pc(), state_to_intermediate_val, expr_true(m_ctx), {}, te_comment_t(-1,-1,"poison")));
+    t.add_edge(e);
+    from_node = intermediate_node;
   } else {
     assumes.insert(assume);
   }

@@ -169,7 +169,7 @@ protected:
 
   //expr_ref get_expr_adding_edges_for_intermediate_vals(const llvm::Value& v, string vname, const state& state_in, shared_ptr<tfg_node> &from_node, pc const &pc_to, llvm::BasicBlock const &B, llvm::Function const &F, tfg &t);
 
-  void state_set_expr(state &st, string const &key, expr_ref const &value);
+  void state_set_expr(state &st, string const &key, expr_ref const &value) const;
   expr_ref get_input_expr(string const &key, sort_ref const& s) const;
   expr_ref state_get_expr(state const &st, string const &key, sort_ref const& s) const;
 

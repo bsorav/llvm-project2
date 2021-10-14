@@ -95,7 +95,7 @@ public:
 private:
   string get_poison_value_varname(string const& varname) const;
   expr_ref get_poison_value_var(string const& varname) const;
-  void add_state_assume(string const& varname, expr_ref const& assume, state const& state_in, unordered_set<expr_ref>& assumes, dshared_ptr<tfg_node>& from_node, bool model_llvm_semantics, tfg& t, map<llvm_value_id_t, string_ref>* value_to_name_map) const;
+  void add_state_assume(string const& varname, expr_ref const& assume, state const& state_in, unordered_set<expr_ref>& assumes, dshared_ptr<tfg_node>& from_node, bool model_llvm_semantics, tfg& t, map<llvm_value_id_t, string_ref>* value_to_name_map);
   void add_poison_freedom_assume(expr_ref const& e, unordered_set<expr_ref>& state_assumes) const;
   static scev_op_t get_scev_op_from_scev_type(llvm::SCEVTypes scevtype);
   static mybitset get_mybitset_from_apint(llvm::APInt const& apint, uint32_t bitwidth, bool is_signed);
@@ -223,6 +223,8 @@ private:
 
   //see https://docs.microsoft.com/en-us/cpp/build/x64-calling-convention?view=msvc-160 where it says that the value is ROUND_TO_NEAREST at the start of program execution (x86 calling conventions).  XXX: We are taking some liberty here by extending this assumption to the start of every function; a more precise way to model this would involve using a variable (instead of a constant) for the rounding mode at the start pc
   expr_ref m_rounding_mode_at_start_pc;
+
+  set<string> m_poison_varnames_seen;
 
   //string const m_local_alloc_count_varname = "local_alloc_count";
 };
