@@ -55,6 +55,21 @@ sort_ref sym_exec_common::get_mem_alloc_range() const
   return m_ctx->mk_memlabel_sort();
 }
 
+sort_ref sym_exec_common::get_mem_poison_sort() const
+{
+  return m_ctx->mk_array_sort(get_mem_poison_domain(), get_mem_poison_range());
+}
+
+sort_ref sym_exec_common::get_mem_poison_domain() const
+{
+  return m_ctx->mk_bv_sort(m_word_length);
+}
+
+sort_ref sym_exec_common::get_mem_poison_range() const
+{
+  return m_ctx->mk_bool_sort();
+}
+
 sort_ref sym_exec_common::get_mem_sort() const
 {
   return m_ctx->mk_array_sort(get_mem_domain(), get_mem_range());
@@ -1651,8 +1666,10 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     }
     expr_ref mem = state_get_expr(state_in, m_mem_reg, this->get_mem_sort());
     expr_ref mem_alloc = state_get_expr(state_in, m_mem_alloc_reg, this->get_mem_alloc_sort());
-    state_set_expr(state_out, m_mem_reg, m_ctx->mk_store(mem, mem_alloc, ml_top, addr, val, count, false/*, comment_t()*/));
-    //add_dereference_assume(addr, assumes);
+    expr_ref new_mem = m_ctx->mk_store(mem, mem_alloc, ml_top, addr, val, count, false/*, comment_t()*/);
+    state_set_expr(state_out, m_mem_reg, new_mem);
+
+    transfer_poison_value_on_store(new_mem, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map);
 
     //Type *ElTy = Addr->getType();
     //string typeString = getTypeString(ElTy);
@@ -1705,6 +1722,9 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     expr_ref mem = state_get_expr(state_in, m_mem_reg, this->get_mem_sort());
     expr_ref mem_alloc = state_get_expr(state_in, m_mem_alloc_reg, this->get_mem_alloc_sort());
     expr_ref read_value = m_ctx->mk_select(mem, mem_alloc, ml_top, addr, count, false);
+
+    transfer_poison_value_on_load(lname, read_value, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map);
+
     if (addressable_sz != value_type->get_size()) {
       ASSERT(addressable_sz > value_type->get_size());
       read_value = m_ctx->mk_bvextract(read_value, value_type->get_size() - 1, 0);
@@ -1753,6 +1773,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     ASSERT(from_node);
 
     transfer_poison_values("", addr, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map);
+
     break;
   }
   case Instruction::Call:
@@ -4209,4 +4230,80 @@ sym_exec_llvm::add_state_assume(string const& varname, expr_ref const& assume, s
   } else {
     assumes.insert(assume);
   }
+}
+
+void
+sym_exec_llvm::transfer_poison_value_on_load(string const& varname, expr_ref const& load_expr, unordered_set<expr_ref>& state_assumes, dshared_ptr<tfg_node>& from_node, bool model_llvm_semantics, tfg& t, map<llvm_value_id_t, string_ref>* value_to_name_map)
+{
+  if (!model_llvm_semantics) {
+    return;
+  }
+  ASSERT(load_expr->get_operation_kind() == expr::OP_SELECT);
+  ASSERT(load_expr->get_args().at(OP_SELECT_ARGNUM_MEM)->is_var());
+  ASSERT(load_expr->get_args().at(OP_SELECT_ARGNUM_MEM)->get_name()->get_str() == string(G_INPUT_KEYWORD ".") + m_mem_reg);
+
+  string poison_varname = get_poison_value_varname(varname);
+  m_poison_varnames_seen.insert(poison_varname);
+
+  expr_ref mem_poison = m_ctx->mk_var(m_mem_poison_reg, this->get_mem_poison_sort());
+
+  int count = load_expr->get_args().at(OP_SELECT_ARGNUM_COUNT)->get_int_value();
+  ASSERT(count > 0);
+  expr_ref poison_expr = m_ctx->mk_select_shadow_bool(mem_poison, load_expr->get_args().at(OP_SELECT_ARGNUM_ADDR), count);
+
+  state state_to_intermediate_val;
+  state_set_expr(state_to_intermediate_val, poison_varname, poison_expr);
+  dshared_ptr<tfg_node> intermediate_node = get_next_intermediate_subsubindex_pc_node(t, from_node);
+  shared_ptr<tfg_edge const> e = mk_tfg_edge(mk_itfg_edge(from_node->get_pc(), intermediate_node->get_pc(), state_to_intermediate_val, expr_true(m_ctx), {}, te_comment_t(-1,-1,"poison")));
+  t.add_edge(e);
+  from_node = intermediate_node;
+}
+
+
+void
+sym_exec_llvm::transfer_poison_value_on_store(expr_ref const& store_expr, unordered_set<expr_ref>& state_assumes, dshared_ptr<tfg_node>& from_node, bool model_llvm_semantics, tfg& t, map<llvm_value_id_t, string_ref>* value_to_name_map)
+{
+  if (!model_llvm_semantics) {
+    return;
+  }
+  ASSERT(store_expr->get_operation_kind() == expr::OP_STORE);
+  ASSERT(store_expr->get_args().at(OP_STORE_ARGNUM_MEM)->is_var());
+  ASSERT(store_expr->get_args().at(OP_STORE_ARGNUM_MEM)->get_name()->get_str() == string(G_INPUT_KEYWORD ".") + m_mem_reg);
+
+  expr_ref data = store_expr->get_args().at(OP_STORE_ARGNUM_DATA);
+  expr_list vars = m_ctx->expr_get_vars(data);
+
+  expr_ref poison_expr;
+  for (auto const& v : vars) {
+    string const& vname = v->get_name()->get_str();
+    string poison_vname = get_poison_value_varname(vname);
+    if (!set_belongs(m_poison_varnames_seen, poison_vname)) {
+      continue;
+    }
+    expr_ref poison_v = get_input_expr(poison_vname, m_ctx->mk_bool_sort());
+
+    if (!poison_expr) {
+      poison_expr = poison_v;
+    } else {
+      poison_expr = expr_or(poison_expr, poison_v);
+    }
+  }
+  if (!poison_expr) {
+    poison_expr = expr_false(m_ctx);
+  }
+  ASSERT(poison_expr->is_bool_sort());
+
+  expr_ref mem_poison = m_ctx->mk_var(m_mem_poison_reg, this->get_mem_poison_sort());
+  int count = store_expr->get_args().at(OP_STORE_ARGNUM_COUNT)->get_int_value();
+  ASSERT(count > 0);
+
+  expr_ref addr = store_expr->get_args().at(OP_STORE_ARGNUM_ADDR);
+  mem_poison = m_ctx->mk_store_shadow_bool(mem_poison, addr, poison_expr, count);
+
+  state state_to_intermediate_val;
+  state_set_expr(state_to_intermediate_val, this->m_mem_poison_reg, mem_poison);
+  dshared_ptr<tfg_node> intermediate_node = get_next_intermediate_subsubindex_pc_node(t, from_node);
+  shared_ptr<tfg_edge const> e = mk_tfg_edge(mk_itfg_edge(from_node->get_pc(), intermediate_node->get_pc(), state_to_intermediate_val, expr_true(m_ctx), {}, te_comment_t(-1,-1,"poison")));
+  t.add_edge(e);
+  from_node = intermediate_node;
 }
