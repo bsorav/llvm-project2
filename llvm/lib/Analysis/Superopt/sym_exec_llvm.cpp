@@ -1910,6 +1910,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
       e = m_ctx->mk_float_to_floatx(e);
     }
 
+    transfer_poison_values(iname, e, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map);
     state_set_expr(state_out, iname, e);
     break;
   }
@@ -1935,6 +1936,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     if (isort->is_floatx_kind()) {
       e = m_ctx->mk_float_to_floatx(e);
     }
+    transfer_poison_values(iname, e, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map);
 
     state_set_expr(state_out, iname, e);
     break;
@@ -1965,7 +1967,11 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     args.push_back(e0);
     args.push_back(e1);
 
-    state_set_expr(state_out, iname, fcmp_to_expr(FI->getPredicate(), args));
+    expr_ref e = fcmp_to_expr(FI->getPredicate(), args);
+
+    transfer_poison_values(iname, e, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map);
+
+    state_set_expr(state_out, iname, e);
     break;
   }
   case Instruction::FPToUI: {
@@ -1998,7 +2004,11 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
       add_state_assume(iname, float_assume, state_in, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map);
     }
 
-    state_set_expr(state_out, iname, m_ctx->mk_fp_to_ubv(m_ctx->mk_rounding_mode_const(rounding_mode_t::round_towards_zero_aka_truncate()), e0, target_size));
+    expr_ref e = m_ctx->mk_fp_to_ubv(m_ctx->mk_rounding_mode_const(rounding_mode_t::round_towards_zero_aka_truncate()), e0, target_size);
+
+    transfer_poison_values(iname, e, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map);
+
+    state_set_expr(state_out, iname, e);
     break;
   }
   case Instruction::FPToSI: {
@@ -2037,7 +2047,11 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
       add_state_assume(iname, float_assume, state_in, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map);
     }
 
-    state_set_expr(state_out, iname, m_ctx->mk_fp_to_sbv(m_ctx->mk_rounding_mode_const(rounding_mode_t::round_towards_zero_aka_truncate()), e0, target_size));
+    expr_ref e = m_ctx->mk_fp_to_sbv(m_ctx->mk_rounding_mode_const(rounding_mode_t::round_towards_zero_aka_truncate()), e0, target_size);
+
+    transfer_poison_values(iname, e, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map);
+
+    state_set_expr(state_out, iname, e);
     break;
   }
   case Instruction::UIToFP: {
@@ -2052,6 +2066,9 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     if (isort->is_floatx_kind()) {
       e = m_ctx->mk_float_to_floatx(e);
     }
+
+    transfer_poison_values(iname, e, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map);
+
     state_set_expr(state_out, iname, e);
     break;
   }
@@ -2067,6 +2084,9 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     if (isort->is_floatx_kind()) {
       e = m_ctx->mk_float_to_floatx(e);
     }
+
+    transfer_poison_values(iname, e, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map);
+
     state_set_expr(state_out, iname, e);
     break;
   }
@@ -2092,7 +2112,11 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     if (op0_e->is_floatx_sort()) {
       op0_e = m_ctx->mk_floatx_to_float(op0_e);
     }
-    state_set_expr(state_out, iname, m_ctx->mk_fptrunc(this->get_cur_rounding_mode_var(), op0_e, ebits, sbits));
+
+    expr_ref e = m_ctx->mk_fptrunc(this->get_cur_rounding_mode_var(), op0_e, ebits, sbits);
+    transfer_poison_values(iname, e, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map);
+
+    state_set_expr(state_out, iname, e);
     //cout << __func__ << " " << __LINE__ << ": FPTrunc: state_out =\n" << state_out.to_string_for_eq() << endl;
     break;
   }
@@ -2124,6 +2148,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     if (isort->is_floatx_kind()) {
       e = m_ctx->mk_float_to_floatx(e);
     }
+    transfer_poison_values(iname, e, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map);
     state_set_expr(state_out, iname, e);
     //cout << __func__ << " " << __LINE__ << ": FPExt: state_out =\n" << state_out.to_string_for_eq() << endl;
     break;
@@ -2151,7 +2176,9 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
       } else {
         ss << G_INPUT_KEYWORD "." << op0name << "." << LLVM_FIELDNUM_PREFIX << indices.at(0);
       }
-      state_set_expr(state_out, iname, m_ctx->mk_var(ss.str(), s));
+      expr_ref e = m_ctx->mk_var(ss.str(), s);
+      transfer_poison_values(iname, e, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map);
+      state_set_expr(state_out, iname, e);
     }
     break;
   }
@@ -2161,6 +2188,8 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     tie(expr_args, state_assumes) = get_expr_args(I, iname, state_in, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map);
     expr_ref insn_expr;
     tie(insn_expr, state_assumes) = exec_gen_expr(I, iname, expr_args, state_in, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map);
+
+    transfer_poison_values(iname, insn_expr, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map);
     set_expr(iname, insn_expr, state_out);
     break;
   }
