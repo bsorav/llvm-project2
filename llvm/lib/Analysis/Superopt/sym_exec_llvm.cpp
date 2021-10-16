@@ -185,7 +185,8 @@ sym_exec_llvm::get_const_value_expr(const llvm::Value& v/*, string vname*/, cons
   {
     unsigned size = c->getBitWidth();
     if(size > 1)
-      return make_pair(m_ctx->mk_nondet_bv_const(size, c->getZExtValue()), state_assumes);
+      //return make_pair(m_ctx->mk_nondet_bv_const(size, c->getZExtValue()), state_assumes);
+      return make_pair(m_ctx->mk_bv_const(size, c->getZExtValue()), state_assumes);
     else if(c->getZExtValue() == 0)
       return make_pair(m_ctx->mk_bool_false(), state_assumes);
     else
@@ -318,11 +319,11 @@ vector<sort_ref> sym_exec_common::get_type_sort_vec(llvm::Type* t, DataLayout co
   {
     unsigned size = itype->getBitWidth();
     if(size == 1) {
-      //sv.push_back(m_ctx->mk_bool_sort());
-      sv.push_back(m_ctx->mk_nondet_bool_sort());
+      sv.push_back(m_ctx->mk_bool_sort());
+      //sv.push_back(m_ctx->mk_nondet_bool_sort());
     } else {
-      //sv.push_back(m_ctx->mk_bv_sort(size));
-      sv.push_back(m_ctx->mk_nondet_bv_sort(size));
+      sv.push_back(m_ctx->mk_bv_sort(size));
+      //sv.push_back(m_ctx->mk_nondet_bv_sort(size));
     }
     return sv;
   }
@@ -1441,8 +1442,8 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     for (size_t i = 0; i < LLVM_NUM_CALLEE_SAVE_REGS; i++) {
       stringstream ss;
       ss << G_INPUT_KEYWORD "." << m_srcdst_keyword << "." LLVM_CALLEE_SAVE_REGNAME << "." << i;
-      expr_ref csreg = m_ctx->mk_var(ss.str(), m_ctx->mk_nondet_bv_sort(ETFG_EXREG_LEN(ETFG_EXREG_GROUP_GPRS)));
-      //expr_ref csreg = m_ctx->mk_var(ss.str(), m_ctx->mk_bv_sort(ETFG_EXREG_LEN(ETFG_EXREG_GROUP_GPRS)));
+      //expr_ref csreg = m_ctx->mk_var(ss.str(), m_ctx->mk_nondet_bv_sort(ETFG_EXREG_LEN(ETFG_EXREG_GROUP_GPRS)));
+      expr_ref csreg = m_ctx->mk_var(ss.str(), m_ctx->mk_bv_sort(ETFG_EXREG_LEN(ETFG_EXREG_GROUP_GPRS)));
       state_set_expr(state_out, m_srcdst_keyword + ("." G_LLVM_HIDDEN_REGISTER_NAME), m_ctx->mk_bvxor(state_get_expr(state_out, m_srcdst_keyword + "." G_LLVM_HIDDEN_REGISTER_NAME, csreg->get_sort()), csreg));
     }
     control_flow_transfer cft(from_node->get_pc(), pc(pc::exit), m_ctx->mk_bool_true(), m_cs.get_retaddr_const(), {});
@@ -2642,8 +2643,8 @@ sym_exec_llvm::expand_switch(tfg &t, dshared_ptr<tfg_node> const &from_node, vec
     state_set_expr(state_to_newvar, new_varname, edgecond);
     // edge for setting switch tmpvar
     shared_ptr<tfg_edge const> e1 = mk_tfg_edge(mk_itfg_edge(cur_node->get_pc(), intermediate_pc, state_to_newvar, expr_true(m_ctx)/*, t.get_start_state()*/, assumes, te_comment));
-    //expr_ref new_var = get_input_expr(new_varname, m_ctx->mk_bool_sort());
-    expr_ref new_var = get_input_expr(new_varname, m_ctx->mk_nondet_bool_sort());
+    expr_ref new_var = get_input_expr(new_varname, m_ctx->mk_bool_sort());
+    //expr_ref new_var = get_input_expr(new_varname, m_ctx->mk_nondet_bool_sort());
     //new_cfts.push_back(control_flow_transfer(intermediate_pc, to_pc, new_var));
     // edge for case jump
     shared_ptr<tfg_edge const> ep = mk_tfg_edge(mk_itfg_edge(intermediate_pc, to_pc, state_to, new_var/*, t.get_start_state()*/, {}, te_comment));
