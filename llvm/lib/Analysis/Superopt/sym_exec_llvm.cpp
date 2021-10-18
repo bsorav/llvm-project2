@@ -4215,16 +4215,21 @@ sym_exec_llvm::transfer_poison_values(string const& varname, expr_ref const& e, 
     if (varname == "") {
       state_assumes.insert(m_ctx->mk_not(poison_var));
     } else {
-      poison_expr = expr_or(poison_expr, poison_var);
+      if (poison_expr) {
+        poison_expr = expr_or(poison_expr, poison_var);
+      } else {
+        poison_expr = poison_var;
+      }
     }
   }
 
   if (varname != "" && poison_expr) {
     string poison_varname = get_poison_value_varname(varname);
-    if (!set_belongs(m_poison_varnames_seen, varname)) {
-      expr_ref poison_var = get_input_expr(poison_varname, m_ctx->mk_bool_sort());
-      poison_expr = expr_or(poison_var, poison_expr);
-    }
+    //if (!set_belongs(m_poison_varnames_seen, varname)) {
+    //  expr_ref poison_var = get_input_expr(poison_varname, m_ctx->mk_bool_sort());
+    //  poison_expr = expr_or(poison_var, poison_expr);
+    //}
+    m_poison_varnames_seen.insert(poison_varname);
 
     state state_to_intermediate_val;
     state_set_expr(state_to_intermediate_val, poison_varname, poison_expr);
