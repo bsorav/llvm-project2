@@ -93,6 +93,7 @@ public:
 
   static scev_toplevel_t<pc> get_scev_toplevel(llvm::Instruction& I, llvm::ScalarEvolution * scev, llvm::LoopInfo const* loopinfo, string const& srcdst_keyword, size_t word_length);
 private:
+  string get_next_undef_varname();
   string get_poison_value_varname(string const& varname) const;
   expr_ref get_poison_value_var(string const& varname) const;
   void add_state_assume(string const& varname, expr_ref const& assume, state const& state_in, unordered_set<expr_ref>& assumes, dshared_ptr<tfg_node>& from_node, bool model_llvm_semantics, tfg& t, map<llvm_value_id_t, string_ref>* value_to_name_map);
@@ -228,6 +229,7 @@ private:
 
   set<string> m_poison_varnames_seen;
 
+  int m_cur_undef_varname_idx = 0;
   //string const m_local_alloc_count_varname = "local_alloc_count";
 };
 

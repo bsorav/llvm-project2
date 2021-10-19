@@ -307,8 +307,27 @@ sym_exec_llvm::get_const_value_expr(const llvm::Value& v, string const& vname, c
   }
   else if(const UndefValue* c = dyn_cast<const UndefValue>(&v))
   {
-    expr_ref ret = m_ctx->mk_var(string(G_INPUT_KEYWORD ".") + get_value_name(v), get_value_type(v, m_module->getDataLayout()));
-    return make_pair(ret, state_assumes);
+    string undef_key_name = get_next_undef_varname();
+    string undef_poison_varname = get_poison_value_varname(undef_key_name);
+
+    sort_ref s = get_value_type(v, m_module->getDataLayout());
+
+    state state_to_intermediate_val;
+    state_set_expr(state_to_intermediate_val, undef_poison_varname, expr_true(m_ctx));
+    state_set_expr(state_to_intermediate_val, undef_key_name, m_ctx->mk_var(LLVM_UNDEF_VALUE_NAME, s));
+    dshared_ptr<tfg_node> intermediate_node = get_next_intermediate_subsubindex_pc_node(t, from_node);
+    pc from_pc = from_node->get_pc();
+    shared_ptr<tfg_edge const> e = mk_tfg_edge(mk_itfg_edge(from_pc, intermediate_node->get_pc(), state_to_intermediate_val, expr_true(m_ctx), {}, te_comment_t(false, from_pc.get_subindex(), "treat-undef-as-poison")));
+    t.add_edge(e);
+    from_node = intermediate_node;
+
+    m_poison_varnames_seen.insert(undef_poison_varname);
+    expr_ref undef_expr = mk_fresh_expr(undef_key_name, G_INPUT_KEYWORD, s);
+
+    return make_pair(undef_expr, state_assumes);
+
+    //expr_ref ret = m_ctx->mk_var(string(G_INPUT_KEYWORD ".") + get_value_name(v), get_value_type(v, m_module->getDataLayout()));
+    //return make_pair(ret, state_assumes);
   }
 
   DYN_DEBUG2(llvm2tfg, errs() << "const to expr not handled:"  << get_value_name(v) << "\n");
@@ -722,13 +741,30 @@ pair<expr_ref,unordered_set<expr_ref>>
 sym_exec_llvm::get_expr_adding_edges_for_intermediate_vals(const Value& v, string const& vname, const state& state_in, unordered_set<expr_ref> const& state_assumes, dshared_ptr<tfg_node> &from_node, bool model_llvm_semantics, tfg& t, map<llvm_value_id_t, string_ref>* value_to_name_map)
 {
   if (isa<const UndefValue>(&v)) {
-    sort_ref s = get_type_sort(v.getType(), m_module->getDataLayout());
+
+    string undef_key_name = get_next_undef_varname();
+    string undef_poison_varname = get_poison_value_varname(undef_key_name);
+
+    sort_ref s = get_value_type(v, m_module->getDataLayout());
     if (!(s->is_bv_kind() || s->is_bool_kind())) {
       cout << __func__ << " " << __LINE__ << ": s = " << s->to_string() << endl;
     }
+
+    state state_to_intermediate_val;
+    state_set_expr(state_to_intermediate_val, undef_poison_varname, expr_true(m_ctx));
+    state_set_expr(state_to_intermediate_val, undef_key_name, m_ctx->mk_var(LLVM_UNDEF_VALUE_NAME, s));
+    dshared_ptr<tfg_node> intermediate_node = get_next_intermediate_subsubindex_pc_node(t, from_node);
+    pc from_pc = from_node->get_pc();
+    shared_ptr<tfg_edge const> e = mk_tfg_edge(mk_itfg_edge(from_pc, intermediate_node->get_pc(), state_to_intermediate_val, expr_true(m_ctx), {}, te_comment_t(false, from_pc.get_subindex(), "treat-undef-as-poison")));
+    t.add_edge(e);
+    from_node = intermediate_node;
+
+    m_poison_varnames_seen.insert(undef_poison_varname);
+
     ASSERT(s->is_bv_kind() || s->is_bool_kind());
-    expr_ref a = m_ctx->mk_var(LLVM_UNDEF_VARIABLE_NAME, s);
-    return make_pair(a, state_assumes);
+    expr_ref undef_expr = mk_fresh_expr(undef_key_name, G_INPUT_KEYWORD, s);
+
+    return make_pair(undef_expr, state_assumes);
   } else if (isa<const Constant>(&v)) {
     return get_const_value_expr(v, vname, state_in, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map);
   } else if (isa<const Argument>(&v)) {
@@ -3236,6 +3272,7 @@ sym_exec_llvm::process_phi_nodes(tfg &t, map<llvm_value_id_t, string_ref>* value
   DYN_DEBUG2(llvm2tfg, cout << __func__ << " " << __LINE__ << " " << get_timestamp(as1, sizeof as1) << ": B_to->getInstList().size() = " << B_to->getInstList().size() << endl);
   map<string, sort_ref> changed_varnames;
   map<string, string> phi_tmpvarname;
+  map<string, string> phi_tmpvarname_poison;
   int inum = 0;
   for (const llvm::Instruction& I : *B_to) {
     string varname;
@@ -3255,6 +3292,20 @@ sym_exec_llvm::process_phi_nodes(tfg &t, map<llvm_value_id_t, string_ref>* value
     changed_varnames.insert(make_pair(varname, val->get_sort()));
     phi_tmpvarname[varname] = varname + PHI_NODE_TMPVAR_SUFFIX + "." + get_basicblock_index(*B_from);
     state_set_expr(state_out, phi_tmpvarname.at(varname), val); //first update the tmpvars (do not want updates of one phi-node to influene the rhs of another phi-node.
+
+    //cout << _FNLN_ << ": val = " << expr_string(val) << endl;
+    if (m_ctx->expr_is_input_expr(val)) {
+      string const& val_key = m_ctx->get_key_from_input_expr(val)->get_str();
+      //cout << _FNLN_ << ": val key = " << val_key << endl;
+      string val_key_poison = get_poison_value_varname(val_key);
+      //cout << _FNLN_ << ": val key poison = " << val_key_poison << endl;
+
+      if (set_belongs(m_poison_varnames_seen, val_key_poison)) {
+        phi_tmpvarname_poison[varname] = get_poison_value_varname(phi_tmpvarname.at(varname));
+        m_poison_varnames_seen.insert(phi_tmpvarname_poison.at(varname));
+        state_set_expr(state_out, phi_tmpvarname_poison.at(varname), m_ctx->mk_var(string(G_INPUT_KEYWORD ".") + get_poison_value_varname(m_ctx->get_key_from_input_expr(val)->get_str()), m_ctx->mk_bool_sort()));
+      }
+    }
 
     dshared_ptr<tfg_node> pc_to_phi_dst_node = get_next_intermediate_subsubindex_pc_node(t, from_node);
     DYN_DEBUG2(llvm2tfg, cout << __func__ << " " << __LINE__ << " " << get_timestamp(as1, sizeof as1) << ": from_node = " << from_node->get_pc() << ": pc_to_phi_node = " << pc_to_phi_node->get_pc() << ", pc_to_phi_dst_node = " << pc_to_phi_dst_node->get_pc() << endl);
@@ -3279,8 +3330,15 @@ sym_exec_llvm::process_phi_nodes(tfg &t, map<llvm_value_id_t, string_ref>* value
     string const &cvarname = cvarname_sort.first;
     sort_ref const &cvarsort = cvarname_sort.second;
     string const& phi_tmpvarname_for_cvarname = phi_tmpvarname.at(cvarname);
+
     state state_out;
     state_set_expr(state_out, cvarname, m_ctx->mk_var(string(G_INPUT_KEYWORD ".") + phi_tmpvarname_for_cvarname, cvarsort));
+    if (phi_tmpvarname_poison.count(cvarname)) {
+      string cvarname_poison = get_poison_value_varname(cvarname);
+      m_poison_varnames_seen.insert(cvarname_poison);
+      state_set_expr(state_out, cvarname_poison, m_ctx->mk_var(string(G_INPUT_KEYWORD ".") + phi_tmpvarname_poison.at(cvarname), m_ctx->mk_bool_sort())); //first update the tmpvars (do not want updates of one phi-node to influene the rhs of another phi-node.
+    }
+
     dshared_ptr<tfg_node> pc_to_phi_dst_node = get_next_intermediate_subsubindex_pc_node(t, from_node);
     auto e = mk_tfg_edge(mk_itfg_edge(pc_to_phi_node->get_pc(), pc_to_phi_dst_node->get_pc(), state_out, expr_true(m_ctx)/*, t.get_start_state()*/, {}, te_comment));
     eimap.insert(make_pair(e, (Instruction*)&I));
@@ -4340,4 +4398,13 @@ sym_exec_llvm::transfer_poison_value_on_store(expr_ref const& store_expr, unorde
   shared_ptr<tfg_edge const> e = mk_tfg_edge(mk_itfg_edge(from_node->get_pc(), intermediate_node->get_pc(), state_to_intermediate_val, expr_true(m_ctx), {}, te_comment_t(-1,-1,"poison")));
   t.add_edge(e);
   from_node = intermediate_node;
+}
+
+string
+sym_exec_llvm::get_next_undef_varname()
+{
+  stringstream ss;
+  ss << m_srcdst_keyword + "." G_LLVM_PREFIX "-%" UNDEF_VARIABLE_NAME << this->m_cur_undef_varname_idx;
+  this->m_cur_undef_varname_idx++;
+  return ss.str();
 }
