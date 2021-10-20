@@ -1327,6 +1327,23 @@ sym_exec_llvm::apply_general_function(const CallInst* c, expr_ref fun_name_expr,
     args.push_back(expr);
     args_type.push_back(expr->get_sort());
     argnum++;
+
+    if (model_llvm_semantics) {
+      if (m_ctx->expr_is_input_expr(expr)) {
+        string const& val_key = m_ctx->get_key_from_input_expr(expr)->get_str();
+        string val_key_poison = get_poison_value_varname(val_key);
+
+        if (set_belongs(m_poison_varnames_seen, val_key_poison)) {
+          args.push_back(m_ctx->mk_var(string(G_INPUT_KEYWORD ".") + val_key_poison, m_ctx->mk_bool_sort()));
+        } else {
+          args.push_back(m_ctx->mk_bool_const(false));
+        }
+      } else {
+        args.push_back(m_ctx->mk_bool_const(false));
+      }
+      args_type.push_back(m_ctx->mk_bool_sort());
+      argnum++;
+    }
   }
 
   unordered_set<expr_ref> succ_assumes;
@@ -3293,17 +3310,19 @@ sym_exec_llvm::process_phi_nodes(tfg &t, map<llvm_value_id_t, string_ref>* value
     phi_tmpvarname[varname] = varname + PHI_NODE_TMPVAR_SUFFIX + "." + get_basicblock_index(*B_from);
     state_set_expr(state_out, phi_tmpvarname.at(varname), val); //first update the tmpvars (do not want updates of one phi-node to influene the rhs of another phi-node.
 
-    //cout << _FNLN_ << ": val = " << expr_string(val) << endl;
-    if (m_ctx->expr_is_input_expr(val)) {
-      string const& val_key = m_ctx->get_key_from_input_expr(val)->get_str();
-      //cout << _FNLN_ << ": val key = " << val_key << endl;
-      string val_key_poison = get_poison_value_varname(val_key);
-      //cout << _FNLN_ << ": val key poison = " << val_key_poison << endl;
+    if (model_llvm_semantics) {
+      //cout << _FNLN_ << ": val = " << expr_string(val) << endl;
+      if (m_ctx->expr_is_input_expr(val)) {
+        string const& val_key = m_ctx->get_key_from_input_expr(val)->get_str();
+        //cout << _FNLN_ << ": val key = " << val_key << endl;
+        string val_key_poison = get_poison_value_varname(val_key);
+        //cout << _FNLN_ << ": val key poison = " << val_key_poison << endl;
 
-      if (set_belongs(m_poison_varnames_seen, val_key_poison)) {
-        phi_tmpvarname_poison[varname] = get_poison_value_varname(phi_tmpvarname.at(varname));
-        m_poison_varnames_seen.insert(phi_tmpvarname_poison.at(varname));
-        state_set_expr(state_out, phi_tmpvarname_poison.at(varname), m_ctx->mk_var(string(G_INPUT_KEYWORD ".") + get_poison_value_varname(m_ctx->get_key_from_input_expr(val)->get_str()), m_ctx->mk_bool_sort()));
+        if (set_belongs(m_poison_varnames_seen, val_key_poison)) {
+          phi_tmpvarname_poison[varname] = get_poison_value_varname(phi_tmpvarname.at(varname));
+          m_poison_varnames_seen.insert(phi_tmpvarname_poison.at(varname));
+          state_set_expr(state_out, phi_tmpvarname_poison.at(varname), m_ctx->mk_var(string(G_INPUT_KEYWORD ".") + val_key_poison, m_ctx->mk_bool_sort()));
+        }
       }
     }
 
@@ -3333,10 +3352,13 @@ sym_exec_llvm::process_phi_nodes(tfg &t, map<llvm_value_id_t, string_ref>* value
 
     state state_out;
     state_set_expr(state_out, cvarname, m_ctx->mk_var(string(G_INPUT_KEYWORD ".") + phi_tmpvarname_for_cvarname, cvarsort));
-    if (phi_tmpvarname_poison.count(cvarname)) {
-      string cvarname_poison = get_poison_value_varname(cvarname);
-      m_poison_varnames_seen.insert(cvarname_poison);
-      state_set_expr(state_out, cvarname_poison, m_ctx->mk_var(string(G_INPUT_KEYWORD ".") + phi_tmpvarname_poison.at(cvarname), m_ctx->mk_bool_sort())); //first update the tmpvars (do not want updates of one phi-node to influene the rhs of another phi-node.
+
+    if (model_llvm_semantics) {
+      if (phi_tmpvarname_poison.count(cvarname)) {
+        string cvarname_poison = get_poison_value_varname(cvarname);
+        m_poison_varnames_seen.insert(cvarname_poison);
+        state_set_expr(state_out, cvarname_poison, m_ctx->mk_var(string(G_INPUT_KEYWORD ".") + phi_tmpvarname_poison.at(cvarname), m_ctx->mk_bool_sort())); //first update the tmpvars (do not want updates of one phi-node to influene the rhs of another phi-node.
+      }
     }
 
     dshared_ptr<tfg_node> pc_to_phi_dst_node = get_next_intermediate_subsubindex_pc_node(t, from_node);
