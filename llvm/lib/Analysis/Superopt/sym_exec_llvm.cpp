@@ -599,12 +599,12 @@ void sym_exec_common::populate_state_template_common()
 
 }
 
-void sym_exec_llvm::populate_state_template(const llvm::Function& F)
+void
+sym_exec_llvm::populate_state_template(const llvm::Function& F, bool model_llvm_semantics)
 {
   argnum_t argnum = 0;
   const DataLayout &dl = m_module->getDataLayout();
-  for(Function::const_arg_iterator iter = F.arg_begin(); iter != F.arg_end(); ++iter)
-  {
+  for (Function::const_arg_iterator iter = F.arg_begin(); iter != F.arg_end(); ++iter) {
     const Value& v = *iter;
     if (isa<const Constant>(v)) {
       continue;
@@ -614,6 +614,7 @@ void sym_exec_llvm::populate_state_template(const llvm::Function& F)
     string argname = name/* + SRC_INPUT_ARG_NAME_SUFFIX*/;
     expr_ref argvar = m_ctx->get_input_expr_for_key(mk_string_ref(argname), s);
     m_arguments[name] = make_pair(argnum, argvar);
+
     allocsite_t allocsite = allocsite_t::allocsite_arg(argnum);
     argnum++;
     //m_state_templ.push_back({argname, s});
@@ -624,6 +625,16 @@ void sym_exec_llvm::populate_state_template(const llvm::Function& F)
     //m_local_refs.insert(make_pair(m_local_num++, graph_local_t(argname, size, align)));
     m_local_refs.insert(make_pair(allocsite, graph_local_t(argname, size, align)));
     //m_local_num = m_local_num.increment_by_one();
+
+    if (model_llvm_semantics) {
+      string arg_poison_varname = get_poison_value_varname(name);
+      expr_ref arg_poison_var = m_ctx->get_input_expr_for_key(mk_string_ref(arg_poison_varname), m_ctx->mk_bool_sort());
+      m_arguments[arg_poison_varname] = make_pair(argnum, arg_poison_var);
+      allocsite_t allocsite = allocsite_t::allocsite_arg(argnum);
+      argnum++;
+      m_poison_varnames_seen.insert(arg_poison_varname);
+      m_local_refs.insert(make_pair(allocsite, graph_local_t(arg_poison_varname, 1, 0)));
+    }
   }
   if (F.isVarArg()) {
     expr_ref argvar = m_ctx->get_vararg_local_expr();
@@ -2835,7 +2846,7 @@ sym_exec_llvm::get_tfg(llvm::Function& F, llvm::Module const *M, string const &n
   }
 
   //llvm::Function const &F = m_function;
-  se.populate_state_template(F);
+  se.populate_state_template(F, model_llvm_semantics);
   state start_state;
   se.get_state_template(pc::start(), start_state);
   string fname = se.functionGetName(F);
@@ -3191,10 +3202,10 @@ sym_exec_llvm::add_edges(const llvm::BasicBlock& B, dshared_ptr<tfg_llvm_t const
       DILocation* diloc = dl.get();
       //cout << __func__ << " " << __LINE__ << ": pc_from = " << pc_from.to_string() << ", diloc = " << diloc << endl;
       if (diloc) {
-	unsigned linenum = diloc->getLine();
+        unsigned linenum = diloc->getLine();
         unsigned column_num = diloc->getColumn();
         t.tfg_llvm_add_pc_line_number_mapping(pc_from, linenum, column_num);
-	//cout << __func__ << " " << __LINE__ << ": pc_from = " << pc_from.to_string() << ", linenum = " << linenum << endl;
+        //cout << __func__ << " " << __LINE__ << ": pc_from = " << pc_from.to_string() << ", linenum = " << linenum << endl;
       }
     }
     insn_id++;

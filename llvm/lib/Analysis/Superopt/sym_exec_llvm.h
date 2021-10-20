@@ -186,7 +186,7 @@ private:
   pair<vector<expr_ref>,unordered_set<expr_ref>> get_expr_args(const llvm::Instruction& I, string const& vname, const state& st, unordered_set<expr_ref> const& state_assumes, dshared_ptr<tfg_node> &from_node, bool model_llvm_semantics, tfg &t, map<llvm_value_id_t, string_ref>* value_to_name_map);
 
   void add_gep_intermediate_vals(llvm::Instruction const &I, string const &name);
-  void populate_state_template(const llvm::Function& F);
+  void populate_state_template(const llvm::Function& F, bool model_llvm_semantics);
   expr_ref fcmp_to_expr(llvm::FCmpInst::Predicate cmp_kind, const vector<expr_ref>& args) const;
   expr_ref icmp_to_expr(llvm::ICmpInst::Predicate k, const vector<expr_ref>& args) const;
   expr::operation_kind farith_to_operation_kind(unsigned opcode, expr_vector const& args);
