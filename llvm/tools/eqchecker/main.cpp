@@ -146,6 +146,7 @@ extern int g_helper_pid;
 int
 main(int argc, char **argv)
 {
+  autostop_timer func_timer(string(__func__));
   // Print a stack trace if we signal out.
   sys::PrintStackTraceOnErrorSignal(argv[0]);
   PrettyStackTraceProgram X(argc, argv);
