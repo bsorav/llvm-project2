@@ -44,11 +44,13 @@ getDirectBrEncoding(const MCInst &MI, unsigned OpNo,
                     SmallVectorImpl<MCFixup> &Fixups,
                     const MCSubtargetInfo &STI) const {
   const MCOperand &MO = MI.getOperand(OpNo);
-  if (MO.isReg() || MO.isImm()) return getMachineOpValue(MI, MO, Fixups, STI);
 
+  if (MO.isReg() || MO.isImm())
+    return getMachineOpValue(MI, MO, Fixups, STI);
   // Add a fixup for the branch target.
   Fixups.push_back(MCFixup::create(0, MO.getExpr(),
-                                   ((MI.getOpcode() == PPC::BL8_NOTOC)
+                                   ((MI.getOpcode() == PPC::BL8_NOTOC ||
+                                     MI.getOpcode() == PPC::BL8_NOTOC_TLS)
                                         ? (MCFixupKind)PPC::fixup_ppc_br24_notoc
                                         : (MCFixupKind)PPC::fixup_ppc_br24)));
   return 0;
@@ -90,6 +92,16 @@ getAbsCondBrEncoding(const MCInst &MI, unsigned OpNo,
   Fixups.push_back(MCFixup::create(0, MO.getExpr(),
                                    (MCFixupKind)PPC::fixup_ppc_brcond14abs));
   return 0;
+}
+
+unsigned
+PPCMCCodeEmitter::getVSRpEvenEncoding(const MCInst &MI, unsigned OpNo,
+                                      SmallVectorImpl<MCFixup> &Fixups,
+                                      const MCSubtargetInfo &STI) const {
+  assert(MI.getOperand(OpNo).isReg() && "Operand should be a register");
+  unsigned RegBits = getMachineOpValue(MI, MI.getOperand(OpNo), Fixups, STI)
+                     << 1;
+  return RegBits;
 }
 
 unsigned PPCMCCodeEmitter::getImm16Encoding(const MCInst &MI, unsigned OpNo,
@@ -191,6 +203,24 @@ unsigned PPCMCCodeEmitter::getMemRIX16Encoding(const MCInst &MI, unsigned OpNo,
   return RegBits;
 }
 
+unsigned
+PPCMCCodeEmitter::getMemRIHashEncoding(const MCInst &MI, unsigned OpNo,
+                                       SmallVectorImpl<MCFixup> &Fixups,
+                                       const MCSubtargetInfo &STI) const {
+  // Encode (imm, reg) for the hash load/store to stack for the ROP Protection
+  // instructions.
+  const MCOperand &RegMO = MI.getOperand(OpNo + 1);
+  const MCOperand &MO = MI.getOperand(OpNo);
+
+  assert(RegMO.isReg() && "Base address must be a register.");
+  assert(MO.isImm() && "Expecting an immediate operand.");
+  assert(!(MO.getImm() % 8) && "Expecting offset to be 8 byte aligned.");
+
+  unsigned RegBits = getMachineOpValue(MI, RegMO, Fixups, STI) << 6;
+  unsigned DX = (MO.getImm() >> 3) & 0x3F;
+  return RegBits | DX;
+}
+
 uint64_t
 PPCMCCodeEmitter::getMemRI34PCRelEncoding(const MCInst &MI, unsigned OpNo,
                                           SmallVectorImpl<MCFixup> &Fixups,
@@ -229,8 +259,13 @@ PPCMCCodeEmitter::getMemRI34PCRelEncoding(const MCInst &MI, unsigned OpNo,
     (void)SRE;
     // Currently these are the only valid PCRelative Relocations.
     assert((SRE->getKind() == MCSymbolRefExpr::VK_PCREL ||
-            SRE->getKind() == MCSymbolRefExpr::VK_PPC_GOT_PCREL) &&
-           "VariantKind must be VK_PCREL or VK_PPC_GOT_PCREL");
+            SRE->getKind() == MCSymbolRefExpr::VK_PPC_GOT_PCREL ||
+            SRE->getKind() == MCSymbolRefExpr::VK_PPC_GOT_TLSGD_PCREL ||
+            SRE->getKind() == MCSymbolRefExpr::VK_PPC_GOT_TLSLD_PCREL ||
+            SRE->getKind() == MCSymbolRefExpr::VK_PPC_GOT_TPREL_PCREL) &&
+           "VariantKind must be VK_PCREL or VK_PPC_GOT_PCREL or "
+           "VK_PPC_GOT_TLSGD_PCREL or VK_PPC_GOT_TLSLD_PCREL or "
+           "VK_PPC_GOT_TPREL_PCREL.");
     // Generate the fixup for the relocation.
     Fixups.push_back(
         MCFixup::create(0, Expr,
@@ -342,8 +377,12 @@ unsigned PPCMCCodeEmitter::getTLSRegEncoding(const MCInst &MI, unsigned OpNo,
 
   // Add a fixup for the TLS register, which simply provides a relocation
   // hint to the linker that this statement is part of a relocation sequence.
-  // Return the thread-pointer register's encoding.
-  Fixups.push_back(MCFixup::create(0, MO.getExpr(),
+  // Return the thread-pointer register's encoding. Add a one byte displacement
+  // if using PC relative memops.
+  const MCExpr *Expr = MO.getExpr();
+  const MCSymbolRefExpr *SRE = cast<MCSymbolRefExpr>(Expr);
+  bool IsPCRel = SRE->getKind() == MCSymbolRefExpr::VK_PPC_TLS_PCREL;
+  Fixups.push_back(MCFixup::create(IsPCRel ? 1 : 0, Expr,
                                    (MCFixupKind)PPC::fixup_ppc_nofixup));
   const Triple &TT = STI.getTargetTriple();
   bool isPPC64 = TT.isPPC64();

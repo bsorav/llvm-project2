@@ -216,6 +216,9 @@ bool TailDuplicator::tailDuplicateAndUpdate(
 
       // Rewrite uses that are outside of the original def's block.
       MachineRegisterInfo::use_iterator UI = MRI->use_begin(VReg);
+      // Only remove instructions after loop, as DBG_VALUE_LISTs with multiple
+      // uses of VReg may invalidate the use iterator when erased.
+      SmallPtrSet<MachineInstr *, 4> InstrsToRemove;
       while (UI != MRI->use_end()) {
         MachineOperand &UseMO = *UI;
         MachineInstr *UseMI = UseMO.getParent();
@@ -225,13 +228,15 @@ bool TailDuplicator::tailDuplicateAndUpdate(
           // a debug instruction that is a kill.
           // FIXME: Should it SSAUpdate job to delete debug instructions
           // instead of replacing the use with undef?
-          UseMI->eraseFromParent();
+          InstrsToRemove.insert(UseMI);
           continue;
         }
         if (UseMI->getParent() == DefBB && !UseMI->isPHI())
           continue;
         SSAUpdate.RewriteUse(UseMO);
       }
+      for (auto *MI : InstrsToRemove)
+        MI->eraseFromParent();
     }
 
     SSAUpdateVRs.clear();
@@ -627,6 +632,14 @@ bool TailDuplicator::shouldTailDuplicate(bool IsSimple,
     if (PreRegAlloc && MI.isCall())
       return false;
 
+    // TailDuplicator::appendCopies will erroneously place COPYs after
+    // INLINEASM_BR instructions after 4b0aa5724fea, which demonstrates the same
+    // bug that was fixed in f7a53d82c090.
+    // FIXME: Use findPHICopyInsertPoint() to find the correct insertion point
+    //        for the COPY when replacing PHIs.
+    if (MI.getOpcode() == TargetOpcode::INLINEASM_BR)
+      return false;
+
     if (MI.isBundle())
       InstrCount += MI.getBundleSize();
     else if (!MI.isPHI() && !MI.isMetaInstruction())
@@ -675,7 +688,7 @@ bool TailDuplicator::isSimpleBB(MachineBasicBlock *TailBB) {
     return false;
   if (TailBB->pred_empty())
     return false;
-  MachineBasicBlock::iterator I = TailBB->getFirstNonDebugInstr();
+  MachineBasicBlock::iterator I = TailBB->getFirstNonDebugInstr(true);
   if (I == TailBB->end())
     return true;
   return I->isUnconditionalBranch();
@@ -712,8 +725,7 @@ bool TailDuplicator::duplicateSimpleBB(
     SmallVectorImpl<MachineInstr *> &Copies) {
   SmallPtrSet<MachineBasicBlock *, 8> Succs(TailBB->succ_begin(),
                                             TailBB->succ_end());
-  SmallVector<MachineBasicBlock *, 8> Preds(TailBB->pred_begin(),
-                                            TailBB->pred_end());
+  SmallVector<MachineBasicBlock *, 8> Preds(TailBB->predecessors());
   bool Changed = false;
   for (MachineBasicBlock *PredBB : Preds) {
     if (PredBB->hasEHPadSuccessor() || PredBB->mayHaveInlineAsmBr())
@@ -1028,10 +1040,9 @@ void TailDuplicator::removeDeadBlock(
 
   MachineFunction *MF = MBB->getParent();
   // Update the call site info.
-  std::for_each(MBB->begin(), MBB->end(), [MF](const MachineInstr &MI) {
+  for (const MachineInstr &MI : *MBB)
     if (MI.shouldUpdateCallSiteInfo())
       MF->eraseCallSiteInfo(&MI);
-  });
 
   if (RemovalCallback)
     (*RemovalCallback)(MBB);

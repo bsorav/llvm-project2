@@ -1,9 +1,5 @@
 cmake_minimum_required(VERSION 3.13.4)
 
-if(POLICY CMP0075)
-  cmake_policy(SET CMP0075 NEW)
-endif()
-
 # Add path for custom modules.
 set(CMAKE_MODULE_PATH
   ${CMAKE_MODULE_PATH}
@@ -26,14 +22,8 @@ include(LLDBConfig)
 include(AddLLDB)
 
 # Define the LLDB_CONFIGURATION_xxx matching the build type.
-if( uppercase_CMAKE_BUILD_TYPE STREQUAL "DEBUG" )
-  add_definitions( -DLLDB_CONFIGURATION_DEBUG )
-else()
-  add_definitions( -DLLDB_CONFIGURATION_RELEASE )
-endif()
-
-if(APPLE)
-  add_definitions(-DLLDB_USE_OS_LOG)
+if(uppercase_CMAKE_BUILD_TYPE STREQUAL "DEBUG" )
+  add_definitions(-DLLDB_CONFIGURATION_DEBUG)
 endif()
 
 if (WIN32)
@@ -41,13 +31,22 @@ if (WIN32)
 endif()
 
 if (LLDB_ENABLE_PYTHON)
-  execute_process(
-    COMMAND ${PYTHON_EXECUTABLE}
-        -c "import distutils.sysconfig; print(distutils.sysconfig.get_python_lib(True, False, ''))"
-    OUTPUT_VARIABLE LLDB_PYTHON_DEFAULT_RELATIVE_PATH
-    OUTPUT_STRIP_TRAILING_WHITESPACE)
+  if (NOT CMAKE_CROSSCOMPILING)
+    execute_process(
+      COMMAND ${Python3_EXECUTABLE}
+          -c "import distutils.sysconfig; print(distutils.sysconfig.get_python_lib(True, False, ''))"
+      OUTPUT_VARIABLE LLDB_PYTHON_DEFAULT_RELATIVE_PATH
+      OUTPUT_STRIP_TRAILING_WHITESPACE)
 
-  file(TO_CMAKE_PATH ${LLDB_PYTHON_DEFAULT_RELATIVE_PATH} LLDB_PYTHON_DEFAULT_RELATIVE_PATH)
+    file(TO_CMAKE_PATH ${LLDB_PYTHON_DEFAULT_RELATIVE_PATH} LLDB_PYTHON_DEFAULT_RELATIVE_PATH)
+  else ()
+    if ("${LLDB_PYTHON_RELATIVE_PATH}" STREQUAL "")
+      message(FATAL_ERROR
+        "Crosscompiling LLDB with Python requires manually setting
+        LLDB_PYTHON_RELATIVE_PATH.")
+    endif ()
+  endif ()
+
   set(LLDB_PYTHON_RELATIVE_PATH ${LLDB_PYTHON_DEFAULT_RELATIVE_PATH}
     CACHE STRING "Path where Python modules are installed, relative to install prefix")
 endif ()
@@ -85,14 +84,14 @@ add_subdirectory(source)
 add_subdirectory(tools)
 add_subdirectory(docs)
 
-if (LLDB_ENABLE_PYTHON OR LLDB_ENABLE_LUA)
+if (LLDB_ENABLE_PYTHON)
   if(LLDB_BUILD_FRAMEWORK)
     set(lldb_python_target_dir "${LLDB_FRAMEWORK_ABSOLUTE_BUILD_DIR}/LLDB.framework/Resources/Python/lldb")
   else()
     set(lldb_python_target_dir "${CMAKE_BINARY_DIR}/${CMAKE_CFG_INTDIR}/${LLDB_PYTHON_RELATIVE_PATH}/lldb")
   endif()
-  get_target_property(lldb_bindings_dir swig_wrapper BINARY_DIR)
-  finish_swig("finish_swig" "${lldb_bindings_dir}" "${lldb_python_target_dir}")
+  get_target_property(lldb_python_bindings_dir swig_wrapper_python BINARY_DIR)
+  finish_swig_python("lldb-python" "${lldb_python_bindings_dir}" "${lldb_python_target_dir}")
 endif()
 
 option(LLDB_INCLUDE_TESTS "Generate build targets for the LLDB unit tests." ${LLVM_INCLUDE_TESTS})

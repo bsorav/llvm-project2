@@ -67,9 +67,23 @@ void UnitMap::FlushAll(IoErrorHandler &handler) {
   CriticalSection critical{lock_};
   for (int j{0}; j < buckets_; ++j) {
     for (Chain *p{bucket_[j].get()}; p; p = p->next.get()) {
-      p->unit.Flush(handler);
+      p->unit.FlushOutput(handler);
     }
   }
+}
+
+ExternalFileUnit *UnitMap::Find(const char *path) {
+  if (path) {
+    // TODO: Faster data structure
+    for (int j{0}; j < buckets_; ++j) {
+      for (Chain *p{bucket_[j].get()}; p; p = p->next.get()) {
+        if (p->unit.path() && std::strcmp(p->unit.path(), path) == 0) {
+          return &p->unit;
+        }
+      }
+    }
+  }
+  return nullptr;
 }
 
 ExternalFileUnit &UnitMap::Create(int n, const Terminator &terminator) {
@@ -78,4 +92,5 @@ ExternalFileUnit &UnitMap::Create(int n, const Terminator &terminator) {
   bucket_[Hash(n)].swap(chain.next); // pushes new node as list head
   return chain.unit;
 }
+
 } // namespace Fortran::runtime::io

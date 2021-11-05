@@ -79,14 +79,15 @@ struct SemiNCAInfo {
   using UpdateKind = typename DomTreeT::UpdateKind;
   struct BatchUpdateInfo {
     // Note: Updates inside PreViewCFG are aleady legalized.
-    BatchUpdateInfo(GraphDiffT &PreViewCFG)
-        : PreViewCFG(PreViewCFG),
+    BatchUpdateInfo(GraphDiffT &PreViewCFG, GraphDiffT *PostViewCFG = nullptr)
+        : PreViewCFG(PreViewCFG), PostViewCFG(PostViewCFG),
           NumLegalized(PreViewCFG.getNumLegalizedUpdates()) {}
 
     // Remembers if the whole tree was recalculated at some point during the
     // current batch update.
     bool IsRecalculated = false;
     GraphDiffT &PreViewCFG;
+    GraphDiffT *PostViewCFG;
     const size_t NumLegalized;
   };
 
@@ -107,8 +108,19 @@ struct SemiNCAInfo {
   static SmallVector<NodePtr, 8> getChildren(NodePtr N, BatchUpdatePtr BUI) {
     if (BUI)
       return BUI->PreViewCFG.template getChildren<Inversed>(N);
-    GraphDiffT GD;
-    return GD.template getChildren<Inversed>(N);
+    return getChildren<Inversed>(N);
+  }
+
+  template <bool Inversed>
+  static SmallVector<NodePtr, 8> getChildren(NodePtr N) {
+    using DirectedNodeT =
+        std::conditional_t<Inversed, Inverse<NodePtr>, NodePtr>;
+    auto R = children<DirectedNodeT>(N);
+    SmallVector<NodePtr, 8> Res(detail::reverse_if<!Inversed>(R));
+
+    // Remove nullptr children for clang.
+    llvm::erase_value(Res, nullptr);
+    return Res;
   }
 
   NodePtr getIDom(NodePtr BB) const {
@@ -151,6 +163,8 @@ struct SemiNCAInfo {
     }
   };
 
+  using NodeOrderMap = DenseMap<NodePtr, unsigned>;
+
   // Custom DFS implementation which can skip nodes based on a provided
   // predicate. It also collects ReverseChildren so that we don't have to spend
   // time getting predecessors in SemiNCA.
@@ -158,9 +172,13 @@ struct SemiNCAInfo {
   // If IsReverse is set to true, the DFS walk will be performed backwards
   // relative to IsPostDom -- using reverse edges for dominators and forward
   // edges for postdominators.
+  //
+  // If SuccOrder is specified then in this order the DFS traverses the children
+  // otherwise the order is implied by the results of getChildren().
   template <bool IsReverse = false, typename DescendCondition>
   unsigned runDFS(NodePtr V, unsigned LastNum, DescendCondition Condition,
-                  unsigned AttachToNum) {
+                  unsigned AttachToNum,
+                  const NodeOrderMap *SuccOrder = nullptr) {
     assert(V);
     SmallVector<NodePtr, 64> WorkList = {V};
     if (NodeToInfo.count(V) != 0) NodeToInfo[V].Parent = AttachToNum;
@@ -176,7 +194,14 @@ struct SemiNCAInfo {
       NumToNode.push_back(BB);
 
       constexpr bool Direction = IsReverse != IsPostDom;  // XOR.
-      for (const NodePtr Succ : getChildren<Direction>(BB, BatchUpdates)) {
+      auto Successors = getChildren<Direction>(BB, BatchUpdates);
+      if (SuccOrder && Successors.size() > 1)
+        llvm::sort(
+            Successors.begin(), Successors.end(), [=](NodePtr A, NodePtr B) {
+              return SuccOrder->find(A)->second < SuccOrder->find(B)->second;
+            });
+
+      for (const NodePtr Succ : Successors) {
         const auto SIT = NodeToInfo.find(Succ);
         // Don't visit nodes more than once but remember to collect
         // ReverseChildren.
@@ -372,6 +397,32 @@ struct SemiNCAInfo {
     // nodes.
     if (Total + 1 != Num) {
       HasNonTrivialRoots = true;
+
+      // SuccOrder is the order of blocks in the function. It is needed to make
+      // the calculation of the FurthestAway node and the whole PostDomTree
+      // immune to swap successors transformation (e.g. canonicalizing branch
+      // predicates). SuccOrder is initialized lazily only for successors of
+      // reverse unreachable nodes.
+      Optional<NodeOrderMap> SuccOrder;
+      auto InitSuccOrderOnce = [&]() {
+        SuccOrder = NodeOrderMap();
+        for (const auto Node : nodes(DT.Parent))
+          if (SNCA.NodeToInfo.count(Node) == 0)
+            for (const auto Succ : getChildren<false>(Node, SNCA.BatchUpdates))
+              SuccOrder->try_emplace(Succ, 0);
+
+        // Add mapping for all entries of SuccOrder.
+        unsigned NodeNum = 0;
+        for (const auto Node : nodes(DT.Parent)) {
+          ++NodeNum;
+          auto Order = SuccOrder->find(Node);
+          if (Order != SuccOrder->end()) {
+            assert(Order->second == 0);
+            Order->second = NodeNum;
+          }
+        }
+      };
+
       // Make another DFS pass over all other nodes to find the
       // reverse-unreachable blocks, and find the furthest paths we'll be able
       // to make.
@@ -396,7 +447,12 @@ struct SemiNCAInfo {
           // expensive and does not always lead to a minimal set of roots.
           LLVM_DEBUG(dbgs() << "\t\t\tRunning forward DFS\n");
 
-          const unsigned NewNum = SNCA.runDFS<true>(I, Num, AlwaysDescend, Num);
+          if (!SuccOrder)
+            InitSuccOrderOnce();
+          assert(SuccOrder);
+
+          const unsigned NewNum =
+              SNCA.runDFS<true>(I, Num, AlwaysDescend, Num, &*SuccOrder);
           const NodePtr FurthestAway = SNCA.NumToNode[NewNum];
           LLVM_DEBUG(dbgs() << "\t\t\tFound a new furthest away node "
                             << "(non-trivial root): "
@@ -472,7 +528,7 @@ struct SemiNCAInfo {
         // If we wound another root in a (forward) DFS walk, remove the current
         // root from the set of roots, as it is reverse-reachable from the other
         // one.
-        if (llvm::find(Roots, N) != Roots.end()) {
+        if (llvm::is_contained(Roots, N)) {
           LLVM_DEBUG(dbgs() << "\tForward DFS walk found another root "
                             << BlockNamePrinter(N) << "\n\tRemoving root "
                             << BlockNamePrinter(Root) << "\n");
@@ -505,12 +561,21 @@ struct SemiNCAInfo {
     auto *Parent = DT.Parent;
     DT.reset();
     DT.Parent = Parent;
-    SemiNCAInfo SNCA(nullptr);  // Since we are rebuilding the whole tree,
-                                // there's no point doing it incrementally.
+    // If the update is using the actual CFG, BUI is null. If it's using a view,
+    // BUI is non-null and the PreCFGView is used. When calculating from
+    // scratch, make the PreViewCFG equal to the PostCFGView, so Post is used.
+    BatchUpdatePtr PostViewBUI = nullptr;
+    if (BUI && BUI->PostViewCFG) {
+      BUI->PreViewCFG = *BUI->PostViewCFG;
+      PostViewBUI = BUI;
+    }
+    // This is rebuilding the whole tree, not incrementally, but PostViewBUI is
+    // used in case the caller needs a DT update with a CFGView.
+    SemiNCAInfo SNCA(PostViewBUI);
 
     // Step #0: Number blocks in depth-first order and initialize variables used
     // in later stages of the algorithm.
-    DT.Roots = FindRoots(DT, nullptr);
+    DT.Roots = FindRoots(DT, PostViewBUI);
     SNCA.doFullDFSWalk(DT, AlwaysDescend);
 
     SNCA.runSemiNCA(DT);
@@ -578,7 +643,7 @@ struct SemiNCAInfo {
         Bucket;
     SmallDenseSet<TreeNodePtr, 8> Visited;
     SmallVector<TreeNodePtr, 8> Affected;
-#ifndef NDEBUG
+#ifdef LLVM_ENABLE_ABI_BREAKING_CHECKS
     SmallVector<TreeNodePtr, 8> VisitedUnaffected;
 #endif
   };
@@ -621,8 +686,7 @@ struct SemiNCAInfo {
     // root.
     if (!DT.isVirtualRoot(To->getIDom())) return false;
 
-    auto RIt = llvm::find(DT.Roots, To->getBlock());
-    if (RIt == DT.Roots.end())
+    if (!llvm::is_contained(DT.Roots, To->getBlock()))
       return false;  // To is not a root, nothing to update.
 
     LLVM_DEBUG(dbgs() << "\t\tAfter the insertion, " << BlockNamePrinter(To)
@@ -788,7 +852,7 @@ struct SemiNCAInfo {
       TN->setIDom(NCD);
     }
 
-#ifndef NDEBUG
+#if defined(LLVM_ENABLE_ABI_BREAKING_CHECKS) && !defined(NDEBUG)
     for (const TreeNodePtr TN : II.VisitedUnaffected)
       assert(TN->getLevel() == TN->getIDom()->getLevel() + 1 &&
              "TN should have been updated by an affected ancestor");
@@ -854,13 +918,13 @@ struct SemiNCAInfo {
     LLVM_DEBUG(dbgs() << "Deleting edge " << BlockNamePrinter(From) << " -> "
                       << BlockNamePrinter(To) << "\n");
 
-#ifndef NDEBUG
+#ifdef LLVM_ENABLE_ABI_BREAKING_CHECKS
     // Ensure that the edge was in fact deleted from the CFG before informing
     // the DomTree about it.
     // The check is O(N), so run it only in debug configuration.
     auto IsSuccessor = [BUI](const NodePtr SuccCandidate, const NodePtr Of) {
       auto Successors = getChildren<IsPostDom>(Of, BUI);
-      return llvm::find(Successors, SuccCandidate) != Successors.end();
+      return llvm::is_contained(Successors, SuccCandidate);
     };
     (void)IsSuccessor;
     assert(!IsSuccessor(To, From) && "Deleted edge still exists in the CFG!");
@@ -994,7 +1058,7 @@ struct SemiNCAInfo {
       const TreeNodePtr TN = DT.getNode(To);
       assert(TN);
       if (TN->getLevel() > Level) return true;
-      if (llvm::find(AffectedQueue, To) == AffectedQueue.end())
+      if (!llvm::is_contained(AffectedQueue, To))
         AffectedQueue.push_back(To);
 
       return false;
@@ -1084,7 +1148,10 @@ struct SemiNCAInfo {
   //===--------------------- DomTree Batch Updater --------------------------===
   //~~
 
-  static void ApplyUpdates(DomTreeT &DT, GraphDiffT &PreViewCFG) {
+  static void ApplyUpdates(DomTreeT &DT, GraphDiffT &PreViewCFG,
+                           GraphDiffT *PostViewCFG) {
+    // Note: the PostViewCFG is only used when computing from scratch. It's data
+    // should already included in the PreViewCFG for incremental updates.
     const size_t NumUpdates = PreViewCFG.getNumLegalizedUpdates();
     if (NumUpdates == 0)
       return;
@@ -1093,14 +1160,22 @@ struct SemiNCAInfo {
     // machinery.
     if (NumUpdates == 1) {
       UpdateT Update = PreViewCFG.popUpdateForIncrementalUpdates();
-      if (Update.getKind() == UpdateKind::Insert)
-        InsertEdge(DT, /*BUI=*/nullptr, Update.getFrom(), Update.getTo());
-      else
-        DeleteEdge(DT, /*BUI=*/nullptr, Update.getFrom(), Update.getTo());
+      if (!PostViewCFG) {
+        if (Update.getKind() == UpdateKind::Insert)
+          InsertEdge(DT, /*BUI=*/nullptr, Update.getFrom(), Update.getTo());
+        else
+          DeleteEdge(DT, /*BUI=*/nullptr, Update.getFrom(), Update.getTo());
+      } else {
+        BatchUpdateInfo BUI(*PostViewCFG, PostViewCFG);
+        if (Update.getKind() == UpdateKind::Insert)
+          InsertEdge(DT, &BUI, Update.getFrom(), Update.getTo());
+        else
+          DeleteEdge(DT, &BUI, Update.getFrom(), Update.getTo());
+      }
       return;
     }
 
-    BatchUpdateInfo BUI(PreViewCFG);
+    BatchUpdateInfo BUI(PreViewCFG, PostViewCFG);
     // Recalculate the DominatorTree when the number of updates
     // exceeds a threshold, which usually makes direct updating slower than
     // recalculation. We select this threshold proportional to the
@@ -1516,8 +1591,10 @@ void DeleteEdge(DomTreeT &DT, typename DomTreeT::NodePtr From,
 template <class DomTreeT>
 void ApplyUpdates(DomTreeT &DT,
                   GraphDiff<typename DomTreeT::NodePtr,
-                            DomTreeT::IsPostDominator> &PreViewCFG) {
-  SemiNCAInfo<DomTreeT>::ApplyUpdates(DT, PreViewCFG);
+                            DomTreeT::IsPostDominator> &PreViewCFG,
+                  GraphDiff<typename DomTreeT::NodePtr,
+                            DomTreeT::IsPostDominator> *PostViewCFG) {
+  SemiNCAInfo<DomTreeT>::ApplyUpdates(DT, PreViewCFG, PostViewCFG);
 }
 
 template <class DomTreeT>

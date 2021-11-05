@@ -325,7 +325,8 @@ bool InlineAsmLowering::lowerInlineAsm(
         return false;
       }
 
-      OpInfo.ConstraintVT = TLI->getValueType(DL, OpTy, true).getSimpleVT();
+      OpInfo.ConstraintVT =
+          TLI->getAsmOperandValueType(DL, OpTy, true).getSimpleVT();
 
     } else if (OpInfo.Type == InlineAsm::isOutput && !OpInfo.isIndirect) {
       assert(!Call.getType()->isVoidTy() && "Bad inline asm!");
@@ -334,12 +335,16 @@ bool InlineAsmLowering::lowerInlineAsm(
             TLI->getSimpleValueType(DL, STy->getElementType(ResNo));
       } else {
         assert(ResNo == 0 && "Asm only has one result!");
-        OpInfo.ConstraintVT = TLI->getSimpleValueType(DL, Call.getType());
+        OpInfo.ConstraintVT =
+            TLI->getAsmOperandValueType(DL, Call.getType()).getSimpleVT();
       }
       ++ResNo;
     } else {
       OpInfo.ConstraintVT = MVT::Other;
     }
+
+    if (OpInfo.ConstraintVT == MVT::i64x8)
+      return false;
 
     // Compute the constraint code and ConstraintType to use.
     computeConstraintToUse(TLI, OpInfo);
@@ -455,19 +460,23 @@ bool InlineAsmLowering::lowerInlineAsm(
         unsigned DefRegIdx = InstFlagIdx + 1;
         Register Def = Inst->getOperand(DefRegIdx).getReg();
 
-        // Copy input to new vreg with same reg class as Def
-        const TargetRegisterClass *RC = MRI->getRegClass(Def);
         ArrayRef<Register> SrcRegs = GetOrCreateVRegs(*OpInfo.CallOperandVal);
         assert(SrcRegs.size() == 1 && "Single register is expected here");
-        Register Tmp = MRI->createVirtualRegister(RC);
-        if (!buildAnyextOrCopy(Tmp, SrcRegs[0], MIRBuilder))
-          return false;
 
-        // Add Flag and input register operand (Tmp) to Inst. Tie Tmp to Def.
+        // When Def is physreg: use given input.
+        Register In = SrcRegs[0];
+        // When Def is vreg: copy input to new vreg with same reg class as Def.
+        if (Def.isVirtual()) {
+          In = MRI->createVirtualRegister(MRI->getRegClass(Def));
+          if (!buildAnyextOrCopy(In, SrcRegs[0], MIRBuilder))
+            return false;
+        }
+
+        // Add Flag and input register operand (In) to Inst. Tie In to Def.
         unsigned UseFlag = InlineAsm::getFlagWord(InlineAsm::Kind_RegUse, 1);
         unsigned Flag = InlineAsm::getFlagWordForMatchingOp(UseFlag, DefIdx);
         Inst.addImm(Flag);
-        Inst.addReg(Tmp);
+        Inst.addReg(In);
         Inst->tieOperands(DefRegIdx, Inst->getNumOperands() - 1);
         break;
       }

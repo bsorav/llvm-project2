@@ -99,9 +99,9 @@ sum = 0.0;
 // CHECK-DAG:    [[TMP32:%.*]] = ptrtoint %struct.S* [[ARRAYIDX6]] to i64
 // CHECK-DAG:    [[TMP33:%.*]] = ptrtoint %struct.S* [[ARRAYIDX5]] to i64
 // CHECK-DAG:    [[TMP34:%.*]] = sub i64 [[TMP32]], [[TMP33]]
-// CHECK-DAG:    [[TMP35:%.*]] = sdiv exact i64 [[TMP34]], ptrtoint (float* getelementptr (float, float* null, i32 1) to i64)
+// CHECK-DAG:    [[TMP35:%.*]] = sdiv exact i64 [[TMP34]], ptrtoint (%struct.S* getelementptr (%struct.S, %struct.S* null, i32 1) to i64)
 // CHECK-DAG:    [[TMP36:%.*]] = add nuw i64 [[TMP35]], 1
-// CHECK-DAG:    [[TMP37:%.*]] = mul nuw i64 [[TMP36]], ptrtoint (float* getelementptr (float, float* null, i32 1) to i64)
+// CHECK-DAG:    [[TMP37:%.*]] = mul nuw i64 [[TMP36]], ptrtoint (%struct.S* getelementptr (%struct.S, %struct.S* null, i32 1) to i64)
 // CHECK-DAG:    store i64 [[TMP37]], i64* [[TMP38:%[^,]+]],
 // CHECK-DAG:    [[TMP38]] = getelementptr inbounds %struct.kmp_taskred_input_t, %struct.kmp_taskred_input_t* [[DOTRD_INPUT_GEP_4]], i32 0, i32 2
 // CHECK-DAG:    [[TMP39:%.*]] = getelementptr inbounds %struct.kmp_taskred_input_t, %struct.kmp_taskred_input_t* [[DOTRD_INPUT_GEP_4]], i32 0, i32 3
@@ -161,8 +161,8 @@ sum = 0.0;
 // CHECK:    [[DIV:%.*]] = sdiv i32 [[SUB]], 1
 // CHECK:    [[SUB12:%.*]] = sub nsw i32 [[DIV]], 1
 // CHECK:    store i32 [[SUB12]], i32* [[DOTCAPTURE_EXPR_9]],
-// CHECK:    [[TMP65:%.*]] = call i8* @__kmpc_omp_task_alloc(%struct.ident_t* %{{.+}}, i32 [[TMP0]], i32 1, i64 888, i64 40, i32 (i32, i8*)* bitcast (i32 (i32, %struct.kmp_task_t_with_privates*)* @[[TASK:.+]] to i32 (i32, i8*)*))
-// CHECK:    call void @__kmpc_taskloop(%struct.ident_t* %{{.+}}, i32 [[TMP0]], i8* [[TMP65]], i32 1, i64* %{{.+}}, i64* %{{.+}}, i64 %{{.+}}, i32 1, i32 0, i64 0, i8* null)
+// CHECK:    [[TMP65:%.*]] = call i8* @__kmpc_omp_task_alloc(%struct.ident_t* {{.+}}, i32 [[TMP0]], i32 1, i64 888, i64 40, i32 (i32, i8*)* bitcast (i32 (i32, %struct.kmp_task_t_with_privates*)* @[[TASK:.+]] to i32 (i32, i8*)*))
+// CHECK:    call void @__kmpc_taskloop(%struct.ident_t* {{.+}}, i32 [[TMP0]], i8* [[TMP65]], i32 1, i64* %{{.+}}, i64* %{{.+}}, i64 %{{.+}}, i32 1, i32 0, i64 0, i8* null)
 // CHECK:    call void @__kmpc_end_taskgroup(%struct.ident_t*
 // CHECK:  call {{.*}}void @__kmpc_end_master(
 // CHECK-NEXT:  br label {{%?}}[[EXIT]]

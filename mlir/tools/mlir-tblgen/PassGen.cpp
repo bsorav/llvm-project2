@@ -36,6 +36,7 @@ static llvm::cl::opt<std::string>
 /// {0}: The def name of the pass record.
 /// {1}: The base class for the pass.
 /// {2): The command line argument for the pass.
+/// {3}: The dependent dialects registration.
 const char *const passDeclBegin = R"(
 //===----------------------------------------------------------------------===//
 // {0}
@@ -44,13 +45,23 @@ const char *const passDeclBegin = R"(
 template <typename DerivedT>
 class {0}Base : public {1} {
 public:
+  using Base = {0}Base;
+
   {0}Base() : {1}(::mlir::TypeID::get<DerivedT>()) {{}
-  {0}Base(const {0}Base &) : {1}(::mlir::TypeID::get<DerivedT>()) {{}
+  {0}Base(const {0}Base &other) : {1}(other) {{}
 
   /// Returns the command-line argument attached to this pass.
+  static constexpr ::llvm::StringLiteral getArgumentName() {
+    return ::llvm::StringLiteral("{2}");
+  }
   ::llvm::StringRef getArgument() const override { return "{2}"; }
 
+  ::llvm::StringRef getDescription() const override { return "{3}"; }
+
   /// Returns the derived pass name.
+  static constexpr ::llvm::StringLiteral getPassName() {
+    return ::llvm::StringLiteral("{0}");
+  }
   ::llvm::StringRef getName() const override { return "{0}"; }
 
   /// Support isa/dyn_cast functionality for the derived pass class.
@@ -63,7 +74,18 @@ public:
     return std::make_unique<DerivedT>(*static_cast<const DerivedT *>(this));
   }
 
+  /// Return the dialect that must be loaded in the context before this pass.
+  void getDependentDialects(::mlir::DialectRegistry &registry) const override {
+    {4}
+  }
+
 protected:
+)";
+
+/// Registration for a single dependent dialect, to be inserted for each
+/// dependent dialect in the `getDependentDialects` above.
+const char *const dialectRegistrationTemplate = R"(
+  registry.insert<{0}>();
 )";
 
 /// Emit the declarations for each of the pass options.
@@ -94,8 +116,16 @@ static void emitPassStatisticDecls(const Pass &pass, raw_ostream &os) {
 
 static void emitPassDecl(const Pass &pass, raw_ostream &os) {
   StringRef defName = pass.getDef()->getName();
+  std::string dependentDialectRegistrations;
+  {
+    llvm::raw_string_ostream dialectsOs(dependentDialectRegistrations);
+    for (StringRef dependentDialect : pass.getDependentDialects())
+      dialectsOs << llvm::formatv(dialectRegistrationTemplate,
+                                  dependentDialect);
+  }
   os << llvm::formatv(passDeclBegin, defName, pass.getBaseClass(),
-                      pass.getArgument());
+                      pass.getArgument(), pass.getSummary(),
+                      dependentDialectRegistrations);
   emitPassOptionDecls(pass, os);
   emitPassStatisticDecls(pass, os);
   os << "};\n";
@@ -127,8 +157,8 @@ const char *const passRegistrationCode = R"(
 //===----------------------------------------------------------------------===//
 
 inline void register{0}Pass() {{
-  ::mlir::registerPass("{1}", "{2}", []() -> std::unique_ptr<::mlir::Pass> {{
-    return {3};
+  ::mlir::registerPass([]() -> std::unique_ptr<::mlir::Pass> {{
+    return {1};
   });
 }
 )";
@@ -148,7 +178,6 @@ static void emitRegistration(ArrayRef<Pass> passes, raw_ostream &os) {
   os << "#ifdef GEN_PASS_REGISTRATION\n";
   for (const Pass &pass : passes) {
     os << llvm::formatv(passRegistrationCode, pass.getDef()->getName(),
-                        pass.getArgument(), pass.getSummary(),
                         pass.getConstructor());
   }
 

@@ -125,7 +125,7 @@ DWARFExpression_to_eqspace_expr::dump_stack_and_expr() const
       m_OS << eqspace::expr_string(v) << " ";
     }
     m_OS << "\nDWARFExpression = ";
-    m_dwarf_expr.print(m_OS, nullptr, nullptr);
+    m_dwarf_expr.print(m_OS, {}, nullptr, nullptr);
     m_OS << '\n';
 }
 
@@ -423,7 +423,7 @@ SubprogramLocalsHarvester::handle_location_list(DWARFLocationTable const& locati
                                                 DWARFUnit *U)
 {
 	assert(U);
-  auto const& DataEx = location_table.getDataExtractor();
+  auto const& DataEx = location_table.getData();
   bool first_only = true; // consider only the first element of the location list
   std::vector<std::tuple<uint64_t,uint64_t,eqspace::expr_ref>> loc_exprs;
   Error E = location_table.visitAbsoluteLocationList(Offset, BaseAddr,

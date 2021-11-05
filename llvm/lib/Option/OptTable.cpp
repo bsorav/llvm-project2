@@ -6,14 +6,15 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "llvm/Option/OptTable.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/StringSet.h"
 #include "llvm/Option/Arg.h"
 #include "llvm/Option/ArgList.h"
-#include "llvm/Option/Option.h"
 #include "llvm/Option/OptSpecifier.h"
-#include "llvm/Option/OptTable.h"
+#include "llvm/Option/Option.h"
+#include "llvm/Support/CommandLine.h" // for expandResponseFiles
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/raw_ostream.h"
@@ -183,9 +184,8 @@ static unsigned matchOption(const OptTable::Info *I, StringRef Str,
     StringRef Prefix(*Pre);
     if (Str.startswith(Prefix)) {
       StringRef Rest = Str.substr(Prefix.size());
-      bool Matched = IgnoreCase
-          ? Rest.startswith_lower(I->Name)
-          : Rest.startswith(I->Name);
+      bool Matched = IgnoreCase ? Rest.startswith_insensitive(I->Name)
+                                : Rest.startswith(I->Name);
       if (Matched)
         return Prefix.size() + StringRef(I->Name).size();
     }
@@ -195,10 +195,13 @@ static unsigned matchOption(const OptTable::Info *I, StringRef Str,
 
 // Returns true if one of the Prefixes + In.Names matches Option
 static bool optionMatches(const OptTable::Info &In, StringRef Option) {
-  if (In.Prefixes)
+  if (In.Prefixes) {
+    StringRef InName(In.Name);
     for (size_t I = 0; In.Prefixes[I]; I++)
-      if (Option == std::string(In.Prefixes[I]) + In.Name)
-        return true;
+      if (Option.endswith(InName))
+        if (Option.slice(0, Option.size() - InName.size()) == In.Prefixes[I])
+          return true;
+  }
   return false;
 }
 
@@ -226,7 +229,7 @@ OptTable::suggestValueCompletions(StringRef Option, StringRef Arg) const {
 }
 
 std::vector<std::string>
-OptTable::findByPrefix(StringRef Cur, unsigned short DisableFlags) const {
+OptTable::findByPrefix(StringRef Cur, unsigned int DisableFlags) const {
   std::vector<std::string> Ret;
   for (size_t I = FirstSearchableIndex, E = OptionInfos.size(); I < E; I++) {
     const Info &In = OptionInfos[I];
@@ -239,7 +242,7 @@ OptTable::findByPrefix(StringRef Cur, unsigned short DisableFlags) const {
       std::string S = std::string(In.Prefixes[I]) + std::string(In.Name) + "\t";
       if (In.HelpText)
         S += In.HelpText;
-      if (StringRef(S).startswith(Cur) && S.compare(std::string(Cur) + "\t"))
+      if (StringRef(S).startswith(Cur) && S != std::string(Cur) + "\t")
         Ret.push_back(S);
     }
   }
@@ -490,6 +493,33 @@ InputArgList OptTable::ParseArgs(ArrayRef<const char *> ArgArr,
   return Args;
 }
 
+InputArgList OptTable::parseArgs(int Argc, char *const *Argv,
+                                 OptSpecifier Unknown, StringSaver &Saver,
+                                 function_ref<void(StringRef)> ErrorFn) const {
+  SmallVector<const char *, 0> NewArgv;
+  // The environment variable specifies initial options which can be overridden
+  // by commnad line options.
+  cl::expandResponseFiles(Argc, Argv, EnvVar, Saver, NewArgv);
+
+  unsigned MAI, MAC;
+  opt::InputArgList Args = ParseArgs(makeArrayRef(NewArgv), MAI, MAC);
+  if (MAC)
+    ErrorFn((Twine(Args.getArgString(MAI)) + ": missing argument").str());
+
+  // For each unknwon option, call ErrorFn with a formatted error message. The
+  // message includes a suggested alternative option spelling if available.
+  std::string Nearest;
+  for (const opt::Arg *A : Args.filtered(Unknown)) {
+    std::string Spelling = A->getAsString(Args);
+    if (findNearest(Spelling, Nearest) > 1)
+      ErrorFn("unknown argument '" + A->getAsString(Args) + "'");
+    else
+      ErrorFn("unknown argument '" + A->getAsString(Args) +
+              "', did you mean '" + Nearest + "'?");
+  }
+  return Args;
+}
+
 static std::string getOptionHelpName(const OptTable &Opts, OptSpecifier Id) {
   const Option O = Opts.getOption(Id);
   std::string Name = O.getPrefixedName();
@@ -588,13 +618,13 @@ static const char *getOptionHelpGroup(const OptTable &Opts, OptSpecifier Id) {
   return getOptionHelpGroup(Opts, GroupID);
 }
 
-void OptTable::PrintHelp(raw_ostream &OS, const char *Usage, const char *Title,
+void OptTable::printHelp(raw_ostream &OS, const char *Usage, const char *Title,
                          bool ShowHidden, bool ShowAllAliases) const {
-  PrintHelp(OS, Usage, Title, /*Include*/ 0, /*Exclude*/
+  printHelp(OS, Usage, Title, /*Include*/ 0, /*Exclude*/
             (ShowHidden ? 0 : HelpHidden), ShowAllAliases);
 }
 
-void OptTable::PrintHelp(raw_ostream &OS, const char *Usage, const char *Title,
+void OptTable::printHelp(raw_ostream &OS, const char *Usage, const char *Title,
                          unsigned FlagsToInclude, unsigned FlagsToExclude,
                          bool ShowAllAliases) const {
   OS << "OVERVIEW: " << Title << "\n\n";

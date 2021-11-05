@@ -1,30 +1,36 @@
-; RUN: llc -verify-machineinstrs -mcpu=pwr7 -mtriple powerpc-ibm-aix-xcoff \
+; RUN: llc -verify-machineinstrs -mcpu=pwr7 -mattr=-altivec -mtriple powerpc-ibm-aix-xcoff \
 ; RUN: -code-model=small -stop-after=machine-cp < %s | FileCheck \
 ; RUN: --check-prefix=32SMALL-MIR %s
 
-; RUN: llc -verify-machineinstrs -mcpu=pwr7 -mtriple powerpc-ibm-aix-xcoff \
+; RUN: llc -verify-machineinstrs -mcpu=pwr7 -mattr=-altivec -mtriple powerpc-ibm-aix-xcoff \
 ; RUN: -code-model=large -stop-after=machine-cp < %s | FileCheck \
 ; RUN: --check-prefix=32LARGE-MIR %s
 
-; RUN: llc -verify-machineinstrs -mcpu=pwr7 -mtriple powerpc64-ibm-aix-xcoff \
+; RUN: llc -verify-machineinstrs -mcpu=pwr7 -mattr=-altivec -mtriple powerpc64-ibm-aix-xcoff \
 ; RUN: -code-model=small -stop-after=machine-cp < %s | FileCheck \
 ; RUN: --check-prefix=64SMALL-MIR %s
 
-; RUN: llc -verify-machineinstrs -mcpu=pwr7 -mtriple powerpc64-ibm-aix-xcoff \
+; RUN: llc -verify-machineinstrs -mcpu=pwr7 -mattr=-altivec -mtriple powerpc64-ibm-aix-xcoff \
 ; RUN: -code-model=large -stop-after=machine-cp < %s | FileCheck \
 ; RUN: --check-prefix=64LARGE-MIR %s
 
 ; RUN: llc -mtriple powerpc-ibm-aix-xcoff -code-model=small < %s | FileCheck \
-; RUN: --check-prefixes=32SMALL-ASM,CHECK %s
+; RUN: --check-prefixes=32SMALL-ASM,SMALL-ASM %s
 
 ; RUN: llc -mtriple powerpc-ibm-aix-xcoff -code-model=large < %s | FileCheck \
-; RUN: --check-prefixes=32LARGE-ASM,CHECK %s
+; RUN: --check-prefixes=32LARGE-ASM,LARGE-ASM %s
 
 ; RUN: llc -mtriple powerpc64-ibm-aix-xcoff -code-model=small < %s | FileCheck \
-; RUN: --check-prefixes=64SMALL-ASM,CHECK %s
+; RUN: --check-prefixes=64SMALL-ASM,SMALL-ASM %s
 
 ; RUN: llc -mtriple powerpc64-ibm-aix-xcoff -code-model=large < %s | FileCheck \
-; RUN: --check-prefixes=64LARGE-ASM,CHECK %s
+; RUN: --check-prefixes=64LARGE-ASM,LARGE-ASM %s
+
+; RUN: llc -mtriple powerpc-ibm-aix-xcoff -function-sections < %s | FileCheck \
+; RUN: --check-prefix=FUNC-ASM %s
+
+; RUN: llc -mtriple powerpc64-ibm-aix-xcoff -function-sections < %s | FileCheck \
+; RUN: --check-prefix=FUNC-ASM %s
 
   define i32 @jump_table(i32 %a) {
   entry:
@@ -56,26 +62,26 @@
   }
 
 
-; 32SMALL-MIR: renamable $r[[REG1:[0-9]+]] = LWZtoc %jump-table.0, $r2 :: (load 4 from got)
+; 32SMALL-MIR: renamable $r[[REG1:[0-9]+]] = LWZtoc %jump-table.0, $r2 :: (load (s32) from got)
 ; 32SMALL-MIR: renamable $r[[REG3:[0-9]+]] = RLWINM killed renamable $r[[REG2:[0-9]+]], 2, 0, 29
-; 32SMALL-MIR: renamable $r[[REG4:[0-9]+]] = LWZX killed renamable $r[[REG3]], renamable $r[[REG1]] :: (load 4 from jump-table)
+; 32SMALL-MIR: renamable $r[[REG4:[0-9]+]] = LWZX killed renamable $r[[REG3]], renamable $r[[REG1]] :: (load (s32) from jump-table)
 ; 32SMALL-MIR: renamable $r[[REG5:[0-9]+]] = ADD4 killed renamable $r[[REG4]], killed renamable $r[[REG1]]
 
 ; 32LARGE-MIR: renamable $r[[REG1:[0-9]+]] = ADDIStocHA $r2, %jump-table.0
-; 32LARGE-MIR: renamable $r[[REG2:[0-9]+]] = LWZtocL %jump-table.0, killed renamable $r[[REG1]], implicit $r2 :: (load 4 from got)
+; 32LARGE-MIR: renamable $r[[REG2:[0-9]+]] = LWZtocL %jump-table.0, killed renamable $r[[REG1]], implicit $r2 :: (load (s32) from got)
 ; 32LARGE-MIR: renamable $r[[REG4:[0-9]+]] = RLWINM killed renamable $r[[REG3:[0-9]+]], 2, 0, 29
-; 32LARGE-MIR: renamable $r[[REG5:[0-9]+]] = LWZX killed renamable $r[[REG4]], renamable $r[[REG2]] :: (load 4 from jump-table)
+; 32LARGE-MIR: renamable $r[[REG5:[0-9]+]] = LWZX killed renamable $r[[REG4]], renamable $r[[REG2]] :: (load (s32) from jump-table)
 ; 32LARGE-MIR: renamable $r[[REG6:[0-9]+]] = ADD4 killed renamable $r[[REG5]], killed renamable $r[[REG2]]
 
-; 64SMALL-MIR: renamable $x[[REG1:[0-9]+]] = LDtocJTI %jump-table.0, $x2 :: (load 8 from got)
+; 64SMALL-MIR: renamable $x[[REG1:[0-9]+]] = LDtocJTI %jump-table.0, $x2 :: (load (s64) from got)
 ; 64SMALL-MIR: renamable $x[[REG3:[0-9]+]] = RLDIC killed renamable $x[[REG2:[0-9]+]], 2, 30
-; 64SMALL-MIR: renamable $x[[REG4:[0-9]+]] = LWAX killed renamable $x[[REG3]], renamable $x[[REG1]] :: (load 4 from jump-table)
+; 64SMALL-MIR: renamable $x[[REG4:[0-9]+]] = LWAX killed renamable $x[[REG3]], renamable $x[[REG1]] :: (load (s32) from jump-table)
 ; 64SMALL-MIR: renamable $x[[REG6:[0-9]+]] = ADD8 killed renamable $x[[REG4]], killed renamable $x[[REG1]]
 
 ; 64LARGE-MIR: renamable $x[[REG1:[0-9]+]] = ADDIStocHA8 $x2, %jump-table.0
-; 64LARGE-MIR: renamable $x[[REG2:[0-9]+]] = LDtocL %jump-table.0, killed renamable $x[[REG1]], implicit $x2 :: (load 8 from got)
+; 64LARGE-MIR: renamable $x[[REG2:[0-9]+]] = LDtocL %jump-table.0, killed renamable $x[[REG1]], implicit $x2 :: (load (s64) from got)
 ; 64LARGE-MIR: renamable $x[[REG4:[0-9]+]] = RLDIC killed renamable $x[[REG3:[0-9]+]], 2, 30
-; 64LARGE-MIR: renamable $x[[REG5:[0-9]+]] = LWAX killed renamable $x[[REG4]], renamable $x[[REG2]] :: (load 4 from jump-table)
+; 64LARGE-MIR: renamable $x[[REG5:[0-9]+]] = LWAX killed renamable $x[[REG4]], renamable $x[[REG2]] :: (load (s32) from jump-table)
 ; 64LARGE-MIR: renamable $x[[REG6:[0-9]+]] = ADD8 killed renamable $x[[REG5]], killed renamable $x[[REG2]]
 
 ; 32SMALL-ASM-LABEL: jump_table
@@ -184,5 +190,24 @@
 ; 64LARGE-ASM:      .vbyte	4, L..BB0_4-L..JTI0_0
 ; 64LARGE-ASM:      .vbyte	4, L..BB0_5-L..JTI0_0
 
-; CHECK: .toc
-; CHECK: .tc L..JTI0_0[TC],L..JTI0_0
+; FUNC-ASM:         .csect .jump_table[PR],2
+; FUNC-ASM: L..BB0_2:
+; FUNC-ASM: L..BB0_3:
+; FUNC-ASM: L..BB0_4:
+; FUNC-ASM: L..BB0_5:
+; FUNC-ASM: L..BB0_6:
+; FUNC-ASM:         li 3, 0
+; FUNC-ASM:         blr
+; FUNC-ASM:         .csect .rodata.jmp..jump_table[RO],2
+; FUNC-ASM:         .align  2
+; FUNC-ASM: L..JTI0_0:
+; FUNC-ASM:         .vbyte  4, L..BB0_2-L..JTI0_0
+; FUNC-ASM:         .vbyte  4, L..BB0_3-L..JTI0_0
+; FUNC-ASM:         .vbyte  4, L..BB0_4-L..JTI0_0
+; FUNC-ASM:         .vbyte  4, L..BB0_5-L..JTI0_0
+
+; SMALL-ASM: .toc
+; SMALL-ASM: .tc L..JTI0_0[TC],L..JTI0_0
+
+; LARGE-ASM: .toc
+; LARGE-ASM: .tc L..JTI0_0[TE],L..JTI0_0

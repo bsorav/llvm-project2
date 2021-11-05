@@ -295,7 +295,7 @@ MCSubtargetInfo *X86_MC::createX86MCSubtargetInfo(const Triple &TT,
   if (CPU.empty())
     CPU = "generic";
 
-  return createX86MCSubtargetInfoImpl(TT, CPU, ArchFS);
+  return createX86MCSubtargetInfoImpl(TT, CPU, /*TuneCPU*/ CPU, ArchFS);
 }
 
 static MCInstrInfo *createX86MCInstrInfo() {
@@ -332,7 +332,7 @@ static MCAsmInfo *createX86MCAsmInfo(const MCRegisterInfo &MRI,
     MAI = new X86ELFMCAsmInfo(TheTriple);
   } else if (TheTriple.isWindowsMSVCEnvironment() ||
              TheTriple.isWindowsCoreCLREnvironment()) {
-    if (Options.getAssemblyLanguage().equals_lower("masm"))
+    if (Options.getAssemblyLanguage().equals_insensitive("masm"))
       MAI = new X86MCAsmInfoMicrosoftMASM(TheTriple);
     else
       MAI = new X86MCAsmInfoMicrosoft(TheTriple);

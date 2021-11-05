@@ -14,7 +14,9 @@
 #include <cstring>
 #include <fcntl.h>
 #include <stdlib.h>
+#include <sys/stat.h>
 #ifdef _WIN32
+#define NOMINMAX
 #include <io.h>
 #include <windows.h>
 #else
@@ -43,7 +45,8 @@ static int openfile_mkstemp(IoErrorHandler &handler) {
   if (::GetTempFileNameA(tempDirName, "Fortran", uUnique, tempFileName) == 0) {
     return -1;
   }
-  int fd{::_open(tempFileName, _O_CREAT | _O_TEMPORARY, _S_IREAD | _S_IWRITE)};
+  int fd{::_open(
+      tempFileName, _O_CREAT | _O_TEMPORARY | _O_RDWR, _S_IREAD | _S_IWRITE)};
 #else
   char path[]{"/tmp/Fortran-Scratch-XXXXXX"};
   int fd{::mkstemp(path)};
@@ -84,8 +87,7 @@ void OpenFile::Open(OpenStatus status, std::optional<Action> action,
     fd_ = openfile_mkstemp(handler);
   } else {
     if (!path_.get()) {
-      handler.SignalError(
-          "FILE= is required unless STATUS='OLD' and unit is connected");
+      handler.SignalError("FILE= is required");
       return;
     }
     int flags{0};
@@ -134,8 +136,18 @@ void OpenFile::Open(OpenStatus status, std::optional<Action> action,
   mayWrite_ = *action != Action::Read;
   if (status == OpenStatus::Old || status == OpenStatus::Unknown) {
     knownSize_.reset();
+#ifndef _WIN32
+    struct stat buf;
+    if (::fstat(fd_, &buf) == 0) {
+      mayPosition_ = S_ISREG(buf.st_mode);
+      knownSize_ = buf.st_size;
+    }
+#else // TODO: _WIN32
+    mayPosition_ = true;
+#endif
   } else {
     knownSize_ = 0;
+    mayPosition_ = true;
   }
 }
 
@@ -188,7 +200,6 @@ std::size_t OpenFile::Read(FileOffset at, char *buffer, std::size_t minBytes,
   while (got < minBytes) {
     auto chunk{::read(fd_, buffer + got, maxBytes - got)};
     if (chunk == 0) {
-      handler.SignalEnd();
       break;
     } else if (chunk < 0) {
       auto err{errno};
@@ -235,7 +246,7 @@ std::size_t OpenFile::Write(FileOffset at, const char *buffer,
 
 inline static int openfile_ftruncate(int fd, OpenFile::FileOffset at) {
 #ifdef _WIN32
-  return !::_chsize(fd, at);
+  return ::_chsize(fd, at);
 #else
   return ::ftruncate(fd, at);
 #endif
@@ -385,4 +396,20 @@ int OpenFile::PendingResult(const Terminator &terminator, int iostat) {
 }
 
 bool IsATerminal(int fd) { return ::isatty(fd); }
+
+#ifdef WIN32
+// Access flags are normally defined in unistd.h, which unavailable under
+// Windows. Instead, define the flags as documented at
+// https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/access-waccess
+#define F_OK 00
+#define W_OK 02
+#define R_OK 04
+#endif
+
+bool IsExtant(const char *path) { return ::access(path, F_OK) == 0; }
+bool MayRead(const char *path) { return ::access(path, R_OK) == 0; }
+bool MayWrite(const char *path) { return ::access(path, W_OK) == 0; }
+bool MayReadAndWrite(const char *path) {
+  return ::access(path, R_OK | W_OK) == 0;
+}
 } // namespace Fortran::runtime::io

@@ -63,7 +63,7 @@
 #include "clang/StaticAnalyzer/Core/PathSensitive/CallEvent.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/CheckerContext.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/CheckerHelpers.h"
-#include "clang/StaticAnalyzer/Core/PathSensitive/DynamicSize.h"
+#include "clang/StaticAnalyzer/Core/PathSensitive/DynamicExtent.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/ProgramState.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/ProgramStateTrait.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/ProgramState_Fwd.h"
@@ -512,10 +512,6 @@ private:
                                       SVal Size, SVal Init,
                                       ProgramStateRef State,
                                       AllocationFamily Family);
-
-  LLVM_NODISCARD
-  static ProgramStateRef addExtentSize(CheckerContext &C, const CXXNewExpr *NE,
-                                       ProgramStateRef State, SVal Target);
 
   // Check if this malloc() for special flags. At present that means M_ZERO or
   // __GFP_ZERO (in which case, treat it like calloc).
@@ -1455,7 +1451,6 @@ MallocChecker::processNewAllocation(const CXXAllocatorCall &Call,
   // existing binding.
   SVal Target = Call.getObjectUnderConstruction();
   State = MallocUpdateRefState(C, NE, State, Family, Target);
-  State = addExtentSize(C, NE, State, Target);
   State = ProcessZeroAllocCheck(Call, 0, State, Target);
   return State;
 }
@@ -1469,53 +1464,6 @@ void MallocChecker::checkNewAllocator(const CXXAllocatorCall &Call,
         (Call.getOriginExpr()->isArray() ? AF_CXXNewArray : AF_CXXNew));
     C.addTransition(State);
   }
-}
-
-// Sets the extent value of the MemRegion allocated by
-// new expression NE to its size in Bytes.
-//
-ProgramStateRef MallocChecker::addExtentSize(CheckerContext &C,
-                                             const CXXNewExpr *NE,
-                                             ProgramStateRef State,
-                                             SVal Target) {
-  DYN_DEBUG(mallocChecker, errs() << _FNLN_ << ":\n");
-  if (!State)
-    return nullptr;
-  SValBuilder &svalBuilder = C.getSValBuilder();
-  SVal ElementCount;
-  const SubRegion *Region;
-  if (NE->isArray()) {
-    const Expr *SizeExpr = *NE->getArraySize();
-    ElementCount = C.getSVal(SizeExpr);
-    // Store the extent size for the (symbolic)region
-    // containing the elements.
-    Region = Target.getAsRegion()
-                 ->castAs<SubRegion>()
-                 ->StripCasts()
-                 ->castAs<SubRegion>();
-  } else {
-    ElementCount = svalBuilder.makeIntVal(1, true);
-    Region = Target.getAsRegion()->castAs<SubRegion>();
-  }
-
-  // Set the region's extent equal to the Size in Bytes.
-  QualType ElementType = NE->getAllocatedType();
-  ASTContext &AstContext = C.getASTContext();
-  CharUnits TypeSize = AstContext.getTypeSizeInChars(ElementType);
-
-  if (ElementCount.getAs<NonLoc>()) {
-    DefinedOrUnknownSVal DynSize = getDynamicSize(State, Region, svalBuilder);
-
-    // size in Bytes = ElementCount*TypeSize
-    SVal SizeInBytes = svalBuilder.evalBinOpNN(
-        State, BO_Mul, ElementCount.castAs<NonLoc>(),
-        svalBuilder.makeArrayIndex(TypeSize.getQuantity()),
-        svalBuilder.getArrayIndexType());
-    DefinedOrUnknownSVal DynSizeMatchesSize = svalBuilder.evalEQ(
-        State, DynSize, SizeInBytes.castAs<DefinedOrUnknownSVal>());
-    State = State->assume(DynSizeMatchesSize, true);
-  }
-  return State;
 }
 
 static bool isKnownDeallocObjCMethodName(const ObjCMethodCall &Call) {
@@ -1626,21 +1574,9 @@ ProgramStateRef MallocChecker::MallocMemAux(CheckerContext &C,
   // Fill the region with the initialization value.
   State = State->bindDefaultInitial(RetVal, Init, LCtx);
 
-  // Set the region's extent equal to the Size parameter.
-  const SymbolicRegion *R =
-      dyn_cast_or_null<SymbolicRegion>(RetVal.getAsRegion());
-  if (!R)
-    return nullptr;
-  if (Optional<DefinedOrUnknownSVal> DefinedSize =
-          Size.getAs<DefinedOrUnknownSVal>()) {
-    DefinedOrUnknownSVal DynSize = getDynamicSize(State, R, svalBuilder);
-
-    DefinedOrUnknownSVal DynSizeMatchesSize =
-        svalBuilder.evalEQ(State, DynSize, *DefinedSize);
-
-    State = State->assume(DynSizeMatchesSize, true);
-    assert(State);
-  }
+  // Set the region's extent.
+  State = setDynamicExtent(State, RetVal.getAsRegion(),
+                           Size.castAs<DefinedOrUnknownSVal>(), svalBuilder);
 
   return MallocUpdateRefState(C, CE, State, Family);
 }
@@ -2239,7 +2175,7 @@ void MallocChecker::HandleMismatchedDealloc(CheckerContext &C,
                                                       os.str(), N);
     R->markInteresting(Sym);
     R->addRange(Range);
-    R->addVisitor(std::make_unique<MallocBugVisitor>(Sym));
+    R->addVisitor<MallocBugVisitor>(Sym);
     C.emitReport(std::move(R));
   }
 }
@@ -2334,7 +2270,7 @@ void MallocChecker::HandleUseAfterFree(CheckerContext &C, SourceRange Range,
 
     R->markInteresting(Sym);
     R->addRange(Range);
-    R->addVisitor(std::make_unique<MallocBugVisitor>(Sym));
+    R->addVisitor<MallocBugVisitor>(Sym);
 
     if (AF == AF_InnerBuffer)
       R->addVisitor(allocation_state::getInnerPointerBRVisitor(Sym));
@@ -2371,7 +2307,7 @@ void MallocChecker::HandleDoubleFree(CheckerContext &C, SourceRange Range,
     R->markInteresting(Sym);
     if (PrevSym)
       R->markInteresting(PrevSym);
-    R->addVisitor(std::make_unique<MallocBugVisitor>(Sym));
+    R->addVisitor<MallocBugVisitor>(Sym);
     C.emitReport(std::move(R));
   }
 }
@@ -2398,7 +2334,7 @@ void MallocChecker::HandleDoubleDelete(CheckerContext &C, SymbolRef Sym) const {
         *BT_DoubleDelete, "Attempt to delete released memory", N);
 
     R->markInteresting(Sym);
-    R->addVisitor(std::make_unique<MallocBugVisitor>(Sym));
+    R->addVisitor<MallocBugVisitor>(Sym);
     C.emitReport(std::move(R));
   }
 }
@@ -2429,7 +2365,7 @@ void MallocChecker::HandleUseZeroAlloc(CheckerContext &C, SourceRange Range,
     R->addRange(Range);
     if (Sym) {
       R->markInteresting(Sym);
-      R->addVisitor(std::make_unique<MallocBugVisitor>(Sym));
+      R->addVisitor<MallocBugVisitor>(Sym);
     }
     C.emitReport(std::move(R));
   }
@@ -2704,7 +2640,7 @@ void MallocChecker::HandleLeak(SymbolRef Sym, ExplodedNode *N,
       *BT_Leak[*CheckKind], os.str(), N, LocUsedForUniqueing,
       AllocNode->getLocationContext()->getDecl());
   R->markInteresting(Sym);
-  R->addVisitor(std::make_unique<MallocBugVisitor>(Sym, true));
+  R->addVisitor<MallocBugVisitor>(Sym, true);
   C.emitReport(std::move(R));
 }
 
@@ -3191,11 +3127,6 @@ bool MallocChecker::mayFreeAnyEscapedMemoryOrIsModeledExplicitly(
     return true;
   }
 
-  if (FName == "postEvent" &&
-      FD->getQualifiedNameAsString() == "QCoreApplication::postEvent") {
-    return true;
-  }
-
   if (FName == "connectImpl" &&
       FD->getQualifiedNameAsString() == "QObject::connectImpl") {
     return true;
@@ -3301,9 +3232,10 @@ static bool isReferenceCountingPointerDestructor(const CXXDestructorDecl *DD) {
   DYN_DEBUG(mallocChecker, errs() << _FNLN_ << ":\n");
   if (const IdentifierInfo *II = DD->getParent()->getIdentifier()) {
     StringRef N = II->getName();
-    if (N.contains_lower("ptr") || N.contains_lower("pointer")) {
-      if (N.contains_lower("ref") || N.contains_lower("cnt") ||
-          N.contains_lower("intrusive") || N.contains_lower("shared")) {
+    if (N.contains_insensitive("ptr") || N.contains_insensitive("pointer")) {
+      if (N.contains_insensitive("ref") || N.contains_insensitive("cnt") ||
+          N.contains_insensitive("intrusive") ||
+          N.contains_insensitive("shared")) {
         return true;
       }
     }
@@ -3390,14 +3322,16 @@ PathDiagnosticPieceRef MallocBugVisitor::VisitNode(const ExplodedNode *N,
             OS << "reallocated by call to '";
             const Stmt *S = RSCurr->getStmt();
             if (const auto *MemCallE = dyn_cast<CXXMemberCallExpr>(S)) {
-              OS << MemCallE->getMethodDecl()->getNameAsString();
+              OS << MemCallE->getMethodDecl()->getDeclName();
             } else if (const auto *OpCallE = dyn_cast<CXXOperatorCallExpr>(S)) {
-              OS << OpCallE->getDirectCallee()->getNameAsString();
+              OS << OpCallE->getDirectCallee()->getDeclName();
             } else if (const auto *CallE = dyn_cast<CallExpr>(S)) {
               auto &CEMgr = BRC.getStateManager().getCallEventManager();
               CallEventRef<> Call = CEMgr.getSimpleCall(CallE, state, CurrentLC);
-              const auto *D = dyn_cast_or_null<NamedDecl>(Call->getDecl());
-              OS << (D ? D->getNameAsString() : "unknown");
+              if (const auto *D = dyn_cast_or_null<NamedDecl>(Call->getDecl()))
+                OS << D->getDeclName();
+              else
+                OS << "unknown";
             }
             OS << "'";
             StackHint = std::make_unique<StackHintGeneratorForSymbol>(

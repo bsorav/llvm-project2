@@ -2,6 +2,7 @@
 #include <llvm/Support/ToolOutputFile.h>
 #include <llvm/IR/InstIterator.h>
 #include <llvm/IR/DebugInfoMetadata.h>
+#include <llvm/IR/IntrinsicInst.h>
 #include "llvm/Analysis/ScalarEvolution.h"
 #include "llvm/Analysis/ScalarEvolutionExpressions.h"
 #include "llvm/Analysis/LoopInfo.h"
@@ -3454,7 +3455,8 @@ sym_exec_common::get_symbol_map_and_string_contents(Module const *M, list<pair<s
     const GlobalVariable *cv = dyn_cast<const GlobalVariable>(&g);
     ASSERT(cv);
     symbol_size = dl.getTypeAllocSize(ElTy);
-    symbol_alignment = dl.getPreferredAlignment(cv);
+    //symbol_alignment = dl.getPreferredAlignment(cv);
+    symbol_alignment = dl.getPrefTypeAlignment(g.getType());
     symbol_is_constant = cv->isConstant();
     symbol_id = get_symbol_id_for_name(name, src_llvm_tfg, symbol_id);
     //cout << __func__ << " " << __LINE__ << ": symbol_is_constant = " << symbol_is_constant << endl;

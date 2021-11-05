@@ -72,7 +72,7 @@ public:
       std::function<Optional<object::SectionedAddress>(uint32_t)> LookupAddr,
       function_ref<bool(Expected<DWARFLocationExpression>)> Callback) const;
 
-  DWARFDataExtractor const& getDataExtractor() const { return Data; }
+  const DWARFDataExtractor &getData() const { return Data; }
 
 protected:
   DWARFDataExtractor Data;

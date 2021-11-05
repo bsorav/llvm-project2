@@ -18,16 +18,16 @@ SemanticAAResult::convertTfgAliasResultToAliasResult(tfg_alias_result_t tfg_alia
 {
   switch (tfg_alias_result) {
     case TfgMayAlias: {
-      return MayAlias;
+      return AliasResult::MayAlias;
     }
     case TfgMustNotAlias: {
-      return NoAlias;
+      return AliasResult::NoAlias;
     }
     case TfgMustAlias: {
-      return MustAlias;
+      return AliasResult::MustAlias;
     }
     case TfgPartialAlias: {
-      return PartialAlias;
+      return AliasResult::PartialAlias;
     }
     default: NOT_REACHED();
   }
@@ -64,7 +64,7 @@ SemanticAAResult::alias(const MemoryLocation &LocA,
   DYN_DEBUG2(aliasAnalysis, std::cout << "SemanticAAResult::" << __func__ << " " << __LINE__ << ": LocA = " << nameA << "\n");
   DYN_DEBUG2(aliasAnalysis, std::cout << "SemanticAAResult::" << __func__ << " " << __LINE__ << ": LocB = " << nameB << "\n");
 
-  AliasResult retval;
+  AliasResult retval(AliasResult::NoAlias);
   bool should_return_immediately = false;
   DYN_DEBUG_MUTE(disableSemanticAA,
     // Forward the query to the next analysis.

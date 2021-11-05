@@ -18,7 +18,7 @@ AliasResult UnseqAAResult::alias(const MemoryLocation &LocA,
   // Check if there is a predicate corresponding to LocA and LocB
   if ((predicates.count(LocA.Ptr) && predicates[LocA.Ptr].count(LocB.Ptr)) ||
       (predicates.count(LocB.Ptr) && predicates[LocB.Ptr].count(LocA.Ptr))) {
-    return NoAlias;
+    return AliasResult::NoAlias;
   }
 
   // Forward the query to the next analysis.

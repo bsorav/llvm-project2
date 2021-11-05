@@ -15,6 +15,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "DeltaManager.h"
+#include "TestRunner.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Verifier.h"
@@ -34,6 +35,11 @@ static cl::opt<bool> Help("h", cl::desc("Alias for -help"), cl::Hidden,
                           cl::cat(Options));
 static cl::opt<bool> Version("v", cl::desc("Alias for -version"), cl::Hidden,
                              cl::cat(Options));
+
+static cl::opt<bool>
+    PrintDeltaPasses("print-delta-passes",
+                     cl::desc("Print list of delta passes, passable to "
+                              "--delta-passes as a comma separated list"));
 
 static cl::opt<std::string> InputFilename(cl::Positional, cl::Required,
                                           cl::desc("<input llvm ll/bc file>"),
@@ -80,14 +86,40 @@ static std::unique_ptr<Module> parseInputFile(StringRef Filename,
   return Result;
 }
 
-int main(int argc, char **argv) {
-  InitLLVM X(argc, argv);
+void writeOutput(Module *M, StringRef Message) {
+  if (ReplaceInput) // In-place
+    OutputFilename = InputFilename.c_str();
+  else if (OutputFilename.empty() || OutputFilename == "-")
+    OutputFilename = "reduced.ll";
 
-  cl::ParseCommandLineOptions(argc, argv, "LLVM automatic testcase reducer.\n");
+  std::error_code EC;
+  raw_fd_ostream Out(OutputFilename, EC);
+  if (EC) {
+    errs() << "Error opening output file: " << EC.message() << "!\n";
+    exit(1);
+  }
+  M->print(Out, /*AnnotationWriter=*/nullptr);
+  errs() << Message << OutputFilename << "\n";
+}
+
+int main(int Argc, char **Argv) {
+  InitLLVM X(Argc, Argv);
+
+  cl::HideUnrelatedOptions({&Options, &getColorCategory()});
+  cl::ParseCommandLineOptions(Argc, Argv, "LLVM automatic testcase reducer.\n");
+
+  if (PrintDeltaPasses) {
+    printDeltaPasses(errs());
+    return 0;
+  }
 
   LLVMContext Context;
   std::unique_ptr<Module> OriginalProgram =
       parseInputFile(InputFilename, Context);
+
+  if (!OriginalProgram) {
+    return 1;
+  }
 
   // Initialize test environment
   TestRunner Tester(TestFilename, TestArguments);
@@ -102,21 +134,8 @@ int main(int argc, char **argv) {
     // Print reduced file to STDOUT
     if (OutputFilename == "-")
       Tester.getProgram()->print(outs(), nullptr);
-    else {
-      if (ReplaceInput) // In-place
-        OutputFilename = InputFilename.c_str();
-      else if (OutputFilename.empty())
-        OutputFilename = "reduced.ll";
-
-      std::error_code EC;
-      raw_fd_ostream Out(OutputFilename, EC);
-      if (EC) {
-        errs() << "Error opening output file: " << EC.message() << "!\n";
-        exit(1);
-      }
-      Tester.getProgram()->print(Out, /*AnnotationWriter=*/nullptr);
-      errs() << "\nDone reducing! Reduced testcase: " << OutputFilename << "\n";
-    }
+    else
+      writeOutput(Tester.getProgram(), "\nDone reducing! Reduced testcase: ");
   }
 
   return 0;

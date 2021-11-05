@@ -121,7 +121,7 @@ SplitModule::runOnSCC(CallGraphSCC &SCC)
   ASSERT(string_has_suffix(module_name, ".bc"));
   ss << module_name.substr(0, module_name.size() - 3) << ".split" << m_counter << ".ll";
   m_counter++;
-  raw_fd_ostream fp(ss.str().c_str(), EC, sys::fs::F_Text);
+  raw_fd_ostream fp(ss.str().c_str(), EC, sys::fs::OF_Text);
   legacy::PassManager PM;
   PM.add(createPrintModulePass(fp));
   //outs() << "========================SCC===================\n";

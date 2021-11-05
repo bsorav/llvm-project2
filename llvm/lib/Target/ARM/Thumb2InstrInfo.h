@@ -26,7 +26,7 @@ public:
   explicit Thumb2InstrInfo(const ARMSubtarget &STI);
 
   /// Return the noop instruction to use for a noop.
-  void getNoop(MCInst &NopInst) const override;
+  MCInst getNop() const override;
 
   // Return the non-pre/post incrementing version of 'Opc'. Return 0
   // if there is not such an opcode.
@@ -63,6 +63,10 @@ public:
   MachineInstr *optimizeSelect(MachineInstr &MI,
                                SmallPtrSetImpl<MachineInstr *> &SeenMIs,
                                bool) const override;
+
+  MachineInstr *commuteInstructionImpl(MachineInstr &MI, bool NewMI,
+                                       unsigned OpIdx1,
+                                       unsigned OpIdx2) const override;
 
 private:
   void expandLoadStackGuard(MachineBasicBlock::iterator MI) const override;

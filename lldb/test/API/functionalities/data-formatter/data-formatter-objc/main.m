@@ -476,6 +476,12 @@ int main(int argc, const char *argv[]) {
   [newMutableDictionary setObject:@"foo" forKey:@"bar19"];
   [newMutableDictionary setObject:@"foo" forKey:@"bar20"];
 
+  /* Copying an NSMutableDictionary makes a different member of the
+     class cluster, so let's also make a copy of this one: */
+  NSMutableDictionary *copyDictionary = [newMutableDictionary copy];
+
+  CFMutableDictionaryRef newMutableDictionaryRef = CFDictionaryCreateMutableCopy(kCFAllocatorDefault, 0, newMutableDictionary);
+
   id cfKeys[4] = {@"foo", @"bar", @"baz", @"quux"};
   id cfValues[4] = {@"foo", @"bar", @"baz", @"quux"};
   NSDictionary *nsDictionary = CFBridgingRelease(

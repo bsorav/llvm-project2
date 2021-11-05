@@ -8,6 +8,7 @@
 # FULL-NEXT: explicitKernArgSize: 128
 # FULL-NEXT: maxKernArgAlign: 64
 # FULL-NEXT: ldsSize: 2048
+# FULL-NEXT: dynLDSAlign: 1
 # FULL-NEXT: isEntryFunction: true
 # FULL-NEXT: noSignedZerosFPMath: false
 # FULL-NEXT: memoryBound:     true
@@ -31,6 +32,7 @@
 # FULL-NEXT: fp64-fp16-input-denormals: true
 # FULL-NEXT: fp64-fp16-output-denormals: true
 # FULL-NEXT:  highBitsOf32BitAddress: 0
+# FULL-NEXT:  occupancy: 10
 # FULL-NEXT: body:
 
 # SIMPLE: machineFunctionInfo:
@@ -49,6 +51,7 @@
 # SIMPLE-NEXT: workGroupIDX: { reg: '$sgpr6' }
 # SIMPLE-NEXT: privateSegmentWaveByteOffset: { reg: '$sgpr7' }
 # SIMPLE-NEXT: workItemIDX: { reg: '$vgpr0' }
+# SIMPLE-NEXT: occupancy: 10
 # SIMPLE-NEXT: body:
 name: kernel0
 machineFunctionInfo:
@@ -81,6 +84,7 @@ body:             |
 # FULL-NEXT: explicitKernArgSize: 0
 # FULL-NEXT: maxKernArgAlign: 1
 # FULL-NEXT: ldsSize: 0
+# FULL-NEXT: dynLDSAlign: 1
 # FULL-NEXT: isEntryFunction: false
 # FULL-NEXT: noSignedZerosFPMath: false
 # FULL-NEXT: memoryBound:     false
@@ -100,12 +104,14 @@ body:             |
 # FULL-NEXT: fp64-fp16-input-denormals: true
 # FULL-NEXT: fp64-fp16-output-denormals: true
 # FULL-NEXT:  highBitsOf32BitAddress: 0
+# FULL-NEXT:  occupancy: 10
 # FULL-NEXT: body:
 
 # SIMPLE: machineFunctionInfo:
 # SIMPLE-NEXT: maxKernArgAlign: 1
 # SIMPLE-NEXT: argumentInfo:
 # SIMPLE-NEXT: privateSegmentBuffer: { reg: '$sgpr0_sgpr1_sgpr2_sgpr3' }
+# SIMPLE-NEXT:  occupancy: 10
 # SIMPLE-NEXT: body:
 
 name: no_mfi
@@ -121,6 +127,7 @@ body:             |
 # FULL-NEXT: explicitKernArgSize: 0
 # FULL-NEXT: maxKernArgAlign: 1
 # FULL-NEXT: ldsSize: 0
+# FULL-NEXT: dynLDSAlign: 1
 # FULL-NEXT: isEntryFunction: false
 # FULL-NEXT: noSignedZerosFPMath: false
 # FULL-NEXT: memoryBound:     false
@@ -140,12 +147,14 @@ body:             |
 # FULL-NEXT: fp64-fp16-input-denormals: true
 # FULL-NEXT: fp64-fp16-output-denormals: true
 # FULL-NEXT:  highBitsOf32BitAddress: 0
+# FULL-NEXT:  occupancy: 10
 # FULL-NEXT: body:
 
 # SIMPLE: machineFunctionInfo:
 # SIMPLE-NEXT: maxKernArgAlign: 1
 # SIMPLE-NEXT: argumentInfo:
 # SIMPLE-NEXT: privateSegmentBuffer: { reg: '$sgpr0_sgpr1_sgpr2_sgpr3' }
+# SIMPLE-NEXT:  occupancy: 10
 # SIMPLE-NEXT: body:
 
 name: empty_mfi
@@ -162,6 +171,7 @@ body:             |
 # FULL-NEXT: explicitKernArgSize: 0
 # FULL-NEXT: maxKernArgAlign: 1
 # FULL-NEXT: ldsSize: 0
+# FULL-NEXT: dynLDSAlign: 1
 # FULL-NEXT: isEntryFunction: true
 # FULL-NEXT: noSignedZerosFPMath: false
 # FULL-NEXT: memoryBound:     false
@@ -181,6 +191,7 @@ body:             |
 # FULL-NEXT: fp64-fp16-input-denormals: true
 # FULL-NEXT: fp64-fp16-output-denormals: true
 # FULL-NEXT:  highBitsOf32BitAddress: 0
+# FULL-NEXT:  occupancy: 10
 # FULL-NEXT: body:
 
 # SIMPLE: machineFunctionInfo:
@@ -188,6 +199,7 @@ body:             |
 # SIMPLE-NEXT: isEntryFunction: true
 # SIMPLE-NEXT: argumentInfo:
 # SIMPLE-NEXT: privateSegmentBuffer: { reg: '$sgpr0_sgpr1_sgpr2_sgpr3' }
+# SIMPLE-NEXT: occupancy: 10
 # SIMPLE-NEXT: body:
 
 name: empty_mfi_entry_func
@@ -279,6 +291,64 @@ name: parse_spilled_regs
 machineFunctionInfo:
   hasSpilledSGPRs: true
   hasSpilledVGPRs: true
+
+body:             |
+  bb.0:
+    S_ENDPGM 0
+
+...
+
+---
+# ALL-LABEL: name: dyn_lds_with_alignment
+
+# FULL: ldsSize: 0
+# FULL-NEXT: dynLDSAlign: 8
+
+# SIMPLE: dynLDSAlign: 8
+name: dyn_lds_with_alignment
+machineFunctionInfo:
+  dynLDSAlign: 8
+
+body:             |
+  bb.0:
+    S_ENDPGM 0
+
+...
+
+---
+# ALL-LABEL: name: occupancy_0
+# ALL: occupancy: 10
+name: occupancy_0
+machineFunctionInfo:
+  occupancy: 0
+
+body:             |
+  bb.0:
+    S_ENDPGM 0
+
+...
+
+---
+# ALL-LABEL: name: occupancy_3
+# ALL: occupancy: 3
+name: occupancy_3
+machineFunctionInfo:
+  occupancy: 3
+
+body:             |
+  bb.0:
+    S_ENDPGM 0
+
+...
+
+---
+# ALL-LABEL: name: scavenge_fi
+# ALL: scavengeFI: '%stack.0'
+name: scavenge_fi
+stack:
+  - { id: 0, name: '', type: spill-slot, offset: 0, size: 4, alignment: 4 }
+machineFunctionInfo:
+  scavengeFI: '%stack.0'
 
 body:             |
   bb.0:

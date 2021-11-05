@@ -79,7 +79,7 @@ void printAliasRules(clang::PREDICATE_MAP &predicateMap, std::string &filename,
     return;
 
   std::error_code ec;
-  llvm::raw_fd_ostream fout(filename, ec, llvm::sys::fs::OpenFlags::F_None);
+  llvm::raw_fd_ostream fout(filename, ec, llvm::sys::fs::OF_None);
   fout << "--------------------------------------------------------------------"
           "--"
        << "\n"
