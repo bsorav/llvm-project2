@@ -2000,7 +2000,7 @@ void CodeGenFunction::EmitAggExprHelper(const Expr *E, AggValueSlot Slot) {
 
 void CodeGenFunction::EmitAggExpr(const Expr *E, AggValueSlot Slot) {
   EmitAggExprHelper(E, Slot);
-  EmitAliasCall(E);
+  //EmitAliasCall(E);
 }
 
 LValue CodeGenFunction::EmitAggExprToLValue(const Expr *E) {

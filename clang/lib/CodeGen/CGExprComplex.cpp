@@ -1130,7 +1130,7 @@ ComplexPairTy CodeGenFunction::EmitComplexExprHelper(const Expr *E,
 ComplexPairTy CodeGenFunction::EmitComplexExpr(const Expr *E, bool IgnoreReal,
                                                bool IgnoreImag) {
   ComplexPairTy val = EmitComplexExprHelper(E, IgnoreReal, IgnoreImag);
-  EmitAliasCall(E);
+  //EmitAliasCall(E);
   return val;
 }
 
@@ -1147,7 +1147,7 @@ void CodeGenFunction::EmitComplexExprIntoLValueHelper(const Expr *E,
 void CodeGenFunction::EmitComplexExprIntoLValue(const Expr *E, LValue dest,
                                                 bool isInit) {
   EmitComplexExprIntoLValueHelper(E, dest, isInit);
-  EmitAliasCall(E);
+  //EmitAliasCall(E);
 }
 
 /// EmitStoreOfComplex - Store a complex number into the specified l-value.

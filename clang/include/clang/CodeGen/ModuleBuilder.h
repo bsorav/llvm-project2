@@ -114,12 +114,12 @@ CodeGenerator *CreateLLVMCodeGen(DiagnosticsEngine &Diags,
                                  llvm::LLVMContext &C,
                                  CoverageSourceInfo *CoverageInfo = nullptr);
 
-CodeGenerator *CreateUnseqLLVMCodeGen(
-    DiagnosticsEngine &Diags, const std::string &ModuleName,
-    const HeaderSearchOptions &HSO, const PreprocessorOptions &PPO,
-    const CodeGenOptions &CGO, llvm::LLVMContext &C,
-    PREDICATE_MAP *predicateMap, bool emitPredicates, std::string OutFileName,
-    CoverageSourceInfo *CoverageInfo);
+//CodeGenerator *CreateUnseqLLVMCodeGen(
+//    DiagnosticsEngine &Diags, const std::string &ModuleName,
+//    const HeaderSearchOptions &HSO, const PreprocessorOptions &PPO,
+//    const CodeGenOptions &CGO, llvm::LLVMContext &C,
+//    PREDICATE_MAP *predicateMap, bool emitPredicates, std::string OutFileName,
+//    CoverageSourceInfo *CoverageInfo);
 }
 // end namespace clang
 

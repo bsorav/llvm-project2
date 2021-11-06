@@ -885,7 +885,7 @@ INITIALIZE_PASS_DEPENDENCY(ObjCARCAAWrapperPass)
 INITIALIZE_PASS_DEPENDENCY(SCEVAAWrapperPass)
 INITIALIZE_PASS_DEPENDENCY(ScopedNoAliasAAWrapperPass)
 INITIALIZE_PASS_DEPENDENCY(TypeBasedAAWrapperPass)
-INITIALIZE_PASS_DEPENDENCY(UnseqAAWrapperPass)
+//INITIALIZE_PASS_DEPENDENCY(UnseqAAWrapperPass)
 INITIALIZE_PASS_DEPENDENCY(SemanticAAWrapperPass)
 INITIALIZE_PASS_END(AAResultsWrapperPass, "aa",
                     "Function Alias Analysis Results", false, true)
@@ -918,7 +918,7 @@ bool AAResultsWrapperPass::runOnFunction(Function &F) {
   // should reconsider the ordering here.
   if (!DisableBasicAA) {
     AAR->addAAResult(getAnalysis<BasicAAWrapperPass>().getResult());
-    AAR->addAAResult(getAnalysis<UnseqAAWrapperPass>().getResult());
+    //AAR->addAAResult(getAnalysis<UnseqAAWrapperPass>().getResult());
     AAR->addAAResult(getAnalysis<SemanticAAWrapperPass>().getResult());
   }
 
@@ -927,8 +927,8 @@ bool AAResultsWrapperPass::runOnFunction(Function &F) {
     AAR->addAAResult(WrapperPass->getResult());
   if (auto *WrapperPass = getAnalysisIfAvailable<TypeBasedAAWrapperPass>())
     AAR->addAAResult(WrapperPass->getResult());
-  if (auto *WrapperPass = getAnalysisIfAvailable<UnseqAAWrapperPass>())
-    AAR->addAAResult(WrapperPass->getResult());
+  //if (auto *WrapperPass = getAnalysisIfAvailable<UnseqAAWrapperPass>())
+  //  AAR->addAAResult(WrapperPass->getResult());
   if (auto *WrapperPass = getAnalysisIfAvailable<SemanticAAWrapperPass>())
     AAR->addAAResult(WrapperPass->getResult());
   if (auto *WrapperPass =
@@ -956,7 +956,7 @@ bool AAResultsWrapperPass::runOnFunction(Function &F) {
 void AAResultsWrapperPass::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.setPreservesAll();
   AU.addRequiredTransitive<BasicAAWrapperPass>();
-  AU.addRequiredTransitive<UnseqAAWrapperPass>();
+  //AU.addRequiredTransitive<UnseqAAWrapperPass>();
   AU.addRequiredTransitive<SemanticAAWrapperPass>();
   AU.addRequiredTransitive<TargetLibraryInfoWrapperPass>();
 
@@ -995,8 +995,8 @@ AAResults llvm::createLegacyPMAAResults(Pass &P, Function &F,
     AAR.addAAResult(WrapperPass->getResult());
   if (auto *WrapperPass = P.getAnalysisIfAvailable<TypeBasedAAWrapperPass>())
     AAR.addAAResult(WrapperPass->getResult());
-  if (auto *WrapperPass = P.getAnalysisIfAvailable<UnseqAAWrapperPass>())
-    AAR.addAAResult(WrapperPass->getResult());
+  //if (auto *WrapperPass = P.getAnalysisIfAvailable<UnseqAAWrapperPass>())
+  //  AAR.addAAResult(WrapperPass->getResult());
   if (auto *WrapperPass = P.getAnalysisIfAvailable<SemanticAAWrapperPass>())
     AAR.addAAResult(WrapperPass->getResult());
   if (auto *WrapperPass =
@@ -1008,8 +1008,8 @@ AAResults llvm::createLegacyPMAAResults(Pass &P, Function &F,
     AAR.addAAResult(WrapperPass->getResult());
   if (auto *WrapperPass = P.getAnalysisIfAvailable<CFLSteensAAWrapperPass>())
     AAR.addAAResult(WrapperPass->getResult());
-  if (auto *WrapperPass = P.getAnalysisIfAvailable<UnseqAAWrapperPass>())
-    AAR.addAAResult(WrapperPass->getResult());
+  //if (auto *WrapperPass = P.getAnalysisIfAvailable<UnseqAAWrapperPass>())
+  //  AAR.addAAResult(WrapperPass->getResult());
   if (auto *WrapperPass = P.getAnalysisIfAvailable<SemanticAAWrapperPass>())
     AAR.addAAResult(WrapperPass->getResult());
   if (auto *WrapperPass = P.getAnalysisIfAvailable<ExternalAAWrapperPass>())
@@ -1054,7 +1054,7 @@ void llvm::getAAResultsAnalysisUsage(AnalysisUsage &AU) {
   AU.addRequired<TargetLibraryInfoWrapperPass>();
   AU.addUsedIfAvailable<ScopedNoAliasAAWrapperPass>();
   AU.addUsedIfAvailable<TypeBasedAAWrapperPass>();
-  AU.addUsedIfAvailable<UnseqAAWrapperPass>();
+  //AU.addUsedIfAvailable<UnseqAAWrapperPass>();
   AU.addUsedIfAvailable<SemanticAAWrapperPass>();
   AU.addUsedIfAvailable<objcarc::ObjCARCAAWrapperPass>();
   AU.addUsedIfAvailable<GlobalsAAWrapperPass>();

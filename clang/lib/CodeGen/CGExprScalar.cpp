@@ -4814,7 +4814,7 @@ Value *CodeGenFunction::EmitScalarExprHelper(const Expr *E,
 
 Value *CodeGenFunction::EmitScalarExpr(const Expr *E, bool IgnoreResultAssign) {
   Value *val = EmitScalarExprHelper(E, IgnoreResultAssign);
-  EmitAliasCall(E);
+  //EmitAliasCall(E);
   return val;
 }
 

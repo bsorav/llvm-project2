@@ -159,17 +159,19 @@ std::string getFileNameFromPath(std::string path) {
           AsmOutStream(std::move(OS)), Context(nullptr),
           LLVMIRGeneration("irgen", "LLVM IR Generation Time"),
           LLVMIRGenerationRefCount(0),
-          Gen(nullptr),
+          Gen(CreateLLVMCodeGen(Diags, InFile, HeaderSearchOpts, PPOpts,
+                                CodeGenOpts, C, CoverageInfo)),
           LinkModules(std::move(LinkModules)) {
-      if (CodeGenOpts.SanitizeRecover.has(SanitizerKind::UnsequencedScalars)) {
-        std::string outFileForLL = getFileNameFromPath(InFile) + ".ll";
-        Gen = std::unique_ptr<CodeGenerator>(CreateUnseqLLVMCodeGen(
-            Diags, InFile, HeaderSearchOpts, PPOpts, CodeGenOpts, C, predicateMap,
-            true, outFileForLL, CoverageInfo));
-      } else {
-        Gen = std::unique_ptr<CodeGenerator>(CreateLLVMCodeGen(Diags, InFile, HeaderSearchOpts, PPOpts,
-                                CodeGenOpts, C, CoverageInfo));
-      }
+      //if (CodeGenOpts.SanitizeRecover.has(SanitizerKind::UnsequencedScalars)) {
+      //  std::string outFileForLL = getFileNameFromPath(InFile) + ".ll";
+      //  Gen = std::unique_ptr<CodeGenerator>(CreateUnseqLLVMCodeGen(
+      //      Diags, InFile, HeaderSearchOpts, PPOpts, CodeGenOpts, C, predicateMap,
+      //      true, outFileForLL, CoverageInfo));
+      //} else
+      //{
+      //  Gen = std::unique_ptr<CodeGenerator>(CreateLLVMCodeGen(Diags, InFile, HeaderSearchOpts, PPOpts,
+      //                          CodeGenOpts, C, CoverageInfo));
+      //}
       TimerIsEnabled = CodeGenOpts.TimePasses;
       llvm::TimePassesIsEnabled = CodeGenOpts.TimePasses;
       llvm::TimePassesPerRun = CodeGenOpts.TimePassesPerRun;

@@ -4301,7 +4301,7 @@ public:
   static int uniquePredicateCount;
 
   /// Emit alias predicates as a function call
-  void EmitAliasCall(LOCN_TYPE loc);
+  //void EmitAliasCall(LOCN_TYPE loc);
 
   /// EmitScalarExpr - Emit the computation of the specified expression of LLVM
   /// scalar type, returning the result.

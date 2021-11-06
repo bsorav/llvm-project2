@@ -81,9 +81,9 @@ namespace {
       (void) llvm::createSCEVAAWrapperPass();
       (void) llvm::createTypeBasedAAWrapperPass();
       (void) llvm::createScopedNoAliasAAWrapperPass();
-      (void) llvm::createUnseqAAWrapperPass();
+      //(void) llvm::createUnseqAAWrapperPass();
       (void) llvm::createSemanticAAWrapperPass();
-      (void) llvm::createRemoveAliasPredicatesPass();
+      //(void) llvm::createRemoveAliasPredicatesPass();
       (void) llvm::createBoundsCheckingLegacyPass();
       (void) llvm::createBreakCriticalEdgesPass();
       (void) llvm::createCallGraphDOTPrinterPass();

@@ -367,13 +367,13 @@ CodeGenerator *clang::CreateLLVMCodeGen(
                                PreprocessorOpts, CGO, C, CoverageInfo);
 }
 
-CodeGenerator *clang::CreateUnseqLLVMCodeGen(
-    DiagnosticsEngine &Diags, const std::string &ModuleName,
-    const HeaderSearchOptions &HSO, const PreprocessorOptions &PPO,
-    const CodeGenOptions &CGO, llvm::LLVMContext &C,
-    PREDICATE_MAP *predicateMap, bool emitPredicates, std::string OutFileName,
-    CoverageSourceInfo *CoverageInfo) {
-  return new CodeGeneratorImpl(Diags, ModuleName, HSO, PPO, CGO, C,
-                               predicateMap, emitPredicates, OutFileName,
-                               CoverageInfo);
-}
+//CodeGenerator *clang::CreateUnseqLLVMCodeGen(
+//    DiagnosticsEngine &Diags, const std::string &ModuleName,
+//    const HeaderSearchOptions &HSO, const PreprocessorOptions &PPO,
+//    const CodeGenOptions &CGO, llvm::LLVMContext &C,
+//    PREDICATE_MAP *predicateMap, bool emitPredicates, std::string OutFileName,
+//    CoverageSourceInfo *CoverageInfo) {
+//  return new CodeGeneratorImpl(Diags, ModuleName, HSO, PPO, CGO, C,
+//                               predicateMap, emitPredicates, OutFileName,
+//                               CoverageInfo);
+//}

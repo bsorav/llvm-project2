@@ -4022,6 +4022,7 @@ Action *Driver::ConstructPhaseAction(
   }
   case phases::Backend: {
     if (CCCIsQCC()) {
+      NOT_REACHED();
       return C.MakeAction<QCCCodegenAction>(Input, types::TY_PP_Asm);
     }
     if (isUsingLTO() && TargetDeviceOffloadKind == Action::OFK_None) {

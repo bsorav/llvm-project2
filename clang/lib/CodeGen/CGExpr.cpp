@@ -42,6 +42,7 @@
 #include "llvm/Support/Path.h"
 #include "llvm/Support/SaveAndRestore.h"
 #include "llvm/Transforms/Utils/SanitizerStats.h"
+#include "support/debug.h"
 
 #include <string>
 
@@ -1432,8 +1433,9 @@ LValue CodeGenFunction::EmitLValueHelper(const Expr *E) {
 }
 
 LValue CodeGenFunction::EmitLValue(const Expr *E) {
-  LValue retVal = EmitLValueHelper(E);
-  return (CGM.getExprLValueMap()[E] = retVal);
+  return EmitLValueHelper(E);
+  //LValue retVal = EmitLValueHelper(E);
+  //return (CGM.getExprLValueMap()[E] = retVal);
 }
 
 llvm::Value *getLValuePointer(CodeGenFunction& CGF, LValue lval) {
@@ -1468,72 +1470,73 @@ llvm::Value *wrapValueinMD(llvm::Value *val, CodeGenModule &CGM) {
                                     llvm::ValueAsMetadata::get(val));
 }
 
-void CodeGenFunction::EmitAliasCall(LOCN_TYPE loc) {
-  if (SanOpts.has(SanitizerKind::UnsequencedScalars) && CGM.hasPredicateMap() &&
-      CGM.checkEmitPredicates()) {
-    auto &predicateMap = CGM.getPredicateMap();
-
-    if (!predicateMap.count(loc))
-      return;
-
-    for (auto it = predicateMap[loc].begin(); it != predicateMap[loc].end();
-         it++) {
-      auto ValueFn = llvm::Intrinsic::getDeclaration(
-          &CGM.getModule(), llvm::Intrinsic::unseq_noalias);
-#define FILENAME CGM.getModule().getName().str()
-
-      LValue lval1 = CGM.getExprLValueMap()[(*it)[0]];
-      LValue lval2 = CGM.getExprLValueMap()[(*it)[1]];
-      if (lval1.isBitField() && lval2.isBitField()) {
-        llvm::errs() << "An alias predicate in " << FILENAME
-                     << "is between bit-fields\n";
-        continue;
-      }
-
-      llvm::Value *val1 = getLValuePointer(*this, lval1);
-      llvm::Value *val2 = getLValuePointer(*this, lval2);
-      if (!val1 || !val2) {
-        llvm::errs() << "An LValue in " << FILENAME << " is Null\n";
-        continue;
-      }
-
-      std::vector<llvm::Value *> ValueArgs;
-
-      // The first argument will be the unique ID of the intrinsic
-      llvm::Type *i32_type = llvm::IntegerType::getInt32Ty(getLLVMContext());
-      llvm::Value *uniqueIdValue = llvm::ConstantInt::get(i32_type, uniquePredicateCount++, false);
-
-      ValueArgs.push_back(uniqueIdValue);
-      ValueArgs.push_back(wrapValueinMD(val1, CGM));
-      ValueArgs.push_back(wrapValueinMD(val2, CGM));
-
-      // Add the possibly interfering function calls
-      bool indirect = false;
-      for (int i = 2; i < it->size(); i++) {
-        llvm::Value *val = getRValueVal(CGM.getCallRValueMap()[(*it)[i]]);
-        if (!val || !isa<llvm::CallInst>(val)) {
-          llvm::errs() << "An RValue in " << FILENAME << " is not a Call\n";
-          indirect = true;
-          break;
-        }
-
-        val = cast<llvm::CallInst>(val)->getCalledOperand()->stripPointerCasts();
-        ValueArgs.push_back(wrapValueinMD(val, CGM));
-      }
-
-      if (indirect) { // ignore predicdates with indirect call
-        continue;
-      }
-      EmitNounwindRuntimeCall(ValueFn, ValueArgs);
-    }
-
-    // Clear the maps on sequnece point
-    if (isa<Stmt>(loc) || isa<FullExpr>(loc)) {
-      CGM.getExprLValueMap().clear();
-      CGM.getCallRValueMap().clear();
-    }
-  }
-}
+//void CodeGenFunction::EmitAliasCall(LOCN_TYPE loc) {
+//  NOT_REACHED();
+//  if (SanOpts.has(SanitizerKind::UnsequencedScalars) && CGM.hasPredicateMap() &&
+//      CGM.checkEmitPredicates()) {
+//    auto &predicateMap = CGM.getPredicateMap();
+//
+//    if (!predicateMap.count(loc))
+//      return;
+//
+//    for (auto it = predicateMap[loc].begin(); it != predicateMap[loc].end();
+//         it++) {
+//      auto ValueFn = llvm::Intrinsic::getDeclaration(
+//          &CGM.getModule(), llvm::Intrinsic::unseq_noalias);
+//#define FILENAME CGM.getModule().getName().str()
+//
+//      LValue lval1 = CGM.getExprLValueMap()[(*it)[0]];
+//      LValue lval2 = CGM.getExprLValueMap()[(*it)[1]];
+//      if (lval1.isBitField() && lval2.isBitField()) {
+//        llvm::errs() << "An alias predicate in " << FILENAME
+//                     << "is between bit-fields\n";
+//        continue;
+//      }
+//
+//      llvm::Value *val1 = getLValuePointer(*this, lval1);
+//      llvm::Value *val2 = getLValuePointer(*this, lval2);
+//      if (!val1 || !val2) {
+//        llvm::errs() << "An LValue in " << FILENAME << " is Null\n";
+//        continue;
+//      }
+//
+//      std::vector<llvm::Value *> ValueArgs;
+//
+//      // The first argument will be the unique ID of the intrinsic
+//      llvm::Type *i32_type = llvm::IntegerType::getInt32Ty(getLLVMContext());
+//      llvm::Value *uniqueIdValue = llvm::ConstantInt::get(i32_type, uniquePredicateCount++, false);
+//
+//      ValueArgs.push_back(uniqueIdValue);
+//      ValueArgs.push_back(wrapValueinMD(val1, CGM));
+//      ValueArgs.push_back(wrapValueinMD(val2, CGM));
+//
+//      // Add the possibly interfering function calls
+//      bool indirect = false;
+//      for (int i = 2; i < it->size(); i++) {
+//        llvm::Value *val = getRValueVal(CGM.getCallRValueMap()[(*it)[i]]);
+//        if (!val || !isa<llvm::CallInst>(val)) {
+//          llvm::errs() << "An RValue in " << FILENAME << " is not a Call\n";
+//          indirect = true;
+//          break;
+//        }
+//
+//        val = cast<llvm::CallInst>(val)->getCalledOperand()->stripPointerCasts();
+//        ValueArgs.push_back(wrapValueinMD(val, CGM));
+//      }
+//
+//      if (indirect) { // ignore predicdates with indirect call
+//        continue;
+//      }
+//      EmitNounwindRuntimeCall(ValueFn, ValueArgs);
+//    }
+//
+//    // Clear the maps on sequnece point
+//    if (isa<Stmt>(loc) || isa<FullExpr>(loc)) {
+//      CGM.getExprLValueMap().clear();
+//      CGM.getCallRValueMap().clear();
+//    }
+//  }
+//}
 
 /// Given an object of the given canonical type, can we safely copy a
 /// value out of it based on its initializer?
@@ -4976,8 +4979,9 @@ RValue CodeGenFunction::EmitCallExprHelper(const CallExpr *E,
 
 RValue CodeGenFunction::EmitCallExpr(const CallExpr *E,
                                      ReturnValueSlot ReturnValue) {
-  RValue RV = EmitCallExprHelper(E, ReturnValue);
-  return (CGM.getCallRValueMap()[E] = RV);
+  return EmitCallExprHelper(E, ReturnValue);
+  //RValue RV = EmitCallExprHelper(E, ReturnValue);
+  //return (CGM.getCallRValueMap()[E] = RV);
 }
 
 /// Emit a CallExpr without considering whether it might be a subclass.
