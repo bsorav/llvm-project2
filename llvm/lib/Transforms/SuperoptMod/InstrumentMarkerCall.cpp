@@ -482,7 +482,7 @@ public:
   //Loop *identifyUnbrokenLoop(Function& F);
   //void unbrokenLoopVisit(Loop *L, loop_depth_t cur_depth, loop_depth_t &depth_out, Loop* &loop_out);
 private:
-  static list<Value *> get_live_values(dshared_ptr<tfg_llvm_t const> t, map<shared_ptr<tfg_edge const>, Instruction *> const& eimap, Function const * function, BasicBlock const* BB, int insn_num);
+  static list<Value *> get_live_values(dshared_ptr<tfg_llvm_t> const& t, map<shared_ptr<tfg_edge const>, Instruction *> const& eimap, Function const * function, BasicBlock const* BB, int insn_num);
   void replaceUsesInBBAfterMarkerCall(Value *from, Value *to, BasicBlock *BB, Instruction *markerCallEnd);
   void replaceGlobalUsesOfValue(vector<Value *> const& from, vector<Instruction *> const& to, BasicBlock *BB, Function *F, dshared_ptr<tfg const> t, map<shared_ptr<tfg_edge const>, Instruction *> const& eimap);
 
