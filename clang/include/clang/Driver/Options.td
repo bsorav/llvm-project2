@@ -4287,7 +4287,7 @@ def fprofile_dir : Joined<["-"], "fprofile-dir=">, Group<f_Group>;
 
 def dyn_debug : JoinedOrSeparate<["--"], "dyn-debug=">, Group<Preprocessor_Group>,
   Flags<[CoreOption,CC1Option,HelpHidden]>,
-  HelpText<"Enable dynamic debugging for debug-class(es).  Expects comma-separated list of debug-classes with optional level e.g. --dyn_debug=compute_liveness,sprels,alias_analysis=2">;
+  HelpText<"Enable dynamic debugging for debug-class(es).  Expects comma-separated list of debug-classes with optional level e.g. --dyn-debug=compute_liveness,sprels,alias_analysis=2">;
 
 // The default value matches BinutilsVersion in MCAsmInfo.h.
 def fbinutils_version_EQ : Joined<["-"], "fbinutils-version=">,

@@ -53,6 +53,7 @@
 #include <system_error>
 #include "support/dyn_debug.h"
 #include "support/debug.h"
+#include "support/consts.h"
 
 using namespace clang;
 using namespace clang::driver;
@@ -364,14 +365,11 @@ int main(int Argc, const char **Argv) {
     return 1;
 
   {
-    std::string dyn_debug_prefix = "--dyn_debug=";
-    char const** iter = Argv;
-    for (; *iter; iter++) {
-      if (std::string(*iter).substr(0, dyn_debug_prefix.size()) == dyn_debug_prefix) {
-	break;
-      }
-    }
-    if (*iter) {
+    std::string dyn_debug_prefix = "--" DYN_DEBUG_CMDLINE_PREFIX;
+    auto iter = llvm::find_if(Args, [&dyn_debug_prefix](const char *F) {
+            return F && std::string(F).substr(0, dyn_debug_prefix.size()) == dyn_debug_prefix;
+          });
+    if (iter != Args.end()) {
       init_dyn_debug_from_string(std::string(*iter).substr(dyn_debug_prefix.size()));
       CPP_DBG_EXEC(DYN_DEBUG, print_debug_class_levels());
     }

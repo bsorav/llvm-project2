@@ -56,6 +56,7 @@
 #include "llvm/Transforms/Utils/Cloning.h"
 #include <memory>
 #include "support/debug.h"
+#include "support/consts.h"
 #include "support/dyn_debug.h"
 using namespace llvm;
 
@@ -202,7 +203,7 @@ static cl::opt<RunPassOption, true, cl::parser<std::string>> RunPass(
     cl::value_desc("pass-name"), cl::ZeroOrMore, cl::location(RunPassOpt));
 
 cl::opt<std::string>
-DynDebug("dyn_debug", cl::desc("<debug.  enable dynamic debugging for debug-class(es).  Expects comma-separated list of debug-classes with optional level e.g. -debug=compute_liveness,sprels,alias_analysis=2"), cl::init(""));
+DynDebug(DYN_DEBUG_CMDLINE_NAME, cl::desc("<" DYN_DEBUG_CMDLINE_NAME ".  enable dynamic debugging for debug-class(es).  Expects comma-separated list of debug-classes with optional level e.g. -debug=compute_liveness,sprels,alias_analysis=2"), cl::init(""));
 
 static int compileModule(char **, LLVMContext &);
 
