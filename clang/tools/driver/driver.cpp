@@ -371,7 +371,7 @@ int main(int Argc, const char **Argv) {
 	break;
       }
     }
-    if (iter) {
+    if (*iter) {
       init_dyn_debug_from_string(std::string(*iter).substr(dyn_debug_prefix.size()));
       CPP_DBG_EXEC(DYN_DEBUG, print_debug_class_levels());
     }
