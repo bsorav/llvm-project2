@@ -7,7 +7,7 @@
 #include "tfg/tfg_llvm.h"
 
 #include "ptfg/llvm_value_id.h"
-#include "ptfg/ftmap.h"
+#include "ptfg/llptfg.h"
 
 #include "state_llvm.h"
 #include "llvm/IR/Module.h"
