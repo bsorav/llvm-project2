@@ -4120,7 +4120,7 @@ dshared_ptr<ftmap_t>
 sym_exec_llvm::get_function_tfg_map(Module* M, set<string> FunNamesVec/*, bool DisableModelingOfUninitVarUB*/, context* ctx, dshared_ptr<llptfg_t const> const& src_llptfg, bool gen_scev, bool model_llvm_semantics, map<llvm_value_id_t, string_ref>* value_to_name_map, context::xml_output_format_t xml_output_format)
 {
   //map<string, pair<callee_summary_t, dshared_ptr<tfg_llvm_t>>> function_tfg_map;
-  map<string, dshared_ptr<tfg>> function_tfg_map;
+  map<call_context_ref, dshared_ptr<tfg>> function_tfg_map;
 
   DYN_DEBUG3(llvm2tfg,
     cout.flush();
@@ -4157,13 +4157,13 @@ sym_exec_llvm::get_function_tfg_map(Module* M, set<string> FunNamesVec/*, bool D
     autostop_timer total_timer(string(__func__));
     autostop_timer func_timer(string(__func__) + "." + fname);
 
-    ASSERT(!function_tfg_map.count(fname));
+    ASSERT(!function_tfg_map.count(call_context_t::empty_call_context(fname)));
 
     dshared_ptr<tfg_llvm_t const> src_llvm_tfg = dshared_ptr<tfg_llvm_t const>::dshared_nullptr();
     if (src_llptfg) {
-      map<string, dshared_ptr<tfg>> const& src_fname_tfg_map = src_llptfg->get_function_tfg_map();
-      if (src_fname_tfg_map.count(fname)) {
-        src_llvm_tfg = dynamic_pointer_cast<tfg_llvm_t>(src_fname_tfg_map.at(fname));
+      map<call_context_ref, dshared_ptr<tfg>> const& src_fname_tfg_map = src_llptfg->get_function_tfg_map();
+      if (src_fname_tfg_map.count(call_context_t::empty_call_context(fname))) {
+        src_llvm_tfg = dynamic_pointer_cast<tfg_llvm_t>(src_fname_tfg_map.at(call_context_t::empty_call_context(fname)));
         ASSERT(src_llvm_tfg);
       }
     }
@@ -4185,7 +4185,7 @@ sym_exec_llvm::get_function_tfg_map(Module* M, set<string> FunNamesVec/*, bool D
 
     //callee_summary_t csum = t_src->get_summary_for_calling_functions();
     //function_tfg_map.insert(make_pair(fname, make_pair(csum, std::move(t_src))));
-    function_tfg_map.insert(make_pair(fname, t_src));
+    function_tfg_map.insert(make_pair(call_context_t::empty_call_context(fname), t_src));
   }
 
   DYN_DEBUG(get_function_tfg_map_debug,
