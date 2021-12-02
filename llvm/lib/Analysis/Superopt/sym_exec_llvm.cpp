@@ -568,6 +568,7 @@ void sym_exec_common::populate_state_template_common()
   //}
   //m_state_templ.push_back({G_SRC_KEYWORD "." G_LLVM_HIDDEN_REGISTER_NAME, m_ctx->mk_bv_sort(ETFG_EXREG_LEN(ETFG_EXREG_GROUP_GPRS))});
   m_state_templ.push_back({m_mem_reg, mem_sort});
+  m_state_templ.push_back({m_mem_alloc_reg, get_mem_alloc_sort()});
   //m_state_templ.push_back({m_io_reg, io_sort});
 
   //m_state_templ.push_back({G_SRC_KEYWORD "." LLVM_CONTAINS_FLOAT_OP_SYMBOL, m_ctx->mk_bool_sort()});
@@ -814,7 +815,7 @@ expr_ref
 sym_exec_common::state_get_expr(state const &st, string const &key, sort_ref const& s) const
 {
   if (st.has_expr(key)) {
-    return st.get_expr(key, st);
+    return st.get_expr(key);
   } else {
     return get_input_expr(key, s);
   }
@@ -1312,7 +1313,8 @@ sym_exec_llvm::apply_general_function(const CallInst* c, expr_ref fun_name_expr,
   m_memlabel_varnum++;
 
   expr_ref mem = state_get_expr(state_in, m_mem_reg, this->get_mem_sort());
-  expr_ref mem_alloc = get_corresponding_mem_alloc_from_mem_expr(mem);
+  expr_ref mem_alloc = state_get_expr(state_in, m_mem_alloc_reg, this->get_mem_alloc_sort());
+  //expr_ref mem_alloc = get_corresponding_mem_alloc_from_mem_expr(mem);
   //expr_ref zerobv = m_ctx->mk_zerobv(DWORD_LEN);
   args.push_back(ml_read_expr);
   args_type.push_back(ml_read_expr->get_sort());
