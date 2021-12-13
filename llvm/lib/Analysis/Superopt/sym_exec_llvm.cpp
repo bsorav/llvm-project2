@@ -1695,7 +1695,8 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     state_assumes.clear();
 
     // local.alloc.count <- local.alloc.count+1
-    state_set_expr(state_out, m_ctx->get_local_alloc_count_varname(this->get_srcdst_keyword())->get_str(), m_ctx->mk_increment_count(local_alloc_count_var));
+    //state_set_expr(state_out, m_ctx->get_local_alloc_count_varname(this->get_srcdst_keyword())->get_str(), m_ctx->mk_increment_count(local_alloc_count_var));
+    state_set_expr(state_out, local_alloc_count_varname, m_ctx->mk_increment_count(local_alloc_count_var));
     break;
   }
   case Instruction::Store:
