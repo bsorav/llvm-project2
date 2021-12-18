@@ -1014,56 +1014,37 @@ sym_exec_llvm::apply_memcpy_function(const CallInst* c, expr_ref fun_name_expr, 
   const auto& memcpy_dst = c->getArgOperand(0);
   const auto& memcpy_src = c->getArgOperand(1);
   const auto& memcpy_nbytes = c->getArgOperand(2);
-  const auto& memcpy_align = c->getArgOperand(3);
+  const auto& memcpy_isvolatile = c->getArgOperand(3);
   pc const &from_pc = from_node->get_pc();
-  //expr_ref memcpy_src_expr = get_expr_adding_edges_for_intermediate_vals(*memcpy_src, "", state_out, from_node, pc_to, B, curF, t/*, assumes*/);
-  //expr_ref memcpy_dst_expr = get_expr_adding_edges_for_intermediate_vals(*memcpy_dst, "", state_out, from_node, pc_to, B, curF, t/*, assumes*/);
-  //expr_ref memcpy_nbytes_expr = get_expr_adding_edges_for_intermediate_vals(*memcpy_nbytes, "", state_out, from_node, pc_to, B, curF, t/*, assumes*/);
-  //expr_ref memcpy_align_expr = get_expr_adding_edges_for_intermediate_vals(*memcpy_align, "", state_out, from_node, pc_to, B, curF, t/*, assumes*/);
-  //memlabel_t ml_top;
   unordered_set<expr_ref> assumes = state_assumes;
-  expr_ref memcpy_src_expr, memcpy_dst_expr, memcpy_nbytes_expr, memcpy_align_expr;
+  expr_ref memcpy_src_expr, memcpy_dst_expr, memcpy_nbytes_expr, memcpy_isvolatile_expr;
 
   tie(memcpy_src_expr, assumes)    = get_expr_adding_edges_for_intermediate_vals(*memcpy_src/*, ""*/, state_out, assumes, from_node/*, pc_to, B, curF*/, t, value_to_name_map);
   tie(memcpy_dst_expr, assumes)    = get_expr_adding_edges_for_intermediate_vals(*memcpy_dst/*, ""*/, state_out, assumes, from_node/*, pc_to, B, curF*/, t, value_to_name_map);
   tie(memcpy_nbytes_expr, assumes) = get_expr_adding_edges_for_intermediate_vals(*memcpy_nbytes/*, ""*/, state_out, assumes, from_node/*, pc_to, B, curF*/, t, value_to_name_map);
-  tie(memcpy_align_expr, assumes)  = get_expr_adding_edges_for_intermediate_vals(*memcpy_align/*, ""*/, state_out, assumes, from_node/*, pc_to, B, curF*/, t, value_to_name_map);
-
-  int memcpy_align_int;
-  if (memcpy_align_expr->is_bool_sort() || memcpy_align_expr->get_sort()->get_size() == 1) { //seems like the align operand was omitted; unsure if this is the correct check though.
-    memcpy_align_int = 1;
-  } else {
-    ASSERT(memcpy_align_expr->is_const());
-    int memcpy_align_int = memcpy_align_expr->get_int64_value();
-    if (memcpy_align_int == 0) {
-      cout << __func__ << " " << __LINE__ << ": memcpy_nbytes_expr = " << expr_string(memcpy_nbytes_expr) << endl;
-      cout << __func__ << " " << __LINE__ << ": memcpy_align_expr = " << expr_string(memcpy_align_expr) << endl;
-    }
-    ASSERT(memcpy_align_int > 0);
-  }
+  tie(memcpy_isvolatile_expr, assumes)  = get_expr_adding_edges_for_intermediate_vals(*memcpy_isvolatile/*, ""*/, state_out, assumes, from_node/*, pc_to, B, curF*/, t, value_to_name_map);
 
   memlabel_t ml_top;
   memlabel_t::keyword_to_memlabel(&ml_top, G_MEMLABEL_TOP_SYMBOL, MEMSIZE_MAX);
 
   unordered_set<expr_ref> succ_assumes;
   if (memcpy_nbytes_expr->is_const()) {
-    //predicate p_src(m_ctx->mk_islangaligned(memcpy_src_expr, memcpy_align_int), m_ctx->mk_bool_const(true), UNDEF_BEHAVIOUR_ASSUME_COMMENT_PREFIX "-align-memcpy-src-assume", predicate::assume);
+    uint64_t memcpy_dst_align = F->getParamAlign(0).valueOrOne().value();
+    uint64_t memcpy_src_align = F->getParamAlign(1).valueOrOne().value();
+    uint64_t memcpy_align_int = max(memcpy_src_align, memcpy_dst_align); // satisfies alignment requirement of both src and dst
+    DYN_DEBUG(llvm2tfg_memcpy, cout << "memcpy_src_align = " << memcpy_src_align << "; memcpy_dst_align = " << memcpy_dst_align << endl);
     int count = memcpy_nbytes_expr->get_int64_value();
     if (count != 0) {
-      expr_ref const& src_isaligned_assume = m_ctx->mk_islangaligned(memcpy_src_expr, count /*XXX: not sure*/);
+      expr_ref const& src_isaligned_assume = m_ctx->mk_islangaligned(memcpy_src_expr, memcpy_src_align);
       assumes.insert(src_isaligned_assume);
-      //predicate p_src(precond_t(m_ctx), isaligned_assume, expr_true(m_ctx), UNDEF_BEHAVIOUR_ASSUME_ALIGN_MEMCPY_SRC, predicate::assume);
-      //t.add_assume_pred(from_pc, p_src);
-      ////predicate p_dst(m_ctx->mk_islangaligned(memcpy_dst_expr, memcpy_align_int), m_ctx->mk_bool_const(true), UNDEF_BEHAVIOUR_ASSUME_COMMENT_PREFIX "-align-memcpy-dst-assume", predicate::assume);
-      expr_ref const& dst_isaligned_assume = m_ctx->mk_islangaligned(memcpy_dst_expr, count /*XXX: not sure*/);
+      expr_ref const& dst_isaligned_assume = m_ctx->mk_islangaligned(memcpy_dst_expr, memcpy_dst_align);
       assumes.insert(dst_isaligned_assume);
-      //predicate p_dst(precond_t(m_ctx), dst_isaligned_assume, expr_true(m_ctx), UNDEF_BEHAVIOUR_ASSUME_ALIGN_MEMCPY_DST);
-      //t.add_assume_pred(from_pc, p_dst);
     }
-    pc cur_pc = from_pc;
+    pc cur_pc = from_node->get_pc();
     dshared_ptr<tfg_node> intermediate_node = get_next_intermediate_subsubindex_pc_node(t, from_node);
     shared_ptr<tfg_edge const> e = mk_tfg_edge(mk_itfg_edge(cur_pc, intermediate_node->get_pc(), state_out, expr_true(m_ctx), assumes, this->instruction_to_te_comment(*c, from_pc)));
     t.add_edge(e);
+    DYN_DEBUG(llvm2tfg_memcpy, cout << "added edge " << e->to_string_concise() << " for alignment assume" << endl);
     cur_pc = intermediate_node->get_pc();
 
     for (int i = 0; i < count; i += memcpy_align_int) {
@@ -1083,13 +1064,13 @@ sym_exec_llvm::apply_memcpy_function(const CallInst* c, expr_ref fun_name_expr, 
 
       shared_ptr<tfg_edge const> e = mk_tfg_edge(mk_itfg_edge(cur_pc, intermediate_node->get_pc(), state_out, expr_true(m_ctx), {}, this->instruction_to_te_comment(*c, from_pc)));
       t.add_edge(e);
+      DYN_DEBUG(llvm2tfg_memcpy, cout << "added edge " << e->to_string_concise() << " for memcpy of bytes " << i << "-" << (i+memcpy_align_int-1) << endl);
       cur_pc = intermediate_node->get_pc();
     }
     state_out = state_in;
     from_node = t.find_node(cur_pc);
     ASSERT(from_node);
   } else {
-    //cout << __func__ << " " << __LINE__ << ": memcpy_nbytes_expr = " << expr_string(memcpy_nbytes_expr) << endl;
     tie(assumes, succ_assumes) = apply_general_function(c, fun_name_expr, fun_name, src_llvm_tfg, F, state_in, state_out, assumes, cur_function_name, from_node/*, pc_to, B, curF*/, t, function_tfg_map, value_to_name_map, function_call_chain, scev_map, xml_output_format);
   }
   return make_pair(state_assumes, succ_assumes);
