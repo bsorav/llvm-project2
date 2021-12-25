@@ -1161,7 +1161,7 @@ sym_exec_llvm::apply_memcpy_function(const CallInst* c, expr_ref fun_name_expr, 
 }
 
 pair<unordered_set<expr_ref>,unordered_set<expr_ref>>
-sym_exec_llvm::apply_va_start_function(const CallInst* c, state const& state_in, state &state_out, unordered_set<expr_ref> const& state_assumes, dshared_ptr<tfg_node>& from_node, bool model_llvm_semantics, tfg& t, map<llvm_value_id_t,string_ref>* value_to_name_map)
+sym_exec_llvm::apply_va_start_function(const CallInst* c, state const& state_in, state &state_out, unordered_set<expr_ref> const& state_assumes, string const& cur_function_name, dshared_ptr<tfg_node>& from_node, bool model_llvm_semantics, tfg& t, map<llvm_value_id_t,string_ref>* value_to_name_map)
 {
   const auto& va_list_ptr = c->getArgOperand(0);
   expr_ref va_list_ptr_expr;
@@ -1173,7 +1173,8 @@ sym_exec_llvm::apply_va_start_function(const CallInst* c, state const& state_in,
   tie(va_list_ptr_expr, assumes) = get_expr_adding_edges_for_intermediate_vals(*va_list_ptr, "", state_out, assumes, from_node, model_llvm_semantics, t, value_to_name_map);
 
   //expr_ref vararg_addr = m_ctx->get_consts_struct().get_expr_value(reg_type_local, graph_locals_map_t::vararg_local_id());
-  expr_ref vararg_addr = m_ctx->get_consts_struct().get_local_addr(reg_type_local, graph_locals_map_t::vararg_local_id(), m_srcdst_keyword);
+  allocstack_t allocstack = allocstack_t::allocstack_singleton(cur_function_name, graph_locals_map_t::vararg_local_id());
+  expr_ref vararg_addr = m_ctx->get_consts_struct().get_local_addr(reg_type_local, allocstack, m_srcdst_keyword);
   expr_ref mem_alloc = state_get_expr(state_in, this->m_mem_alloc_reg, this->get_mem_alloc_sort());
   memlabel_t ml_top = memlabel_t::memlabel_top();
   unsigned count = get_word_length()/get_memory_addressable_size();
@@ -1182,7 +1183,7 @@ sym_exec_llvm::apply_va_start_function(const CallInst* c, state const& state_in,
 }
 
 pair<unordered_set<expr_ref>,unordered_set<expr_ref>>
-sym_exec_llvm::apply_va_copy_function(const CallInst* c, state const& state_in, state &state_out, unordered_set<expr_ref> const& state_assumes, dshared_ptr<tfg_node>& from_node, bool model_llvm_semantics, tfg& t, map<llvm_value_id_t,string_ref>* value_to_name_map)
+sym_exec_llvm::apply_va_copy_function(const CallInst* c, state const& state_in, state &state_out, unordered_set<expr_ref> const& state_assumes, string const& cur_function_name, dshared_ptr<tfg_node>& from_node, bool model_llvm_semantics, tfg& t, map<llvm_value_id_t,string_ref>* value_to_name_map)
 {
   const auto& dst_va_list_ptr = c->getArgOperand(0);
   const auto& src_va_list_ptr = c->getArgOperand(1);
@@ -1600,7 +1601,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     allocsite_t local_id(from_node->get_pc());
     allocstack_t local_id_stack = allocstack_t::allocstack_singleton(cur_function_name, local_id);
     memlabel_t ml_local = memlabel_t::memlabel_local(local_id_stack);
-    expr_ref local_addr_var = m_cs.get_local_addr(reg_type_local, local_id, m_srcdst_keyword);
+    expr_ref local_addr_var = m_cs.get_local_addr(reg_type_local, local_id_stack, m_srcdst_keyword);
 
     string local_addr_key = m_ctx->get_key_from_input_expr(local_addr_var)->get_str();
     m_local_refs.insert(make_pair(local_id, graph_local_t(iname, local_size, align, is_varsize)));
@@ -1895,9 +1896,9 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     if (fun_name.substr(0, memcpy_fn.length()) == memcpy_fn) {
       tie(state_assumes, succ_assumes) = apply_memcpy_function(c, fun_expr, fun_name, src_llvm_tfg, calleeF, state_in, state_out, state_assumes, cur_function_name, from_node, model_llvm_semantics, F, t/*, function_tfg_map*/, value_to_name_map/*, function_call_chain*/, scev_map, xml_output_format);
     } else if (fun_name == LLVM_FUNCTION_NAME_PREFIX G_LLVM_VA_START_FUNCTION) {
-      tie(state_assumes, succ_assumes) = apply_va_start_function(c, state_in, state_out, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map);
+      tie(state_assumes, succ_assumes) = apply_va_start_function(c, state_in, state_out, state_assumes, cur_function_name, from_node, model_llvm_semantics, t, value_to_name_map);
     } else if (fun_name == LLVM_FUNCTION_NAME_PREFIX G_LLVM_VA_COPY_FUNCTION) {
-      tie(state_assumes, succ_assumes) = apply_va_copy_function(c, state_in, state_out, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map);
+      tie(state_assumes, succ_assumes) = apply_va_copy_function(c, state_in, state_out, state_assumes, cur_function_name, from_node, model_llvm_semantics, t, value_to_name_map);
     } else if (fun_name == LLVM_FUNCTION_NAME_PREFIX G_LLVM_VA_END_FUNCTION) {
       //NOP
     } else {
