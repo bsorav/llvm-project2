@@ -1637,12 +1637,11 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     //t.add_assume_pred(from_node->get_pc(), p2);
 
     if (align != 0) {
-      expr_ref const& isaligned_assume = m_ctx->mk_islangaligned(addr, align);
+      expr_ref isaligned_assume = m_ctx->mk_islangaligned(addr, align);
       state_assumes.insert(isaligned_assume);
-      //predicate p3(precond_t(m_ctx), m_ctx->mk_islangaligned(addr, align), expr_true(m_ctx), UNDEF_BEHAVIOUR_ASSUME_ALIGN_ISLANGALIGNED, predicate::assume);
-      //assumes.insert(p3);
-      //t.add_assume_pred(from_node->get_pc(), p3);
     }
+    expr_ref belongs_to_assume = m_ctx->mk_belongs_to_same_region(mem_alloc, addr, count);
+    state_assumes.insert(belongs_to_assume);
     break;
   }
   case Instruction::Load:
@@ -1696,10 +1695,10 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     if (align != 0) {
       expr_ref const& isaligned_assume = m_ctx->mk_islangaligned(addr, align);
       state_assumes.insert(isaligned_assume);
-      //predicate p2(precond_t(m_ctx), m_ctx->mk_islangaligned(addr, align), expr_true(m_ctx), UNDEF_BEHAVIOUR_ASSUME_ALIGN_ISLANGALIGNED, predicate::assume);
-      //assumes.insert(p2);
-      //t.add_assume_pred(from_node->get_pc(), p2);
     }
+    expr_ref belongs_to_assume = m_ctx->mk_belongs_to_same_region(mem_alloc, addr, count);
+    state_assumes.insert(belongs_to_assume);
+
     string lname = get_value_name(*l);
     Type *lTy = (*l).getType();
     //add_align_assumes(lname, lTy, read_value, pc_to/*from_node->get_pc()*/, t);
