@@ -2028,14 +2028,14 @@ sym_exec_llvm::get_orig_assume_expr(const llvm::Instruction& I/*, string Iname*/
       }
     }
     if (I.getOpcode() == Instruction::Add) {
-      if (i->hasNoSignedWrap()) {
+      if (i->hasNoSignedWrap() || i->hasNoUnsignedWrap()) {
         vector<expr_ref> signed_args;
 	for (auto arg: args) {
           signed_args.push_back(m_ctx->mk_bvsign_ext(arg, 1));
 	}
         auto signed_sum = m_ctx->mk_app(expr::OP_BVADD, signed_args);
         auto orig_sum = m_ctx->mk_app(expr::OP_BVADD, args);
-        orig_sum = m_ctx->mk_bvzero_ext(orig_sum, 1);
+        orig_sum = i->hasNoUnsignedWrap() ? m_ctx->mk_bvzero_ext(orig_sum, 1) : m_ctx->mk_bvsign_ext(orig_sum, 1);
         ret = m_ctx->mk_eq(signed_sum, orig_sum); 
       }
     }
