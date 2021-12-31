@@ -2003,39 +2003,59 @@ sym_exec_llvm::get_orig_assume_expr(const llvm::Instruction& I/*, string Iname*/
   case Instruction::Xor:
   {
     const BinaryOperator* i = cast<const BinaryOperator>(&I);
+    expr_ref orig_expr = m_ctx->mk_app(binary_op_to_expr_kind(i->getOpcode(), args[0]->is_bool_sort()), args);
     assert(args[0]->get_sort() == args[1]->get_sort());
     if (   I.getOpcode() == Instruction::Shl
         || I.getOpcode() == Instruction::LShr
         || I.getOpcode() == Instruction::AShr) {
       ASSERT(args[0]->is_bv_sort());
       ret =  gen_shiftcount_assume_expr(args[1], args[0]->get_sort()->get_size());
-    }
-    if (   I.getOpcode() == Instruction::UDiv
-        || I.getOpcode() == Instruction::SDiv
-        || I.getOpcode() == Instruction::URem
-        || I.getOpcode() == Instruction::SRem) {
+      if (i->isExact() && (I.getOpcode() != Instruction::Shl)) {
+        vector<expr_ref> assume_args;
+	assume_args.push_back(orig_expr);
+	assume_args.push_back(args[1]);
+	auto assume_expr = m_ctx->mk_app(expr::OP_BVEXSHL, assume_args);
+	assume_expr = m_ctx->mk_eq(assume_expr, args[0]);
+	ret = m_ctx->mk_or(assume_expr, ret);
+      } else if (I.getOpcode() == Instruction::Shl && (i->hasNoSignedWrap() || i->hasNoUnsignedWrap())) {
+        vector<expr_ref> assume_args;
+	assume_args.push_back(orig_expr);
+	assume_args.push_back(args[1]);
+	auto assume_expr = m_ctx->mk_app(expr::OP_BVEXLSHR, assume_args);
+	assume_expr = m_ctx->mk_eq(assume_expr, args[0]);
+	ret = m_ctx->mk_or(assume_expr, ret);
+      } 
+    } else if (I.getOpcode() == Instruction::UDiv ||
+               I.getOpcode() == Instruction::URem ||
+               I.getOpcode() == Instruction::SRem) {
       ASSERT(args[0]->is_bv_sort());
       ret = gen_no_divbyzero_assume_expr(args[1]);
-      if (   I.getOpcode() == Instruction::SDiv
-          || I.getOpcode() == Instruction::SRem) {
+      if (I.getOpcode() == Instruction::SDiv || I.getOpcode() == Instruction::SRem) {
         expr_ref other_ref = gen_div_no_overflow_assume_expr(args[0], args[1]);
+        ret = m_ctx->mk_or(ret, other_ref);
+      }
+      if ((I.getOpcode() == Instruction::UDiv || I.getOpcode() == Instruction::SDiv) && i->isExact()) {
+	vector<expr_ref> mul_args;
+	mul_args.push_back(orig_expr);
+	mul_args.push_back(args[1]);
 
-	vector<expr_ref> assume_args;
-	assume_args.push_back(ret);
-	assume_args.push_back(other_ref);
-
-        ret = m_ctx->mk_app((ret->is_bool_sort() ? expr::OP_OR : expr::OP_BVOR), assume_args);
+	auto poison_expr = m_ctx->mk_app(expr::OP_BVMUL, mul_args);
+        poison_expr = m_ctx->mk_eq(poison_expr, args[0]);
+	mul_args.clear();
+	mul_args.push_back(poison_expr);
+	mul_args.push_back(ret);
+        ret = m_ctx->mk_or(ret, poison_expr);
       }
     }
-    if (I.getOpcode() == Instruction::Add) {
+    if ((I.getOpcode() == Instruction::Add) || (I.getOpcode() == Instruction::Sub) || (I.getOpcode() == Instruction::Mul)) {
       if (i->hasNoSignedWrap() || i->hasNoUnsignedWrap()) {
         vector<expr_ref> signed_args;
 	for (auto arg: args) {
           signed_args.push_back(m_ctx->mk_bvsign_ext(arg, 1));
 	}
-        auto signed_sum = m_ctx->mk_app(expr::OP_BVADD, signed_args);
-        auto orig_sum = m_ctx->mk_app(expr::OP_BVADD, args);
-        orig_sum = i->hasNoUnsignedWrap() ? m_ctx->mk_bvzero_ext(orig_sum, 1) : m_ctx->mk_bvsign_ext(orig_sum, 1);
+	auto opCode = binary_op_to_expr_kind(i->getOpcode(), args[0]->is_bool_sort());
+        auto signed_sum = m_ctx->mk_app(opCode, signed_args);
+        auto orig_sum = i->hasNoUnsignedWrap() ? m_ctx->mk_bvzero_ext(orig_expr, 1) : m_ctx->mk_bvsign_ext(orig_expr, 1);
         ret = m_ctx->mk_eq(signed_sum, orig_sum); 
       }
     }
