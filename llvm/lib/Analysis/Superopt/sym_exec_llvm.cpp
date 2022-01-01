@@ -1438,6 +1438,11 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
       //t.add_assume_pred(from_node->get_pc(), p);
 
       state_set_expr(state_out, G_LLVM_RETURN_REGISTER_NAME/*m_ret_reg*/, dst_val);
+      auto poison_name = get_poison_value_name(*ret);
+      if (m_poison_set.find(poison_name) != m_poison_set.end()) {
+        auto assume = state_get_expr(state_in, get_poison_value_name(*ret), m_ctx->mk_bool_sort());
+        state_assumes.insert(assume);
+      }
     }
     for (size_t i = 0; i < LLVM_NUM_CALLEE_SAVE_REGS; i++) {
       stringstream ss;
