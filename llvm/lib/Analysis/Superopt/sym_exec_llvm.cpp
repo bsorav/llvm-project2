@@ -3893,8 +3893,9 @@ sym_exec_common::get_tfg_common(tfg &t)
 
     allocsite_t allocsite = m_ctx->is_vararg_local_expr(a.second) ? graph_locals_map_t::vararg_local_id()
                                                                   : allocsite_t::allocsite_arg(a.first);
+    allocstack_t allocstack = allocstack_t::allocstack_singleton(t.get_function_name()->get_str(), allocsite);
     stringstream ss;
-    ss << string(G_INPUT_KEYWORD ".") << m_srcdst_keyword << "." << G_LOCAL_KEYWORD << "." << allocsite.allocsite_to_string();
+    ss << string(G_INPUT_KEYWORD ".") << m_srcdst_keyword << "." << G_LOCAL_KEYWORD << "." << allocstack.allocstack_to_string();
     expr_ref arg_addr = m_ctx->mk_var(ss.str(), m_ctx->get_addr_sort());
     arg_exprs.insert(make_pair(mk_string_ref(argname), graph_arg_t(arg_addr, a.second)));
   }
