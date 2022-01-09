@@ -1905,8 +1905,14 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
       tie(state_assumes, succ_assumes) = apply_general_function(c, fun_expr, fun_name, src_llvm_tfg, calleeF, state_in, state_out, state_assumes, cur_function_name, from_node, model_llvm_semantics, t/*, function_tfg_map*/, value_to_name_map/*, function_call_chain*/, scev_map, xml_output_format);
     }
 
-    ASSERT(string_has_prefix(fun_name, LLVM_FUNCTION_NAME_PREFIX));
-    string fname = fun_name.substr(strlen(LLVM_FUNCTION_NAME_PREFIX));
+    string fname;
+    if (fun_name != "") {
+      if (!string_has_prefix(fun_name, LLVM_FUNCTION_NAME_PREFIX)) {
+        cout << _FNLN_ << ": fun_name = '" << fun_name << "'\n";
+      }
+      ASSERT(string_has_prefix(fun_name, LLVM_FUNCTION_NAME_PREFIX));
+      fname = fun_name.substr(strlen(LLVM_FUNCTION_NAME_PREFIX));
+    }
     auto fcall_state = state_out;
     if (succ_assumes.size()) {
       // create extra edge for adding assumes related to the function return value target
