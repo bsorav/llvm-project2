@@ -4128,7 +4128,7 @@ sym_exec_llvm::sym_exec_populate_potential_scev_relations(Module* M, string cons
 }
 
 dshared_ptr<ftmap_t>
-sym_exec_llvm::get_function_tfg_map(Module* M, set<string> FunNamesVec/*, bool DisableModelingOfUninitVarUB*/, context* ctx, dshared_ptr<llptfg_t const> const& src_llptfg, bool gen_scev, bool model_llvm_semantics, map<llvm_value_id_t, string_ref>* value_to_name_map, context::xml_output_format_t xml_output_format)
+sym_exec_llvm::get_function_tfg_map(Module* M, set<string> FunNamesVec/*, bool DisableModelingOfUninitVarUB*/, context* ctx, dshared_ptr<llptfg_t const> const& src_llptfg, bool is_dst, bool gen_scev, bool model_llvm_semantics, map<llvm_value_id_t, string_ref>* value_to_name_map, context::xml_output_format_t xml_output_format)
 {
   //map<string, pair<callee_summary_t, dshared_ptr<tfg_llvm_t>>> function_tfg_map;
   map<call_context_ref, dshared_ptr<tfg>> function_tfg_map;
@@ -4138,7 +4138,7 @@ sym_exec_llvm::get_function_tfg_map(Module* M, set<string> FunNamesVec/*, bool D
     M->print(dbgs(), nullptr, true);
     dbgs().flush();
   );
-  string srcdst_keyword = src_llptfg ? G_DST_KEYWORD : G_SRC_KEYWORD;
+  string srcdst_keyword = is_dst ? G_DST_KEYWORD : G_SRC_KEYWORD;
 
   map<string, value_scev_map_t> scev_map;
   //map<Function const*, LoopInfo const*> loopinfo_map;

@@ -40,6 +40,7 @@ using namespace llvm;
 #include "support/timers.h"
 #include "support/dyn_debug.h"
 #include "support/globals.h"
+#include "support/read_source_files.h"
 
 #include "expr/consts_struct.h"
 #include "expr/expr.h"
@@ -245,8 +246,10 @@ main(int argc, char **argv)
     return 0;
   }
 
+  auto is_dst = (src_etfg_filename != "");
+  auto is_src_llvm = is_dst && !file_is_spec_etfg(src_etfg_filename);
   shared_ptr<llptfg_t const> src_llptfg;
-  if (src_etfg_filename != "") {
+  if (is_src_llvm) {
     ifstream in_src(src_etfg_filename);
     if (!in_src.is_open()) {
       cout << __func__ << " " << __LINE__ << ": parsing failed" << endl;
@@ -259,7 +262,7 @@ main(int argc, char **argv)
     progress_flag = 1;
   }
 
-  dshared_ptr<ftmap_t> function_tfg_map = sym_exec_llvm::get_function_tfg_map(M1.get(), FunNamesVec, ctx, src_llptfg, !NoGenScev, llvmSemantics, nullptr, xml_output_format);
+  dshared_ptr<ftmap_t> function_tfg_map = sym_exec_llvm::get_function_tfg_map(M1.get(), FunNamesVec, ctx, src_llptfg, is_dst, !NoGenScev, llvmSemantics, nullptr, xml_output_format);
   function_tfg_map->ftmap_run_pointsto_analysis(false, dshared_ptr<tfg const>::dshared_nullptr(), {}, call_context_depth, true, xml_output_format);
   //t->tfg_populate_relevant_memlabels(src_llvm_tfg);
   function_tfg_map->ftmap_add_start_pc_preconditions_for_each_tfg(/*se.m_srcdst_keyword*/);
