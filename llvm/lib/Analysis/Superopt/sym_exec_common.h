@@ -28,8 +28,8 @@
 class sym_exec_common
 {
 public:
-  sym_exec_common(context* ctx/*, consts_struct_t const &cs*/, dshared_ptr<list<pair<string, unsigned>> const> fun_names, dshared_ptr<graph_symbol_map_t const> symbol_map, dshared_ptr<map<pair<symbol_id_t, offset_t>, vector<char>> const> string_contents, bool gen_callee_summary, unsigned memory_addressable_size, unsigned word_length, string const& srcdst_keyword) :
-    m_ctx(ctx), m_cs(ctx->get_consts_struct()), m_fun_names(fun_names), m_symbol_map(symbol_map), m_string_contents(string_contents), m_gen_callee_summary(gen_callee_summary), m_memory_addressable_size(memory_addressable_size), m_word_length(word_length), m_mem_reg(srcdst_keyword + "." LLVM_MEM_SYMBOL), m_mem_alloc_reg(srcdst_keyword + "." LLVM_MEM_SYMBOL "." G_ALLOC_SYMBOL)/*, m_local_num(graph_locals_map_t::first_non_arg_local())*/, m_memlabel_varnum(0), m_srcdst_keyword(srcdst_keyword)
+  sym_exec_common(context* ctx/*, consts_struct_t const &cs*/, dshared_ptr<list<pair<string, unsigned>> const> fun_names, dshared_ptr<graph_symbol_map_t const> symbol_map, dshared_ptr<map<pair<symbol_id_t, offset_t>, vector<char>> const> string_contents/*, bool gen_callee_summary*/, unsigned memory_addressable_size, unsigned word_length, string const& srcdst_keyword) :
+    m_ctx(ctx), m_cs(ctx->get_consts_struct()), m_fun_names(fun_names), m_symbol_map(symbol_map), m_string_contents(string_contents)/*, m_gen_callee_summary(gen_callee_summary)*/, m_memory_addressable_size(memory_addressable_size), m_word_length(word_length), m_mem_reg(srcdst_keyword + "." LLVM_MEM_SYMBOL), m_mem_alloc_reg(srcdst_keyword + "." LLVM_MEM_SYMBOL "." G_ALLOC_SYMBOL), m_mem_poison_reg(srcdst_keyword + "." LLVM_MEM_SYMBOL "." G_POISON_SYMBOL), m_memlabel_varnum(0), m_srcdst_keyword(srcdst_keyword)
   {
     //list<pair<string, unsigned>> fun_names;
     //sym_exec_common::get_fun_names(M, m_fun_names);
@@ -52,6 +52,10 @@ public:
   sort_ref get_mem_alloc_domain() const;
   sort_ref get_mem_alloc_range() const;
   sort_ref get_mem_alloc_sort() const;
+
+  sort_ref get_mem_poison_domain() const;
+  sort_ref get_mem_poison_range() const;
+  sort_ref get_mem_poison_sort() const;
   //virtual unique_ptr<tfg_llvm_t> get_tfg(map<string, pair<callee_summary_t, unique_ptr<tfg_llvm_t>>> *function_tfg_map, set<string> const *function_call_chain, map<shared_ptr<tfg_edge const>, llvm::Instruction *>& eimap) = 0;
   //virtual pc get_start_pc() const = 0;
 
@@ -72,7 +76,7 @@ public:
   static unsigned get_num_insn(const llvm::Function& f);
   context *get_context() const { return m_ctx; }
   list<pair<string, unsigned>> const &get_fun_names() const { return *m_fun_names; }
-  bool gen_callee_summary() const { return m_gen_callee_summary; }
+  //bool gen_callee_summary() const { return m_gen_callee_summary; }
   static symbol_id_t get_symbol_id_for_name(string const& name, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, symbol_id_t input_symbol_id);
 
 protected:
@@ -169,7 +173,7 @@ protected:
 
   //expr_ref get_expr_adding_edges_for_intermediate_vals(const llvm::Value& v, string vname, const state& state_in, shared_ptr<tfg_node> &from_node, pc const &pc_to, llvm::BasicBlock const &B, llvm::Function const &F, tfg &t);
 
-  void state_set_expr(state &st, string const &key, expr_ref const &value);
+  void state_set_expr(state &st, string const &key, expr_ref const &value) const;
   expr_ref get_input_expr(string const &key, sort_ref const& s) const;
   expr_ref state_get_expr(state const &st, string const &key, sort_ref const& s) const;
 
@@ -202,12 +206,13 @@ protected:
   //std::map<symbol_id_t, tuple<string, size_t, variable_constness_t>> const &m_symbol_map;
   dshared_ptr<graph_symbol_map_t const> m_symbol_map;
   dshared_ptr<std::map<pair<symbol_id_t, offset_t>, vector<char>> const> m_string_contents;
-  bool m_gen_callee_summary;
+  //bool m_gen_callee_summary;
   unsigned m_memory_addressable_size;
   unsigned m_word_length;
 
   string m_mem_reg;
   string m_mem_alloc_reg;
+  string m_mem_poison_reg;
   //string m_io_reg;
   //allocsite_t m_local_num;
   //string m_ret_reg;
@@ -217,7 +222,7 @@ protected:
   list<pair<string, sort_ref>> m_state_templ;
   //map<string, string> m_value_name_map;
   map<string, pair<argnum_t, expr_ref>> m_arguments;
-  map<string, callee_summary_t> m_callee_summaries;
+  //map<string, callee_summary_t> m_callee_summaries;
   std::set<symbol_id_t> m_touched_symbols;
   int m_memlabel_varnum;
   //map<pc, pc> m_next_phi_pc;

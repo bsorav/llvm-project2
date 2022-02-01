@@ -64,7 +64,8 @@ public:
     m_OS(OS),
     m_bvsort_size(m_dwarf_expr.getAddressSize()*8),
     m_memvar(g_ctx->mk_var(G_SOLVER_DST_MEM_NAME, g_ctx->mk_array_sort(g_ctx->mk_bv_sort(DWORD_LEN), g_ctx->mk_bv_sort(BYTE_LEN)))),
-    m_mem_allocvar(get_corresponding_mem_alloc_from_mem_expr(m_memvar))
+    m_mem_allocvar(g_ctx->mk_var(string(G_SOLVER_DST_MEM_NAME "." G_ALLOC_SYMBOL), g_ctx->mk_array_sort(g_ctx->mk_bv_sort(DWORD_LEN), g_ctx->mk_memlabel_sort())))
+    //m_mem_allocvar(get_corresponding_mem_alloc_from_mem_expr(m_memvar))
   { }
 
   eqspace::expr_ref get_result()
