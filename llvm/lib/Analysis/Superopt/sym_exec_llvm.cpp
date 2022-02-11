@@ -1500,9 +1500,16 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
       expr_ref local_type_alloc_size_expr = m_ctx->mk_bv_const(bvlen, local_type_alloc_size);
       local_size_val = m_ctx->mk_bvmul(varsize_expr, local_type_alloc_size_expr);
 
-      // add size > 0 assume
-      expr_ref size_is_positive_assume = m_ctx->mk_bvsgt(local_size_val, m_ctx->mk_zerobv(bvlen));
-      state_assumes.insert(size_is_positive_assume);
+      bool is_c_alloca = false; // TODO
+      if (is_c_alloca) {
+        // add size != 0 assume
+        expr_ref size_is_nonzero = m_ctx->mk_not(m_ctx->mk_eq(local_size_val, m_ctx->mk_zerobv(bvlen)));
+        state_assumes.insert(size_is_nonzero);
+      } else {
+        // add size > 0 assume
+        expr_ref size_is_positive_assume = m_ctx->mk_bvsgt(local_size_val, m_ctx->mk_zerobv(bvlen));
+        state_assumes.insert(size_is_positive_assume);
+      }
       // add no overflow assume for (varsize_expr * local_type_alloc_size)
       expr_ref no_overflow = gen_no_mul_overflow_assume_expr(varsize_expr, local_type_alloc_size_expr, /*varsize_expr is positive*/true);
       state_assumes.insert(no_overflow);
