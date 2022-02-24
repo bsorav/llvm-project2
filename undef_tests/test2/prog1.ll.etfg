@@ -1,0 +1,704 @@
+=llvm_header
+; ModuleID = 'prog1.ll'
+source_filename = "prog1.ll"
+target datalayout = "e-m:e-p:32:32-p270:32:32-p271:32:32-p272:64:64-f64:32:64-f80:32-n8:16:32-S128"
+target triple = "i386-unknown-linux-gnu"
+
+=type_decls
+=globals_with_initializers
+=function_declarations
+=FunctionTFGs
+=FunctionName: main
+=TFG_LLVM src.llvm.main:
+=TFG:
+=Nodes: L0%0%1 L0%1%1 L0%1%100003 L0%2%1 L0%2%100003 L0%3%1 E0%0%1
+=Edges:
+L0%0%1 => L0%1%1
+L0%1%1 => L0%1%100003
+L0%1%100003 => L0%2%1
+L0%2%1 => L0%2%100003
+L0%2%100003 => L0%3%1
+L0%3%1 => E0%0%1
+=graph done
+=Node outputs: E0%0%1
+=Output: llvm-%ret-reg
+1 : input.src.llvm-%i : BV:32
+=Output: heap
+1 : input.src.llvm-mem : ARRAY[BV:32 -> BV:8]
+2 : memlabel-mem-heap : MEMLABEL
+3 : memmask(1, 2) : ARRAY[BV:32 -> BV:8]
+=Output: llvm-indir_tgt
+1 : retaddr_const : BV:32
+=Node outputs done for E0%0%1
+=input_outputs done
+=Symbol-map:
+=Symbol-map done
+=Locals-map:
+=Locals-map done
+=StartState:
+=src.llvm-mem
+1 : input.src.llvm-mem : ARRAY[BV:32 -> BV:8]
+=state_end
+
+=Global assumes
+=global assume predicate_set done
+=Edge: L0%0%1 => L0%1%1
+=Edge.EdgeCond: 
+1 : 1 : BOOL
+=Edge.StateTo: 
+=state_end
+=Edge.Assumes.begin:
+=Edge.Assumes.end
+=Edge.te_comment
+0:-1:start_pc_edge
+tfg_edge_comment end
+
+=Edge: L0%1%1 => L0%1%100003
+=Edge.EdgeCond: 
+1 : 1 : BOOL
+=Edge.StateTo: 
+=src.llvm-%x.poison
+1 : 0 : BOOL
+2 : or(1, 1) : BOOL
+=state_end
+=Edge.Assumes.begin:
+=Edge.Assumes.end
+=Edge.te_comment
+0:1:  %x = add i32 0, 1
+tfg_edge_comment end
+
+=Edge: L0%1%100003 => L0%2%1
+=Edge.EdgeCond: 
+1 : 1 : BOOL
+=Edge.StateTo: 
+=src.llvm-%x
+1 : 0 : BV:32
+2 : 1 : BV:32
+3 : bvadd(1, 2) : BV:32
+=state_end
+=Edge.Assumes.begin:
+=Edge.Assumes.end
+=Edge.te_comment
+0:1:  %x = add i32 0, 1
+tfg_edge_comment end
+
+=Edge: L0%2%1 => L0%2%100003
+=Edge.EdgeCond: 
+1 : 1 : BOOL
+=Edge.StateTo: 
+=src.llvm-%i.poison
+1 : 0 : BOOL
+2 : input.src.llvm-%x.poison : BOOL
+3 : or(1, 2) : BOOL
+=state_end
+=Edge.Assumes.begin:
+=Edge.Assumes.end
+=Edge.te_comment
+0:2:  %i = add i32 undef, %x
+tfg_edge_comment end
+
+=Edge: L0%2%100003 => L0%3%1
+=Edge.EdgeCond: 
+1 : 1 : BOOL
+=Edge.StateTo: 
+=src.llvm-%i
+1 : llvm-undef : BV:32
+2 : input.src.llvm-%x : BV:32
+3 : bvadd(1, 2) : BV:32
+=state_end
+=Edge.Assumes.begin:
+=Edge.Assumes.end
+=Edge.te_comment
+0:2:  %i = add i32 undef, %x
+tfg_edge_comment end
+
+=Edge: L0%3%1 => E0%0%1
+=Edge.EdgeCond: 
+1 : 1 : BOOL
+=Edge.StateTo: 
+=llvm-%ret-reg
+1 : input.src.llvm-%i : BV:32
+=src.llvm-%hidden-reg
+1 : input.src.llvm-%hidden-reg : BV:32
+2 : input.src.llvm-callee-save.0 : BV:32
+3 : bvxor(1, 2) : BV:32
+4 : input.src.llvm-callee-save.1 : BV:32
+5 : bvxor(3, 4) : BV:32
+6 : input.src.llvm-callee-save.2 : BV:32
+7 : bvxor(5, 6) : BV:32
+8 : input.src.llvm-callee-save.3 : BV:32
+9 : bvxor(7, 8) : BV:32
+=src.llvm-indir_tgt
+1 : retaddr_const : BV:32
+=state_end
+=Edge.Assumes.begin:
+=Edge.Assumes.end
+=Edge.te_comment
+0:3:  ret i32 %i
+tfg_edge_comment end
+
+=graph_with_predicates_done
+=graph_with_simplified_assets
+=graph_with_simplified_assets.simplified_edgecond at L0%0%1=>L0%1%1
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at L0%1%1=>L0%1%100003
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at L0%1%100003=>L0%2%1
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at L0%2%1=>L0%2%100003
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at L0%2%100003=>L0%3%1
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond at L0%3%1=>E0%0%1
+1 : 1 : BOOL
+=graph_with_simplified_assets.simplified_edgecond done
+=graph_with_simplified_assets.simplified_to_state at L0%0%1=>L0%1%1
+=state_end
+=graph_with_simplified_assets.simplified_to_state at L0%1%1=>L0%1%100003
+=src.llvm-%x.poison
+1 : 0 : BOOL
+=state_end
+=graph_with_simplified_assets.simplified_to_state at L0%1%100003=>L0%2%1
+=src.llvm-%x
+1 : 1 : BV:32
+=state_end
+=graph_with_simplified_assets.simplified_to_state at L0%2%1=>L0%2%100003
+=src.llvm-%i.poison
+1 : 0 : BOOL
+=state_end
+=graph_with_simplified_assets.simplified_to_state at L0%2%100003=>L0%3%1
+=src.llvm-%i
+1 : 1 : BV:32
+2 : llvm-undef : BV:32
+3 : bvadd(1, 2) : BV:32
+=state_end
+=graph_with_simplified_assets.simplified_to_state at L0%3%1=>E0%0%1
+=llvm-%ret-reg
+1 : input.src.llvm-%i : BV:32
+=src.llvm-%hidden-reg
+1 : input.src.llvm-callee-save.0 : BV:32
+2 : input.src.llvm-%hidden-reg : BV:32
+3 : input.src.llvm-callee-save.1 : BV:32
+4 : input.src.llvm-callee-save.2 : BV:32
+5 : input.src.llvm-callee-save.3 : BV:32
+6 : bvxor(1, 2, 3, 4, 5) : BV:32
+=src.llvm-indir_tgt
+1 : retaddr_const : BV:32
+=state_end
+=graph_with_simplified_assets.simplified_to_state done
+=graph_with_simplified_assets.simplified_assumes at L0%0%1=>L0%1%1
+=graph_with_simplified_assets.simplified_assumes at L0%0%1=>L0%1%1 done
+=graph_with_simplified_assets.simplified_assumes at L0%1%1=>L0%1%100003
+=graph_with_simplified_assets.simplified_assumes at L0%1%1=>L0%1%100003 done
+=graph_with_simplified_assets.simplified_assumes at L0%1%100003=>L0%2%1
+=graph_with_simplified_assets.simplified_assumes at L0%1%100003=>L0%2%1 done
+=graph_with_simplified_assets.simplified_assumes at L0%2%1=>L0%2%100003
+=graph_with_simplified_assets.simplified_assumes at L0%2%1=>L0%2%100003 done
+=graph_with_simplified_assets.simplified_assumes at L0%2%100003=>L0%3%1
+=graph_with_simplified_assets.simplified_assumes at L0%2%100003=>L0%3%1 done
+=graph_with_simplified_assets.simplified_assumes at L0%3%1=>E0%0%1
+=graph_with_simplified_assets.simplified_assumes at L0%3%1=>E0%0%1 done
+=graph_with_simplified_assets.simplified_assumes done
+=graph_with_simplified_assets.loc_to_expr_map at L0%0%1=>L0%1%1
+=graph_with_simplified_assets.loc_to_expr_map at L0%0%1=>L0%1%1 done
+=graph_with_simplified_assets.loc_to_expr_map at L0%1%1=>L0%1%100003
+=graph_with_simplified_assets.loc_to_expr_map at L0%1%1=>L0%1%100003 for loc_id 1006
+1 : 0 : BOOL
+=graph_with_simplified_assets.loc_to_expr_map at L0%1%1=>L0%1%100003 done
+=graph_with_simplified_assets.loc_to_expr_map at L0%1%100003=>L0%2%1
+=graph_with_simplified_assets.loc_to_expr_map at L0%1%100003=>L0%2%1 for loc_id 1005
+1 : 1 : BV:32
+=graph_with_simplified_assets.loc_to_expr_map at L0%1%100003=>L0%2%1 done
+=graph_with_simplified_assets.loc_to_expr_map at L0%2%1=>L0%2%100003
+=graph_with_simplified_assets.loc_to_expr_map at L0%2%1=>L0%2%100003 for loc_id 1004
+1 : 0 : BOOL
+=graph_with_simplified_assets.loc_to_expr_map at L0%2%1=>L0%2%100003 done
+=graph_with_simplified_assets.loc_to_expr_map at L0%2%100003=>L0%3%1
+=graph_with_simplified_assets.loc_to_expr_map at L0%2%100003=>L0%3%1 for loc_id 1003
+1 : 1 : BV:32
+2 : llvm-undef : BV:32
+3 : bvadd(1, 2) : BV:32
+=graph_with_simplified_assets.loc_to_expr_map at L0%2%100003=>L0%3%1 done
+=graph_with_simplified_assets.loc_to_expr_map at L0%3%1=>E0%0%1
+=graph_with_simplified_assets.loc_to_expr_map at L0%3%1=>E0%0%1 for loc_id 1001
+1 : input.src.llvm-%i : BV:32
+=graph_with_simplified_assets.loc_to_expr_map at L0%3%1=>E0%0%1 for loc_id 1002
+1 : input.src.llvm-callee-save.0 : BV:32
+2 : input.src.llvm-%hidden-reg : BV:32
+3 : input.src.llvm-callee-save.1 : BV:32
+4 : input.src.llvm-callee-save.2 : BV:32
+5 : input.src.llvm-callee-save.3 : BV:32
+6 : bvxor(1, 2, 3, 4, 5) : BV:32
+=graph_with_simplified_assets.loc_to_expr_map at L0%3%1=>E0%0%1 for loc_id 1007
+1 : retaddr_const : BV:32
+=graph_with_simplified_assets.loc_to_expr_map at L0%3%1=>E0%0%1 done
+=graph_with_simplified_assets.loc_to_expr_map done
+=graph_with_simplified_assets done
+
+=Locs in src.llvm.main
+=Loc 1001 in src.llvm.main.
+LLVMVAR
+llvm-%ret-reg
+1 : input.llvm-%ret-reg : BV:32
+=Loc 1002 in src.llvm.main.
+LLVMVAR
+src.llvm-%hidden-reg
+1 : input.src.llvm-%hidden-reg : BV:32
+=Loc 1003 in src.llvm.main.
+LLVMVAR
+src.llvm-%i
+1 : input.src.llvm-%i : BV:32
+=Loc 1004 in src.llvm.main.
+LLVMVAR
+src.llvm-%i.poison
+1 : input.src.llvm-%i.poison : BOOL
+=Loc 1005 in src.llvm.main.
+LLVMVAR
+src.llvm-%x
+1 : input.src.llvm-%x : BV:32
+=Loc 1006 in src.llvm.main.
+LLVMVAR
+src.llvm-%x.poison
+1 : input.src.llvm-%x.poison : BOOL
+=Loc 1007 in src.llvm.main.
+LLVMVAR
+src.llvm-indir_tgt
+1 : input.src.llvm-indir_tgt : BV:32
+=Loc 1008 in src.llvm.main.
+MASKED
+=memname
+src.llvm-mem
+=memlabel
+memlabel-mem-heap
+=Loc 1009 in src.llvm.main.
+MASKED
+=memname
+src.llvm-mem
+=memlabel
+memlabel-mem-esp
+
+=Alias analysis results in src.llvm.main
+=Alias analysis result in src.llvm.main at L0%0%1
+=Alias analysis result in src.llvm.main at L0%0%1 for loc 1001 (input.llvm-%ret-reg)
+lr_status
+lr_status_bottom(esp, ; memlabel-mem-heap, )
+=Alias analysis result in src.llvm.main at L0%0%1 for loc 1002 (input.src.llvm-%hidden-reg)
+lr_status
+lr_status_bottom(esp, ; memlabel-mem-heap, )
+=Alias analysis result in src.llvm.main at L0%0%1 for loc 1003 (input.src.llvm-%i)
+lr_status
+lr_status_bottom(esp, ; memlabel-mem-heap, )
+=Alias analysis result in src.llvm.main at L0%0%1 for loc 1004 (input.src.llvm-%i.poison)
+lr_status
+lr_status_bottom(esp, ; memlabel-mem-heap, )
+=Alias analysis result in src.llvm.main at L0%0%1 for loc 1005 (input.src.llvm-%x)
+lr_status
+lr_status_bottom(esp, ; memlabel-mem-heap, )
+=Alias analysis result in src.llvm.main at L0%0%1 for loc 1006 (input.src.llvm-%x.poison)
+lr_status
+lr_status_bottom(esp, ; memlabel-mem-heap, )
+=Alias analysis result in src.llvm.main at L0%0%1 for loc 1007 (input.src.llvm-indir_tgt)
+lr_status
+lr_status_bottom(esp, ; memlabel-mem-heap, )
+=Alias analysis result in src.llvm.main at L0%0%1 for loc 1008 (memmask(input.src.llvm-mem, memlabel-mem-heap))
+lr_status
+lr_status_bottom(; memlabel-mem-heap, )
+=Alias analysis result in src.llvm.main at L0%0%1 for loc 1009 (memmask(input.src.llvm-mem, memlabel-mem-esp))
+lr_status
+lr_status_bottom(; memlabel-mem-heap, )
+=Alias analysis result in src.llvm.main at L0%1%1
+=Alias analysis result in src.llvm.main at L0%1%1 for loc 1001 (input.llvm-%ret-reg)
+nullptr
+=Alias analysis result in src.llvm.main at L0%1%1 for loc 1002 (input.src.llvm-%hidden-reg)
+nullptr
+=Alias analysis result in src.llvm.main at L0%1%1 for loc 1003 (input.src.llvm-%i)
+nullptr
+=Alias analysis result in src.llvm.main at L0%1%1 for loc 1004 (input.src.llvm-%i.poison)
+nullptr
+=Alias analysis result in src.llvm.main at L0%1%1 for loc 1005 (input.src.llvm-%x)
+nullptr
+=Alias analysis result in src.llvm.main at L0%1%1 for loc 1006 (input.src.llvm-%x.poison)
+nullptr
+=Alias analysis result in src.llvm.main at L0%1%1 for loc 1007 (input.src.llvm-indir_tgt)
+nullptr
+=Alias analysis result in src.llvm.main at L0%1%1 for loc 1008 (memmask(input.src.llvm-mem, memlabel-mem-heap))
+lr_status
+lr_status_bottom(; memlabel-mem-heap, )
+=Alias analysis result in src.llvm.main at L0%1%1 for loc 1009 (memmask(input.src.llvm-mem, memlabel-mem-esp))
+lr_status
+lr_status_bottom(; memlabel-mem-heap, )
+=Alias analysis result in src.llvm.main at L0%1%100003
+=Alias analysis result in src.llvm.main at L0%1%100003 for loc 1001 (input.llvm-%ret-reg)
+nullptr
+=Alias analysis result in src.llvm.main at L0%1%100003 for loc 1002 (input.src.llvm-%hidden-reg)
+nullptr
+=Alias analysis result in src.llvm.main at L0%1%100003 for loc 1003 (input.src.llvm-%i)
+nullptr
+=Alias analysis result in src.llvm.main at L0%1%100003 for loc 1004 (input.src.llvm-%i.poison)
+nullptr
+=Alias analysis result in src.llvm.main at L0%1%100003 for loc 1005 (input.src.llvm-%x)
+nullptr
+=Alias analysis result in src.llvm.main at L0%1%100003 for loc 1006 (input.src.llvm-%x.poison)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in src.llvm.main at L0%1%100003 for loc 1007 (input.src.llvm-indir_tgt)
+nullptr
+=Alias analysis result in src.llvm.main at L0%1%100003 for loc 1008 (memmask(input.src.llvm-mem, memlabel-mem-heap))
+lr_status
+lr_status_bottom(; memlabel-mem-heap, )
+=Alias analysis result in src.llvm.main at L0%1%100003 for loc 1009 (memmask(input.src.llvm-mem, memlabel-mem-esp))
+lr_status
+lr_status_bottom(; memlabel-mem-heap, )
+=Alias analysis result in src.llvm.main at L0%2%1
+=Alias analysis result in src.llvm.main at L0%2%1 for loc 1001 (input.llvm-%ret-reg)
+nullptr
+=Alias analysis result in src.llvm.main at L0%2%1 for loc 1002 (input.src.llvm-%hidden-reg)
+nullptr
+=Alias analysis result in src.llvm.main at L0%2%1 for loc 1003 (input.src.llvm-%i)
+nullptr
+=Alias analysis result in src.llvm.main at L0%2%1 for loc 1004 (input.src.llvm-%i.poison)
+nullptr
+=Alias analysis result in src.llvm.main at L0%2%1 for loc 1005 (input.src.llvm-%x)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in src.llvm.main at L0%2%1 for loc 1006 (input.src.llvm-%x.poison)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in src.llvm.main at L0%2%1 for loc 1007 (input.src.llvm-indir_tgt)
+nullptr
+=Alias analysis result in src.llvm.main at L0%2%1 for loc 1008 (memmask(input.src.llvm-mem, memlabel-mem-heap))
+lr_status
+lr_status_bottom(; memlabel-mem-heap, )
+=Alias analysis result in src.llvm.main at L0%2%1 for loc 1009 (memmask(input.src.llvm-mem, memlabel-mem-esp))
+lr_status
+lr_status_bottom(; memlabel-mem-heap, )
+=Alias analysis result in src.llvm.main at L0%2%100003
+=Alias analysis result in src.llvm.main at L0%2%100003 for loc 1001 (input.llvm-%ret-reg)
+nullptr
+=Alias analysis result in src.llvm.main at L0%2%100003 for loc 1002 (input.src.llvm-%hidden-reg)
+nullptr
+=Alias analysis result in src.llvm.main at L0%2%100003 for loc 1003 (input.src.llvm-%i)
+nullptr
+=Alias analysis result in src.llvm.main at L0%2%100003 for loc 1004 (input.src.llvm-%i.poison)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in src.llvm.main at L0%2%100003 for loc 1005 (input.src.llvm-%x)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in src.llvm.main at L0%2%100003 for loc 1006 (input.src.llvm-%x.poison)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in src.llvm.main at L0%2%100003 for loc 1007 (input.src.llvm-indir_tgt)
+nullptr
+=Alias analysis result in src.llvm.main at L0%2%100003 for loc 1008 (memmask(input.src.llvm-mem, memlabel-mem-heap))
+lr_status
+lr_status_bottom(; memlabel-mem-heap, )
+=Alias analysis result in src.llvm.main at L0%2%100003 for loc 1009 (memmask(input.src.llvm-mem, memlabel-mem-esp))
+lr_status
+lr_status_bottom(; memlabel-mem-heap, )
+=Alias analysis result in src.llvm.main at L0%3%1
+=Alias analysis result in src.llvm.main at L0%3%1 for loc 1001 (input.llvm-%ret-reg)
+nullptr
+=Alias analysis result in src.llvm.main at L0%3%1 for loc 1002 (input.src.llvm-%hidden-reg)
+nullptr
+=Alias analysis result in src.llvm.main at L0%3%1 for loc 1003 (input.src.llvm-%i)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in src.llvm.main at L0%3%1 for loc 1004 (input.src.llvm-%i.poison)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in src.llvm.main at L0%3%1 for loc 1005 (input.src.llvm-%x)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in src.llvm.main at L0%3%1 for loc 1006 (input.src.llvm-%x.poison)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in src.llvm.main at L0%3%1 for loc 1007 (input.src.llvm-indir_tgt)
+nullptr
+=Alias analysis result in src.llvm.main at L0%3%1 for loc 1008 (memmask(input.src.llvm-mem, memlabel-mem-heap))
+lr_status
+lr_status_bottom(; memlabel-mem-heap, )
+=Alias analysis result in src.llvm.main at L0%3%1 for loc 1009 (memmask(input.src.llvm-mem, memlabel-mem-esp))
+lr_status
+lr_status_bottom(; memlabel-mem-heap, )
+=Alias analysis result in src.llvm.main at E0%0%1
+=Alias analysis result in src.llvm.main at E0%0%1 for loc 1001 (input.llvm-%ret-reg)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in src.llvm.main at E0%0%1 for loc 1002 (input.src.llvm-%hidden-reg)
+lr_status
+lr_status_bottom(; memlabel-mem-heap, )
+=Alias analysis result in src.llvm.main at E0%0%1 for loc 1003 (input.src.llvm-%i)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in src.llvm.main at E0%0%1 for loc 1004 (input.src.llvm-%i.poison)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in src.llvm.main at E0%0%1 for loc 1005 (input.src.llvm-%x)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in src.llvm.main at E0%0%1 for loc 1006 (input.src.llvm-%x.poison)
+lr_status
+lr_status_linearly_related(; )
+=Alias analysis result in src.llvm.main at E0%0%1 for loc 1007 (input.src.llvm-indir_tgt)
+lr_status
+lr_status_bottom(; memlabel-mem-heap, )
+=Alias analysis result in src.llvm.main at E0%0%1 for loc 1008 (memmask(input.src.llvm-mem, memlabel-mem-heap))
+lr_status
+lr_status_bottom(; memlabel-mem-heap, )
+=Alias analysis result in src.llvm.main at E0%0%1 for loc 1009 (memmask(input.src.llvm-mem, memlabel-mem-esp))
+lr_status
+lr_status_bottom(; memlabel-mem-heap, )
+
+=Liveness in src.llvm.main
+=live locs at L0%0%1
+1008
+=live locs at L0%1%1
+1008
+=live locs at L0%1%100003
+1008
+=live locs at L0%2%1
+1008
+=live locs at L0%2%100003
+1008
+=live locs at L0%3%1
+1003, 1008
+=live locs at E0%0%1
+1003, 1008
+
+=Available expressions in src.llvm.main
+=available expressions at L0%0%1 in src.llvm.main
+=avail_exprs begin
+=avail_exprs end
+=available expressions at L0%1%1 in src.llvm.main
+=avail_exprs begin
+=avail_exprs end
+=available expressions at L0%1%100003 in src.llvm.main
+=avail_exprs begin
+=loc 1006
+=from_expr
+17399 : input.src.llvm-%x.poison : BOOL
+=to_expr
+17393 : 0 : BOOL
+=avail_exprs end
+=available expressions at L0%2%1 in src.llvm.main
+=avail_exprs begin
+=loc 1005
+=from_expr
+17398 : input.src.llvm-%x : BV:32
+=to_expr
+17392 : 1 : BV:32
+=loc 1006
+=from_expr
+17399 : input.src.llvm-%x.poison : BOOL
+=to_expr
+17393 : 0 : BOOL
+=avail_exprs end
+=available expressions at L0%2%100003 in src.llvm.main
+=avail_exprs begin
+=loc 1004
+=from_expr
+17415 : input.src.llvm-%i.poison : BOOL
+=to_expr
+17393 : 0 : BOOL
+=loc 1005
+=from_expr
+17398 : input.src.llvm-%x : BV:32
+=to_expr
+17392 : 1 : BV:32
+=loc 1006
+=from_expr
+17399 : input.src.llvm-%x.poison : BOOL
+=to_expr
+17393 : 0 : BOOL
+=avail_exprs end
+=available expressions at L0%3%1 in src.llvm.main
+=avail_exprs begin
+=loc 1004
+=from_expr
+17415 : input.src.llvm-%i.poison : BOOL
+=to_expr
+17393 : 0 : BOOL
+=loc 1005
+=from_expr
+17398 : input.src.llvm-%x : BV:32
+=to_expr
+17392 : 1 : BV:32
+=loc 1006
+=from_expr
+17399 : input.src.llvm-%x.poison : BOOL
+=to_expr
+17393 : 0 : BOOL
+=avail_exprs end
+=available expressions at E0%0%1 in src.llvm.main
+=avail_exprs begin
+=loc 1001
+=from_expr
+17414 : input.llvm-%ret-reg : BV:32
+=to_expr
+17402 : input.src.llvm-%i : BV:32
+=loc 1004
+=from_expr
+17415 : input.src.llvm-%i.poison : BOOL
+=to_expr
+17393 : 0 : BOOL
+=loc 1005
+=from_expr
+17398 : input.src.llvm-%x : BV:32
+=to_expr
+17392 : 1 : BV:32
+=loc 1006
+=from_expr
+17399 : input.src.llvm-%x.poison : BOOL
+=to_expr
+17393 : 0 : BOOL
+=loc 1007
+=from_expr
+17416 : input.src.llvm-indir_tgt : BV:32
+=to_expr
+17387 : retaddr_const : BV:32
+=avail_exprs end
+
+=sprel_maps in src.llvm.main
+=sprel_map at L0%0%1 in src.llvm.main
+=sprel_map at L0%1%1 in src.llvm.main
+=sprel_map at L0%1%100003 in src.llvm.main
+=loc 1006
+17393 : 0 : BOOL
+=sprel_map at L0%2%1 in src.llvm.main
+=loc 1005
+17392 : 1 : BV:32
+=loc 1006
+17393 : 0 : BOOL
+=sprel_map at L0%2%100003 in src.llvm.main
+=loc 1004
+17393 : 0 : BOOL
+=loc 1005
+17392 : 1 : BV:32
+=loc 1006
+17393 : 0 : BOOL
+=sprel_map at L0%3%1 in src.llvm.main
+=loc 1004
+17393 : 0 : BOOL
+=loc 1005
+17392 : 1 : BV:32
+=loc 1006
+17393 : 0 : BOOL
+=sprel_map at E0%0%1 in src.llvm.main
+=loc 1004
+17393 : 0 : BOOL
+=loc 1005
+17392 : 1 : BV:32
+=loc 1006
+17393 : 0 : BOOL
+=loc 1007
+17387 : retaddr_const : BV:32
+=graph_with_aliasing_done
+=Memlabel assertions empty
+=Memlabel assertions done
+=graph_with_proofs done
+=graph_with_ce done
+=graph_with_guessing done
+=String-contents:
+=Nextpc-map:
+=TFGdone
+=suffixpaths for src.llvm.main
+=suffixpaths for src.llvm.main done
+=PC_to_linename:
+=PC_to_linename done
+=PC_to_column_name:
+=PC_to_column_name done
+=PC_to_line_and_column:
+=PC_to_line_and_column done
+=SourceToLLVMVarnames:
+=SourceToLLVMVarnames done
+=InputLLVMToSourceVarnames:
+input.src.llvm-%x : L0%2%1 : 1
+input.src.llvm-%x.poison : L0%1%100003 : false
+input.llvm-%ret-reg : E0%0%1 : input.src.llvm-%i
+input.src.llvm-%i.poison : L0%2%100003 : false
+input.src.llvm-indir_tgt : E0%0%1 : return-address
+=InputLLVMToSourceVarnames done
+=PotentialSCEVRelations:
+=src.llvm-%x
+=src.llvm-%x loop pc: L0%0%1
+=src.llvm-%x val_scevb
+=src.llvm-%x val_scevb scev
+=src.llvm-%x val_scevb scev loop: L0%0%1
+=src.llvm-%x val_scevb scev scev_overflow_flag: 
+=src.llvm-%x val_scevb scev scev_expr
+1 : 10000000000000000000000000000000b
+=src.llvm-%x val_scevb scev scev_expr done
+=src.llvm-%x val_scevb unsigned lower bound: 10000000000000000000000000000000b
+=src.llvm-%x val_scevb unsigned upper bound: 01000000000000000000000000000000b
+=src.llvm-%x val_scevb signed lower bound: 10000000000000000000000000000000b
+=src.llvm-%x val_scevb signed upper bound: 01000000000000000000000000000000b
+=src.llvm-%x atuse_scevb
+=src.llvm-%x atuse_scevb scev
+=src.llvm-%x atuse_scevb scev loop: L0%0%1
+=src.llvm-%x atuse_scevb scev scev_overflow_flag: 
+=src.llvm-%x atuse_scevb scev scev_expr
+1 : 10000000000000000000000000000000b
+=src.llvm-%x atuse_scevb scev scev_expr done
+=src.llvm-%x atuse_scevb unsigned lower bound: 10000000000000000000000000000000b
+=src.llvm-%x atuse_scevb unsigned upper bound: 01000000000000000000000000000000b
+=src.llvm-%x atuse_scevb signed lower bound: 10000000000000000000000000000000b
+=src.llvm-%x atuse_scevb signed upper bound: 01000000000000000000000000000000b
+=src.llvm-%x atexit_scev
+=src.llvm-%x atexit_scev loop: L0%0%1
+=src.llvm-%x atexit_scev scev_overflow_flag: 
+=src.llvm-%x atexit_scev scev_expr
+1 : 10000000000000000000000000000000b
+=src.llvm-%x atexit_scev scev_expr done
+=src.llvm-%i
+=src.llvm-%i loop pc: L0%0%1
+=src.llvm-%i val_scevb
+=src.llvm-%i val_scevb scev
+=src.llvm-%i val_scevb scev loop: L0%0%1
+=src.llvm-%i val_scevb scev scev_overflow_flag: 
+=src.llvm-%i val_scevb scev scev_expr
+1 : 10000000000000000000000000000000b
+2 : undef
+3 : scev_op_add(1, 2) : loop L0%0%1 : 
+=src.llvm-%i val_scevb scev scev_expr done
+=src.llvm-%i val_scevb unsigned lower bound: 11111111111111111111111111111111b
+=src.llvm-%i val_scevb unsigned upper bound: 11111111111111111111111111111111b
+=src.llvm-%i val_scevb signed lower bound: 11111111111111111111111111111111b
+=src.llvm-%i val_scevb signed upper bound: 11111111111111111111111111111111b
+=src.llvm-%i atuse_scevb
+=src.llvm-%i atuse_scevb scev
+=src.llvm-%i atuse_scevb scev loop: L0%0%1
+=src.llvm-%i atuse_scevb scev scev_overflow_flag: 
+=src.llvm-%i atuse_scevb scev scev_expr
+1 : 10000000000000000000000000000000b
+2 : undef
+3 : scev_op_add(1, 2) : loop L0%0%1 : 
+=src.llvm-%i atuse_scevb scev scev_expr done
+=src.llvm-%i atuse_scevb unsigned lower bound: 11111111111111111111111111111111b
+=src.llvm-%i atuse_scevb unsigned upper bound: 11111111111111111111111111111111b
+=src.llvm-%i atuse_scevb signed lower bound: 11111111111111111111111111111111b
+=src.llvm-%i atuse_scevb signed upper bound: 11111111111111111111111111111111b
+=src.llvm-%i atexit_scev
+=src.llvm-%i atexit_scev loop: L0%0%1
+=src.llvm-%i atexit_scev scev_overflow_flag: 
+=src.llvm-%i atexit_scev scev_expr
+1 : 10000000000000000000000000000000b
+2 : undef
+3 : scev_op_add(1, 2) : loop L0%0%1 : 
+=src.llvm-%i atexit_scev scev_expr done
+=PotentialSCEVRelations done
+=TFG_LLVM_done
+
+=FunctionSignatures
+=FunctionSignature: main
+i32 ()
+=FunctionCsums
+=FunctionSummary: main
+ reads:(  ) writes:(  )
+=FunctionAttributes
+=FunctionLinkage
+=FunctionLinkageFor: main
+
+=Attributes
+=Metadata
+

@@ -109,7 +109,7 @@ private:
   string llvm_instruction_get_md5sum_name(llvm::Instruction const& I) const;
 
   string gep_instruction_get_intermediate_value_name(llvm::Instruction const& I/*string base_name*/, unsigned index_counter, int intermediate_value_num) const;
-  string get_poison_value_name(llvm::Value const& I) const;
+  // string get_poison_value_name(llvm::Value const& I) const;
   string constexpr_instruction_get_name(llvm::Instruction const& I) const;
 
   //llvm::BasicBlock const *get_basic_block_for_pc(const llvm::Function& F, pc const &p);
@@ -174,7 +174,7 @@ private:
   void set_expr(string const &name/*const llvm::Value& v*/, expr_ref expr, state& st);
   pair<vector<expr_ref>,unordered_set<expr_ref>> get_expr_args(const llvm::Instruction& I/*, string vname*/, const state& st, unordered_set<expr_ref> const& state_assumes, dshared_ptr<tfg_node> &from_node/*, pc const &pc_to, llvm::BasicBlock const &B, llvm::Function const &F*/, tfg &t, map<llvm_value_id_t, string_ref>* value_to_name_map);
 
-  vector<expr_ref> get_poison_args(const llvm::Instruction& I/*, string vname*/, const state& st, unordered_set<expr_ref> const& state_assumes, dshared_ptr<tfg_node> &from_node/*, pc const &pc_to, llvm::BasicBlock const &B, llvm::Function const &F*/, tfg &t, map<llvm_value_id_t, string_ref>* value_to_name_map);
+  // vector<expr_ref> get_poison_args(const llvm::Instruction& I/*, string vname*/, const state& st, unordered_set<expr_ref> const& state_assumes, dshared_ptr<tfg_node> &from_node/*, pc const &pc_to, llvm::BasicBlock const &B, llvm::Function const &F*/, tfg &t, map<llvm_value_id_t, string_ref>* value_to_name_map);
 
   void add_gep_intermediate_vals(llvm::Instruction const &I, string const &name);
   void populate_state_template(const llvm::Function& F);
@@ -210,7 +210,7 @@ private:
   llvm::Module const *m_module;
   llvm::Function &m_function;
   map<string, llvm::BasicBlock const *> m_pc2bb_cache;
-  set<string> m_poison_set;
+  // set<string> m_poison_set;
 };
 
 #endif
