@@ -246,23 +246,14 @@ main(int argc, char **argv)
     return 0;
   }
 
-  auto is_dst = (src_etfg_filename != "");
-  auto is_src_llvm = is_dst && !file_is_spec_etfg(src_etfg_filename);
-  shared_ptr<llptfg_t const> src_llptfg;
-  if (is_src_llvm) {
-    ifstream in_src(src_etfg_filename);
-    if (!in_src.is_open()) {
-      cout << __func__ << " " << __LINE__ << ": parsing failed" << endl;
-      NOT_REACHED();
-    }
-    src_llptfg = make_shared<llptfg_t const>(in_src, ctx);
-  }
+  ifstream in_src(src_etfg_filename);
+  auto src_ftmap = ftmap_t::ftmap_from_stream(in_src, ctx);
 
   if (Progress) {
     progress_flag = 1;
   }
 
-  dshared_ptr<ftmap_t> function_tfg_map = sym_exec_llvm::get_function_tfg_map(M1.get(), FunNamesVec, ctx, src_llptfg, is_dst, !NoGenScev, llvmSemantics, nullptr, xml_output_format);
+  dshared_ptr<ftmap_t> function_tfg_map = sym_exec_llvm::get_function_tfg_map(M1.get(), FunNamesVec, ctx, src_ftmap, !NoGenScev, llvmSemantics, nullptr, xml_output_format);
   function_tfg_map->ftmap_run_pointsto_analysis(false, dshared_ptr<tfg const>::dshared_nullptr(), {}, call_context_depth, true, xml_output_format);
   //t->tfg_populate_relevant_memlabels(src_llvm_tfg);
   function_tfg_map->ftmap_add_start_pc_preconditions_for_each_tfg(/*se.m_srcdst_keyword*/);
