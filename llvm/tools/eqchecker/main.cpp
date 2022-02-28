@@ -246,8 +246,11 @@ main(int argc, char **argv)
     return 0;
   }
 
-  ifstream in_src(src_etfg_filename);
-  auto src_ftmap = ftmap_t::ftmap_from_stream(in_src, ctx);
+  auto src_ftmap = dshared_ptr<ftmap_t>::dshared_nullptr();
+  if (src_etfg_filename.size()) {
+    ifstream in_src(src_etfg_filename);
+    src_ftmap = ftmap_t::ftmap_from_stream(in_src, ctx);
+  }
 
   if (Progress) {
     progress_flag = 1;
