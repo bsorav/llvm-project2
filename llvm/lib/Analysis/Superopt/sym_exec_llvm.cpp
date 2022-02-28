@@ -1273,6 +1273,110 @@ sym_exec_llvm::farith_to_operation_kind(unsigned opcode, expr_vector const& args
   NOT_REACHED();
 }
 
+///////////////////////////////// POISON //////////////////////////////////////////
+string sym_exec_llvm::get_poison_cond_name(const llvm::Value& v) {
+  string register_name = get_value_name(v);
+  return register_name + string(".poison_condition");
+}
+
+expr_ref sym_exec_llvm::get_poison_cond_expr(const state& st, const llvm::Value& v){
+  return state_get_expr(st, get_poison_cond_name(v), m_ctx->mk_bool_sort());
+}
+
+expr_ref sym_exec_llvm::get_reg_expr(const state& st, const llvm::Value& v){
+  return state_get_expr(st, get_value_name(v), get_value_type(v, m_module->getDataLayout()));
+}
+
+void
+sym_exec_llvm::generatePoisonChecksForBinOp(const llvm::Instruction &I, const state& state_in, state& state_out, unordered_set<expr_ref>& state_assumes)
+{
+  assert(isa<BinaryOperator>(I));
+  Value *LHS = I.getOperand(0);
+  Value *RHS = I.getOperand(1);
+
+  expr_ref a_pc = get_poison_cond_expr(state_in, *LHS); // if lhs reg is a, this will get a.poison_cond from state_in
+  expr_ref b_pc = get_poison_cond_expr(state_in, *RHS); // Note: This will create a fresh input var if key doesn't already exist in state
+  expr_ref a = get_reg_expr(state_in, *LHS);
+  expr_ref b = get_reg_expr(state_in, *RHS);
+  
+  expr_ref poison_cond = m_ctx->mk_or(a_pc, b_pc);
+  
+  switch (I.getOpcode()) {
+  default:
+    return;
+  case Instruction::Add: {
+    expr_ref temp1, temp2;
+    if (I.hasNoSignedWrap()) {
+      // Poison Condition - sext(a, 1) + sext(b, 1) != sext(a + b, 1) or a.poison_cond or b.poison_cond
+      temp1 = m_ctx->mk_bvadd(m_ctx->mk_bvsign_ext(a, 1), m_ctx->mk_bvsign_ext(b, 1));
+      temp2 = m_ctx->mk_bvsign_ext(m_ctx->mk_bvadd(a, b), 1);
+    }
+    if (I.hasNoUnsignedWrap()) {
+      // Poison Condition - zext(a, 1) + zext(b, 1) != zext(a + b, 1) or a.poison_cond or b.poison_cond
+      temp1 = m_ctx->mk_bvadd(m_ctx->mk_bvzero_ext(a, 1), m_ctx->mk_bvzero_ext(b, 1));
+      temp2 = m_ctx->mk_bvzero_ext(m_ctx->mk_bvadd(a, b), 1);
+    }
+    poison_cond = m_ctx->mk_or(poison_cond, m_ctx->mk_not(m_ctx->mk_eq(temp1, temp2)));
+    state_set_expr(state_out, get_poison_cond_name(I), poison_cond);
+    break;
+  }
+  // case Instruction::Sub: {
+  //   if (I.hasNoSignedWrap()) {
+  //     // Poison Condition - sext(a, 1) - sext(b, 1) != sext(a - b, 1)
+  //     expr_ref temp1 = m_ctx->mk_bvsub(m_ctx->mk_bvsign_ext(a, 1), m_ctx->mk_bvsign_ext(b, 1));
+  //     expr_ref temp2 = m_ctx->mk_bvsign_ext(m_ctx->mk_bvsub(a, b), 1);
+  //     expr_ref poison_cond = m_ctx->mk_not(m_ctx->mk_eq(temp1, temp2));
+  //     state_set_expr(state_out, get_poison_cond_name(I), poison_cond);
+  //   }
+  //   if (I.hasNoUnsignedWrap()) {
+  //     // Poison Condition - zext(a, 1) - zext(b, 1) != zext(a - b, 1)
+  //     expr_ref temp1 = m_ctx->mk_bvsub(m_ctx->mk_bvzero_ext(a, 1), m_ctx->mk_bvzero_ext(b, 1));
+  //     expr_ref temp2 = m_ctx->mk_bvzero_ext(m_ctx->mk_bvsub(a, b), 1);
+  //     expr_ref poison_cond = m_ctx->mk_not(m_ctx->mk_eq(temp1, temp2));
+  //     state_set_expr(state_out, get_poison_cond_name(I), poison_cond);
+  //   }
+  //   break;
+  // }
+  // case Instruction::Mul: {
+  //   if (I.hasNoSignedWrap()) {
+  //     // Poison Condition - sext(a, 1) * sext(b, 1) != sext(a * b, 1)
+  //     expr_ref temp1 = m_ctx->mk_bvmul(m_ctx->mk_bvsign_ext(a, 1), m_ctx->mk_bvsign_ext(b, 1));
+  //     expr_ref temp2 = m_ctx->mk_bvsign_ext(m_ctx->mk_bvmul(a, b), 1);
+  //     expr_ref poison_cond = m_ctx->mk_not(m_ctx->mk_eq(temp1, temp2));
+  //     state_set_expr(state_out, get_poison_cond_name(I), poison_cond);
+  //   }
+  //   if (I.hasNoUnsignedWrap()) {
+  //     // Poison Condition - zext(a, 1) * zext(b, 1) != zext(a * b, 1)
+  //     expr_ref temp1 = m_ctx->mk_bvmul(m_ctx->mk_bvzero_ext(a, 1), m_ctx->mk_bvzero_ext(b, 1));
+  //     expr_ref temp2 = m_ctx->mk_bvzero_ext(m_ctx->mk_bvmul(a, b), 1);
+  //     expr_ref poison_cond = m_ctx->mk_not(m_ctx->mk_eq(temp1, temp2));
+  //     state_set_expr(state_out, get_poison_cond_name(I), poison_cond);
+  //   }
+  //   break;
+  // }
+  // case Instruction::UDiv: {
+  //   if (I.isExact()) {
+      
+  //   }
+  //   break;
+  // }
+  // case Instruction::SDiv: {
+  //   if (I.isExact()) {
+      
+  //   }
+  //   break;
+  // }
+  // case Instruction::AShr:
+  // case Instruction::LShr:
+  // case Instruction::Shl: {
+    
+  //   break;
+  // }
+  };
+}
+
+/////////////////////////////////////////////////////////////////////////////////////
+
 void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dshared_ptr<tfg_node> from_node, llvm::BasicBlock const &B, llvm::Function const &F, size_t next_insn_id, tfg_llvm_t const* src_llvm_tfg, tfg &t, map<string, pair<callee_summary_t, unique_ptr<tfg_llvm_t>>> *function_tfg_map, map<llvm_value_id_t, string_ref>* value_to_name_map, set<string> const *function_call_chain, map<shared_ptr<tfg_edge const>, Instruction *>& eimap, map<string, value_scev_map_t> const& scev_map, context::xml_output_format_t xml_output_format)
 {
   DYN_DEBUG(llvm2tfg, errs() << __func__ << " " << __LINE__ << " " << get_timestamp(as1, sizeof as1) << ": sym exec doing: " << I << "\n");
@@ -1815,6 +1919,9 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     tie(insn_expr, state_assumes) = exec_gen_expr(I/*, ""*/, expr_args, state_in, state_assumes, from_node/*, pc_to, B, F*/, t);
     set_expr(get_value_name(I), insn_expr, state_out);
     break;
+  }
+  if(I.isBinaryOp()){
+    generatePoisonChecksForBinOp(I, state_in, state_out, state_assumes);
   }
   DYN_DEBUG(llvm2tfg, errs() << __func__ << " " << __LINE__ << " " << get_timestamp(as1, sizeof as1) << ": sym exec done\n");
   process_cfts(t, value_to_name_map, from_node, pc_to, state_out, state_assumes, te_comment, (Instruction *)&I, cfts, B, F, eimap);
