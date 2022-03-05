@@ -1274,6 +1274,10 @@ sym_exec_llvm::farith_to_operation_kind(unsigned opcode, expr_vector const& args
 }
 
 ///////////////////////////////// POISON //////////////////////////////////////////
+string get_poison_cond_name(const string s) {
+  return s + string(".poison_condition");
+}
+
 string sym_exec_llvm::get_poison_cond_name(const llvm::Value& v) {
   string register_name = get_value_name(v);
   return register_name + string(".poison_condition");
@@ -1299,79 +1303,169 @@ sym_exec_llvm::generatePoisonChecksForBinOp(const llvm::Instruction &I, const st
   expr_ref a = get_reg_expr(state_in, *LHS);
   expr_ref b = get_reg_expr(state_in, *RHS);
   
-  expr_ref poison_cond = m_ctx->mk_or(a_pc, b_pc);
-  
   switch (I.getOpcode()) {
-  default:
-    return;
+  default: {
+    // Default Poison Condition - a.poison_cond or b.poison_cond
+    expr_ref poison_cond = m_ctx->mk_or(a_pc, b_pc);
+    state_set_expr(state_out, get_poison_cond_name(I), poison_cond);
+    //state_assumes.insert(poison_cond);
+    break;
+  }
   case Instruction::Add: {
+    // Poison Condition - a.poison_cond or b.poison_cond
     expr_ref temp1, temp2;
+    expr_ref poison_cond = m_ctx->mk_or(a_pc, b_pc);
     if (I.hasNoSignedWrap()) {
-      // Poison Condition - sext(a, 1) + sext(b, 1) != sext(a + b, 1) or a.poison_cond or b.poison_cond
+      // or sext(a, 1) + sext(b, 1) != sext(a + b, 1)
       temp1 = m_ctx->mk_bvadd(m_ctx->mk_bvsign_ext(a, 1), m_ctx->mk_bvsign_ext(b, 1));
       temp2 = m_ctx->mk_bvsign_ext(m_ctx->mk_bvadd(a, b), 1);
+      poison_cond = m_ctx->mk_or(poison_cond, m_ctx->mk_not(m_ctx->mk_eq(temp1, temp2)));
     }
     if (I.hasNoUnsignedWrap()) {
-      // Poison Condition - zext(a, 1) + zext(b, 1) != zext(a + b, 1) or a.poison_cond or b.poison_cond
+      // or zext(a, 1) + zext(b, 1) != zext(a + b, 1)
       temp1 = m_ctx->mk_bvadd(m_ctx->mk_bvzero_ext(a, 1), m_ctx->mk_bvzero_ext(b, 1));
       temp2 = m_ctx->mk_bvzero_ext(m_ctx->mk_bvadd(a, b), 1);
+      poison_cond = m_ctx->mk_or(poison_cond, m_ctx->mk_not(m_ctx->mk_eq(temp1, temp2)));
     }
-    poison_cond = m_ctx->mk_or(poison_cond, m_ctx->mk_not(m_ctx->mk_eq(temp1, temp2)));
     state_set_expr(state_out, get_poison_cond_name(I), poison_cond);
     break;
   }
-  // case Instruction::Sub: {
-  //   if (I.hasNoSignedWrap()) {
-  //     // Poison Condition - sext(a, 1) - sext(b, 1) != sext(a - b, 1)
-  //     expr_ref temp1 = m_ctx->mk_bvsub(m_ctx->mk_bvsign_ext(a, 1), m_ctx->mk_bvsign_ext(b, 1));
-  //     expr_ref temp2 = m_ctx->mk_bvsign_ext(m_ctx->mk_bvsub(a, b), 1);
-  //     expr_ref poison_cond = m_ctx->mk_not(m_ctx->mk_eq(temp1, temp2));
-  //     state_set_expr(state_out, get_poison_cond_name(I), poison_cond);
-  //   }
-  //   if (I.hasNoUnsignedWrap()) {
-  //     // Poison Condition - zext(a, 1) - zext(b, 1) != zext(a - b, 1)
-  //     expr_ref temp1 = m_ctx->mk_bvsub(m_ctx->mk_bvzero_ext(a, 1), m_ctx->mk_bvzero_ext(b, 1));
-  //     expr_ref temp2 = m_ctx->mk_bvzero_ext(m_ctx->mk_bvsub(a, b), 1);
-  //     expr_ref poison_cond = m_ctx->mk_not(m_ctx->mk_eq(temp1, temp2));
-  //     state_set_expr(state_out, get_poison_cond_name(I), poison_cond);
-  //   }
-  //   break;
-  // }
-  // case Instruction::Mul: {
-  //   if (I.hasNoSignedWrap()) {
-  //     // Poison Condition - sext(a, 1) * sext(b, 1) != sext(a * b, 1)
-  //     expr_ref temp1 = m_ctx->mk_bvmul(m_ctx->mk_bvsign_ext(a, 1), m_ctx->mk_bvsign_ext(b, 1));
-  //     expr_ref temp2 = m_ctx->mk_bvsign_ext(m_ctx->mk_bvmul(a, b), 1);
-  //     expr_ref poison_cond = m_ctx->mk_not(m_ctx->mk_eq(temp1, temp2));
-  //     state_set_expr(state_out, get_poison_cond_name(I), poison_cond);
-  //   }
-  //   if (I.hasNoUnsignedWrap()) {
-  //     // Poison Condition - zext(a, 1) * zext(b, 1) != zext(a * b, 1)
-  //     expr_ref temp1 = m_ctx->mk_bvmul(m_ctx->mk_bvzero_ext(a, 1), m_ctx->mk_bvzero_ext(b, 1));
-  //     expr_ref temp2 = m_ctx->mk_bvzero_ext(m_ctx->mk_bvmul(a, b), 1);
-  //     expr_ref poison_cond = m_ctx->mk_not(m_ctx->mk_eq(temp1, temp2));
-  //     state_set_expr(state_out, get_poison_cond_name(I), poison_cond);
-  //   }
-  //   break;
-  // }
-  // case Instruction::UDiv: {
-  //   if (I.isExact()) {
+  case Instruction::Sub: {
+    // Poison Condition - a.poison_cond or b.poison_cond
+    expr_ref temp1, temp2;
+    expr_ref poison_cond = m_ctx->mk_or(a_pc, b_pc);
+    if (I.hasNoSignedWrap()) {
+      // or sext(a, 1) - sext(b, 1) != sext(a - b, 1)
+      temp1 = m_ctx->mk_bvsub(m_ctx->mk_bvsign_ext(a, 1), m_ctx->mk_bvsign_ext(b, 1));
+      temp2 = m_ctx->mk_bvsign_ext(m_ctx->mk_bvsub(a, b), 1);
+      poison_cond = m_ctx->mk_or(poison_cond, m_ctx->mk_not(m_ctx->mk_eq(temp1, temp2)));
+    }
+    if (I.hasNoUnsignedWrap()) {
+      // or zext(a, 1) - zext(b, 1) != zext(a - b, 1)
+      temp1 = m_ctx->mk_bvsub(m_ctx->mk_bvzero_ext(a, 1), m_ctx->mk_bvzero_ext(b, 1));
+      temp2 = m_ctx->mk_bvzero_ext(m_ctx->mk_bvsub(a, b), 1);
+      poison_cond = m_ctx->mk_or(poison_cond, m_ctx->mk_not(m_ctx->mk_eq(temp1, temp2)));
+    }
+    state_set_expr(state_out, get_poison_cond_name(I), poison_cond);
+    break;
+  }
+  case Instruction::Mul: {
+    // Poison Condition - a.poison_cond or b.poison_cond
+    expr_ref temp1, temp2;
+    expr_ref poison_cond = m_ctx->mk_or(a_pc, b_pc);
+    if (I.hasNoSignedWrap()) {
+      // or sext(a, 1) * sext(b, 1) != sext(a * b, 1)
+      temp1 = m_ctx->mk_bvmul(m_ctx->mk_bvsign_ext(a, 1), m_ctx->mk_bvsign_ext(b, 1));
+      temp2 = m_ctx->mk_bvsign_ext(m_ctx->mk_bvmul(a, b), 1);
+      poison_cond = m_ctx->mk_or(poison_cond, m_ctx->mk_not(m_ctx->mk_eq(temp1, temp2)));
+    }
+    if (I.hasNoUnsignedWrap()) {
+      // or zext(a, 1) * zext(b, 1) != zext(a * b, 1)
+      temp1 = m_ctx->mk_bvmul(m_ctx->mk_bvzero_ext(a, 1), m_ctx->mk_bvzero_ext(b, 1));
+      temp2 = m_ctx->mk_bvzero_ext(m_ctx->mk_bvmul(a, b), 1);
+      poison_cond = m_ctx->mk_or(poison_cond, m_ctx->mk_not(m_ctx->mk_eq(temp1, temp2)));
+    }
+    state_set_expr(state_out, get_poison_cond_name(I), poison_cond);
+    break;
+  }
+  case Instruction::UDiv: {
+    // Poison Condition - a.poison_cond
+    expr_ref poison_cond = a_pc;
+    if (I.isExact()) {
+      // or (a udiv b) mul b != a
+      expr_ref temp1 = m_ctx->mk_bvmul(m_ctx->mk_bvudiv(a,b), b);
+      expr_ref temp2 = m_ctx->mk_not(m_ctx->mk_eq(temp1, a));
+      poison_cond = m_ctx->mk_or(temp2, poison_cond);
+    }
+    state_set_expr(state_out, get_poison_cond_name(I), poison_cond);
+    break;
+  }
+  case Instruction::SDiv: {
+    // Poison Condition - a.poison_cond
+    expr_ref poison_cond = a_pc;
+    if (I.isExact()) {
+      // or (a sdiv b) mul b != a
+      expr_ref temp1 = m_ctx->mk_bvmul(m_ctx->mk_bvsdiv(a,b), b);
+      expr_ref temp2 = m_ctx->mk_not(m_ctx->mk_eq(temp1, a));
+      poison_cond = m_ctx->mk_or(temp2, poison_cond);
+    }
+    state_set_expr(state_out, get_poison_cond_name(I), poison_cond);
+    break;
+  }
+  case Instruction::Shl: {
+    if(const IntegerType* itype = dyn_cast<const IntegerType>(I.getType())) {
+      // Poison Condition - a.poison_cond or b.poison_cond or (b uge a.bitwidth)
+      int size = itype->getBitWidth();
+      expr_ref poison_cond = m_ctx->mk_or(a_pc, b_pc);
+      poison_cond = m_ctx->mk_or(poison_cond, m_ctx->mk_bvuge(b, m_ctx->mk_bv_const(size, size)));
+
+      if (I.hasNoUnsignedWrap()) {
+        // or ((a shl b) lshr b != a)
+        expr_ref temp1 = m_ctx->mk_bvexlshr(m_ctx->mk_bvexshl(a, b), b);
+        expr_ref temp = m_ctx->mk_not(m_ctx->mk_eq(temp1, a));
+        poison_cond = m_ctx->mk_or(poison_cond, temp);
+      }
+      else if (I.hasNoSignedWrap()) {
+        // or ((a shl b) ashr b != a)
+        expr_ref temp1 = m_ctx->mk_bvexashr(m_ctx->mk_bvexshl(a, b), b);
+        expr_ref temp = m_ctx->mk_not(m_ctx->mk_eq(temp1, a));
+        poison_cond = m_ctx->mk_or(poison_cond, temp);
+      }
+      state_set_expr(state_out, get_poison_cond_name(I), poison_cond);
+    } 
+    else {
+      I.print(errs());
+      errs().flush();
+      unreachable("type unhandled");
+    }
+    break;
+  }
+  case Instruction::LShr: {
+    if(const IntegerType* itype = dyn_cast<const IntegerType>(I.getType())) {
+      // Poison Condition - a.poison_cond or b.poison_cond or (b uge a.bitwidth)
+      int size = itype->getBitWidth();
+      expr_ref poison_cond = m_ctx->mk_or(a_pc, b_pc);
+      poison_cond = m_ctx->mk_or(poison_cond, m_ctx->mk_bvuge(b, m_ctx->mk_bv_const(size, size)));
       
-  //   }
-  //   break;
-  // }
-  // case Instruction::SDiv: {
-  //   if (I.isExact()) {
+      if (I.isExact()) {
+        // or (a lshr b) shl b != a
+        expr_ref temp1 = m_ctx->mk_bvexshl(m_ctx->mk_bvexlshr(a, b), b);
+        expr_ref temp = m_ctx->mk_not(m_ctx->mk_eq(temp1, a));
+        poison_cond = m_ctx->mk_or(poison_cond, temp);
+      }
+
+      state_set_expr(state_out, get_poison_cond_name(I), poison_cond);
+    } 
+    else {
+      I.print(errs());
+      errs().flush();
+      unreachable("type unhandled");
+    }
+    break;
+  }
+  case Instruction::AShr: {
+    if(const IntegerType* itype = dyn_cast<const IntegerType>(I.getType())) {
+      // Poison Condition - a.poison_cond or b.poison_cond or (b uge a.bitwidth)
+      int size = itype->getBitWidth();
+      expr_ref poison_cond = m_ctx->mk_or(a_pc, b_pc);
+      poison_cond = m_ctx->mk_or(poison_cond, m_ctx->mk_bvuge(b, m_ctx->mk_bv_const(size, size)));
       
-  //   }
-  //   break;
-  // }
-  // case Instruction::AShr:
-  // case Instruction::LShr:
-  // case Instruction::Shl: {
-    
-  //   break;
-  // }
+      if (I.isExact()) {
+        // or (a ashr b) shl b != a
+        expr_ref temp1 = m_ctx->mk_bvexshl(m_ctx->mk_bvexashr(a, b), b);
+        expr_ref temp = m_ctx->mk_not(m_ctx->mk_eq(temp1, a));
+        poison_cond = m_ctx->mk_or(poison_cond, temp);
+      }
+
+      state_set_expr(state_out, get_poison_cond_name(I), poison_cond);
+    } 
+    else {
+      I.print(errs());
+      errs().flush();
+      unreachable("type unhandled");
+    }
+    break;
+  }
   };
 }
 
@@ -3402,6 +3496,11 @@ sym_exec_common::get_tfg_common(tfg &t)
     stringstream ss;
     ss << LLVM_METHOD_ARG_PREFIX << a.first;
     arg_exprs.insert(make_pair(mk_string_ref(ss.str()), a.second));
+
+    // Insert corresponding poison condition for function argument
+    string_ref arg_poison_cond = mk_string_ref(get_poison_cond_name(ss.str()));
+    expr_ref arg_poison_cond_expr = m_ctx->get_input_expr_for_key(mk_string_ref(get_poison_cond_name(arg.first)), m_ctx->mk_bool_sort());
+    arg_exprs.insert(make_pair(arg_poison_cond, arg_poison_cond_expr));
   }
   //t->add_assumes(pc::start(), assumes);
 

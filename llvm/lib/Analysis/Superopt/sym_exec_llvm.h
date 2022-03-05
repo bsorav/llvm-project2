@@ -55,6 +55,7 @@ public:
   virtual ~sym_exec_llvm() {}
 
   ////// POISON /////////////////////////////////////////////////////
+  string get_poison_cond_name(const string s);
   string get_poison_cond_name(const llvm::Value& v);
   expr_ref get_poison_cond_expr(const state& st, const llvm::Value& v);
   expr_ref get_reg_expr(const state& st, const llvm::Value& v);

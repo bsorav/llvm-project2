@@ -7,6 +7,13 @@ endif
 
 all::
 	ninja -C build llc clang opt llvm-config llvm-dis llvm-link llvm-as llvm2tfg harvest-dwarf LLVMSuperopt.so LLVMLockstep.so UnsequencedAliasVisitor.so harvest-dwarf
+
+tags::
+	ctags -R llvm/lib/Analysis/Superopt
+	find llvm/lib/Analysis/Superopt -name "*.h" > cscope.files
+	find llvm/lib/Analysis/Superopt -name "*.c" >> cscope.files
+	find llvm/lib/Analysis/Superopt -name "*.cpp" >> cscope.files
+	# GTAGSFORCECPP=1 gtags -f cscope.files
 	
 install::
 	#https://llvm.org/docs/GettingStarted.html
