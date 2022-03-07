@@ -59,7 +59,8 @@ public:
   string get_poison_cond_name(const llvm::Value& v);
   expr_ref get_poison_cond_expr(const state& st, const llvm::Value& v);
   expr_ref get_reg_expr(const state& st, const llvm::Value& v);
-  void generatePoisonChecksForBinOp(const llvm::Instruction &I, const state& state_in, state& state_out, unordered_set<expr_ref>& state_assumes);
+  void generatePoisonChecks(const llvm::Instruction &I, const state& state_in, state& state_out, unordered_set<expr_ref>& state_assumes);
+  void generatePoisonChecksAndAssumes(const llvm::Instruction &I, const state& state_in, state& state_out, unordered_set<expr_ref>& state_assumes);
   ///////////////////////////////////////////////////////////////////
 
   void exec(const state& state_in, const llvm::Instruction& I/*, state& state_out, vector<control_flow_transfer>& cfts, bool &expand_switch_flag, unordered_set<predicate> &assumes*/, dshared_ptr<tfg_node> from_node, llvm::BasicBlock const &B, llvm::Function const &F, size_t next_insn_id, tfg_llvm_t const* src_llvm_tfg, tfg &t, map<string, pair<callee_summary_t, unique_ptr<tfg_llvm_t>>> *function_tfg_map, map<llvm_value_id_t, string_ref>* value_to_name_map, set<string> const *function_call_chain, map<shared_ptr<tfg_edge const>, llvm::Instruction *>& eimap, map<string, value_scev_map_t> const& scev_map, context::xml_output_format_t xml_output_format);
