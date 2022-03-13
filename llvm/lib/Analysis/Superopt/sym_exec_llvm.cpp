@@ -1284,10 +1284,14 @@ string sym_exec_llvm::get_poison_cond_name(const llvm::Value& v) {
 }
 
 expr_ref sym_exec_llvm::get_poison_cond_expr(const state& st, const llvm::Value& v){
+  if (isa<Constant>(v)) return m_ctx->mk_bool_false();
   return state_get_expr(st, get_poison_cond_name(v), m_ctx->mk_bool_sort());
 }
 
 expr_ref sym_exec_llvm::get_reg_expr(const state& st, const llvm::Value& v){
+  if (const ConstantInt* constI = dyn_cast<const ConstantInt>(&v)){
+    return m_ctx->mk_bv_const(constI->getBitWidth(), constI->getSExtValue());
+  }
   return state_get_expr(st, get_value_name(v), get_value_type(v, m_module->getDataLayout()));
 }
 
@@ -1346,7 +1350,9 @@ sym_exec_llvm::generatePoisonChecks(const llvm::Instruction &I, const state& sta
           temp2 = m_ctx->mk_bvzero_ext(m_ctx->mk_bvsub(a, b), 1);
           poison_cond = m_ctx->mk_or(poison_cond, m_ctx->mk_not(m_ctx->mk_eq(temp1, temp2)));
         }
+        cout << get_poison_cond_name(I) << endl;
         state_set_expr(state_out, get_poison_cond_name(I), poison_cond);
+        cout << m_ctx->expr_to_string(get_poison_cond_expr(state_out, I)) << endl;
         break;
       }
       case Instruction::Mul: {
@@ -1476,8 +1482,15 @@ sym_exec_llvm::generatePoisonChecks(const llvm::Instruction &I, const state& sta
       if(state_in.has_expr(get_value_name(*reg)))
         reg_pcs.push_back(get_poison_cond_expr(state_in, I));
     }
-    expr_ref poison_cond = m_ctx->mk_app(expr::OP_OR, reg_pcs);
-    state_set_expr(state_out, get_poison_cond_name(I), poison_cond);
+
+    if (reg_pcs.size() > 1){
+      expr_ref poison_cond = m_ctx->mk_app(expr::OP_OR, reg_pcs);
+      state_set_expr(state_out, get_poison_cond_name(I), poison_cond);
+    }
+    else if (reg_pcs.size() == 1){
+      expr_ref poison_cond = reg_pcs[0];
+      state_set_expr(state_out, get_poison_cond_name(I), poison_cond);
+    }
   }
 }
 
@@ -1494,8 +1507,8 @@ sym_exec_llvm::generatePoisonChecksAndAssumes(const llvm::Instruction &I, const 
       if (const llvm::BranchInst* brI = dyn_cast<const llvm::BranchInst>(&I)) {
         if (brI->isConditional()) {
           Value* condition_op = brI->getCondition();
-          if(state_in.has_expr(get_value_name(*condition_op))) {
-            expr_ref condition_pc = get_poison_cond_expr(state_in, *condition_op);
+          if(state_in.has_expr(get_poison_cond_name(*condition_op))) {
+            expr_ref condition_pc = m_ctx->mk_not(get_poison_cond_expr(state_in, *condition_op));
             state_assumes.insert(condition_pc);
           }
         }
@@ -1505,8 +1518,8 @@ sym_exec_llvm::generatePoisonChecksAndAssumes(const llvm::Instruction &I, const 
     case Instruction::Switch: {
       if (const llvm::SwitchInst* swI = dyn_cast<const llvm::SwitchInst>(&I)) {
         Value* condition_op = swI->getCondition();
-        if(state_in.has_expr(get_value_name(*condition_op))) {
-          expr_ref condition_pc = get_poison_cond_expr(state_in, *condition_op);
+        if(state_in.has_expr(get_poison_cond_name(*condition_op))) {
+          expr_ref condition_pc = m_ctx->mk_not(get_poison_cond_expr(state_in, *condition_op));
           state_assumes.insert(condition_pc);
         }
       }
@@ -1515,12 +1528,27 @@ sym_exec_llvm::generatePoisonChecksAndAssumes(const llvm::Instruction &I, const 
     case Instruction::IndirectBr: {
       if (const llvm::IndirectBrInst* ibrI = dyn_cast<const llvm::IndirectBrInst>(&I)) {
         const Value* address_op = ibrI->getAddress();
-        if(state_in.has_expr(get_value_name(*address_op))) {
-          expr_ref address_pc = get_poison_cond_expr(state_in, *address_op);
+        if(state_in.has_expr(get_poison_cond_name(*address_op))) {
+          expr_ref address_pc = m_ctx->mk_not(get_poison_cond_expr(state_in, *address_op));
           state_assumes.insert(address_pc);
         }
       }
       break;
+    }
+    case Instruction::Ret: {
+      cout<<"a"<<endl;
+      if (const llvm::ReturnInst* retI = dyn_cast<const llvm::ReturnInst>(&I)) {
+        cout<<"b"<<endl;
+        const Value* ret_val = retI->getReturnValue();
+        cout << get_poison_cond_name(*ret_val) << endl;
+        cout << state_in.has_expr(get_poison_cond_name(*ret_val)) << endl;
+        // cout << m_ctx->expr_to_string(get_poison_cond_expr(state_in, *ret_val)) << endl;
+        if(ret_val and state_in.has_expr(get_poison_cond_name(*ret_val))) {
+          cout<<"c"<<endl;
+          expr_ref address_pc = m_ctx->mk_not(get_poison_cond_expr(state_in, *ret_val));
+          state_assumes.insert(address_pc);
+        }
+      }
     }
   };
 }
