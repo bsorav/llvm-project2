@@ -30,12 +30,17 @@ set(binutils_lib ${binutils_install_dir}/lib/libbfd.a ${binutils_install_dir}/li
 
 #set(z3_install /home/sbansal/z3-4.8.4.d6df51951f4c-x64-ubuntu-16.04)
 # set(z3_ver z3-4.8.10)
-set(z3_install ${third_party_dir}/z3)
+#set(z3_install ${third_party_dir}/z3)
 # set(z3_pkgname ${z3_ver}-x64-ubuntu-18.04)
-set(z3_lib ${z3_install}/usr/lib)
+set(z3_ver z3-4.8.14)
+set(z3_dir ${third_party_dir}/z3)
+set(z3_pkgname ${z3_ver}-x64-glibc-2.31)
+set(z3_binpath ${z3_dir}/${z3_pkgname})
+#set(z3_include ${z3_binpath}/include)
+set(z3_lib ${z3_binpath}/bin)
 link_directories(${z3_lib})
 link_directories(${binutils_install_dir}/lib)
-link_directories(/usr/local/lib)
+#link_directories(/usr/local/lib)
 
 INCLUDE_DIRECTORIES(${LLVM_BINARY_DIR}/../../superopt/include)
 INCLUDE_DIRECTORIES(${LLVM_BINARY_DIR}/../../superopt/lib)
@@ -45,8 +50,8 @@ INCLUDE_DIRECTORIES(${LLVM_BINARY_DIR}/../../superopt/lib/support)
 INCLUDE_DIRECTORIES(${LLVM_BINARY_DIR}/../../superopt/build/${SUPEROPT_RELEVANT_ABUILD})
 
 
-LINK_DIRECTORIES(${z3_lib})
-LINK_DIRECTORIES(${EQ_BINARY_DIR})
+#LINK_DIRECTORIES(${z3_lib})
+#LINK_DIRECTORIES(${EQ_BINARY_DIR})
 
 #set(SUPEROPT_LIBS superopt fbgen eqchecker sym_exec rewrite_lib insn tfg graph gsupport exec expr valtag gas support cutils fpu parser z3 -lgmp -lgmpxx ${Boost_LIBRARIES} -ldl ${binutils_lib} -lm -lz -lmagic -lboost_filesystem -lboost_system -lssl -lcrypto)
 
