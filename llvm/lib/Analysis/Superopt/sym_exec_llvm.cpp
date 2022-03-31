@@ -1080,7 +1080,7 @@ sym_exec_llvm::apply_memcpy_function(const CallInst* c, expr_ref fun_name_expr, 
   const auto& memcpy_align = c->getArgOperand(3);
   pc const &from_pc = from_node->get_pc();
   unordered_set<expr_ref> assumes = state_assumes;
-  expr_ref memcpy_src_expr, memcpy_dst_expr, memcpy_nbytes_expr, memcpy_isvolatile_expr;
+  expr_ref memcpy_src_expr, memcpy_dst_expr, memcpy_nbytes_expr, memcpy_align_expr;
 
   tie(memcpy_src_expr, assumes)    = get_expr_adding_edges_for_intermediate_vals(*memcpy_src, "", state_out, assumes, from_node, model_llvm_semantics, t, value_to_name_map);
   tie(memcpy_dst_expr, assumes)    = get_expr_adding_edges_for_intermediate_vals(*memcpy_dst, "", state_out, assumes, from_node, model_llvm_semantics, t, value_to_name_map);
