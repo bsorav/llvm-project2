@@ -1631,7 +1631,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     // == intermediate edge 0 ==
     string local_alloc_count_varname = m_ctx->get_local_alloc_count_varname(this->get_srcdst_keyword())->get_str();
     expr_ref local_alloc_count_var = state_get_expr(state_in, local_alloc_count_varname, m_ctx->mk_count_sort());
-    expr_ref local_size_var = m_ctx->get_local_size_expr_for_id(local_id, local_alloc_count_var, m_ctx->mk_bv_sort(get_word_length()), m_srcdst_keyword);
+    expr_ref local_size_var = m_ctx->get_local_size_expr_for_id(local_id/*, local_alloc_count_var*/, m_ctx->mk_bv_sort(get_word_length()), m_srcdst_keyword);
     // local_size.id <- size expr
     state_set_expr(state_out, m_ctx->get_key_from_input_expr(local_size_var)->get_str(), local_size_val);
     dshared_ptr<tfg_node> intermediate_node0 = get_next_intermediate_subsubindex_pc_node(t, from_node);
