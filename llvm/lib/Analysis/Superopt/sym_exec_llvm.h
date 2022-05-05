@@ -46,6 +46,10 @@
 
 using value_scev_map_t = map<string, scev_toplevel_t<pc>>;
 
+namespace eqspace {
+  class llptfg_t;
+}
+
 class sym_exec_llvm : public sym_exec_common
 {
 public:
