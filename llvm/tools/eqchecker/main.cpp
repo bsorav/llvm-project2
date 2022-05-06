@@ -219,6 +219,7 @@ main(int argc, char **argv)
 
   //context *ctx = new context(context::config(600, 600/*, true, true, true*/));
   g_ctx_init(false);
+  g_query_dir_init();
   context *ctx = g_ctx;
   DataLayout const& dl = M1->getDataLayout();
   unsigned pointer_size = dl.getPointerSize();
