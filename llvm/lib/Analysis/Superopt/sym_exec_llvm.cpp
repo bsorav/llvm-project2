@@ -4196,7 +4196,11 @@ sym_exec_llvm::get_function_tfg_map(Module* M, set<string> FunNamesVec/*, bool D
 
     dshared_ptr<tfg_llvm_t> t_src = sym_exec_llvm::get_tfg(f, M, fname, ctx, src_llvm_tfg, model_llvm_semantics, value_to_name_map, eimap, scev_map, srcdst_keyword, xml_output_format);
 
-    dshared_ptr<tfg_ssa_t> t_src_ssa = tfg_ssa_t::tfg_ssa_construct_from_non_ssa_tfg(t_src, dshared_ptr<tfg const>::dshared_nullptr());
+    //dshared_ptr<tfg_ssa_t> t_src_ssa = tfg_ssa_t::tfg_ssa_construct_from_non_ssa_tfg(t_src, dshared_ptr<tfg const>::dshared_nullptr());
+    //XXX: hack begin
+    t_src->set_graph_as_ssa();
+    dshared_ptr<tfg_ssa_t> t_src_ssa = tfg_ssa_t::tfg_ssa_construct_from_an_already_ssa_tfg(t_src/*, dshared_ptr<tfg const>::dshared_nullptr()*/);
+    //XXX: hack end
 
     //dshared_ptr<tfg_llvm_t> t_src = sym_exec_llvm::get_preprocessed_tfg(f, M, fname, ctx, src_llvm_tfg, function_tfg_map, value_to_name_map, function_call_chain, gen_callee_summary, DisableModelingOfUninitVarUB, scev_map, srcdst_keyword, xml_output_format);
 
