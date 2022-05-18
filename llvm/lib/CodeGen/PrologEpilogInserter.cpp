@@ -928,7 +928,7 @@ void PEI::calculateFrameObjectOffsets(MachineFunction &MF) {
       LLVM_DEBUG(dbgs() << "alloc FI(" << Entry.first << ") at SP[" << FIOffset
                         << "]\n");
       //errs() << _FNLN_ << ": alloc FI(" << Entry.first << ") at SP[" << FIOffset
-                        << "]\n";
+      //                  << "]\n";
       MFI.setObjectOffset(Entry.first, FIOffset);
     }
     // Allocate the local block
