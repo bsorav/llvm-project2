@@ -8,6 +8,10 @@
 #include "llvm/Pass.h"
 #include "llvm/Transforms/Utils/Debugify.h"
 
+#include "sym_exec_llvm.h"
+//#include "sym_exec_mir.h"
+#include "dfa_helper.h"
+
 #include "support/dyn_debug.h"
 #include "support/globals.h"
 #include "support/dshared_ptr.h"
@@ -23,9 +27,6 @@
 #include "ptfg/llvm_value_id.h"
 #include "ptfg/llptfg.h"
 
-#include "sym_exec_llvm.h"
-//#include "sym_exec_mir.h"
-#include "dfa_helper.h"
 
 using namespace llvm;
 static char as1[40960];
