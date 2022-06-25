@@ -15,6 +15,7 @@
 #include <cmath>
 #include <set>
 #include <dlfcn.h>
+#include "support/stdafx.h"
 #include "support/utils.h"
 #include "support/types.h"
 #include "../lib/Analysis/Superopt/dfa_helper.h"

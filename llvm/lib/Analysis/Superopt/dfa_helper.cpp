@@ -5,13 +5,14 @@
 #include "llvm/IR/PassManager.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Analysis/CallGraphSCCPass.h"
-#include "support/debug.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/IRPrintingPasses.h"
 #include "llvm/Transforms/IPO/PassManagerBuilder.h"
 #include "llvm/Analysis/CallGraph.h"
 #include <sstream>
+
+#include "support/debug.h"
 
 /*static string
 get_basicblock_name(const BasicBlock& v)

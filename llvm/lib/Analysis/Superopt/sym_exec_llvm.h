@@ -1,6 +1,7 @@
 #ifndef EQCHECKSYM_EXEC_LLVM_H
 #define EQCHECKSYM_EXEC_LLVM_H
 
+#include "support/stdafx.h"
 #include "expr/expr.h"
 
 #include "tfg/tfg.h"

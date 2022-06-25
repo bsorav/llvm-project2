@@ -6,6 +6,7 @@
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Pass.h"
+#include "support/stdafx.h"
 #include "tfg/tfg_llvm.h"
 #include "ptfg/llvm_value_id.h"
 #include "ptfg/ftmap.h"

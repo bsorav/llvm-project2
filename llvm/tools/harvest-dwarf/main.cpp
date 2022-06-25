@@ -20,6 +20,8 @@
 
 #include <cstdlib>
 
+#include "support/stdafx.h"
+
 #include "expr/context.h"
 #include "expr/expr.h"
 #include "expr/expr_utils.h"
