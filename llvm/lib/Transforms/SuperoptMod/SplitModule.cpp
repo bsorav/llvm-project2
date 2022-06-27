@@ -16,6 +16,7 @@
 #include "support/stdafx.h"
 #include "support/debug.h"
 #include "support/utils.h"
+#include "support/str_utils.h"
 
 using namespace llvm;
 using namespace std;
