@@ -1566,7 +1566,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
       //assumes.insert(p);
       //t.add_assume_pred(from_node->get_pc(), p);
 
-      state_set_expr(state_out, G_LLVM_RETURN_REGISTER_NAME/*m_ret_reg*/, dst_val);
+      state_set_expr(state_out, m_srcdst_keyword + "." + G_LLVM_RETURN_REGISTER_NAME/*m_ret_reg*/, dst_val);
     }
     for (size_t i = 0; i < LLVM_NUM_CALLEE_SAVE_REGS; i++) {
       stringstream ss;
