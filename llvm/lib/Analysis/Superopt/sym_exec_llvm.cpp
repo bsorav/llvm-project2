@@ -1109,8 +1109,8 @@ sym_exec_llvm::apply_memcpy_function(const CallInst* c, expr_ref fun_name_expr, 
     ASSERT(memcpy_align_int > 0);
   }
 
-  memlabel_t ml_top;
-  memlabel_t::keyword_to_memlabel(&ml_top, G_MEMLABEL_TOP_SYMBOL, MEMSIZE_MAX);
+  //memlabel_t ml_top;
+  //memlabel_t::keyword_to_memlabel(&ml_top, G_MEMLABEL_TOP_SYMBOL, MEMSIZE_MAX);
 
   unordered_set<expr_ref> succ_assumes;
   if (memcpy_nbytes_expr->is_const()) {
@@ -1139,11 +1139,11 @@ sym_exec_llvm::apply_memcpy_function(const CallInst* c, expr_ref fun_name_expr, 
       expr_ref offset = m_ctx->mk_bv_const(get_word_length(), i);
       expr_ref mem = state_get_expr(state_out, m_mem_reg, this->get_mem_sort());
       expr_ref mem_alloc = state_get_expr(state_out, m_mem_alloc_reg, this->get_mem_alloc_sort());
-      expr_ref inbytes = m_ctx->mk_select(mem, mem_alloc, ml_top, m_ctx->mk_bvadd(memcpy_src_expr, offset), memcpy_align_int, false/*, comment_t()*/);
+      expr_ref inbytes = m_ctx->mk_select(mem, mem_alloc, memlabel_t::memlabel_top(), m_ctx->mk_bvadd(memcpy_src_expr, offset), memcpy_align_int, false/*, comment_t()*/);
 
       expr_ref out_mem = state_get_expr(state_out, m_mem_reg, this->get_mem_sort());
       expr_ref out_mem_alloc = state_get_expr(state_out, m_mem_alloc_reg, this->get_mem_alloc_sort());
-      out_mem = m_ctx->mk_store(out_mem, out_mem_alloc, ml_top, m_ctx->mk_bvadd(memcpy_dst_expr, offset), inbytes, memcpy_align_int, false/*, comment_t()*/);
+      out_mem = m_ctx->mk_store(out_mem, out_mem_alloc, memlabel_t::memlabel_top(), m_ctx->mk_bvadd(memcpy_dst_expr, offset), inbytes, memcpy_align_int, false/*, comment_t()*/);
       state_set_expr(state_out, m_mem_reg, out_mem);
 
       dshared_ptr<tfg_node> intermediate_node = get_next_intermediate_subsubindex_pc_node(t, from_node);
@@ -1716,8 +1716,8 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
   case Instruction::Store:
   {
     const StoreInst* s =  cast<const StoreInst>(&I);
-    memlabel_t ml_top;
-    memlabel_t::keyword_to_memlabel(&ml_top, G_MEMLABEL_TOP_SYMBOL, MEMSIZE_MAX);
+    //memlabel_t ml_top;
+    //memlabel_t::keyword_to_memlabel(&ml_top, G_MEMLABEL_TOP_SYMBOL, MEMSIZE_MAX);
     Value const *Addr = s->getPointerOperand();
     Value const *Val = s->getValueOperand();
     size_t align = s->getAlignment();
@@ -1749,7 +1749,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     }
     expr_ref mem = state_get_expr(state_in, m_mem_reg, this->get_mem_sort());
     expr_ref mem_alloc = state_get_expr(state_in, m_mem_alloc_reg, this->get_mem_alloc_sort());
-    expr_ref new_mem = m_ctx->mk_store(mem, mem_alloc, ml_top, addr, val, count, false/*, comment_t()*/);
+    expr_ref new_mem = m_ctx->mk_store(mem, mem_alloc, memlabel_t::memlabel_top(), addr, val, count, false/*, comment_t()*/);
     state_set_expr(state_out, m_mem_reg, new_mem);
 
     transfer_poison_value_on_store(new_mem, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map);
@@ -1798,13 +1798,13 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
       value_type = m_ctx->mk_bv_sort(1);
     }
     ASSERTCHECK((value_type->is_bv_kind() || value_type->is_float_kind() || value_type->is_floatx_kind()), cout << __func__ << " " << __LINE__ << ": value_type = " << value_type->to_string() << endl);
-    memlabel_t ml_top;
-    memlabel_t::keyword_to_memlabel(&ml_top, G_MEMLABEL_TOP_SYMBOL, MEMSIZE_MAX);
+    //memlabel_t ml_top;
+    //memlabel_t::keyword_to_memlabel(&ml_top, G_MEMLABEL_TOP_SYMBOL, MEMSIZE_MAX);
     unsigned count = DIV_ROUND_UP(value_type->get_size(), get_memory_addressable_size());
     size_t addressable_sz = ROUND_UP(value_type->get_size(), get_memory_addressable_size());
     expr_ref mem = state_get_expr(state_in, m_mem_reg, this->get_mem_sort());
     expr_ref mem_alloc = state_get_expr(state_in, m_mem_alloc_reg, this->get_mem_alloc_sort());
-    expr_ref read_value = m_ctx->mk_select(mem, mem_alloc, ml_top, addr, count, false);
+    expr_ref read_value = m_ctx->mk_select(mem, mem_alloc, memlabel_t::memlabel_top(), addr, count, false);
 
     transfer_poison_value_on_load(lname, read_value, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map);
 
