@@ -64,7 +64,7 @@ public:
   : m_dwarf_expr(expr),
     m_frame_base(frame_base),
     m_OS(OS),
-    m_bvsort_size(m_dwarf_expr.getAddressSize()*8),
+    m_bvsort_size(m_dwarf_expr.getAddressSize()*BYTE_LEN),
     m_memvar(g_ctx->mk_var(G_SOLVER_DST_MEM_NAME, g_ctx->mk_array_sort(g_ctx->mk_bv_sort(DWORD_LEN), g_ctx->mk_bv_sort(BYTE_LEN)))),
     m_mem_allocvar(g_ctx->mk_var(string(G_SOLVER_DST_MEM_NAME "." G_ALLOC_SYMBOL), g_ctx->mk_array_sort(g_ctx->mk_bv_sort(DWORD_LEN), g_ctx->mk_memlabel_sort())))
     //m_mem_allocvar(get_corresponding_mem_alloc_from_mem_expr(m_memvar))
@@ -231,7 +231,7 @@ DWARFExpression_to_eqspace_expr::handle_op(DWARFExpression::Operation &op)
     case llvm::dwarf::DW_OP_deref: {
       eqspace::expr_ref addr = m_stk.top();
       m_stk.pop();
-      eqspace::expr_ref res  = g_ctx->mk_select(m_memvar, m_mem_allocvar, memlabel_t::memlabel_top(), addr, m_bvsort_size/8, false);
+      eqspace::expr_ref res  = g_ctx->mk_select(m_memvar, m_mem_allocvar, memlabel_t::memlabel_top(), g_ctx->mk_exclusive_const(true), addr, m_bvsort_size/BYTE_LEN, false);
       m_stk.push(res);
       break;
     }
@@ -239,9 +239,9 @@ DWARFExpression_to_eqspace_expr::handle_op(DWARFExpression::Operation &op)
       eqspace::expr_ref addr = m_stk.top();
       m_stk.pop();
       unsigned size = op.getRawOperand(0);
-      eqspace::expr_ref res  = g_ctx->mk_select(m_memvar, m_mem_allocvar, memlabel_t::memlabel_top(), addr, size, false);
-      if (size*8 < m_bvsort_size) {
-        res = g_ctx->mk_bvzero_ext(res, m_bvsort_size - size*8);
+      eqspace::expr_ref res  = g_ctx->mk_select(m_memvar, m_mem_allocvar, memlabel_t::memlabel_top(), g_ctx->mk_exclusive_const(true), addr, size, false);
+      if (size*BYTE_LEN < m_bvsort_size) {
+        res = g_ctx->mk_bvzero_ext(res, m_bvsort_size - size*BYTE_LEN);
       }
       m_stk.push(res);
       break;
@@ -349,7 +349,7 @@ DWARFExpression_to_eqspace_expr::handle_op(DWARFExpression::Operation &op)
       eqspace::expr_ref val = m_stk.top();
       m_stk.pop();
       // XXX endianness matters here
-      eqspace::expr_ref res = g_ctx->mk_bvextract(val, piece_size*8-1, 0);
+      eqspace::expr_ref res = g_ctx->mk_bvextract(val, piece_size*BYTE_LEN-1, 0);
       m_location_desc.push_front(res);
       break;
     }
@@ -370,7 +370,7 @@ DWARFExpression_to_eqspace_expr::handle_op(DWARFExpression::Operation &op)
       //   on entry to the current frame)
       // This is usually just (input stack pointer + address size in bytes) i.e. esp before call insn
       eqspace::expr_ref res = g_ctx->mk_bvadd(get_sp_version_at_entry_for_addr_size(g_ctx, m_bvsort_size),
-                                              g_ctx->mk_bv_const(m_bvsort_size, (int)m_bvsort_size/8));
+                                              g_ctx->mk_bv_const(m_bvsort_size, (int)m_bvsort_size/BYTE_LEN));
       m_stk.push(res);
       break;
     }

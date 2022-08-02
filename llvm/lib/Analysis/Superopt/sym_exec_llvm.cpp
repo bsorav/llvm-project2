@@ -1139,7 +1139,7 @@ sym_exec_llvm::apply_memcpy_function(const CallInst* c, expr_ref fun_name_expr, 
       expr_ref offset = m_ctx->mk_bv_const(get_word_length(), i);
       expr_ref mem = state_get_expr(state_out, m_mem_reg, this->get_mem_sort());
       expr_ref mem_alloc = state_get_expr(state_out, m_mem_alloc_reg, this->get_mem_alloc_sort());
-      expr_ref inbytes = m_ctx->mk_select(mem, mem_alloc, ml_top, m_ctx->mk_bvadd(memcpy_src_expr, offset), memcpy_align_int, false/*, comment_t()*/);
+      expr_ref inbytes = m_ctx->mk_select(mem, mem_alloc, ml_top, m_ctx->mk_exclusive_const(true), m_ctx->mk_bvadd(memcpy_src_expr, offset), memcpy_align_int, false/*, comment_t()*/);
 
       expr_ref out_mem = state_get_expr(state_out, m_mem_reg, this->get_mem_sort());
       expr_ref out_mem_alloc = state_get_expr(state_out, m_mem_alloc_reg, this->get_mem_alloc_sort());
@@ -1202,7 +1202,7 @@ sym_exec_llvm::apply_va_copy_function(const CallInst* c, state const& state_in, 
   unsigned count = get_word_length()/get_memory_addressable_size();
   expr_ref mem_expr = state_get_expr(state_in, m_mem_reg, this->get_mem_sort());
   expr_ref mem_alloc = state_get_expr(state_in, m_mem_alloc_reg, this->get_mem_alloc_sort());
-  expr_ref va_list_expr = m_ctx->mk_select(mem_expr, mem_alloc, ml_top, src_va_list_ptr_expr, count, false);
+  expr_ref va_list_expr = m_ctx->mk_select(mem_expr, mem_alloc, ml_top, m_ctx->mk_exclusive_const(true), src_va_list_ptr_expr, count, false);
   state_set_expr(state_out, m_mem_reg, m_ctx->mk_store(mem_expr, mem_alloc, ml_top, dst_va_list_ptr_expr, va_list_expr, count, false));
 
   return make_pair(assumes, unordered_set<expr_ref>());
@@ -1804,7 +1804,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     size_t addressable_sz = ROUND_UP(value_type->get_size(), get_memory_addressable_size());
     expr_ref mem = state_get_expr(state_in, m_mem_reg, this->get_mem_sort());
     expr_ref mem_alloc = state_get_expr(state_in, m_mem_alloc_reg, this->get_mem_alloc_sort());
-    expr_ref read_value = m_ctx->mk_select(mem, mem_alloc, ml_top, addr, count, false);
+    expr_ref read_value = m_ctx->mk_select(mem, mem_alloc, ml_top, m_ctx->mk_exclusive_const(true), addr, count, false);
 
     transfer_poison_value_on_load(lname, read_value, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map);
 
