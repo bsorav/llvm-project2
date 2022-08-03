@@ -229,7 +229,15 @@ sym_exec_llvm::get_const_value_expr(const llvm::Value& v, string const& vname, c
     sort_ref s = get_type_sort(v.getType(), m_module->getDataLayout());
 
     if (s->is_float_kind()) {
-      float_max_t d = c->getValueAPF().convertToDouble();
+      //float_max_t d = c->getValueAPF().convertToDouble();
+      float_max_t d;
+      if (&c->getValueAPF().getSemantics() == &llvm::APFloat::IEEEdouble()) {
+        d = c->getValueAPF().convertToDouble();
+      } else if (&c->getValueAPF().getSemantics() == &llvm::APFloat::IEEEsingle()) {
+        d = c->getValueAPF().convertToFloat();
+      } else {
+        NOT_IMPLEMENTED();
+      }
       return make_pair(m_ctx->mk_float_const(s->get_size(), d), state_assumes);
       //return make_pair(m_ctx->mk_float_const(ai.getBitWidth(), mbs), state_assumes);
     } else if (s->is_floatx_kind()) {
