@@ -37,6 +37,8 @@ using namespace llvm;
 #include <iostream>
 #include <fstream>
 
+#include "sym_exec_llvm.h"
+
 #include "support/timers.h"
 #include "support/dyn_debug.h"
 #include "support/globals.h"
@@ -49,8 +51,6 @@ using namespace llvm;
 #include "eq/eqcheck.h"
 #include "ptfg/llptfg.h"
 #include "ptfg/function_signature.h"
-
-#include "sym_exec_llvm.h"
 
 using namespace eqspace;
 

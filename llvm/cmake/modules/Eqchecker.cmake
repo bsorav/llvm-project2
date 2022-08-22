@@ -1,4 +1,4 @@
-find_package(Boost REQUIRED COMPONENTS system iostreams serialization)
+find_package(Boost REQUIRED COMPONENTS system iostreams serialization filesystem)
 find_package(yaml-cpp REQUIRED)
 find_program(GIT git)
 

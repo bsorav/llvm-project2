@@ -32,9 +32,11 @@
 #include <system_error>
 #include <utility>
 
+#include "support/stdafx.h"
 #include "support/debug.h"
 #include "support/dyn_debug.h"
 #include "support/utils.h"
+#include "support/str_utils.h"
 
 using namespace clang;
 using namespace driver;
