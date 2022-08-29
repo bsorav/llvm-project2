@@ -504,7 +504,9 @@ sym_exec_llvm::llvm_instruction_get_md5sum_name(Instruction const& I) const
   string istr;
   raw_string_ostream rso(istr);
   rso << I;
-  return m_srcdst_keyword + string("." G_LLVM_PREFIX "-%") + md5_checksum(istr);
+  string csum = md5_checksum(istr);
+  //cout << _FNLN_ << ": istr =\n" << istr << "\ncsum = " << csum << endl;
+  return m_srcdst_keyword + string("." G_LLVM_PREFIX "-%") + csum;
 }
 
 string
