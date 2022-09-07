@@ -1647,10 +1647,12 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
 
     expr_ref mem_e = state_get_expr(state_in, m_mem_reg, this->get_mem_sort());
     expr_ref mem_alloc_e = state_get_expr(state_in, m_mem_alloc_reg, this->get_mem_alloc_sort());
+    string local_alloc_count_ssa_varname = m_ctx->get_local_alloc_count_ssa_varname(this->get_srcdst_keyword(), local_id)->get_str();
+    expr_ref local_alloc_count_ssa_var = state_get_expr(state_in, local_alloc_count_ssa_varname, m_ctx->mk_count_sort());
     // local.<id>            <- alloca_ptr
     // local.alloc.count.ssa <- local.alloc.count
     state_set_expr(state_out, local_addr_key, m_ctx->get_local_ptr_expr_for_id(local_id, local_alloc_count_var, mem_alloc_e, ml_local, local_size_var));
-    state_set_expr(state_out, m_ctx->get_local_alloc_count_ssa_varname(this->get_srcdst_keyword(), local_id)->get_str(), local_alloc_count_var);
+    state_set_expr(state_out, local_alloc_count_ssa_varname, local_alloc_count_var);
     dshared_ptr<tfg_node> intermediate_node1 = get_next_intermediate_subsubindex_pc_node(t, from_node);
     ASSERT(intermediate_node1);
     tfg_edge_ref e1 = mk_tfg_edge(mk_itfg_edge(from_node->get_pc(), intermediate_node1->get_pc(), state_out, expr_true(m_ctx), state_assumes, te_comment));
@@ -1689,7 +1691,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     // mem       <- store_unint
     expr_ref new_mem_alloc = m_ctx->mk_alloca(mem_alloc_e, ml_local, local_addr_var, local_size_var);
     state_set_expr(state_out, m_mem_alloc_reg, new_mem_alloc);
-    state_set_expr(state_out, m_mem_reg, m_ctx->mk_store_uninit(mem_e, new_mem_alloc, ml_local, local_addr_var, local_size_var, local_alloc_count_var));
+    state_set_expr(state_out, m_mem_reg, m_ctx->mk_store_uninit(mem_e, new_mem_alloc, ml_local, local_addr_var, local_size_var, local_alloc_count_ssa_var));
     dshared_ptr<tfg_node> intermediate_node3 = get_next_intermediate_subsubindex_pc_node(t, from_node);
     ASSERT(intermediate_node3);
     tfg_edge_ref e3 = mk_tfg_edge(mk_itfg_edge(from_node->get_pc(), intermediate_node3->get_pc(), state_out, expr_true(m_ctx), state_assumes, te_comment));
