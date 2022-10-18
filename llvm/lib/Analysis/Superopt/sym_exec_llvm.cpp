@@ -1179,7 +1179,7 @@ sym_exec_llvm::apply_va_start_function(const CallInst* c, state const& state_in,
 
   //expr_ref vararg_addr = m_ctx->get_consts_struct().get_expr_value(reg_type_local, graph_locals_map_t::vararg_local_id());
   allocstack_t allocstack = allocstack_t::allocstack_singleton(cur_function_name, graph_locals_map_t::vararg_local_id());
-  expr_ref vararg_addr = m_ctx->get_consts_struct().get_local_addr(reg_type_local, allocstack, m_srcdst_keyword);
+  expr_ref vararg_addr = m_ctx->get_consts_struct().get_local_addr(allocstack, m_srcdst_keyword);
   expr_ref mem_alloc = state_get_expr(state_in, this->m_mem_alloc_reg, this->get_mem_alloc_sort());
   memlabel_t ml_top = memlabel_t::memlabel_top();
   unsigned count = get_word_length()/get_memory_addressable_size();
@@ -1606,7 +1606,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     allocsite_t local_id(from_node->get_pc());
     allocstack_t local_id_stack = allocstack_t::allocstack_singleton(cur_function_name, local_id);
     memlabel_t ml_local = memlabel_t::memlabel_local(local_id_stack);
-    expr_ref local_addr_var = m_cs.get_local_addr(reg_type_local, local_id_stack, m_srcdst_keyword);
+    expr_ref local_addr_var = m_cs.get_local_addr(local_id_stack, m_srcdst_keyword);
 
     string local_addr_key = m_ctx->get_key_from_input_expr(local_addr_var)->get_str();
     m_local_refs.insert(make_pair(local_id, graph_local_t(iname, local_size, align, is_varsize)));
@@ -1657,10 +1657,12 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
 
     expr_ref mem_e = state_get_expr(state_in, m_mem_reg, this->get_mem_sort());
     expr_ref mem_alloc_e = state_get_expr(state_in, m_mem_alloc_reg, this->get_mem_alloc_sort());
+    string local_alloc_count_ssa_varname = m_ctx->get_local_alloc_count_ssa_varname(this->get_srcdst_keyword(), local_id)->get_str();
+    expr_ref local_alloc_count_ssa_var = state_get_expr(state_in, local_alloc_count_ssa_varname, m_ctx->mk_count_sort());
     // local.<id>            <- alloca_ptr
     // local.alloc.count.ssa <- local.alloc.count
     state_set_expr(state_out, local_addr_key, m_ctx->get_local_ptr_expr_for_id(local_id, local_alloc_count_var, mem_alloc_e, ml_local, local_size_var));
-    state_set_expr(state_out, m_ctx->get_local_alloc_count_ssa_varname(this->get_srcdst_keyword(), local_id)->get_str(), local_alloc_count_var);
+    state_set_expr(state_out, local_alloc_count_ssa_varname, local_alloc_count_var);
     dshared_ptr<tfg_node> intermediate_node1 = get_next_intermediate_subsubindex_pc_node(t, from_node);
     ASSERT(intermediate_node1);
     tfg_edge_ref e1 = mk_tfg_edge(mk_itfg_edge(from_node->get_pc(), intermediate_node1->get_pc(), state_out, expr_true(m_ctx), state_assumes, te_comment));
@@ -1699,7 +1701,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     // mem       <- store_unint
     expr_ref new_mem_alloc = m_ctx->mk_alloca(mem_alloc_e, ml_local, local_addr_var, local_size_var);
     state_set_expr(state_out, m_mem_alloc_reg, new_mem_alloc);
-    state_set_expr(state_out, m_mem_reg, m_ctx->mk_store_uninit(mem_e, new_mem_alloc, ml_local, local_addr_var, local_size_var, local_alloc_count_var));
+    state_set_expr(state_out, m_mem_reg, m_ctx->mk_store_uninit(mem_e, new_mem_alloc, ml_local, local_addr_var, local_size_var, local_alloc_count_ssa_var));
     dshared_ptr<tfg_node> intermediate_node3 = get_next_intermediate_subsubindex_pc_node(t, from_node);
     ASSERT(intermediate_node3);
     tfg_edge_ref e3 = mk_tfg_edge(mk_itfg_edge(from_node->get_pc(), intermediate_node3->get_pc(), state_out, expr_true(m_ctx), state_assumes, te_comment));
@@ -4143,7 +4145,7 @@ sym_exec_llvm::sym_exec_populate_potential_scev_relations(Module* M, string cons
 }
 
 dshared_ptr<ftmap_t>
-sym_exec_llvm::get_function_tfg_map(Module* M, set<string> FunNamesVec/*, bool DisableModelingOfUninitVarUB*/, context* ctx, dshared_ptr<llptfg_t const> const& src_llptfg, bool gen_scev, bool model_llvm_semantics, map<llvm_value_id_t, string_ref>* value_to_name_map, context::xml_output_format_t xml_output_format)
+sym_exec_llvm::get_function_tfg_map(Module* M, set<string> FunNamesVec/*, bool DisableModelingOfUninitVarUB*/, context* ctx, dshared_ptr<llptfg_t const> const& src_llptfg, bool gen_scev, bool model_llvm_semantics, bool always_use_call_context_any, map<llvm_value_id_t, string_ref>* value_to_name_map, context::xml_output_format_t xml_output_format)
 {
   //map<string, pair<callee_summary_t, dshared_ptr<tfg_llvm_t>>> function_tfg_map;
   map<call_context_ref, dshared_ptr<tfg_ssa_t>> function_tfg_map;
@@ -4183,13 +4185,13 @@ sym_exec_llvm::get_function_tfg_map(Module* M, set<string> FunNamesVec/*, bool D
     autostop_timer total_timer(string(__func__));
     autostop_timer func_timer(string(__func__) + "." + fname);
 
-    ASSERT(!function_tfg_map.count(call_context_t::empty_call_context(fname)));
+    ASSERT(!function_tfg_map.count(call_context_t::empty_call_context(fname, always_use_call_context_any)));
 
     dshared_ptr<tfg_llvm_t const> src_llvm_tfg = dshared_ptr<tfg_llvm_t const>::dshared_nullptr();
     if (src_llptfg) {
       map<call_context_ref, dshared_ptr<tfg_ssa_t>> const& src_fname_tfg_map = src_llptfg->get_function_tfg_map();
-      if (src_fname_tfg_map.count(call_context_t::empty_call_context(fname))) {
-        src_llvm_tfg = dynamic_pointer_cast<tfg_llvm_t>(src_fname_tfg_map.at(call_context_t::empty_call_context(fname))->get_ssa_tfg());
+      if (src_fname_tfg_map.count(call_context_t::empty_call_context(fname, always_use_call_context_any))) {
+        src_llvm_tfg = dynamic_pointer_cast<tfg_llvm_t>(src_fname_tfg_map.at(call_context_t::empty_call_context(fname, always_use_call_context_any))->get_ssa_tfg());
         ASSERT(src_llvm_tfg);
       }
     }
@@ -4217,7 +4219,7 @@ sym_exec_llvm::get_function_tfg_map(Module* M, set<string> FunNamesVec/*, bool D
 
     //callee_summary_t csum = t_src->get_summary_for_calling_functions();
     //function_tfg_map.insert(make_pair(fname, make_pair(csum, std::move(t_src))));
-    function_tfg_map.insert(make_pair(call_context_t::empty_call_context(fname), t_src_ssa));
+    function_tfg_map.insert(make_pair(call_context_t::empty_call_context(fname, always_use_call_context_any), t_src_ssa));
   }
 
   DYN_DEBUG(get_function_tfg_map_debug,
@@ -4226,7 +4228,7 @@ sym_exec_llvm::get_function_tfg_map(Module* M, set<string> FunNamesVec/*, bool D
       p.second->graph_to_stream(cout); cout << endl;
     }
   );
-  return make_dshared<ftmap_t>(function_tfg_map);
+  return make_dshared<ftmap_t>(function_tfg_map, always_use_call_context_any);
 }
 
 llvm_value_id_t

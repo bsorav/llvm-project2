@@ -44,6 +44,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#define BOOST_BIND_NO_PLACEHOLDERS
 #include "AllocationState.h"
 #include "InterCheckerAPI.h"
 #include "clang/AST/Attr.h"
