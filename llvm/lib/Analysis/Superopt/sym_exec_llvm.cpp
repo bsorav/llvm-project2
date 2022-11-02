@@ -1721,7 +1721,13 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     expr_ref local_size_var = m_ctx->get_local_size_expr_for_id(local_id/*, local_alloc_count_var*/, m_ctx->mk_bv_sort(get_word_length()), m_srcdst_keyword);
     // local_size.id <- size expr
     state_set_expr(state_out, m_ctx->get_key_from_input_expr(local_size_var)->get_str(), local_size_val);
-    dshared_ptr<tfg_node> intermediate_node0 = get_next_intermediate_subsubindex_pc_node(t, from_node);
+
+    pc intermediate_pc0 = t.tfg_get_next_intermediate_pc_for_subsubindex(pc(from_node->get_pc().get_type(), from_node->get_pc().get_index(), from_node->get_pc().get_subindex(), PC_SUBSUBINDEX_ALLOCA_START));
+    ASSERT(t.find_node(intermediate_pc0) == 0);
+    dshared_ptr<tfg_node> intermediate_node0 = make_dshared<tfg_node>(intermediate_pc0);
+    t.add_node(intermediate_node0);
+
+    //dshared_ptr<tfg_node> intermediate_node0 = get_next_intermediate_subsubindex_pc_node(t, from_node);
     ASSERT(intermediate_node0);
     tfg_edge_ref e0 = mk_tfg_edge(mk_itfg_edge(from_node->get_pc(), intermediate_node0->get_pc(), state_out, expr_true(m_ctx), state_assumes, te_comment));
     t.add_edge(e0);
@@ -1739,8 +1745,15 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     // local.alloc.count.ssa <- local.alloc.count
     state_set_expr(state_out, local_addr_key, m_ctx->get_local_ptr_expr_for_id(local_id, local_alloc_count_var, mem_alloc_e, ml_local, local_size_var));
     state_set_expr(state_out, local_alloc_count_ssa_varname, local_alloc_count_var);
-    dshared_ptr<tfg_node> intermediate_node1 = get_next_intermediate_subsubindex_pc_node(t, from_node);
-    ASSERT(intermediate_node1);
+
+    pc intermediate_pc1 = t.tfg_get_next_intermediate_pc_for_subsubindex(pc(from_node->get_pc().get_type(), from_node->get_pc().get_index(), from_node->get_pc().get_subindex(), PC_SUBSUBINDEX_ALLOCA_START));
+    ASSERT(t.find_node(intermediate_pc1) == 0);
+    dshared_ptr<tfg_node> intermediate_node1 = make_dshared<tfg_node>(intermediate_pc1);
+    t.add_node(intermediate_node1);
+
+    //dshared_ptr<tfg_node> intermediate_node1 = get_next_intermediate_subsubindex_pc_node(t, from_node);
+    //ASSERT(intermediate_node1);
+
     tfg_edge_ref e1 = mk_tfg_edge(mk_itfg_edge(from_node->get_pc(), intermediate_node1->get_pc(), state_out, expr_true(m_ctx), state_assumes, te_comment));
     t.add_edge(e1);
 
@@ -1763,8 +1776,15 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     //}
     // <llvm-var> <- local.<id>
     state_set_expr(state_out, iname, local_addr_var);
-    dshared_ptr<tfg_node> intermediate_node2 = get_next_intermediate_subsubindex_pc_node(t, from_node);
-    ASSERT(intermediate_node2);
+
+    pc intermediate_pc2 = t.tfg_get_next_intermediate_pc_for_subsubindex(pc(from_node->get_pc().get_type(), from_node->get_pc().get_index(), from_node->get_pc().get_subindex(), PC_SUBSUBINDEX_ALLOCA_START));
+    ASSERT(t.find_node(intermediate_pc2) == 0);
+    dshared_ptr<tfg_node> intermediate_node2 = make_dshared<tfg_node>(intermediate_pc2);
+    t.add_node(intermediate_node2);
+
+    //dshared_ptr<tfg_node> intermediate_node2 = get_next_intermediate_subsubindex_pc_node(t, from_node);
+    //ASSERT(intermediate_node2);
+
     tfg_edge_ref e2 = mk_tfg_edge(mk_itfg_edge(from_node->get_pc(), intermediate_node2->get_pc(), state_out, expr_true(m_ctx), state_assumes, te_comment));
     t.add_edge(e2);
 
@@ -1778,8 +1798,15 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     expr_ref new_mem_alloc = m_ctx->mk_alloca(mem_alloc_e, ml_local, local_addr_var, local_size_var);
     state_set_expr(state_out, m_mem_alloc_reg, new_mem_alloc);
     state_set_expr(state_out, m_mem_reg, m_ctx->mk_store_uninit(mem_e, new_mem_alloc, ml_local, local_addr_var, local_size_var, local_alloc_count_ssa_var));
-    dshared_ptr<tfg_node> intermediate_node3 = get_next_intermediate_subsubindex_pc_node(t, from_node);
-    ASSERT(intermediate_node3);
+
+    pc intermediate_pc3 = t.tfg_get_next_intermediate_pc_for_subsubindex(pc(from_node->get_pc().get_type(), from_node->get_pc().get_index(), from_node->get_pc().get_subindex(), PC_SUBSUBINDEX_ALLOCA_START));
+    ASSERT(t.find_node(intermediate_pc3) == 0);
+    dshared_ptr<tfg_node> intermediate_node3 = make_dshared<tfg_node>(intermediate_pc3);
+    t.add_node(intermediate_node3);
+
+    //dshared_ptr<tfg_node> intermediate_node3 = get_next_intermediate_subsubindex_pc_node(t, from_node);
+    //ASSERT(intermediate_node3);
+
     tfg_edge_ref e3 = mk_tfg_edge(mk_itfg_edge(from_node->get_pc(), intermediate_node3->get_pc(), state_out, expr_true(m_ctx), state_assumes, te_comment));
     t.add_edge(e3);
 
