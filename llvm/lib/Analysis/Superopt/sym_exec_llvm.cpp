@@ -1083,6 +1083,82 @@ sym_exec_llvm::exec_gen_expr_casts(const llvm::CastInst& I, expr_ref arg, unorde
 }
 
 pair<unordered_set<expr_ref>,unordered_set<expr_ref>>
+sym_exec_llvm::apply_memset_function(const CallInst* c, expr_ref fun_name_expr, string const &fun_name, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, Function *F, state const &state_in, state &state_out, unordered_set<expr_ref> const& state_assumes, string const &cur_function_name, dshared_ptr<tfg_node> &from_node, bool model_llvm_semantics, llvm::Function const &curF, tfg &t/*, map<string, pair<callee_summary_t, dshared_ptr<tfg_llvm_t>>> *function_tfg_map*/, map<llvm_value_id_t, string_ref>* value_to_name_map/*, set<string> const *function_call_chain*/, map<string, value_scev_map_t> const& scev_map, context::xml_output_format_t xml_output_format)
+{
+  const auto& memset_dst = c->getArgOperand(0);
+  const auto& memset_val = c->getArgOperand(1);
+  const auto& memset_nbytes = c->getArgOperand(2);
+  const auto& memset_volatile = c->getArgOperand(3);
+
+  pc const &from_pc = from_node->get_pc();
+  unordered_set<expr_ref> assumes = state_assumes;
+  expr_ref memset_dst_expr, memset_val_expr, memset_nbytes_expr, memset_volatile_expr;
+
+  tie(memset_dst_expr, assumes)    = get_expr_adding_edges_for_intermediate_vals(*memset_dst, "", state_out, assumes, from_node, model_llvm_semantics, t, value_to_name_map);
+  tie(memset_val_expr, assumes)    = get_expr_adding_edges_for_intermediate_vals(*memset_val, "", state_out, assumes, from_node, model_llvm_semantics, t, value_to_name_map);
+  tie(memset_nbytes_expr, assumes)  = get_expr_adding_edges_for_intermediate_vals(*memset_nbytes, "", state_out, assumes, from_node, model_llvm_semantics, t, value_to_name_map);
+	tie(memset_volatile_expr, assumes)  = get_expr_adding_edges_for_intermediate_vals(*memset_volatile, "", state_out, assumes, from_node, model_llvm_semantics, t, value_to_name_map);
+
+  unordered_set<expr_ref> succ_assumes;
+  if (memset_nbytes_expr->is_const()) {
+    uint64_t memset_align_int = F->getParamAlign(0).valueOrOne().value();
+    DYN_DEBUG(llvm2tfg_memset, cout << "memset_align_int = " << memset_align_int << endl);
+    int count = memset_nbytes_expr->get_int64_value();
+    if (count != 0) {
+      expr_ref const& dst_isaligned_assume = m_ctx->mk_islangaligned(memset_dst_expr, memset_align_int);
+      add_state_assume("", dst_isaligned_assume, state_in, assumes, from_node, model_llvm_semantics, t, value_to_name_map);
+    }
+    pc cur_pc = from_node->get_pc();
+    dshared_ptr<tfg_node> intermediate_node = get_next_intermediate_subsubindex_pc_node(t, from_node);
+    shared_ptr<tfg_edge const> e = mk_tfg_edge(mk_itfg_edge(cur_pc, intermediate_node->get_pc(), state_out, expr_true(m_ctx), assumes, this->instruction_to_te_comment(*c, from_pc)));
+    t.add_edge(e);
+    DYN_DEBUG(llvm2tfg_memset, cout << "added edge " << e->to_string_concise() << " for alignment assume" << endl);
+    cur_pc = intermediate_node->get_pc();
+
+    for (int i = 0; i < count; i += memset_align_int) {
+      state_out = state_in;
+
+      expr_ref offset = m_ctx->mk_bv_const(get_word_length(), i);
+      //expr_ref mem = state_get_expr(state_out, m_mem_reg, this->get_mem_sort());
+      //expr_ref mem_alloc = state_get_expr(state_out, m_mem_alloc_reg, this->get_mem_alloc_sort());
+      //expr_ref inbytes = m_ctx->mk_select(mem, mem_alloc, memlabel_t::memlabel_top(), m_ctx->mk_bvadd(memcpy_src_expr, offset), memcpy_align_int, false/*, comment_t()*/);
+      ASSERT(memset_val_expr->is_bv_sort());
+      if (memset_align_int * BYTE_LEN != memset_val_expr->get_sort()->get_size()) {
+        cout << _FNLN_ << ":\nmemset_align_int = " << memset_align_int << endl;
+        cout << "memset_val_expr =\n" << m_ctx->expr_to_string_table(memset_val_expr) << endl;
+      }
+      ASSERT(memset_align_int * BYTE_LEN == memset_val_expr->get_sort()->get_size());
+      expr_ref inbytes = memset_val_expr;
+
+      expr_ref out_mem = state_get_expr(state_out, m_mem_reg, this->get_mem_sort());
+      expr_ref out_mem_alloc = state_get_expr(state_out, m_mem_alloc_reg, this->get_mem_alloc_sort());
+      out_mem = m_ctx->mk_store(out_mem, out_mem_alloc, memlabel_t::memlabel_top(), m_ctx->mk_bvadd(memset_dst_expr, offset), inbytes, memset_align_int, false);
+      state_set_expr(state_out, m_mem_reg, out_mem);
+      if (   !memset_volatile_expr->is_const()
+          || (memset_volatile_expr->is_bv_sort() && memset_volatile_expr != m_ctx->mk_zerobv(memset_volatile_expr->get_sort()->get_size()))
+          || (memset_volatile_expr->is_bool_sort() && memset_volatile_expr != expr_false(m_ctx))) {
+        cout << _FNLN_ << ": memset_volatile_expr =\n" << m_ctx->expr_to_string_table(memset_volatile_expr) << endl;
+        NOT_IMPLEMENTED(); //have not implemented support for volatile memset yet
+      }
+
+      dshared_ptr<tfg_node> intermediate_node = get_next_intermediate_subsubindex_pc_node(t, from_node);
+
+      shared_ptr<tfg_edge const> e = mk_tfg_edge(mk_itfg_edge(cur_pc, intermediate_node->get_pc(), state_out, expr_true(m_ctx), {}, this->instruction_to_te_comment(*c, from_pc)));
+      t.add_edge(e);
+      DYN_DEBUG(llvm2tfg_memset, cout << "added edge " << e->to_string_concise() << " for memset of bytes " << i << "-" << (i+memset_align_int-1) << endl);
+      cur_pc = intermediate_node->get_pc();
+    }
+    state_out = state_in;
+    from_node = t.find_node(cur_pc);
+    ASSERT(from_node);
+  } else {
+    DYN_DEBUG(llvm2tfg_memset, cout << __func__ << " " << __LINE__ << ": memset_nbytes_expr = " << expr_string(memset_nbytes_expr) << endl);
+    tie(assumes, succ_assumes) = apply_general_function(c, fun_name_expr, fun_name, src_llvm_tfg, F, state_in, state_out, assumes, cur_function_name, from_node, model_llvm_semantics, t/*, function_tfg_map*/, value_to_name_map/*, function_call_chain*/, scev_map, xml_output_format);
+  }
+  return make_pair(state_assumes, succ_assumes);
+}
+
+pair<unordered_set<expr_ref>,unordered_set<expr_ref>>
 sym_exec_llvm::apply_memcpy_function(const CallInst* c, expr_ref fun_name_expr, string const &fun_name, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, Function *F, state const &state_in, state &state_out, unordered_set<expr_ref> const& state_assumes, string const &cur_function_name, dshared_ptr<tfg_node> &from_node, bool model_llvm_semantics, llvm::Function const &curF, tfg &t/*, map<string, pair<callee_summary_t, dshared_ptr<tfg_llvm_t>>> *function_tfg_map*/, map<llvm_value_id_t, string_ref>* value_to_name_map/*, set<string> const *function_call_chain*/, map<string, value_scev_map_t> const& scev_map, context::xml_output_format_t xml_output_format)
 {
   const auto& memcpy_dst = c->getArgOperand(0);
@@ -1909,9 +1985,12 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
       fun_expr = m_ctx->mk_var(fun_name, m_ctx->mk_bv_sort(get_word_length()));
     }
     string memcpy_fn = LLVM_FUNCTION_NAME_PREFIX G_LLVM_MEMCPY_FUNCTION;
+    string memset_fn = LLVM_FUNCTION_NAME_PREFIX G_LLVM_MEMSET_FUNCTION;
     unordered_set<expr_ref> succ_assumes;
     if (fun_name.substr(0, memcpy_fn.length()) == memcpy_fn) {
       tie(state_assumes, succ_assumes) = apply_memcpy_function(c, fun_expr, fun_name, src_llvm_tfg, calleeF, state_in, state_out, state_assumes, cur_function_name, from_node, model_llvm_semantics, F, t/*, function_tfg_map*/, value_to_name_map/*, function_call_chain*/, scev_map, xml_output_format);
+    } else if (fun_name.substr(0, memset_fn.length()) == memset_fn) {
+      tie(state_assumes, succ_assumes) = apply_memset_function(c, fun_expr, fun_name, src_llvm_tfg, calleeF, state_in, state_out, state_assumes, cur_function_name, from_node, model_llvm_semantics, F, t/*, function_tfg_map*/, value_to_name_map/*, function_call_chain*/, scev_map, xml_output_format);
     } else if (fun_name == LLVM_FUNCTION_NAME_PREFIX G_LLVM_VA_START_FUNCTION) {
       tie(state_assumes, succ_assumes) = apply_va_start_function(c, state_in, state_out, state_assumes, cur_function_name, from_node, model_llvm_semantics, t, value_to_name_map);
     } else if (fun_name == LLVM_FUNCTION_NAME_PREFIX G_LLVM_VA_COPY_FUNCTION) {
