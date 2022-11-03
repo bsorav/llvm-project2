@@ -1744,7 +1744,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     // local.<id>            <- alloca_ptr
     // local.alloc.count.ssa <- local.alloc.count
     state_set_expr(state_out, local_addr_key, m_ctx->get_local_ptr_expr_for_id(local_id, local_alloc_count_var, mem_alloc_e, ml_local, local_size_var));
-    state_set_expr(state_out, local_alloc_count_ssa_varname, local_alloc_count_var);
+    state_set_expr(state_out, local_alloc_count_ssa_varname, local_alloc_count_var); //XXX: doesn't this amount to a no-op?
 
     pc intermediate_pc1 = t.tfg_get_next_intermediate_pc_for_subsubindex(pc(from_node->get_pc().get_type(), from_node->get_pc().get_index(), from_node->get_pc().get_subindex(), PC_SUBSUBINDEX_ALLOCA_START));
     ASSERT(t.find_node(intermediate_pc1) == 0);
