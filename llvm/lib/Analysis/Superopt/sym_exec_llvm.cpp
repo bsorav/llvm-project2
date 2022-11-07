@@ -3804,39 +3804,8 @@ sym_exec_common::get_symbol_map_and_string_contents(Module const *M, list<pair<s
     //cout << __func__ << " " << __LINE__ << ": symbol_is_constant = " << symbol_is_constant << endl;
     smap.insert(make_pair(symbol_id, graph_symbol_t(mk_string_ref(name), symbol_size, symbol_alignment, symbol_is_constant)));
     if (symbol_is_constant && cv->hasInitializer()) {
-      StringRef str;
-      const ConstantDataArray *Array;
-      const ConstantInt *Int;
-
-      //cout << __func__ << " " << __LINE__ << ": Array = " << Array << endl;
-      //XXX: handle all cases using lib/IR/AsmWriter.cpp:WriteConstantInternal()
-      if ((Array = dyn_cast<ConstantDataArray>(cv->getInitializer()))/* && Array->isString()*/) {
-        // Get the number of elements in the array
-        //uint64_t NumElts = Array->getType()->getArrayNumElements();
-
-        // Start out with the entire array in the StringRef.
-        //str = Array->getAsString();
-        str = Array->getRawDataValues();
-        //cout << __func__ << " " << __LINE__ << ": name = " << name << ", str = " << str.data() << "\n";
-        //m_string_contents[name] = str;
-        vector<char> v;
-        for (size_t i = 0; i < str.size(); i++) {
-          v.push_back(str[i]);
-        }
-        scontents[make_pair(symbol_id, 0)] = v;
-      } else if ((Int = dyn_cast<ConstantInt>(cv->getInitializer()))) {
-        unsigned bitwidth = Int->getBitWidth();
-        ASSERT(bitwidth <= QWORD_LEN);
-        ASSERT((bitwidth % BYTE_LEN) == 0);
-        uint64_t val = Int->getZExtValue();
-        vector<char> v;
-        for (unsigned i = 0; i < bitwidth; i += BYTE_LEN) {
-          v.push_back(val & MAKE_MASK(BYTE_LEN));
-          val = val >> BYTE_LEN;
-        }
-        //cout << __func__ << " " << __LINE__ << ": name = " << name << ", str = " << str.data() << ", val = " << val << ", bitwidth = " << bitwidth << "\n";
-        scontents[make_pair(symbol_id, 0)] = v;
-      }
+      vector<char> v = get_constant_bytes(cv->getInitializer());
+      scontents[make_pair(symbol_id, 0)] = v;
     }
     symbol_id++;
   }
@@ -3847,6 +3816,55 @@ sym_exec_common::get_symbol_map_and_string_contents(Module const *M, list<pair<s
   }
   ASSERT(symbol_id < NUM_CANON_SYMBOLS);
   return make_pair(smap, scontents);
+}
+
+vector<char>
+sym_exec_common::get_constant_bytes(Constant const* c)
+{
+  const ConstantDataArray *Array;
+  const ConstantInt *Int;
+  const ConstantStruct *Struct;
+
+  //cout << __func__ << " " << __LINE__ << ": Array = " << Array << endl;
+  //XXX: handle all cases using lib/IR/AsmWriter.cpp:WriteConstantInternal()
+  if ((Array = dyn_cast<ConstantDataArray>(c))/* && Array->isString()*/) {
+    // Get the number of elements in the array
+    //uint64_t NumElts = Array->getType()->getArrayNumElements();
+
+    // Start out with the entire array in the StringRef.
+    //str = Array->getAsString();
+    StringRef str;
+    str = Array->getRawDataValues();
+    //cout << __func__ << " " << __LINE__ << ": name = " << name << ", str = " << str.data() << "\n";
+    //m_string_contents[name] = str;
+    vector<char> v;
+    for (size_t i = 0; i < str.size(); i++) {
+      v.push_back(str[i]);
+    }
+    return v;
+  } else if ((Int = dyn_cast<ConstantInt>(c))) {
+    unsigned bitwidth = Int->getBitWidth();
+    ASSERT(bitwidth <= QWORD_LEN);
+    ASSERT((bitwidth % BYTE_LEN) == 0);
+    uint64_t val = Int->getZExtValue();
+    vector<char> v;
+    for (unsigned i = 0; i < bitwidth; i += BYTE_LEN) {
+      v.push_back(val & MAKE_MASK(BYTE_LEN));
+      val = val >> BYTE_LEN;
+    }
+    //cout << __func__ << " " << __LINE__ << ": name = " << name << ", str = " << str.data() << ", val = " << val << ", bitwidth = " << bitwidth << "\n";
+    return v;
+  } else if ((Struct = dyn_cast<ConstantStruct>(c))/* && Array->isString()*/) {
+    vector<char> v;
+    for (size_t i = 0; i < Struct->getNumOperands(); i++) {
+      Constant* field = Struct->getAggregateElement(i);
+      vector<char> fv = get_constant_bytes(field);
+      vector_append(v, fv);
+    }
+    return v;
+  } else {
+    NOT_IMPLEMENTED();
+  }
 }
 
 graph_symbol_map_t

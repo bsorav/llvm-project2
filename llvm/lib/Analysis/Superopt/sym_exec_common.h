@@ -71,6 +71,7 @@ public:
   static string get_value_name_using_srcdst_keyword(const llvm::Value& v, string const& srcdst_keyword);
   static list<pair<string, unsigned>> get_fun_names(llvm::Module const *M);
   static pair<graph_symbol_map_t, map<pair<symbol_id_t, offset_t>, vector<char>>> get_symbol_map_and_string_contents(llvm::Module const *M, list<pair<string, unsigned>> const &fun_names, dshared_ptr<tfg_llvm_t const> src_llvm_tfg);
+  static vector<char> get_constant_bytes(llvm::Constant const* c);
   static graph_symbol_map_t get_symbol_map(llvm::Module const *M, dshared_ptr<tfg_llvm_t const> src_llvm_tfg);
   static map<pair<symbol_id_t, offset_t>, vector<char>> get_string_contents(llvm::Module const *M, dshared_ptr<tfg_llvm_t const> src_llvm_tfg);
   static unsigned get_num_insn(const llvm::Function& f);
