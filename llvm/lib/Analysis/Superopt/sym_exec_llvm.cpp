@@ -3780,14 +3780,10 @@ sym_exec_common::get_symbol_map_and_string_contents(Module const *M, list<pair<s
   for (auto &g : M->getGlobalList()) {
     const DataLayout &dl = M->getDataLayout();
     Type *ElTy = g.getType()->getElementType();
-    /*if (   ElTy->getTypeID() == Type::FunctionTyID
-        || (   ElTy->getTypeID() == Type::PointerTyID
-            && cast<PointerType>(ElTy)->getElementType()->getTypeID() == Type::FunctionTyID)) {
-      continue;
-    }*/
     uint64_t symbol_size = 0;
     unsigned symbol_alignment = 0;
     bool symbol_is_constant = false;
+    bool symbol_is_function = false;
     assert(g.hasName());
     string name = sym_exec_llvm::get_value_name_using_srcdst_keyword(g, G_SRC_KEYWORD);
     ASSERT(name.substr(0, strlen(LLVM_GLOBAL_VARNAME_PREFIX)) == LLVM_GLOBAL_VARNAME_PREFIX);
@@ -3800,9 +3796,14 @@ sym_exec_common::get_symbol_map_and_string_contents(Module const *M, list<pair<s
     symbol_size = dl.getTypeAllocSize(ElTy);
     symbol_alignment = dl.getPreferredAlignment(cv);
     symbol_is_constant = cv->isConstant();
+    if (   ElTy->getTypeID() == Type::FunctionTyID
+        || (   ElTy->getTypeID() == Type::PointerTyID
+            && cast<PointerType>(ElTy)->getElementType()->getTypeID() == Type::FunctionTyID)) {
+      symbol_is_function = true;
+    }
     symbol_id = get_symbol_id_for_name(name, src_llvm_tfg, symbol_id);
     //cout << __func__ << " " << __LINE__ << ": symbol_is_constant = " << symbol_is_constant << endl;
-    smap.insert(make_pair(symbol_id, graph_symbol_t(mk_string_ref(name), symbol_size, symbol_alignment, symbol_is_constant)));
+    smap.insert(make_pair(symbol_id, graph_symbol_t(mk_string_ref(name), symbol_size, symbol_alignment, symbol_is_constant, symbol_is_function)));
     if (symbol_is_constant && cv->hasInitializer()) {
       vector<char> v = get_constant_bytes(cv->getInitializer());
       scontents[make_pair(symbol_id, 0)] = v;
@@ -3811,7 +3812,7 @@ sym_exec_common::get_symbol_map_and_string_contents(Module const *M, list<pair<s
   }
   for (const auto &fun_name : fun_names) {
     symbol_id = get_symbol_id_for_name(fun_name.first, src_llvm_tfg, symbol_id);
-    smap.insert(make_pair(symbol_id, graph_symbol_t(mk_string_ref(fun_name.first), fun_name.second, ALIGNMENT_FOR_FUNCTION_SYMBOL, false)));
+    smap.insert(make_pair(symbol_id, graph_symbol_t(mk_string_ref(fun_name.first), fun_name.second, ALIGNMENT_FOR_FUNCTION_SYMBOL, false, true)));
     symbol_id++;
   }
   ASSERT(symbol_id < NUM_CANON_SYMBOLS);
