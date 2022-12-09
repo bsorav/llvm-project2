@@ -639,8 +639,9 @@ static inline void AdjustStackOffset(MachineFrameInfo &MFI, int FrameIdx,
                                      bool StackGrowsDown, int64_t &Offset,
                                      Align &MaxAlign, unsigned Skew) {
   // If the stack grows down, add the object size to find the lowest address.
+  auto ObjSz = MFI.getObjectSize(FrameIdx);
   if (StackGrowsDown)
-    Offset += MFI.getObjectSize(FrameIdx);
+    Offset += ObjSz;
 
   Align Alignment = MFI.getObjectAlign(FrameIdx);
 
@@ -652,18 +653,18 @@ static inline void AdjustStackOffset(MachineFrameInfo &MFI, int FrameIdx,
   Offset = alignTo(Offset, Alignment, Skew);
 
   if (StackGrowsDown) {
-    LLVM_DEBUG(dbgs() << "alloc FI(" << FrameIdx << ") at SP[" << -Offset
+    LLVM_DEBUG(dbgs() << "alloc FI(" << FrameIdx << ") of size " << ObjSz << " at SP[" << -Offset
                       << "]\n");
-    errs() << _FNLN_ << ": alloc FI(" << FrameIdx << ") at SP[" << -Offset
+    errs() << _FNLN_ << ": alloc FI(" << FrameIdx << ") of size " << ObjSz << " at SP[" << -Offset
                       << "]\n";
     MFI.setObjectOffset(FrameIdx, -Offset); // Set the computed offset
   } else {
-    LLVM_DEBUG(dbgs() << "alloc FI(" << FrameIdx << ") at SP[" << Offset
+    LLVM_DEBUG(dbgs() << "alloc FI(" << FrameIdx << ") of size " << ObjSz << " at SP[" << Offset
                       << "]\n");
-    errs() << _FNLN_ << ": alloc FI(" << FrameIdx << ") at SP[" << Offset
+    errs() << _FNLN_ << ": alloc FI(" << FrameIdx << ") of size " << ObjSz << " at SP[" << Offset
                       << "]\n";
     MFI.setObjectOffset(FrameIdx, Offset);
-    Offset += MFI.getObjectSize(FrameIdx);
+    Offset += ObjSz;
   }
 }
 
