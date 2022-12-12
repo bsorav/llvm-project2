@@ -3792,8 +3792,8 @@ sym_exec_common::get_symbol_map_and_string_contents(Module const *M, list<pair<s
     string name = sym_exec_llvm::get_value_name_using_srcdst_keyword(g, G_SRC_KEYWORD);
     ASSERT(name.substr(0, strlen(LLVM_GLOBAL_VARNAME_PREFIX)) == LLVM_GLOBAL_VARNAME_PREFIX);
     name = name.substr(strlen(LLVM_GLOBAL_VARNAME_PREFIX));
-    //cout << __func__ << " " << __LINE__ << ": symbol_id = " << symbol_id << endl;
-    //cout << __func__ << " " << __LINE__ << ": name = " << name << endl;
+    DYN_DEBUG(llvm2tfg, cout << __func__ << " " << __LINE__ << ": symbol_id = " << symbol_id << endl);
+    DYN_DEBUG(llvm2tfg, cout << __func__ << " " << __LINE__ << ": name = " << name << endl);
     //cout << __func__ << " " << __LINE__ << ": ElTyID = " << ElTy->getTypeID() << endl;
     const GlobalVariable *cv = dyn_cast<const GlobalVariable>(&g);
     ASSERT(cv);
@@ -3821,20 +3821,22 @@ sym_exec_common::get_symbol_map_and_string_contents(Module const *M, list<pair<s
 vector<char>
 sym_exec_common::get_constant_bytes(Constant const* c)
 {
-  const ConstantDataArray *Array;
+  const ConstantDataSequential *Sequential;
   const ConstantInt *Int;
   const ConstantStruct *Struct;
+  const ConstantFP *FP;
+  const ConstantAggregateZero *Zero;
 
   //cout << __func__ << " " << __LINE__ << ": Array = " << Array << endl;
   //XXX: handle all cases using lib/IR/AsmWriter.cpp:WriteConstantInternal()
-  if ((Array = dyn_cast<ConstantDataArray>(c))/* && Array->isString()*/) {
+  if ((Sequential = dyn_cast<ConstantDataSequential>(c))/* && Array->isString()*/) {
     // Get the number of elements in the array
     //uint64_t NumElts = Array->getType()->getArrayNumElements();
 
     // Start out with the entire array in the StringRef.
     //str = Array->getAsString();
     StringRef str;
-    str = Array->getRawDataValues();
+    str = Sequential->getRawDataValues();
     //cout << __func__ << " " << __LINE__ << ": name = " << name << ", str = " << str.data() << "\n";
     //m_string_contents[name] = str;
     vector<char> v;
@@ -3862,6 +3864,27 @@ sym_exec_common::get_constant_bytes(Constant const* c)
       vector_append(v, fv);
     }
     return v;
+  } else if ((Zero = dyn_cast<ConstantAggregateZero>(c))) {
+    //dbgs() << "zero element\n";
+    unsigned elemNum = Zero->getNumElements();
+    vector<char> v;
+    for (size_t i = 0; i < elemNum; i++) {
+      Constant* ZSeq = Zero->getSequentialElement();
+      ASSERT(ZSeq);
+      //Constant* ZStruct = Zero->getStructElement(i);
+      //ASSERT(!ZSeq || !ZStruct);
+      vector<char> fv;
+      if (ZSeq) {
+        fv = get_constant_bytes(ZSeq);
+      /*} else if (ZStruct) {
+        fv = get_constant_bytes(ZStruct);*/
+      } else NOT_REACHED();
+      vector_append(v, fv);
+    }
+    return v;
+  } else if ((FP = dyn_cast<ConstantFP>(c))/* && Array->isString()*/) {
+    dbgs() << _FNLN_ << ": Unhandled FP constant\n";
+    NOT_IMPLEMENTED();
   } else {
     NOT_IMPLEMENTED();
   }
