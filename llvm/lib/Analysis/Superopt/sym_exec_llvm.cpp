@@ -3024,6 +3024,8 @@ sym_exec_llvm::get_tfg(llvm::Function& F, llvm::Module const *M, string const &n
   //t->set_symbol_map_for_touched_symbols(*se.m_symbol_map, se.m_touched_symbols);
   //t->set_string_contents_for_touched_symbols_at_zero_offset(*se.m_string_contents, se.m_touched_symbols);
 
+  t->tfg_set_touched_symbols(se.m_touched_symbols);
+
   set<symbol_id_t> all_symbols = map_get_keys(se.m_symbol_map->get_map());
   t->set_symbol_map_for_touched_symbols(*se.m_symbol_map, all_symbols);
   t->set_string_contents_for_touched_symbols_at_zero_offset(*se.m_string_contents, all_symbols);
