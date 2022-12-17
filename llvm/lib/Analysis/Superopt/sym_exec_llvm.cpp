@@ -195,7 +195,7 @@ expr_ref
 sym_exec_common::get_symbol_expr_for_global_var(string const &name, sort_ref const &sr)
 {
   expr_ref ret;
-  for (const auto &s : m_symbol_map->get_map()) {
+  for (const auto &s : *m_symbol_map) {
     if (s.second.get_name()->get_str() == name) {
       symbol_id_t symbol_id = s.first;
       stringstream ss;
@@ -3024,10 +3024,14 @@ sym_exec_llvm::get_tfg(llvm::Function& F, llvm::Module const *M, string const &n
   //t->set_symbol_map_for_touched_symbols(*se.m_symbol_map, se.m_touched_symbols);
   //t->set_string_contents_for_touched_symbols_at_zero_offset(*se.m_string_contents, se.m_touched_symbols);
 
-  t->tfg_set_touched_symbols(se.m_touched_symbols);
+  map<symbol_id_t, graph_symbol_t> syms = *se.m_symbol_map;
+  //t->tfg_set_touched_symbols(se.m_touched_symbols);
+  //symbol_map.graph_symbol_map_set_touched_symbols(se.m_touched_symbols);
 
-  set<symbol_id_t> all_symbols = map_get_keys(se.m_symbol_map->get_map());
-  t->set_symbol_map_for_touched_symbols(*se.m_symbol_map, all_symbols);
+  graph_symbol_map_t symbol_map = graph_symbol_map_t::create_graph_symbol_map(syms, se.m_touched_symbols);
+
+  set<symbol_id_t> all_symbols = map_get_keys(symbol_map.get_map());
+  t->set_symbol_map_for_touched_symbols(symbol_map, all_symbols);
   t->set_string_contents_for_touched_symbols_at_zero_offset(*se.m_string_contents, all_symbols);
 
   t->remove_function_name_from_symbols(name);
@@ -3773,10 +3777,10 @@ sym_exec_common::get_symbol_id_for_name(string const& name, dshared_ptr<tfg_llvm
   }
 }
 
-pair<graph_symbol_map_t, map<pair<symbol_id_t, offset_t>, vector<char>>>
+pair<map<symbol_id_t, graph_symbol_t>, map<pair<symbol_id_t, offset_t>, vector<char>>>
 sym_exec_common::get_symbol_map_and_string_contents(Module const *M, list<pair<string, unsigned>> const &fun_names, dshared_ptr<tfg_llvm_t const> src_llvm_tfg)
 {
-  graph_symbol_map_t smap;
+  map<symbol_id_t, graph_symbol_t> smap;
   map<pair<symbol_id_t, offset_t>, vector<char>> scontents;
   symbol_id_t symbol_id = 1;
   for (auto &g : M->getGlobalList()) {
@@ -3804,7 +3808,8 @@ sym_exec_common::get_symbol_map_and_string_contents(Module const *M, list<pair<s
     symbol_is_constant = cv->isConstant();
     symbol_id = get_symbol_id_for_name(name, src_llvm_tfg, symbol_id);
     //cout << __func__ << " " << __LINE__ << ": symbol_is_constant = " << symbol_is_constant << endl;
-    smap.insert(make_pair(symbol_id, graph_symbol_t(mk_string_ref(name), symbol_size, symbol_alignment, symbol_is_constant)));
+    bool inserted = smap.insert(make_pair(symbol_id, graph_symbol_t(mk_string_ref(name), symbol_size, symbol_alignment, symbol_is_constant))).second;
+    ASSERT(inserted);
     if (symbol_is_constant && cv->hasInitializer()) {
       vector<char> v = get_constant_bytes(cv->getInitializer());
       scontents[make_pair(symbol_id, 0)] = v;
@@ -3813,7 +3818,8 @@ sym_exec_common::get_symbol_map_and_string_contents(Module const *M, list<pair<s
   }
   for (const auto &fun_name : fun_names) {
     symbol_id = get_symbol_id_for_name(fun_name.first, src_llvm_tfg, symbol_id);
-    smap.insert(make_pair(symbol_id, graph_symbol_t(mk_string_ref(fun_name.first), fun_name.second, ALIGNMENT_FOR_FUNCTION_SYMBOL, false)));
+    bool inserted = smap.insert(make_pair(symbol_id, graph_symbol_t(mk_string_ref(fun_name.first), fun_name.second, ALIGNMENT_FOR_FUNCTION_SYMBOL, false))).second;
+    ASSERT(inserted);
     symbol_id++;
   }
   ASSERT(symbol_id < NUM_CANON_SYMBOLS);
@@ -3892,12 +3898,12 @@ sym_exec_common::get_constant_bytes(Constant const* c)
   }
 }
 
-graph_symbol_map_t
-sym_exec_common::get_symbol_map(Module const *M, dshared_ptr<tfg_llvm_t const> src_llvm_tfg)
+map<symbol_id_t, graph_symbol_t>
+sym_exec_common::sym_exec_get_symbol_map(Module const *M, dshared_ptr<tfg_llvm_t const> src_llvm_tfg)
 {
   list<pair<string, unsigned>> fun_names = get_fun_names(M);
 
-  pair<graph_symbol_map_t, map<pair<symbol_id_t, offset_t>, vector<char>>> pr = get_symbol_map_and_string_contents(M, fun_names, src_llvm_tfg);
+  pair<map<symbol_id_t, graph_symbol_t>, map<pair<symbol_id_t, offset_t>, vector<char>>> pr = get_symbol_map_and_string_contents(M, fun_names, src_llvm_tfg);
   return pr.first;
 }
 
@@ -3906,7 +3912,7 @@ sym_exec_common::get_string_contents(Module const *M, dshared_ptr<tfg_llvm_t con
 {
   list<pair<string, unsigned>> fun_names = get_fun_names(M);
 
-  pair<graph_symbol_map_t, map<pair<symbol_id_t, offset_t>, vector<char>>> pr = get_symbol_map_and_string_contents(M, fun_names, src_llvm_tfg);
+  pair<map<symbol_id_t, graph_symbol_t>, map<pair<symbol_id_t, offset_t>, vector<char>>> pr = get_symbol_map_and_string_contents(M, fun_names, src_llvm_tfg);
   return pr.second;
 }
 
