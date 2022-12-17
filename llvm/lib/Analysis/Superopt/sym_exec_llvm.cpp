@@ -3028,10 +3028,13 @@ sym_exec_llvm::get_tfg(llvm::Function& F, llvm::Module const *M, string const &n
   //t->tfg_set_touched_symbols(se.m_touched_symbols);
   //symbol_map.graph_symbol_map_set_touched_symbols(se.m_touched_symbols);
 
+  //cout << _FNLN_ << ": touched_symbols size = " << se.m_touched_symbols.size() << endl;
   graph_symbol_map_t symbol_map = graph_symbol_map_t::create_graph_symbol_map(syms, se.m_touched_symbols);
+  //cout << _FNLN_ << ": symbol_map =\n"; symbol_map.graph_symbol_map_to_stream(cout); cout << endl;
 
   set<symbol_id_t> all_symbols = map_get_keys(symbol_map.get_map());
-  t->set_symbol_map_for_touched_symbols(symbol_map, all_symbols);
+  //t->set_symbol_map_for_touched_symbols(symbol_map, all_symbols);
+  t->tfg_set_symbol_map(symbol_map);
   t->set_string_contents_for_touched_symbols_at_zero_offset(*se.m_string_contents, all_symbols);
 
   t->remove_function_name_from_symbols(name);
