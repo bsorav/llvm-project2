@@ -4,7 +4,6 @@
 #include "llvm/IR/PassManager.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Analysis/CallGraphSCCPass.h"
-#include "support/debug.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/Transforms/Utils/Local.h"
 #include "llvm/IR/LegacyPassManager.h"
@@ -13,6 +12,9 @@
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/Analysis/LoopPass.h"
 #include "llvm/IR/Dominators.h"
+
+#include "support/stdafx.h"
+#include "support/debug.h"
 #include "tfg/tfg.h"
 #include "tfg/tfg_llvm.h"
 #include "graph/dfa.h"

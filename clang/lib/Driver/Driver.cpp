@@ -88,6 +88,7 @@
 #include <unistd.h> // getpid
 #include <sysexits.h> // EX_IOERR
 #endif
+#include "support/stdafx.h"
 #include "support/debug.h"
 #include "support/dyn_debug.h"
 

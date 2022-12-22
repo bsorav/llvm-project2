@@ -4,9 +4,6 @@
 #include "llvm/IR/PassManager.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Analysis/CallGraphSCCPass.h"
-#include "support/debug.h"
-#include "support/dyn_debug.h"
-#include "support/utils.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/IRPrintingPasses.h"
@@ -14,6 +11,11 @@
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/InitializePasses.h"
 #include <sstream>
+
+#include "support/stdafx.h"
+#include "support/debug.h"
+#include "support/dyn_debug.h"
+#include "support/utils.h"
 
 using namespace llvm;
 using namespace eqspace;

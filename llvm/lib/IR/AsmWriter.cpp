@@ -85,6 +85,7 @@
 #include <tuple>
 #include <utility>
 #include <vector>
+#include "support/stdafx.h"
 #include "support/utils.h"
 
 using namespace llvm;

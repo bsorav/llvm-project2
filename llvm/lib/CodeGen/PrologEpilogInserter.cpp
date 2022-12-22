@@ -70,6 +70,8 @@
 #include <utility>
 #include <vector>
 
+#include "support/dyn_debug.h"
+
 using namespace llvm;
 
 #define DEBUG_TYPE "prologepilog"
@@ -637,8 +639,9 @@ static inline void AdjustStackOffset(MachineFrameInfo &MFI, int FrameIdx,
                                      bool StackGrowsDown, int64_t &Offset,
                                      Align &MaxAlign, unsigned Skew) {
   // If the stack grows down, add the object size to find the lowest address.
+  auto ObjSz = MFI.getObjectSize(FrameIdx);
   if (StackGrowsDown)
-    Offset += MFI.getObjectSize(FrameIdx);
+    Offset += ObjSz;
 
   Align Alignment = MFI.getObjectAlign(FrameIdx);
 
@@ -650,14 +653,18 @@ static inline void AdjustStackOffset(MachineFrameInfo &MFI, int FrameIdx,
   Offset = alignTo(Offset, Alignment, Skew);
 
   if (StackGrowsDown) {
-    LLVM_DEBUG(dbgs() << "alloc FI(" << FrameIdx << ") at SP[" << -Offset
+    LLVM_DEBUG(dbgs() << "alloc FI(" << FrameIdx << ") of size " << ObjSz << " at SP[" << -Offset
                       << "]\n");
+    errs() << _FNLN_ << ": alloc FI(" << FrameIdx << ") of size " << ObjSz << " at SP[" << -Offset
+                      << "]\n";
     MFI.setObjectOffset(FrameIdx, -Offset); // Set the computed offset
   } else {
-    LLVM_DEBUG(dbgs() << "alloc FI(" << FrameIdx << ") at SP[" << Offset
+    LLVM_DEBUG(dbgs() << "alloc FI(" << FrameIdx << ") of size " << ObjSz << " at SP[" << Offset
                       << "]\n");
+    errs() << _FNLN_ << ": alloc FI(" << FrameIdx << ") of size " << ObjSz << " at SP[" << Offset
+                      << "]\n";
     MFI.setObjectOffset(FrameIdx, Offset);
-    Offset += MFI.getObjectSize(FrameIdx);
+    Offset += ObjSz;
   }
 }
 
@@ -753,10 +760,14 @@ static inline bool scavengeStackSlot(MachineFrameInfo &MFI, int FrameIdx,
     int ObjStart = -(FreeStart + ObjSize);
     LLVM_DEBUG(dbgs() << "alloc FI(" << FrameIdx << ") scavenged at SP["
                       << ObjStart << "]\n");
+    //errs() << _FNLN_ << ": alloc FI(" << FrameIdx << ") scavenged at SP["
+    //                  << ObjStart << "]\n";
     MFI.setObjectOffset(FrameIdx, ObjStart);
   } else {
     LLVM_DEBUG(dbgs() << "alloc FI(" << FrameIdx << ") scavenged at SP["
                       << FreeStart << "]\n");
+    //errs() << _FNLN_ << ": alloc FI(" << FrameIdx << ") scavenged at SP["
+    //                  << FreeStart << "]\n";
     MFI.setObjectOffset(FrameIdx, FreeStart);
   }
 
@@ -775,6 +786,7 @@ static void AssignProtectedObjSet(const StackObjSet &UnassignedObjs,
   for (StackObjSet::const_iterator I = UnassignedObjs.begin(),
         E = UnassignedObjs.end(); I != E; ++I) {
     int i = *I;
+    //errs() << _FNLN_ << ": calling AdjustStackOffset()\n";
     AdjustStackOffset(MFI, i, StackGrowsDown, Offset, MaxAlign, Skew);
     ProtectedObjs.insert(i);
   }
@@ -851,6 +863,7 @@ void PEI::calculateFrameObjectOffsets(MachineFunction &MF) {
       Offset = alignTo(Offset, MFI.getObjectAlign(i), Skew);
 
       LLVM_DEBUG(dbgs() << "alloc FI(" << i << ") at SP[" << -Offset << "]\n");
+      //errs() << _FNLN_ << ": alloc FI(" << i << ") at SP[" << -Offset << "]\n";
       MFI.setObjectOffset(i, -Offset);        // Set the computed offset
     }
   } else if (MaxCSFrameIndex >= MinCSFrameIndex) {
@@ -867,6 +880,7 @@ void PEI::calculateFrameObjectOffsets(MachineFunction &MF) {
       Offset = alignTo(Offset, MFI.getObjectAlign(i), Skew);
 
       LLVM_DEBUG(dbgs() << "alloc FI(" << i << ") at SP[" << Offset << "]\n");
+      //errs() << _FNLN_ << ": alloc FI(" << i << ") at SP[" << Offset << "]\n";
       MFI.setObjectOffset(i, Offset);
       Offset += MFI.getObjectSize(i);
     }
@@ -889,8 +903,10 @@ void PEI::calculateFrameObjectOffsets(MachineFunction &MF) {
     SmallVector<int, 2> SFIs;
     RS->getScavengingFrameIndices(SFIs);
     for (SmallVectorImpl<int>::iterator I = SFIs.begin(),
-           IE = SFIs.end(); I != IE; ++I)
+           IE = SFIs.end(); I != IE; ++I) {
+      //errs() << _FNLN_ << ": calling AdjustStackOffset()\n";
       AdjustStackOffset(MFI, *I, StackGrowsDown, Offset, MaxAlign, Skew);
+    }
   }
 
   // FIXME: Once this is working, then enable flag will change to a target
@@ -904,6 +920,7 @@ void PEI::calculateFrameObjectOffsets(MachineFunction &MF) {
     Offset = alignTo(Offset, Alignment, Skew);
 
     LLVM_DEBUG(dbgs() << "Local frame base offset: " << Offset << "\n");
+    //errs() << "Local frame base offset: " << Offset << "\n";
 
     // Resolve offsets for objects in the local block.
     for (unsigned i = 0, e = MFI.getLocalFrameObjectCount(); i != e; ++i) {
@@ -911,6 +928,8 @@ void PEI::calculateFrameObjectOffsets(MachineFunction &MF) {
       int64_t FIOffset = (StackGrowsDown ? -Offset : Offset) + Entry.second;
       LLVM_DEBUG(dbgs() << "alloc FI(" << Entry.first << ") at SP[" << FIOffset
                         << "]\n");
+      //errs() << _FNLN_ << ": alloc FI(" << Entry.first << ") at SP[" << FIOffset
+      //                  << "]\n";
       MFI.setObjectOffset(Entry.first, FIOffset);
     }
     // Allocate the local block
@@ -937,10 +956,11 @@ void PEI::calculateFrameObjectOffsets(MachineFunction &MF) {
     // LocalStackSlotPass didn't already allocate a slot for it.
     // If we are told to use the LocalStackAllocationBlock, the stack protector
     // is expected to be already pre-allocated.
-    if (!MFI.getUseLocalStackAllocationBlock())
+    if (!MFI.getUseLocalStackAllocationBlock()) {
+      //errs() << _FNLN_ << ": calling AdjustStackOffset()\n";
       AdjustStackOffset(MFI, StackProtectorFI, StackGrowsDown, Offset, MaxAlign,
                         Skew);
-    else if (!MFI.isObjectPreAllocated(MFI.getStackProtectorIndex()))
+    } else if (!MFI.isObjectPreAllocated(MFI.getStackProtectorIndex()))
       llvm_unreachable(
           "Stack protector not pre-allocated by LocalStackSlotPass.");
 
@@ -1019,10 +1039,11 @@ void PEI::calculateFrameObjectOffsets(MachineFunction &MF) {
   }
 
   // Allocate the EH registration node first if one is present.
-  if (EHRegNodeFrameIndex != std::numeric_limits<int>::max())
+  if (EHRegNodeFrameIndex != std::numeric_limits<int>::max()) {
+    //errs() << _FNLN_ << ": calling AdjustStackOffset()\n";
     AdjustStackOffset(MFI, EHRegNodeFrameIndex, StackGrowsDown, Offset,
                       MaxAlign, Skew);
-
+  }
   // Give the targets a chance to order the objects the way they like it.
   if (MF.getTarget().getOptLevel() != CodeGenOpt::None &&
       MF.getTarget().Options.StackSymbolOrdering)
@@ -1042,17 +1063,20 @@ void PEI::calculateFrameObjectOffsets(MachineFunction &MF) {
   // Now walk the objects and actually assign base offsets to them.
   for (auto &Object : ObjectsToAllocate)
     if (!scavengeStackSlot(MFI, Object, StackGrowsDown, MaxAlign,
-                           StackBytesFree))
+                           StackBytesFree)) {
+      //errs() << _FNLN_ << ": calling AdjustStackOffset()\n";
       AdjustStackOffset(MFI, Object, StackGrowsDown, Offset, MaxAlign, Skew);
-
+    }
   // Make sure the special register scavenging spill slot is closest to the
   // stack pointer.
   if (RS && !EarlyScavengingSlots) {
     SmallVector<int, 2> SFIs;
     RS->getScavengingFrameIndices(SFIs);
     for (SmallVectorImpl<int>::iterator I = SFIs.begin(),
-           IE = SFIs.end(); I != IE; ++I)
+           IE = SFIs.end(); I != IE; ++I) {
+      //errs() << _FNLN_ << ": calling AdjustStackOffset()\n";
       AdjustStackOffset(MFI, *I, StackGrowsDown, Offset, MaxAlign, Skew);
+    }
   }
 
   if (!TFI.targetHandlesStackFrameRounding()) {

@@ -44,6 +44,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#define BOOST_BIND_NO_PLACEHOLDERS
 #include "AllocationState.h"
 #include "InterCheckerAPI.h"
 #include "clang/AST/Attr.h"
@@ -78,6 +79,7 @@
 #include <functional>
 #include <utility>
 
+#include "support/stdafx.h"
 #include "support/debug.h"
 #include "support/dyn_debug.h"
 

@@ -1,4 +1,4 @@
-find_package(Boost REQUIRED COMPONENTS system iostreams serialization)
+find_package(Boost REQUIRED COMPONENTS system iostreams serialization filesystem)
 find_package(yaml-cpp REQUIRED)
 find_program(GIT git)
 
@@ -53,8 +53,6 @@ INCLUDE_DIRECTORIES(${LLVM_BINARY_DIR}/../../superopt/build/${SUPEROPT_RELEVANT_
 #LINK_DIRECTORIES(${z3_lib})
 #LINK_DIRECTORIES(${EQ_BINARY_DIR})
 
-#set(SUPEROPT_LIBS superopt fbgen eqchecker sym_exec rewrite_lib insn tfg graph gsupport exec expr valtag gas support cutils fpu parser z3 -lgmp -lgmpxx ${Boost_LIBRARIES} -ldl ${binutils_lib} -lm -lz -lmagic -lboost_filesystem -lboost_system -lssl -lcrypto)
-
 macro(add_superopt_lib libname)
   if (NOT TARGET ${libname})
     add_library(${libname} SHARED IMPORTED GLOBAL)
@@ -87,8 +85,7 @@ macro(add_superopt_libs ret)
   add_superopt_lib(support)
   add_superopt_lib(cutils)
   add_superopt_lib(fpu)
-  add_superopt_lib(parser)
   add_superopt_lib(spec)
-  set(SUPEROPT_THIRD_PARTY_LIBS  z3 ${libjemalloc_file} -lgmp -lgmpxx ${Boost_LIBRARIES} -ldl ${binutils_lib} -lm -lz -lmagic -L/usr/local/lib -lboost_filesystem -lboost_system -lssl -lcrypto -lyaml-cpp -lpthread)
+  set(SUPEROPT_THIRD_PARTY_LIBS  z3 ${libjemalloc_file} -lgmp -lgmpxx ${Boost_LIBRARIES} -ldl ${binutils_lib} -lm -lz -lmagic -lssl -lcrypto -lyaml-cpp -lpthread)
   set(${ret} ${SUPEROPT_LIBS} ${SUPEROPT_THIRD_PARTY_LIBS})
 endmacro()

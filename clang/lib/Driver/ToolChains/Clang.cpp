@@ -45,6 +45,7 @@
 #include "llvm/Support/YAMLParser.h"
 //#include "llvm/Support/mydebug.h"
 
+#include "support/stdafx.h"
 #include "support/debug.h"
 #include "support/dyn_debug.h"
 
