@@ -307,7 +307,7 @@ sym_exec_llvm::get_const_value_expr(const llvm::Value& v, string const& vname, c
       //  cout << __func__ << " " << __LINE__ << ": sym = " << s.second.get_name()->get_str() << endl;
       //}
       //NOT_REACHED(); //could be a function pointer!
-      ret = m_ctx->mk_var(string(LLVM_FUNCTION_NAME_PREFIX) + name, get_value_type(v, m_module->getDataLayout()));
+      ret = m_ctx->mk_var(string(LLVM_OR_SPEC_FUNCTION_NAME_PREFIX) + name, get_value_type(v, m_module->getDataLayout()));
     }
     ASSERT(ret);
 
@@ -1333,7 +1333,7 @@ bool
 sym_exec_common::function_belongs_to_program(string const &fun_name) const
 {
   for (auto f : *m_fun_names) {
-    if (string(LLVM_FUNCTION_NAME_PREFIX) + f.first == fun_name) {
+    if (string(LLVM_OR_SPEC_FUNCTION_NAME_PREFIX) + f.first == fun_name) {
       return true;
     }
   }
@@ -1362,7 +1362,7 @@ sym_exec_llvm::apply_general_function(const CallInst* c, expr_ref fun_name_expr,
   pc const &from_pc = from_node->get_pc();
 
   //callee_summary_t csum;
-  //string fname = fun_name == "" ? "" : fun_name.substr(string(LLVM_FUNCTION_NAME_PREFIX).size());
+  //string fname = fun_name == "" ? "" : fun_name.substr(string(LLVM_OR_SPEC_FUNCTION_NAME_PREFIX).size());
   //if (m_callee_summaries.count(fun_name)) {
   //  csum = m_callee_summaries.at(fun_name);
   //}
@@ -1372,7 +1372,7 @@ sym_exec_llvm::apply_general_function(const CallInst* c, expr_ref fun_name_expr,
              && function_belongs_to_program(fun_name)
              && !set_belongs(*function_call_chain, fname)/*
              && this->gen_callee_summary()*/) {
-    ASSERT(fun_name.substr(0, string(LLVM_FUNCTION_NAME_PREFIX).size()) == LLVM_FUNCTION_NAME_PREFIX);
+    ASSERT(fun_name.substr(0, string(LLVM_OR_SPEC_FUNCTION_NAME_PREFIX).size()) == LLVM_OR_SPEC_FUNCTION_NAME_PREFIX);
     pair<callee_summary_t, dshared_ptr<tfg_llvm_t>> const& csum_callee_tfg = get_callee_summary(F, fname, src_llvm_tfg, *function_tfg_map, value_to_name_map, *function_call_chain, scev_map, xml_output_format);
     DYN_DEBUG(llvm2tfg, cout << "Doing resume: " << t.get_name() << endl);
     csum = csum_callee_tfg.first;
@@ -1979,50 +1979,50 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
       fun_name = string(sv->getName());
       tie(fun_expr, state_assumes) = get_expr_adding_edges_for_intermediate_vals(*v, "", state_in, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map);
       if (fun_name != "") {
-        fun_name = string(LLVM_FUNCTION_NAME_PREFIX) + fun_name;
+        fun_name = string(LLVM_OR_SPEC_FUNCTION_NAME_PREFIX) + fun_name;
         //fun_expr = m_ctx->mk_var(fun_name, m_ctx->mk_bv_sort(DWORD_LEN)); //shortcut the expression (we are assuming the casts are meaningless). This is a hack, and should be removed at some point.
       }
 
     } else {
       fun_name = calleeF->getName().str();
-      fun_name = string(LLVM_FUNCTION_NAME_PREFIX) + fun_name;
+      fun_name = string(LLVM_OR_SPEC_FUNCTION_NAME_PREFIX) + fun_name;
       fun_expr = m_ctx->mk_var(fun_name, m_ctx->mk_bv_sort(get_word_length()));
     }
-    if (   fun_name == LLVM_FUNCTION_NAME_PREFIX G_LLVM_DBG_DECLARE_FUNCTION
-        || fun_name == LLVM_FUNCTION_NAME_PREFIX G_LLVM_DBG_VALUE_FUNCTION) {
+    if (   fun_name == LLVM_OR_SPEC_FUNCTION_NAME_PREFIX G_LLVM_DBG_DECLARE_FUNCTION
+        || fun_name == LLVM_OR_SPEC_FUNCTION_NAME_PREFIX G_LLVM_DBG_VALUE_FUNCTION) {
       break;
     }
-    if (string_has_prefix(fun_name, LLVM_FUNCTION_NAME_PREFIX G_LLVM_LIFETIME_FUNCTION_PREFIX)) {
+    if (string_has_prefix(fun_name, LLVM_OR_SPEC_FUNCTION_NAME_PREFIX G_LLVM_LIFETIME_FUNCTION_PREFIX)) {
       break;
     }
 
-    if (fun_name == LLVM_FUNCTION_NAME_PREFIX G_LLVM_STACKSAVE_FUNCTION) {
+    if (fun_name == LLVM_OR_SPEC_FUNCTION_NAME_PREFIX G_LLVM_STACKSAVE_FUNCTION) {
       //cast<CallInst>(I).getIntrinsicID() == Intrinsic::stacksave
       state_out = this->parse_stacksave_intrinsic(I, t, from_node->get_pc());
       break;
     }
-    if (fun_name == LLVM_FUNCTION_NAME_PREFIX G_LLVM_STACKRESTORE_FUNCTION) {
+    if (fun_name == LLVM_OR_SPEC_FUNCTION_NAME_PREFIX G_LLVM_STACKRESTORE_FUNCTION) {
       //cast<CallInst>(I).getIntrinsicID() == Intrinsic::stackrestore
       state_out = this->parse_stackrestore_intrinsic(I, t, from_node->get_pc());
       break;
     }
 
-    if (fun_name == string(LLVM_FUNCTION_NAME_PREFIX) + cur_function_name) {
-      fun_name = LLVM_FUNCTION_NAME_PREFIX G_SELFCALL_IDENTIFIER;
+    if (fun_name == string(LLVM_OR_SPEC_FUNCTION_NAME_PREFIX) + cur_function_name) {
+      fun_name = LLVM_OR_SPEC_FUNCTION_NAME_PREFIX G_SELFCALL_IDENTIFIER;
       fun_expr = m_ctx->mk_var(fun_name, m_ctx->mk_bv_sort(get_word_length()));
     }
-    string memcpy_fn = LLVM_FUNCTION_NAME_PREFIX G_LLVM_MEMCPY_FUNCTION;
-    string memset_fn = LLVM_FUNCTION_NAME_PREFIX G_LLVM_MEMSET_FUNCTION;
+    string memcpy_fn = LLVM_OR_SPEC_FUNCTION_NAME_PREFIX G_LLVM_MEMCPY_FUNCTION;
+    string memset_fn = LLVM_OR_SPEC_FUNCTION_NAME_PREFIX G_LLVM_MEMSET_FUNCTION;
     unordered_set<expr_ref> succ_assumes;
     if (fun_name.substr(0, memcpy_fn.length()) == memcpy_fn) {
       tie(state_assumes, succ_assumes) = apply_memcpy_function(c, fun_expr, fun_name, src_tfg, calleeF, state_in, state_out, state_assumes, cur_function_name, from_node, model_llvm_semantics, F, t/*, function_tfg_map*/, value_to_name_map/*, function_call_chain*/, scev_map, xml_output_format);
     } else if (fun_name.substr(0, memset_fn.length()) == memset_fn) {
       tie(state_assumes, succ_assumes) = apply_memset_function(c, fun_expr, fun_name, src_tfg, calleeF, state_in, state_out, state_assumes, cur_function_name, from_node, model_llvm_semantics, F, t/*, function_tfg_map*/, value_to_name_map/*, function_call_chain*/, scev_map, xml_output_format);
-    } else if (fun_name == LLVM_FUNCTION_NAME_PREFIX G_LLVM_VA_START_FUNCTION) {
+    } else if (fun_name == LLVM_OR_SPEC_FUNCTION_NAME_PREFIX G_LLVM_VA_START_FUNCTION) {
       tie(state_assumes, succ_assumes) = apply_va_start_function(c, state_in, state_out, state_assumes, cur_function_name, from_node, model_llvm_semantics, t, value_to_name_map);
-    } else if (fun_name == LLVM_FUNCTION_NAME_PREFIX G_LLVM_VA_COPY_FUNCTION) {
+    } else if (fun_name == LLVM_OR_SPEC_FUNCTION_NAME_PREFIX G_LLVM_VA_COPY_FUNCTION) {
       tie(state_assumes, succ_assumes) = apply_va_copy_function(c, state_in, state_out, state_assumes, cur_function_name, from_node, model_llvm_semantics, t, value_to_name_map);
-    } else if (fun_name == LLVM_FUNCTION_NAME_PREFIX G_LLVM_VA_END_FUNCTION) {
+    } else if (fun_name == LLVM_OR_SPEC_FUNCTION_NAME_PREFIX G_LLVM_VA_END_FUNCTION) {
       //NOP
     } else {
       tie(state_assumes, succ_assumes) = apply_general_function(c, fun_expr, fun_name, src_tfg, calleeF, state_in, state_out, state_assumes, cur_function_name, from_node, model_llvm_semantics, t/*, function_tfg_map*/, value_to_name_map/*, function_call_chain*/, scev_map, xml_output_format);
@@ -2030,11 +2030,11 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
 
     string fname;
     if (fun_name != "") {
-      if (!string_has_prefix(fun_name, LLVM_FUNCTION_NAME_PREFIX)) {
+      if (!string_has_prefix(fun_name, LLVM_OR_SPEC_FUNCTION_NAME_PREFIX)) {
         cout << _FNLN_ << ": fun_name = '" << fun_name << "'\n";
       }
-      ASSERT(string_has_prefix(fun_name, LLVM_FUNCTION_NAME_PREFIX));
-      fname = fun_name.substr(strlen(LLVM_FUNCTION_NAME_PREFIX));
+      ASSERT(string_has_prefix(fun_name, LLVM_OR_SPEC_FUNCTION_NAME_PREFIX));
+      fname = fun_name.substr(strlen(LLVM_OR_SPEC_FUNCTION_NAME_PREFIX));
     }
     auto fcall_state = state_out;
     if (succ_assumes.size()) {
