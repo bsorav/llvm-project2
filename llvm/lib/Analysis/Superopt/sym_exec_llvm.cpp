@@ -2051,7 +2051,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
 
     state state_out_heap_allocfree;
     unordered_set<expr_ref> heap_allocfree_assumes;
-    if (ftmap_t::function_name_represents_mallocfree(cur_function_name, fname, from_node->get_pc(), fcall_state, m_mem_alloc_reg, m_mem_reg, m_word_length, state_out_heap_allocfree, heap_allocfree_assumes)) {
+    if (ftmap_t::function_name_represents_mallocfree(cur_function_name, fname, t, from_node->get_pc(), fcall_state, m_mem_alloc_reg, m_mem_reg, m_word_length, state_out_heap_allocfree, heap_allocfree_assumes)) {
       dshared_ptr<tfg_node> intermediate_node = get_next_intermediate_subsubindex_pc_node(t, from_node);
       tfg_edge_ref e = mk_tfg_edge(from_node->get_pc(), intermediate_node->get_pc(), expr_true(m_ctx), state_out, state_assumes, te_comment);
       t.add_edge(e);
@@ -2059,6 +2059,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
       state_assumes = heap_allocfree_assumes;
       state_out = state_out_heap_allocfree;
       from_node = t.find_node(intermediate_node->get_pc());
+
       ASSERT(from_node);
     }
 
