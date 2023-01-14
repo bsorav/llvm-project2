@@ -629,7 +629,7 @@ sym_exec_llvm::populate_state_template(const llvm::Function& F, bool model_llvm_
 
     allocsite_t allocsite = allocsite_t::allocsite_arg(argnum);
     argnum++;
-    //m_state_templ.push_back({argname, s});
+    m_state_templ.push_back({argname, s});
 
     Type* ty = v.getType();
     unsigned size = dl.getTypeAllocSize(ty);
