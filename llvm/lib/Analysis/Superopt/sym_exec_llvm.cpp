@@ -738,11 +738,9 @@ sym_exec_llvm::populate_state_template(const llvm::Function& F, bool model_llvm_
   populate_state_template_common();
 }
 
-void sym_exec_common::get_state_template(const pc& p, state& st)
+void sym_exec_common::get_state_template(const pc& p, state& st, string const& srcdst_prefix)
 {
-  //string src_dst_prefix = m_is_src ? "src" : "dst";
-  string src_dst_prefix = "src";
-  string prefix = src_dst_prefix + p.to_string();
+  string prefix = srcdst_prefix + p.to_string();
   if (p.is_start()) {
     //prefix = "input";
     prefix = G_INPUT_KEYWORD;
@@ -2984,7 +2982,7 @@ sym_exec_llvm::get_tfg(llvm::Function& F, llvm::Module const *M, string const &n
   //llvm::Function const &F = m_function;
   se.populate_state_template(F, model_llvm_semantics);
   state start_state;
-  se.get_state_template(pc::start(), start_state);
+  se.get_state_template(pc::start(), start_state, srcdst_keyword);
   string fname = se.functionGetName(F);
   stringstream ss;
   ss << srcdst_keyword << "." G_LLVM_PREFIX "." << fname;
@@ -4068,7 +4066,6 @@ void
 sym_exec_common::get_tfg_common(tfg &t)
 {
   map<string_ref, graph_arg_t> arg_exprs;
-  //unordered_set<predicate> assumes;
   for (const auto& arg : m_arguments) {
     pair<argnum_t, expr_ref> const &a = arg.second;
     string argname = graph_arg_regs_t::get_argname_from_argnum(a.first);
@@ -4081,13 +4078,10 @@ sym_exec_common::get_tfg_common(tfg &t)
     expr_ref arg_addr = m_ctx->mk_var(ss.str(), m_ctx->get_addr_sort());
     arg_exprs.insert(make_pair(mk_string_ref(argname), graph_arg_t(arg_addr, a.second)));
   }
-  //t->add_assumes(pc::start(), assumes);
-
-  state start_state;
-  get_state_template(pc::start(), start_state);
   //arg_exprs.push_back(t.find_entry_node()->get_state().get_expr(m_mem_reg));
   t.set_argument_regs(arg_exprs);
-  get_state_template(pc::start(), start_state);
+  state start_state;
+  get_state_template(pc::start(), start_state, m_srcdst_keyword);
   t.set_start_state(start_state);
 }
 
