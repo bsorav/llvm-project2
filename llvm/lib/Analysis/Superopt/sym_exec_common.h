@@ -183,7 +183,7 @@ protected:
 
   //void add_gep_intermediate_vals(llvm::Instruction const &I, string const &name);
   void populate_state_template_common();
-  void get_state_template(const pc& p, state& st);
+  void get_state_template(const pc& p, state& st, string const& srcdst_prefix);
   //expr_ref icmp_to_expr(llvm::ICmpInst::Predicate k, const vector<expr_ref>& args) const;
 
   static pc get_pc_from_bbindex_and_insn_id(string const &bbindex, size_t insn_id);
