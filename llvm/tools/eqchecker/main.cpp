@@ -37,6 +37,8 @@ using namespace llvm;
 #include <iostream>
 #include <fstream>
 
+#include "sym_exec_llvm.h"
+
 #include "support/timers.h"
 #include "support/dyn_debug.h"
 #include "support/globals.h"
@@ -50,8 +52,6 @@ using namespace llvm;
 #include "eq/eqcheck.h"
 #include "ptfg/llptfg.h"
 #include "ptfg/function_signature.h"
-
-#include "sym_exec_llvm.h"
 
 using namespace eqspace;
 
@@ -88,6 +88,9 @@ llvmSemantics("llvm-semantics", cl::desc("<llvm-semantics.  Model poison and und
 
 static cl::opt<int>
 call_context_depth("call-context-depth", cl::desc("<call-context-depth.  The call context depth to use for pointsto-analysis."), cl::init(0));
+
+static cl::opt<bool>
+always_use_call_context_any("always-use-call-context-any", cl::desc("<always-use-call-context-any.  Always use call-context-any as soon as the maximum call-context depth is reached."), cl::init(true));
 
 static cl::opt<std::string>
 XmlOutputFormat("xml-output-format", cl::desc("<xml-output-format.  Format to use during xml printing.  [html|text-color|text-nocolor]"), cl::init("text-color"));
@@ -160,6 +163,12 @@ main(int argc, char **argv)
   llvm_shutdown_obj Y;  // Call llvm_shutdown() on exit.
 
   //Context.setDiagnosticHandler(diagnosticHandler, argv[0]);
+
+  CPP_DBG_EXEC(ARGV_PRINT,
+      for (int i = 0; i < argc; i++) {
+        cout << "argv[" << i << "] = " << argv[i] << endl;
+      }
+  );
 
   cl::ParseCommandLineOptions(argc, argv, "llvm2tfg: file1.bc -> out.etfg\n");
 
@@ -256,8 +265,8 @@ main(int argc, char **argv)
     progress_flag = 1;
   }
 
-  dshared_ptr<ftmap_t> function_tfg_map = sym_exec_llvm::get_function_tfg_map(M1.get(), FunNamesVec, ctx, src_ftmap, !NoGenScev, llvmSemantics, nullptr, xml_output_format);
-  function_tfg_map->ftmap_run_pointsto_analysis(false, dshared_ptr<tfg const>::dshared_nullptr(), {}, call_context_depth, true, xml_output_format);
+  dshared_ptr<ftmap_t> function_tfg_map = sym_exec_llvm::get_function_tfg_map(M1.get(), FunNamesVec, ctx, src_ftmap, !NoGenScev, llvmSemantics, always_use_call_context_any, nullptr, xml_output_format);
+  function_tfg_map->ftmap_run_pointsto_analysis(false, dshared_ptr<tfg const>::dshared_nullptr(), call_context_depth, always_use_call_context_any, true, xml_output_format);
   //t->tfg_populate_relevant_memlabels(src_llvm_tfg);
   function_tfg_map->ftmap_add_start_pc_preconditions_for_each_tfg(/*se.m_srcdst_keyword*/);
 
