@@ -886,7 +886,7 @@ InstrumentMarkerCall::getPCinBBAtInum(BasicBlock *BB, int inum)
   string bbname = get_basicblock_name(*BB);
   ASSERT(bbname.at(0) == '%');
   bbname = bbname.substr(1);
-  return pc(pc::insn_label, bbname.c_str(), inum, PC_SUBSUBINDEX_DEFAULT);
+  return pc::inner(bbname, inum);
 }
 
 value_version_map_t const&
@@ -1149,7 +1149,7 @@ InstrumentMarkerCall::get_live_values(dshared_ptr<tfg_llvm_t const> t, map<share
   string bname = get_basicblock_name(*BB);
   assert(bname.at(0) == '%');
   bname = bname.substr(1);
-  pc p(pc::insn_label, bname.c_str(), insn_num, PC_SUBSUBINDEX_DEFAULT);
+  auto p = pc::inner(bname, insn_num);
   if (live_vals.count(p) == 0) {
     cout << __func__ << " " << __LINE__ << ": live_vals.count = 0 for pc = " << p.to_string() << "\n";
     return list<Value *>();

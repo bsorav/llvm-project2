@@ -1658,7 +1658,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
       expr_ref csreg = m_ctx->mk_var(ss.str(), m_ctx->mk_bv_sort(ETFG_EXREG_LEN(ETFG_EXREG_GROUP_GPRS)));
       state_set_expr(state_out, m_srcdst_keyword + ("." G_LLVM_HIDDEN_REGISTER_NAME), m_ctx->mk_bvxor(state_get_expr(state_out, m_srcdst_keyword + "." G_LLVM_HIDDEN_REGISTER_NAME, csreg->get_sort()), csreg));
     }
-    control_flow_transfer cft(from_node->get_pc(), pc(pc::exit), m_ctx->mk_bool_true(), m_cs.get_retaddr_const(), {});
+    control_flow_transfer cft(from_node->get_pc(), pc::exit(), m_ctx->mk_bool_true(), m_cs.get_retaddr_const(), {});
     cfts.push_back(cft);
     break;
   }
@@ -3054,8 +3054,7 @@ sym_exec_llvm::get_tfg(llvm::Function& F, llvm::Module const *M, string const &n
 pc
 sym_exec_common::get_pc_from_bbindex_and_insn_id(string const &bbindex/*llvm::BasicBlock const &B*/, size_t insn_id)
 {
-  pc ret(pc::insn_label, /*get_basicblock_index(B)*/bbindex.c_str()/*, m_basicblock_idx_map.at(string("%") + bbindex)*/, insn_id + PC_SUBINDEX_FIRST_INSN_IN_BB, PC_SUBSUBINDEX_DEFAULT);
-  return ret;
+  return pc::inner(bbindex, insn_id + pc::inner_subindex_begin());
 }
 
 vector<control_flow_transfer>
@@ -3396,7 +3395,7 @@ sym_exec_common::get_next_intermediate_subsubindex_pc_node(tfg &t, dshared_ptr<t
   char const *index = from_node->get_pc().get_index();
   //int bblnum = from_node->get_pc().get_bblnum();
   int subindex = from_node->get_pc().get_subindex();
-  pc p(pc::insn_label, index/*, bblnum*/, subindex, PC_SUBSUBINDEX_DEFAULT);
+  auto p = pc::inner(index, subindex);
   DYN_DEBUG3(llvm2tfg, cout << __func__ << " " << __LINE__ << ": p = " << p.to_string() << endl);
   if (m_intermediate_subsubindex_map.count(p) == 0) {
     DYN_DEBUG3(llvm2tfg, cout << __func__ << " " << __LINE__ << ": intermediate_subsubindex_map.count(p) = 0" << endl);
@@ -3405,7 +3404,7 @@ sym_exec_common::get_next_intermediate_subsubindex_pc_node(tfg &t, dshared_ptr<t
     DYN_DEBUG3(llvm2tfg, cout << __func__ << " " << __LINE__ << ": intermediate_subsubindex_map.count(p) = " << m_intermediate_subsubindex_map.at(p) << endl);
     m_intermediate_subsubindex_map[p]++;
   }
-  pc ret(pc::insn_label, index/*, bblnum*/, subindex, m_intermediate_subsubindex_map.at(p));
+  auto ret = pc::inner(index, subindex, m_intermediate_subsubindex_map.at(p));
   if (t.find_node(ret) == 0) {
     t.add_node(make_dshared<tfg_node>(ret));
   }
