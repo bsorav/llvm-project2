@@ -157,11 +157,8 @@ main(int argc, char **argv)
   sys::PrintStackTraceOnErrorSignal(argv[0]);
   PrettyStackTraceProgram X(argc, argv);
 
-  //LLVMContext &Context = getGlobalContext();
   LLVMContext Context;
   llvm_shutdown_obj Y;  // Call llvm_shutdown() on exit.
-
-  //Context.setDiagnosticHandler(diagnosticHandler, argv[0]);
 
   CPP_DBG_EXEC(ARGV_PRINT,
       for (int i = 0; i < argc; i++) {
@@ -219,14 +216,7 @@ main(int argc, char **argv)
 
   assert(M1 /*&& M2*/);
   DYN_DEBUG(llvm2tfg, errs() << "InputFilename = " << InputFilename1 << "\n");
-  //errs() << InputFilename2 << "\n";
 
-  /*for(const pair<string, unsigned>& fun_name : fun_names)
-  {
-    errs() << fun_name.first << " : " << fun_name.second << "\n";
-  }*/
-
-  //context *ctx = new context(context::config(600, 600/*, true, true, true*/));
   g_ctx_init(false);
   context *ctx = g_ctx;
   DataLayout const& dl = M1->getDataLayout();
@@ -270,7 +260,6 @@ main(int argc, char **argv)
 
   dshared_ptr<ftmap_t> function_tfg_map = sym_exec_llvm::get_function_tfg_map(M1.get(), FunNamesVec, ctx, src_llptfg, !NoGenScev, llvmSemantics, always_use_call_context_any, nullptr, xml_output_format);
   function_tfg_map->ftmap_run_pointsto_analysis(false, dshared_ptr<tfg_llvm_t const>::dshared_nullptr(), {}, call_context_depth, always_use_call_context_any, true, xml_output_format);
-  //t->tfg_populate_relevant_memlabels(src_llvm_tfg);
   function_tfg_map->ftmap_add_start_pc_preconditions_for_each_tfg(/*se.m_srcdst_keyword*/);
 
   string llvm_header = M1->get_llvm_header_as_string();
@@ -280,30 +269,14 @@ main(int argc, char **argv)
   map<string, function_signature_t> fname_signature_map = M1->get_function_signature_map();
   pair<map<string, llvm_fn_attribute_id_t>, map<llvm_fn_attribute_id_t, string>> fname_attributes_map = M1->get_function_attributes_map();
   map<string, link_status_t> fname_linker_status_map = M1->get_function_link_status_map();
-  //map<llvm_fn_attribute_id_t, string> attributes = M1->get_attributes();
-  //string llvm_id = M1->get_llvm_identifier();
-  //string llvm_module_flags = M1->get_llvm_module_flags();
   list<string> llvm_metadata = M1->get_metadata_as_string();
 
   autostop_timer func2_timer(string(__func__) + ".2");
   llptfg_t llptfg(llvm_header, type_decls, globals_with_initializers, function_decls, *function_tfg_map, fname_signature_map, fname_attributes_map.first, fname_linker_status_map, fname_attributes_map.second, llvm_metadata);
   llptfg.print(outputStream);
-  //for (auto ft : function_tfg_map) {
-  //  string const &fname = ft.first;
-
-  //  outputStream << "=FunctionName: " << fname << "\n";
-  //  //outputStream << "=CalleeSummary:" << function_tfg_map.at(fname).first.callee_summary_to_string_for_eq() << "\n";
-  //  outputStream << function_tfg_map.at(fname).second->tfg_to_string_for_eq() << "\n";
-  //}
   autostop_timer func3_timer(string(__func__) + ".3");
   outputStream.close();
   outputStream.flush();
-
-  //ofstream llcopy;
-  //llcopy.open(OutputFilename + ".ll", ios_base::out | ios_base::trunc);
-  //llptfg.output_llvm_code(llcopy);
-  //llcopy.close();
-  //llcopy.flush();
 
   CPP_DBG_EXEC2(STATS,
     print_all_timers();
@@ -313,12 +286,4 @@ main(int argc, char **argv)
   outs().flush();
   errs().flush();
   exit(0);
-
-
-  //errs().changeColor(raw_ostream::RED);
-  //errs() << " : " << (e.check_eq("out.proof") ? "passed" : "---------------failed????????")<< "\n";
-  //errs().flush();
-  
-
-  return 0;
 }
