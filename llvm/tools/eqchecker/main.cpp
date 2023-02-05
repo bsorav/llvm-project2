@@ -259,7 +259,7 @@ main(int argc, char **argv)
   }
 
   dshared_ptr<ftmap_t> function_tfg_map = sym_exec_llvm::get_function_tfg_map(M1.get(), FunNamesVec, ctx, src_llptfg, !NoGenScev, llvmSemantics, always_use_call_context_any, nullptr, xml_output_format);
-  function_tfg_map->ftmap_run_pointsto_analysis(false, dshared_ptr<tfg_llvm_t const>::dshared_nullptr(), {}, call_context_depth, always_use_call_context_any, true, xml_output_format);
+  function_tfg_map->ftmap_run_pointsto_analysis(dshared_ptr<tfg_llvm_t const>::dshared_nullptr(), call_context_depth, always_use_call_context_any, true, xml_output_format);
   function_tfg_map->ftmap_add_start_pc_preconditions_for_each_tfg(/*se.m_srcdst_keyword*/);
 
   string llvm_header = M1->get_llvm_header_as_string();
