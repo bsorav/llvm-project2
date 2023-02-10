@@ -63,10 +63,17 @@ SemanticAAResult::alias(const MemoryLocation &LocA,
   string nameB = memory_location_get_name(LocB);
   DYN_DEBUG2(aliasAnalysis, std::cout << "SemanticAAResult::" << __func__ << " " << __LINE__ << ": LocA = " << nameA << "\n");
   DYN_DEBUG2(aliasAnalysis, std::cout << "SemanticAAResult::" << __func__ << " " << __LINE__ << ": LocB = " << nameB << "\n");
+
+  AliasResult retval;
+  bool should_return_immediately = false;
   DYN_DEBUG_MUTE(disableSemanticAA,
     // Forward the query to the next analysis.
-    return AAResultBase::alias(LocA, LocB, AAQI);
+    retval = AAResultBase::alias(LocA, LocB, AAQI);
+    should_return_immediately = true; //to avoid control flow from inside the macro, simply set a flag
   );
+  if (should_return_immediately) {
+    return retval;
+  }
 
   assert(notDifferentParent(LocA.Ptr, LocB.Ptr) &&
          "SemanticAliasAnalysis doesn't support interprocedural queries.");
@@ -90,7 +97,7 @@ SemanticAAResult::alias(const MemoryLocation &LocA,
   uint64_t sizeA = LocA.Size.isPrecise() ? LocA.Size.getValue() : SEMANTICAA_LOCSIZE_UNKNOWN;
   uint64_t sizeB = LocB.Size.isPrecise() ? LocB.Size.getValue() : SEMANTICAA_LOCSIZE_UNKNOWN;
 
-  return convertTfgAliasResultToAliasResult(tfg_llvm_t::get_aliasing_relationship_between_memaccesses(*m_function_tfg_map, fname, nameA, sizeA, nameB, sizeB));
+  return convertTfgAliasResultToAliasResult(m_function_tfg_map->ftmap_get_aliasing_relationship_between_memaccesses(fname, nameA, sizeA, nameB, sizeB));
 
   // Check if there is a predicate corresponding to LocA and LocB
   //if ((predicates.count(LocA.Ptr) && predicates[LocA.Ptr].count(LocB.Ptr)) ||
@@ -115,10 +122,14 @@ SemanticAAWrapperPass::SemanticAAWrapperPass() : ImmutablePass(ID) {
 bool SemanticAAWrapperPass::doInitialization(Module &M)
 {
   DYN_DEBUG(aliasAnalysis, std::cout << "SemanticAAResult::doInitialization() called\n");
+  bool should_return_immediately = false;
   DYN_DEBUG_MUTE(disableSemanticAA,
     Result.reset(new SemanticAAResult(nullptr, nullptr));
-    return false
+    should_return_immediately = true; //to avoid control flow from inside the macro, simply set a flag
   );
+  if (should_return_immediately) {
+    return false;
+  }
   //string const& fname = F.getName().str();
   //if (m_function_tfg_map->count(fname)) {
   //  return false;
@@ -132,7 +143,7 @@ bool SemanticAAWrapperPass::doInitialization(Module &M)
   ASSERT(g_ctx);
 
   map<llvm_value_id_t, string_ref> value_to_name_map;
-  shared_ptr<SemanticAAResult::function_tfg_map_t const> function_tfg_map = make_shared<SemanticAAResult::function_tfg_map_t const>(sym_exec_llvm::get_function_tfg_map(&M, set<string>(), false, g_ctx, nullptr, &value_to_name_map));
+  shared_ptr<SemanticAAResult::function_tfg_map_t const> function_tfg_map = make_shared<SemanticAAResult::function_tfg_map_t const>(*sym_exec_llvm::get_function_tfg_map(&M, set<string>()/*, false*/, g_ctx, dshared_ptr<llptfg_t const>::dshared_nullptr(), false, false /*model_llvm_semantics*/, &value_to_name_map));
   Result.reset(new SemanticAAResult(function_tfg_map, make_shared<map<llvm_value_id_t, string_ref> const>(value_to_name_map)));
   return false;
 }

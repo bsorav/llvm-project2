@@ -5,8 +5,6 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Analysis/CallGraphSCCPass.h"
-#include "support/debug.h"
-#include "support/utils.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/IRPrintingPasses.h"
@@ -14,6 +12,11 @@
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/InitializePasses.h"
 #include <sstream>
+
+#include "support/stdafx.h"
+#include "support/debug.h"
+#include "support/utils.h"
+#include "support/str_utils.h"
 
 using namespace llvm;
 using namespace std;

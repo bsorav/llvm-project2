@@ -334,8 +334,8 @@ int main(int argc, char **argv) {
 
   cl::ParseCommandLineOptions(argc, argv, "llvm system compiler\n");
 
-  eqspace::init_dyn_debug_from_string(DynDebug);
-  CPP_DBG_EXEC(DYN_DEBUG, eqspace::print_debug_class_levels());
+  init_dyn_debug_from_string(DynDebug);
+  CPP_DBG_EXEC(DYN_DEBUG, print_debug_class_levels());
 
   Context.setDiscardValueNames(DiscardValueNames);
 

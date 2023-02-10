@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "llvm/InitializePasses.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/Bitcode/BitcodeReader.h"
 #include "llvm/IR/AssemblyAnnotationWriter.h"
@@ -36,6 +37,8 @@ using namespace llvm;
 #include <iostream>
 #include <fstream>
 
+#include "sym_exec_llvm.h"
+
 #include "support/timers.h"
 #include "support/dyn_debug.h"
 #include "support/globals.h"
@@ -48,8 +51,6 @@ using namespace llvm;
 #include "eq/eqcheck.h"
 #include "ptfg/llptfg.h"
 #include "ptfg/function_signature.h"
-
-#include "sym_exec_llvm.h"
 
 using namespace eqspace;
 
@@ -79,11 +80,28 @@ static cl::opt<bool>
 DryRun("dry-run", cl::desc("<dry-run. only print the function names and their sizes>"), cl::init(false));
 
 static cl::opt<std::string>
-DynDebug("dyn_debug", cl::desc("<dyn_debug.  enable dynamic debugging for debug-class(es).  Expects comma-separated list of debug-classes with optional level e.g. -dyn_debug=compute_liveness,sprels,alias_analysis=2"), cl::init(""));
+DynDebug("dyn-debug", cl::desc("<dyn_debug.  enable dynamic debugging for debug-class(es).  Expects comma-separated list of debug-classes with optional level e.g. -dyn_debug=compute_liveness,sprels,alias_analysis=2"), cl::init(""));
+
+static cl::opt<bool>
+llvmSemantics("llvm-semantics", cl::desc("<llvm-semantics.  Model poison and undef values (LLVM semantics) instead of just plain UB."), cl::init(false));
+
+static cl::opt<int>
+call_context_depth("call-context-depth", cl::desc("<call-context-depth.  The call context depth to use for pointsto-analysis."), cl::init(0));
+
+static cl::opt<bool>
+always_use_call_context_any("always-use-call-context-any", cl::desc("<always-use-call-context-any.  Always use call-context-any as soon as the maximum call-context depth is reached."), cl::init(true));
 
 static cl::opt<std::string>
 XmlOutputFormat("xml-output-format", cl::desc("<xml-output-format.  Format to use during xml printing.  [html|text-color|text-nocolor]"), cl::init("text-color"));
 
+static cl::opt<bool>
+NoGenScev("no-gen-scev", cl::desc("<no-gen-scev. don't generate potential scev relationships to be used for invariant inferences>"), cl::init(false));
+
+static cl::opt<bool>
+Progress("progress", cl::desc("<progress. keep printing progress involving time/mem stats>"), cl::init(false));
+
+//static cl::opt<bool>
+//NoCollapse("no-collapse", cl::desc("<no-collapse. Do not collapse basic blocks into single edges>"), cl::init(false));
 
 //static void diagnosticHandler(const DiagnosticInfo &DI, void *Context) {
 //  assert(DI.getSeverity() == DS_Error && "Only expecting errors");
@@ -134,6 +152,7 @@ extern int g_helper_pid;
 int
 main(int argc, char **argv)
 {
+  autostop_timer func_timer(string(__func__));
   // Print a stack trace if we signal out.
   sys::PrintStackTraceOnErrorSignal(argv[0]);
   PrettyStackTraceProgram X(argc, argv);
@@ -144,20 +163,35 @@ main(int argc, char **argv)
 
   //Context.setDiagnosticHandler(diagnosticHandler, argv[0]);
 
+  CPP_DBG_EXEC(ARGV_PRINT,
+      for (int i = 0; i < argc; i++) {
+        cout << "argv[" << i << "] = " << argv[i] << endl;
+      }
+  );
+
   cl::ParseCommandLineOptions(argc, argv, "llvm2tfg: file1.bc -> out.etfg\n");
 
-  eqspace::init_dyn_debug_from_string(DynDebug);
-  CPP_DBG_EXEC(DYN_DEBUG, eqspace::print_debug_class_levels());
+  init_dyn_debug_from_string(DynDebug);
+  CPP_DBG_EXEC(DYN_DEBUG, print_debug_class_levels());
 
   context::xml_output_format_t xml_output_format = context::xml_output_format_from_string(XmlOutputFormat);
 
-  CPP_DBG_EXEC(LLVM2TFG, errs() << "doing functions:" << FunNames << "\n");
-  CPP_DBG_EXEC(LLVM2TFG, errs() << "output filename:" << OutputFilename << "\n");
+  DYN_DEBUG(llvm2tfg, errs() << "doing functions:" << FunNames << "\n");
+  DYN_DEBUG(llvm2tfg, errs() << "output filename:" << OutputFilename << "\n");
 
   if (xml_output_file != "") {
     g_xml_output_stream.open(xml_output_file, ios_base::app | ios_base::ate);
     ASSERT(g_xml_output_stream.is_open());
   }
+
+  PassRegistry &Registry = *PassRegistry::getPassRegistry();
+  initializeCore(Registry);
+  //initializeCoroutines(Registry);
+  //initializeScalarOpts(Registry);
+  //initializeObjCARCOpts(Registry);
+  //initializeVectorization(Registry);
+  //initializeIPO(Registry);
+  initializeAnalysis(Registry);
 
   set<string> FunNamesVec;
   size_t curpos = 0, nextpos;
@@ -170,7 +204,7 @@ main(int argc, char **argv)
   if (f.length() > 0 && f != "ALL") {
     FunNamesVec.insert(f);
   }
-  CPP_DBG_EXEC(LLVM2TFG,
+  DYN_DEBUG(llvm2tfg,
     errs() << "printing FunNamesVec:\n";
     for (auto ff : FunNamesVec) {
       errs() << ff << "\n";
@@ -184,7 +218,7 @@ main(int argc, char **argv)
   }
 
   assert(M1 /*&& M2*/);
-  CPP_DBG_EXEC(LLVM2TFG, errs() << InputFilename1 << "\n");
+  DYN_DEBUG(llvm2tfg, errs() << "InputFilename = " << InputFilename1 << "\n");
   //errs() << InputFilename2 << "\n";
 
   /*for(const pair<string, unsigned>& fun_name : fun_names)
@@ -230,7 +264,14 @@ main(int argc, char **argv)
     src_llptfg = make_shared<llptfg_t const>(in_src, ctx);
   }
 
-  map<string, pair<callee_summary_t, unique_ptr<tfg_llvm_t>>> function_tfg_map = sym_exec_llvm::get_function_tfg_map(M1.get(), FunNamesVec, DisableModelingOfUninitVarUB ? true : false, ctx, src_llptfg, nullptr, xml_output_format);
+  if (Progress) {
+    progress_flag = 1;
+  }
+
+  dshared_ptr<ftmap_t> function_tfg_map = sym_exec_llvm::get_function_tfg_map(M1.get(), FunNamesVec, ctx, src_llptfg, !NoGenScev, llvmSemantics, always_use_call_context_any, nullptr, xml_output_format);
+  function_tfg_map->ftmap_run_pointsto_analysis(false, dshared_ptr<tfg_llvm_t const>::dshared_nullptr(), {}, call_context_depth, always_use_call_context_any, true, xml_output_format);
+  //t->tfg_populate_relevant_memlabels(src_llvm_tfg);
+  function_tfg_map->ftmap_add_start_pc_preconditions_for_each_tfg(/*se.m_srcdst_keyword*/);
 
   string llvm_header = M1->get_llvm_header_as_string();
   list<string> type_decls = M1->get_type_declarations_as_string();
@@ -245,7 +286,7 @@ main(int argc, char **argv)
   list<string> llvm_metadata = M1->get_metadata_as_string();
 
   autostop_timer func2_timer(string(__func__) + ".2");
-  llptfg_t llptfg(llvm_header, type_decls, globals_with_initializers, function_decls, function_tfg_map, fname_signature_map, fname_attributes_map.first, fname_linker_status_map, fname_attributes_map.second, llvm_metadata);
+  llptfg_t llptfg(llvm_header, type_decls, globals_with_initializers, function_decls, *function_tfg_map, fname_signature_map, fname_attributes_map.first, fname_linker_status_map, fname_attributes_map.second, llvm_metadata);
   llptfg.print(outputStream);
   //for (auto ft : function_tfg_map) {
   //  string const &fname = ft.first;

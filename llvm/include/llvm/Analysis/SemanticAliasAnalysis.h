@@ -6,8 +6,10 @@
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Pass.h"
+#include "support/stdafx.h"
 #include "tfg/tfg_llvm.h"
 #include "ptfg/llvm_value_id.h"
+#include "ptfg/ftmap.h"
 
 #include <set>
 
@@ -15,7 +17,8 @@ namespace llvm {
 
 class SemanticAAResult : public AAResultBase<SemanticAAResult> {
 public:
-  using function_tfg_map_t = map<string, pair<callee_summary_t, unique_ptr<tfg_llvm_t>>>;
+  //using function_tfg_map_t = map<string, pair<callee_summary_t, dshared_ptr<tfg_llvm_t>>>;
+  using function_tfg_map_t = ftmap_t;
 private:
   shared_ptr<function_tfg_map_t const> m_function_tfg_map;
   shared_ptr<map<llvm_value_id_t, string_ref> const> m_value_to_name_map;

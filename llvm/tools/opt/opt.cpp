@@ -55,11 +55,13 @@
 #include "llvm/Transforms/IPO/PassManagerBuilder.h"
 #include "llvm/Transforms/IPO/WholeProgramDevirt.h"
 #include "llvm/Transforms/Utils/Cloning.h"
+
+#include <algorithm>
+#include <memory>
+
 #include "tfg/tfg.h"
 #include "../lib/Analysis/Superopt/dfa_helper.h"
 #include "llvm/Transforms/Utils/Debugify.h"
-#include <algorithm>
-#include <memory>
 using namespace llvm;
 using namespace opt_tool;
 
@@ -330,7 +332,7 @@ cl::opt<std::string> CSProfileGenFile(
     cl::Hidden);
 
 cl::opt<std::string>
-DynDebug("dyn_debug", cl::desc("<debug.  enable dynamic debugging for debug-class(es).  Expects comma-separated list of debug-classes with optional level e.g. -debug=compute_liveness,sprels,alias_analysis=2"), cl::init(""));
+DynDebug("dyn_debug", cl::desc("<dyn_debug.  enable dynamic debugging for debug-class(es).  Expects comma-separated list of debug-classes with optional level e.g. -debug=compute_liveness,sprels,alias_analysis=2"), cl::init(""));
 
 class OptCustomPassManager : public legacy::PassManager {
   DebugifyStatsMap DIStatsMap;
@@ -634,8 +636,8 @@ int main(int argc, char **argv) {
   cl::ParseCommandLineOptions(argc, argv,
     "llvm .bc -> .bc modular optimizer and analysis printer\n");
 
-  eqspace::init_dyn_debug_from_string(DynDebug);
-  CPP_DBG_EXEC(DYN_DEBUG, eqspace::print_debug_class_levels());
+  init_dyn_debug_from_string(DynDebug);
+  CPP_DBG_EXEC(DYN_DEBUG, print_debug_class_levels());
 
   if (AnalyzeOnly && NoOutput) {
     errs() << argv[0] << ": analyze mode conflicts with no-output mode.\n";
@@ -1098,7 +1100,7 @@ int main(int argc, char **argv) {
 
   //the following code is only to ensure that function2tfg gets linked into opt; required for future dynamic load of SuperoptMod
   map<shared_ptr<tfg_edge const>, Instruction *> eimap;
-  std::unique_ptr<tfg_llvm_t> t = function2tfg(nullptr, nullptr, eimap);
+  dshared_ptr<tfg_llvm_t> t = function2tfg(nullptr, nullptr, eimap);
   if (t) {
     return 1;
   }

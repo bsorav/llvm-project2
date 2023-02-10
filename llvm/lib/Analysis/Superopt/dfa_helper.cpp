@@ -5,13 +5,14 @@
 #include "llvm/IR/PassManager.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Analysis/CallGraphSCCPass.h"
-#include "support/debug.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/IRPrintingPasses.h"
 #include "llvm/Transforms/IPO/PassManagerBuilder.h"
 #include "llvm/Analysis/CallGraph.h"
 #include <sstream>
+
+#include "support/debug.h"
 
 /*static string
 get_basicblock_name(const BasicBlock& v)
@@ -54,21 +55,21 @@ get_counting_index_for_basicblock(llvm::BasicBlock const& v)
   NOT_REACHED();
 }
 
-unique_ptr<tfg_llvm_t>
+dshared_ptr<tfg_llvm_t>
 function2tfg(Function *F, Module *M, map<shared_ptr<tfg_edge const>, Instruction *>& eimap)
 {
   if (!g_ctx) {
     g_ctx_init();
   }
   if (!F && !M) {
-    return nullptr;
+    return dshared_ptr<tfg_llvm_t>::dshared_nullptr();
   }
   context *ctx = g_ctx;
   ValueToValueMapTy VMap;
   //unique_ptr<Module> Mcopy = CloneModule(*M, VMap);
-  sym_exec_llvm se(ctx, M, *F, nullptr, false, BYTE_LEN, DWORD_LEN);
-  unique_ptr<tfg_llvm_t> ret = se.get_tfg(nullptr, nullptr, nullptr, nullptr, eimap, context::XML_OUTPUT_FORMAT_TEXT_NOCOLOR);
-  pc start_pc = se.get_start_pc();
+  //sym_exec_llvm se(ctx, M, *F, dshared_ptr<tfg_llvm_t const>::dshared_nullptr()/*, false*/, BYTE_LEN, DWORD_LEN, G_SRC_KEYWORD);
+  dshared_ptr<tfg_llvm_t> ret = sym_exec_llvm::get_tfg(*F, M, F->getName().str(), ctx, dshared_ptr<tfg_llvm_t const>::dshared_nullptr(), false /*model_llvm_semantics*/, nullptr/*, nullptr*/, eimap, {}, G_SRC_KEYWORD, context::XML_OUTPUT_FORMAT_TEXT_NOCOLOR);
+  pc start_pc = sym_exec_llvm::get_start_pc(*F);
   ret->add_extra_node_at_start_pc(start_pc);
   DYN_DEBUG(function2tfg,
     cout << "returning tfg for function " << F->getName().str() << ":\n";

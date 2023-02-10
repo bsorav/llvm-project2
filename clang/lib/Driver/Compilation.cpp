@@ -29,6 +29,7 @@
 #include <system_error>
 #include <utility>
 
+#include "support/stdafx.h"
 #include "support/debug.h"
 #include "support/dyn_debug.h"
 

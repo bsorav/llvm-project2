@@ -4,7 +4,6 @@
 #include "llvm/IR/PassManager.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Analysis/CallGraphSCCPass.h"
-#include "support/debug.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/Transforms/Utils/Local.h"
 #include "llvm/IR/LegacyPassManager.h"
@@ -13,6 +12,9 @@
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/Analysis/LoopPass.h"
 #include "llvm/IR/Dominators.h"
+
+#include "support/stdafx.h"
+#include "support/debug.h"
 #include "tfg/tfg.h"
 #include "tfg/tfg_llvm.h"
 #include "graph/dfa.h"
@@ -88,7 +90,7 @@ template<dfa_dir_t DFA_DIR>
 class distance_dfa_t : public data_flow_analysis<pc, tfg_node, tfg_edge, distance_t, DFA_DIR>
 {
 public:
-  distance_dfa_t(tfg const *t, map<pc, distance_t>& init_vals)
+  distance_dfa_t(dshared_ptr<tfg const> t, map<pc, distance_t>& init_vals)
       : data_flow_analysis<pc, tfg_node, tfg_edge, distance_t, DFA_DIR>(t, init_vals)
   { }
   virtual dfa_xfer_retval_t xfer_and_meet(dshared_ptr<tfg_edge const> const& e, distance_t const& in, distance_t &out) override
@@ -210,7 +212,7 @@ private:
   BasicBlock *m_markerBB;
   Function *m_F;
 public:
-  valversion_dfa_t(tfg const *t, map<shared_ptr<tfg_edge const>, Instruction *> const& eimap, vector<Value*> const& from, vector<Instruction*> const& to, BasicBlock* BB, Function* F, map<pc, value_version_map_t>& init_vals)
+  valversion_dfa_t(dshared_ptr<tfg const> t, map<shared_ptr<tfg_edge const>, Instruction *> const& eimap, vector<Value*> const& from, vector<Instruction*> const& to, BasicBlock* BB, Function* F, map<pc, value_version_map_t>& init_vals)
       : data_flow_analysis<pc, tfg_node, tfg_edge, value_version_map_t, dfa_dir_t::forward>(t, init_vals), m_eimap(eimap), m_from(from), m_to(to), m_markerBB(BB), m_F(F)
   {
     CPP_DBG_EXEC(INSTRUMENT_MARKER_CALL,
@@ -314,7 +316,7 @@ class liveness_dfa_t : public data_flow_analysis<pc, tfg_node, tfg_edge, livenes
 private:
   map<shared_ptr<tfg_edge const>, Instruction *> const& m_eimap;
 public:
-  liveness_dfa_t(tfg const *t, map<shared_ptr<tfg_edge const>, Instruction *> const& eimap, map<pc, liveness_val_t>& init_vals)
+  liveness_dfa_t(dshared_ptr<tfg const> t, map<shared_ptr<tfg_edge const>, Instruction *> const& eimap, map<pc, liveness_val_t>& init_vals)
       : data_flow_analysis<pc, tfg_node, tfg_edge, liveness_val_t, dfa_dir_t::backward>(t, init_vals), m_eimap(eimap)
   { }
   virtual dfa_xfer_retval_t xfer_and_meet(dshared_ptr<tfg_edge const> const& e, liveness_val_t const& in, liveness_val_t &out) override
@@ -482,12 +484,12 @@ public:
   //Loop *identifyUnbrokenLoop(Function& F);
   //void unbrokenLoopVisit(Loop *L, loop_depth_t cur_depth, loop_depth_t &depth_out, Loop* &loop_out);
 private:
-  static list<Value *> get_live_values(unique_ptr<tfg_llvm_t> const& t, map<shared_ptr<tfg_edge const>, Instruction *> const& eimap, Function const * function, BasicBlock const* BB, int insn_num);
+  static list<Value *> get_live_values(dshared_ptr<tfg_llvm_t const> t, map<shared_ptr<tfg_edge const>, Instruction *> const& eimap, Function const * function, BasicBlock const* BB, int insn_num);
   void replaceUsesInBBAfterMarkerCall(Value *from, Value *to, BasicBlock *BB, Instruction *markerCallEnd);
-  void replaceGlobalUsesOfValue(vector<Value *> const& from, vector<Instruction *> const& to, BasicBlock *BB, Function *F, tfg const* t, map<shared_ptr<tfg_edge const>, Instruction *> const& eimap);
+  void replaceGlobalUsesOfValue(vector<Value *> const& from, vector<Instruction *> const& to, BasicBlock *BB, Function *F, dshared_ptr<tfg const> t, map<shared_ptr<tfg_edge const>, Instruction *> const& eimap);
 
-  bool addPhiNodesToBBForValues(BasicBlock* BB, set<Value*> const& new_vvs, map<pc, value_version_map_t> const& vals, Function* F, tfg const*t, map<BasicBlock*, map<Value*, PHINode*>>& nodesMap);
-  map<BasicBlock *, map<Value *, PHINode *>> addPhiNodesToBBIfRequired(map<pc, value_version_map_t> const& vals, Function *F, tfg const* t);
+  bool addPhiNodesToBBForValues(BasicBlock* BB, set<Value*> const& new_vvs, map<pc, value_version_map_t> const& vals, Function* F, dshared_ptr<tfg const> t, map<BasicBlock*, map<Value*, PHINode*>>& nodesMap);
+  map<BasicBlock *, map<Value *, PHINode *>> addPhiNodesToBBIfRequired(map<pc, value_version_map_t> const& vals, Function *F, dshared_ptr<tfg const> t);
   map<Value *, Value*> getValueRenameMap(BasicBlock* BB, int inum, map<pc, value_version_map_t> const& vals, map<BasicBlock *, map<Value*, PHINode*>> const& new_phi_nodes);
   void replaceUsesOfValuesInBB(BasicBlock* BB, map<pc, value_version_map_t> const& vals, map<BasicBlock *, map<Value *, PHINode *>> &new_phi_nodes);
 
@@ -660,12 +662,12 @@ IdentifyMaxDistancePC::runOnFunction(Function &F)
     return false;
   }
   map<shared_ptr<tfg_edge const>, Instruction *> eimap;
-  unique_ptr<tfg_llvm_t> t = function2tfg(&F, M, eimap);
+  dshared_ptr<tfg_llvm_t> t = function2tfg(&F, M, eimap);
   map<pc, distance_t> fdistances, bdistances;
-  distance_dfa_t<dfa_dir_t::forward> fdistance_dfa(t.get(), fdistances);
+  distance_dfa_t<dfa_dir_t::forward> fdistance_dfa(t, fdistances);
   fdistance_dfa.initialize(distance_t(0));
   fdistance_dfa.solve();
-  distance_dfa_t<dfa_dir_t::backward> bdistance_dfa(t.get(), bdistances);
+  distance_dfa_t<dfa_dir_t::backward> bdistance_dfa(t, bdistances);
   bdistance_dfa.initialize(distance_t(0));
   bdistance_dfa.solve();
 
@@ -769,7 +771,7 @@ InstrumentMarkerCall::values_to_types_vec(list<Value*> const& live_values)
 }
 
 bool
-InstrumentMarkerCall::addPhiNodesToBBForValues(BasicBlock* BB, set<Value*> const& vvs, map<pc, value_version_map_t> const& vals, Function* F, tfg const* t, map<BasicBlock*, map<Value*, PHINode*>>& nodesMap)
+InstrumentMarkerCall::addPhiNodesToBBForValues(BasicBlock* BB, set<Value*> const& vvs, map<pc, value_version_map_t> const& vals, Function* F, dshared_ptr<tfg const> t, map<BasicBlock*, map<Value*, PHINode*>>& nodesMap)
 {
   bool changed = false;
   pc p = getPCinBBAtInum(BB, PC_SUBINDEX_FIRST_INSN_IN_BB);
@@ -847,7 +849,7 @@ InstrumentMarkerCall::addPhiNodesToBBForValues(BasicBlock* BB, set<Value*> const
 }
 
 map<BasicBlock *, map<Value *, PHINode *>>
-InstrumentMarkerCall::addPhiNodesToBBIfRequired(map<pc, value_version_map_t> const& vals, Function *F, tfg const* t)
+InstrumentMarkerCall::addPhiNodesToBBIfRequired(map<pc, value_version_map_t> const& vals, Function *F, dshared_ptr<tfg const> t)
 {
   map<BasicBlock *, map<Value *, PHINode *>> ret;
   map<BasicBlock *, set<Value*>> new_valversions;
@@ -954,7 +956,7 @@ InstrumentMarkerCall::replaceUsesOfValuesInBB(BasicBlock* BB, map<pc, value_vers
 }
 
 void
-InstrumentMarkerCall::replaceGlobalUsesOfValue(vector<Value *> const& from, vector<Instruction *> const& to, BasicBlock *markerBB, Function *F, tfg const* t, map<shared_ptr<tfg_edge const>, Instruction *> const& eimap)
+InstrumentMarkerCall::replaceGlobalUsesOfValue(vector<Value *> const& from, vector<Instruction *> const& to, BasicBlock *markerBB, Function *F, dshared_ptr<tfg const> t, map<shared_ptr<tfg_edge const>, Instruction *> const& eimap)
 {
   map<pc, value_version_map_t> vals;
   valversion_dfa_t vvdfa(t, eimap, from, to, markerBB, F, vals);
@@ -1075,7 +1077,7 @@ InstrumentMarkerCall::addMarkerInBasicBlock(Function *F, BasicBlock *BB, int ins
   //}
   CPP_DBG_EXEC(INSTRUMENT_MARKER_CALL, dbgs() << __func__ << " " << __LINE__ << ": done inserting marker in BB " << get_basicblock_name(*BB) << "\n");
   map<shared_ptr<tfg_edge const>, Instruction *> eimap;
-  unique_ptr<tfg_llvm_t> t = function2tfg(F, M, eimap);
+  dshared_ptr<tfg_llvm_t> t = function2tfg(F, M, eimap);
   CPP_DBG_EXEC(INSTRUMENT_MARKER_CALL, dbgs() << __func__ << " " << __LINE__ << ": done function2tfg after inserting marker in BB " << get_basicblock_name(*BB) << "\n");
   //replaceGlobalUsesOfValue(live_vals_vec, eInst_vec, BB, F, t.get(), eimap);
   CPP_DBG_EXEC(INSTRUMENT_MARKER_CALL, dbgs() << __func__ << " " << __LINE__ << ": done replaceGlobalUsesOfValue after inserting marker in BB " << get_basicblock_name(*BB) << "\n");
@@ -1128,10 +1130,10 @@ IdentifyMaxDistancePC::find_max_distance_pc(map<pc, distance_t> const& fwd_dista
 
 
 list<Value *>
-InstrumentMarkerCall::get_live_values(unique_ptr<tfg_llvm_t> const& t, map<shared_ptr<tfg_edge const>, Instruction *> const& eimap, Function const * function, BasicBlock const* BB, int insn_num)
+InstrumentMarkerCall::get_live_values(dshared_ptr<tfg_llvm_t const> t, map<shared_ptr<tfg_edge const>, Instruction *> const& eimap, Function const * function, BasicBlock const* BB, int insn_num)
 {
   map<pc, liveness_val_t> live_vals;
-  liveness_dfa_t ldfa(t.get(), eimap, live_vals);
+  liveness_dfa_t ldfa(t, eimap, live_vals);
   ldfa.initialize(liveness_val_t());
   ldfa.solve();
   CPP_DBG_EXEC(LLVM_LIVENESS,
@@ -1191,7 +1193,7 @@ InstrumentMarkerCall::runOnFunction(Function &F)
     return false;
   }
   assert(insn_num >= 0);
-  unique_ptr<tfg_llvm_t> t = function2tfg(&F, M, eimap);
+  dshared_ptr<tfg_llvm_t> t = function2tfg(&F, M, eimap);
   //identify live vars at F/BB/insns_num
   list<Value *> live_values = get_live_values(t, eimap, function, BB, insn_num);
   addMarkerInBasicBlock(function, BB, insn_num, live_values, breaking_loop);

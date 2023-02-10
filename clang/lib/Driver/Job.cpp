@@ -32,9 +32,11 @@
 #include <system_error>
 #include <utility>
 
+#include "support/stdafx.h"
 #include "support/debug.h"
 #include "support/dyn_debug.h"
 #include "support/utils.h"
+#include "support/str_utils.h"
 
 using namespace clang;
 using namespace driver;
@@ -340,7 +342,7 @@ int Command::Execute(ArrayRef<llvm::Optional<StringRef>> Redirects,
     //  ArgsCopy.push_back(arg);
     //}
     Argv.append(Arguments.begin(), Arguments.end());
-    std::string dyn_debug_args = eqspace::get_dyn_debug_cmdline_args();
+    std::string dyn_debug_args = get_dyn_debug_cmdline_args();
     if (executable_supports_dyn_debug(Executable) && dyn_debug_args != "") {
       dyn_debug_args = std::string("--dyn_debug=") + dyn_debug_args;
       char *s = new char[strlen(dyn_debug_args.c_str()) + 1];

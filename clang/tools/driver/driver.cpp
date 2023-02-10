@@ -361,8 +361,8 @@ int main(int argc_, const char **argv_) {
             return F && std::string(F).substr(0, dyn_debug_prefix.size()) == dyn_debug_prefix;
           });
     if (iter != argv.end()) {
-      eqspace::init_dyn_debug_from_string(std::string(*iter).substr(dyn_debug_prefix.size()));
-      CPP_DBG_EXEC(DYN_DEBUG, eqspace::print_debug_class_levels());
+      init_dyn_debug_from_string(std::string(*iter).substr(dyn_debug_prefix.size()));
+      CPP_DBG_EXEC(DYN_DEBUG, print_debug_class_levels());
     }
   }
 
