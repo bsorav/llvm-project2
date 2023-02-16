@@ -3046,7 +3046,7 @@ sym_exec_llvm::get_tfg(llvm::Function& F, llvm::Module const *M, string const &n
   t->tfg_initialize_uninit_nonce_on_start_edge(map_get_keys(local_refs), se.m_srcdst_keyword);
 
   t->tfg_llvm_set_sorted_bbl_indices(sorted_bbl_indices);
-  t->tfg_preprocess(false/*, src_llvm_tfg*//*, xml_output_format*/);
+  t->tfg_preprocess();
 
   return t;
 }
@@ -3617,47 +3617,6 @@ sym_exec_llvm::get_cur_rounding_mode_var() const
 {
   return m_ctx->mk_var(string(G_INPUT_KEYWORD ".") + this->get_cur_rounding_mode_varname(), m_rounding_mode_at_start_pc->get_sort());
 }
-
-//void
-//sym_exec_llvm::sym_exec_preprocess_tfg(string const &name, tfg_llvm_t& t_src, map<string, pair<callee_summary_t, dshared_ptr<tfg_llvm_t>>> &function_tfg_map, list<string> const& sorted_bbl_indices, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, context::xml_output_format_t xml_output_format)
-//{
-//  autostop_timer func_timer(__func__);
-//  DYN_DEBUG(llvm2tfg, cout << _FNLN_ << ": name = " << name << endl);
-//  //context* ctx = this->get_context();
-//  //consts_struct_t &cs = ctx->get_consts_struct();
-//  map<allocsite_t, graph_local_t> const& local_refs = this->get_local_refs();
-//
-//  //pc start_pc = this->get_start_pc();
-//  pc start_pc = sym_exec_llvm::get_start_pc(m_function);
-//  t_src.add_extra_node_at_start_pc(start_pc);
-//
-//  unordered_set<expr_ref> const& arg_assumes = this->gen_arg_assumes();
-//  t_src.add_assumes_to_start_edge(arg_assumes);
-//
-//  t_src.tfg_initialize_rounding_mode_on_start_edge(this->get_cur_rounding_mode_varname(), m_rounding_mode_at_start_pc);
-//
-//  t_src.set_symbol_map_for_touched_symbols(*m_symbol_map, m_touched_symbols);
-//  t_src.set_string_contents_for_touched_symbols_at_zero_offset(*m_string_contents, m_touched_symbols);
-//  t_src.remove_function_name_from_symbols(name);
-//  t_src.populate_exit_return_values_for_llvm_method();
-//  t_src.canonicalize_llvm_nextpcs(src_llvm_tfg);
-//  t_src.tfg_llvm_interpret_intrinsic_fcalls();
-//
-//  map<nextpc_id_t, callee_summary_t> nextpc_id_csum = sym_exec_llvm::get_callee_summaries_for_tfg(t_src.get_nextpc_map(), m_callee_summaries);
-//  t_src.set_callee_summaries(nextpc_id_csum);
-//
-//  ASSERT(t_src.get_locals_map().size() == 0);
-//  t_src.set_locals_map(local_refs);
-//  t_src.tfg_initialize_uninit_nonce_on_start_edge(map_get_keys(local_refs), m_srcdst_keyword);
-//
-//  t_src.tfg_llvm_add_start_pc_preconditions(m_srcdst_keyword);
-//
-//  //DYN_DEBUG(llvm2tfg, cout << _FNLN_ << ": name = " << name << ": calling tfg_preprocess()\n");
-//  //t_src.tfg_preprocess(false, src_llvm_tfg, sorted_bbl_indices, {}, xml_output_format);
-//  //DYN_DEBUG(llvm2tfg, cout << _FNLN_ << ": name = " << name << ": done tfg_preprocess().\n" << endl);
-//  //DYN_DEBUG2(llvm2tfg, cout << _FNLN_ << ": name = " << name << ": after tfg_preprocess(), TFG:\n" << t_src.graph_to_string() << endl);
-//  //cout << _FNLN_ << ": " << get_timestamp(as1, sizeof as1) << ": returning\n";
-//}
 
 bool
 sym_exec_common::update_function_call_args_and_retvals_with_atlocals(dshared_ptr<tfg> t_src)
