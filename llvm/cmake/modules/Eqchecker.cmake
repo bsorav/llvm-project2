@@ -53,8 +53,6 @@ INCLUDE_DIRECTORIES(${LLVM_BINARY_DIR}/../../superopt/build/${SUPEROPT_RELEVANT_
 #LINK_DIRECTORIES(${z3_lib})
 #LINK_DIRECTORIES(${EQ_BINARY_DIR})
 
-#set(SUPEROPT_LIBS superopt fbgen eqchecker sym_exec rewrite_lib insn tfg graph gsupport exec expr valtag gas support cutils fpu parser z3 -lgmp -lgmpxx ${Boost_LIBRARIES} -ldl ${binutils_lib} -lm -lz -lmagic -lboost_filesystem -lboost_system -lssl -lcrypto)
-
 macro(add_superopt_lib libname)
   if (NOT TARGET ${libname})
     add_library(${libname} SHARED IMPORTED GLOBAL)

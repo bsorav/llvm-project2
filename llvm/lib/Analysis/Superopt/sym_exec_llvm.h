@@ -55,7 +55,7 @@ class sym_exec_llvm : public sym_exec_common
 {
 public:
   sym_exec_llvm(context* ctx, llvm::Module const *module, llvm::Function& F, dshared_ptr<tfg_llvm_t const> src_llvm_tfg/*, bool gen_callee_summary*/, unsigned memory_addressable_size, unsigned word_length, string const& srcdst_keyword) :
-    sym_exec_common(ctx, make_dshared<list<pair<string, unsigned>> const>(sym_exec_common::get_fun_names(module)), make_dshared<graph_symbol_map_t const>(sym_exec_common::get_symbol_map(module, src_llvm_tfg)), make_dshared<map<pair<symbol_id_t, offset_t>, vector<char>> const>(sym_exec_common::get_string_contents(module, src_llvm_tfg)), /*gen_callee_summary, */memory_addressable_size, word_length, srcdst_keyword),
+    sym_exec_common(ctx, make_dshared<list<pair<string, unsigned>> const>(sym_exec_common::get_fun_names(module)), make_dshared<map<symbol_id_t, graph_symbol_t> const>(sym_exec_common::sym_exec_get_symbol_map(module, src_llvm_tfg)), make_dshared<map<pair<symbol_id_t, offset_t>, vector<char>> const>(sym_exec_common::get_string_contents(module, src_llvm_tfg)), /*gen_callee_summary, */memory_addressable_size, word_length, srcdst_keyword),
     m_module(module), m_function(F), m_rounding_mode_at_start_pc(ctx->mk_rounding_mode_const(rounding_mode_t::round_to_nearest_ties_to_even()))
   {}
   virtual ~sym_exec_llvm() {}
@@ -131,6 +131,8 @@ private:
   //llvm::BasicBlock const *get_basic_block_for_pc(const llvm::Function& F, pc const &p);
 
   pair<unordered_set<expr_ref>,unordered_set<expr_ref>> apply_memcpy_function(const llvm::CallInst* c, expr_ref fun_name_expr, string const &fun_name, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, llvm::Function *F, state const &state_in, state &state_out, unordered_set<expr_ref> const& assumes, string const &cur_function_name, dshared_ptr<tfg_node> &from_node, bool model_llvm_semantics, llvm::Function const &curF, tfg &t/*, map<string, pair<callee_summary_t, dshared_ptr<tfg_llvm_t>>> *function_tfg_map*/, map<llvm_value_id_t, string_ref>* value_to_name_map/*, set<string> const *function_call_chain*/, map<string, value_scev_map_t> const& scev_map, context::xml_output_format_t xml_output_format);
+
+  pair<unordered_set<expr_ref>,unordered_set<expr_ref>> apply_memset_function(const llvm::CallInst* c, expr_ref fun_name_expr, string const &fun_name, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, llvm::Function *F, state const &state_in, state &state_out, unordered_set<expr_ref> const& assumes, string const &cur_function_name, dshared_ptr<tfg_node> &from_node, bool model_llvm_semantics, llvm::Function const &curF, tfg &t/*, map<string, pair<callee_summary_t, dshared_ptr<tfg_llvm_t>>> *function_tfg_map*/, map<llvm_value_id_t, string_ref>* value_to_name_map/*, set<string> const *function_call_chain*/, map<string, value_scev_map_t> const& scev_map, context::xml_output_format_t xml_output_format);
 
   static size_t function_get_num_bbls(const llvm::Function *F);
   pair<callee_summary_t, dshared_ptr<tfg_llvm_t>> const& get_callee_summary(llvm::Function *F, string const &fun_name, dshared_ptr<tfg_llvm_t const> src_llvm_tfg/*, map<string, pair<callee_summary_t, dshared_ptr<tfg_llvm_t>>> &function_tfg_map*/, map<llvm_value_id_t, string_ref>* value_to_name_map/*, set<string> const &function_call_chain*/, map<string, value_scev_map_t> const& scev_map, context::xml_output_format_t xml_output_format);
