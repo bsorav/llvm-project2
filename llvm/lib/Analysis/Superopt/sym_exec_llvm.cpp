@@ -2964,6 +2964,23 @@ sym_exec_llvm::sym_exec_populate_tfg_scev_map(tfg_llvm_t& t_src, value_scev_map_
   }
 }
 
+void
+sym_exec_llvm::populate_debug_headers_for_subprogram(llvm::Function& F, dshared_ptr<tfg_llvm_t> t_llvm)
+{
+  // Get the debug metadata attached to the function
+  llvm::DISubprogram *Subprogram = F.getSubprogram();
+
+  // Check if the function has debug information
+  if (Subprogram) {
+    // The function has debug information, you can now access its properties
+    //llvm::StringRef Name = Subprogram->getName();
+    //llvm::DIFile *File = Subprogram->getFile();
+    unsigned line = Subprogram->getLine();
+    unsigned scopeLine = Subprogram->getScopeLine();
+    t_llvm->tfg_llvm_add_subprogram_debug_info(llvm_subprogram_debug_info_t(line, scopeLine));
+  }
+}
+
 dshared_ptr<tfg_llvm_t>
 sym_exec_llvm::get_tfg(llvm::Function& F, llvm::Module const *M, string const &name, context *ctx, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, bool model_llvm_semantics, map<llvm_value_id_t, string_ref>* value_to_name_map, map<shared_ptr<tfg_edge const>, Instruction *>& eimap, map<string, value_scev_map_t> const& scev_map, string const& srcdst_keyword, context::xml_output_format_t xml_output_format)
 {
@@ -2990,6 +3007,8 @@ sym_exec_llvm::get_tfg(llvm::Function& F, llvm::Module const *M, string const &n
   dshared_ptr<tfg_llvm_t> t = make_dshared<tfg_llvm_t>(ss.str(), fname, ctx);
   ASSERT(t);
   t->set_start_state(start_state);
+
+  populate_debug_headers_for_subprogram(F, t);
 
   //this->populate_bbl_order_map();
 
