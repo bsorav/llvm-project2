@@ -3063,10 +3063,9 @@ sym_exec_llvm::get_tfg(llvm::Function& F, llvm::Module const *M, string const &n
 
   ASSERT(t->get_locals_map().size() == 0);
   t->set_locals_map(local_refs);
-  t->tfg_initialize_uninit_nonce_on_start_edge(map_get_keys(local_refs), se.m_srcdst_keyword);
 
   t->tfg_llvm_set_sorted_bbl_indices(sorted_bbl_indices);
-  t->tfg_preprocess(false/*, src_llvm_tfg*//*, xml_output_format*/);
+  t->tfg_preprocess();
 
   return t;
 }
@@ -3622,7 +3621,7 @@ sym_exec_llvm::get_callee_summaries_for_tfg(map<nextpc_id_t, string> const &next
       }
     }
     ASSERT(nextpc_id != -1);
-    ret[nextpc_id] = csum;
+    ret.emplace(nextpc_id, csum);
   }
   return ret;
 }
