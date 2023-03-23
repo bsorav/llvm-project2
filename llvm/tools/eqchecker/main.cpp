@@ -86,6 +86,9 @@ DynDebug("dyn-debug", cl::desc("<dyn_debug.  enable dynamic debugging for debug-
 static cl::opt<bool>
 llvmSemantics("llvm-semantics", cl::desc("<llvm-semantics.  Model poison and undef values (LLVM semantics) instead of just plain UB."), cl::init(false));
 
+static cl::opt<bool>
+discard_llvm_ub_assumes("discard-llvm-ub-assumes", cl::desc("<discard-llvm-ub-assumes. Discard all UB assumes from LLVM tfgs"), cl::init(false));
+
 static cl::opt<int>
 call_context_depth("call-context-depth", cl::desc("<call-context-depth.  The call context depth to use for pointsto-analysis."), cl::init(0));
 
@@ -265,7 +268,7 @@ main(int argc, char **argv)
     progress_flag = 1;
   }
 
-  dshared_ptr<ftmap_t> function_tfg_map = sym_exec_llvm::get_function_tfg_map(M1.get(), FunNamesVec, ctx, src_ftmap, !NoGenScev, llvmSemantics, always_use_call_context_any, nullptr, xml_output_format);
+  dshared_ptr<ftmap_t> function_tfg_map = sym_exec_llvm::get_function_tfg_map(M1.get(), FunNamesVec, ctx, src_ftmap, !NoGenScev, llvmSemantics, discard_llvm_ub_assumes, always_use_call_context_any, nullptr, xml_output_format);
   function_tfg_map->ftmap_run_pointsto_analysis(false, dshared_ptr<tfg const>::dshared_nullptr(), call_context_depth, always_use_call_context_any, true, xml_output_format);
   //t->tfg_populate_relevant_memlabels(src_llvm_tfg);
   function_tfg_map->ftmap_add_start_pc_preconditions_for_each_tfg(/*se.m_srcdst_keyword*/);

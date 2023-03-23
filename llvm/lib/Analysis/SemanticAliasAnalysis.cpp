@@ -143,7 +143,9 @@ bool SemanticAAWrapperPass::doInitialization(Module &M)
   ASSERT(g_ctx);
 
   map<llvm_value_id_t, string_ref> value_to_name_map;
-  shared_ptr<SemanticAAResult::function_tfg_map_t const> function_tfg_map = make_shared<SemanticAAResult::function_tfg_map_t const>(*sym_exec_llvm::get_function_tfg_map(&M, set<string>()/*, false*/, g_ctx, dshared_ptr<ftmap_t const>::dshared_nullptr(), false, false /*model_llvm_semantics*/, &value_to_name_map));
+  bool model_llvm_semantics = false;
+  bool discard_llvm_ub_assumes = false;
+  shared_ptr<SemanticAAResult::function_tfg_map_t const> function_tfg_map = make_shared<SemanticAAResult::function_tfg_map_t const>(*sym_exec_llvm::get_function_tfg_map(&M, set<string>()/*, false*/, g_ctx, dshared_ptr<ftmap_t const>::dshared_nullptr(), false, model_llvm_semantics, discard_llvm_ub_assumes, &value_to_name_map));
   Result.reset(new SemanticAAResult(function_tfg_map, make_shared<map<llvm_value_id_t, string_ref> const>(value_to_name_map)));
   return false;
 }

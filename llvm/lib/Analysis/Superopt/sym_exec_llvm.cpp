@@ -2964,7 +2964,7 @@ sym_exec_llvm::sym_exec_populate_tfg_scev_map(tfg_llvm_t& t_src, value_scev_map_
 }
 
 dshared_ptr<tfg_llvm_t>
-sym_exec_llvm::get_tfg(llvm::Function& F, llvm::Module const *M, string const &name, context *ctx, dshared_ptr<tfg const> src_tfg, bool model_llvm_semantics, map<llvm_value_id_t, string_ref>* value_to_name_map, map<shared_ptr<tfg_edge const>, Instruction *>& eimap, map<string, value_scev_map_t> const& scev_map, string const& srcdst_keyword, context::xml_output_format_t xml_output_format)
+sym_exec_llvm::get_tfg(llvm::Function& F, llvm::Module const *M, string const &name, context *ctx, dshared_ptr<tfg const> src_tfg, bool model_llvm_semantics, bool discard_llvm_ub_assumes, map<llvm_value_id_t, string_ref>* value_to_name_map, map<shared_ptr<tfg_edge const>, Instruction *>& eimap, map<string, value_scev_map_t> const& scev_map, string const& srcdst_keyword, context::xml_output_format_t xml_output_format)
 {
   autostop_timer func_timer(__func__);
 
@@ -3046,6 +3046,7 @@ sym_exec_llvm::get_tfg(llvm::Function& F, llvm::Module const *M, string const &n
   t->tfg_initialize_uninit_nonce_on_start_edge(map_get_keys(local_refs), se.m_srcdst_keyword);
 
   t->tfg_llvm_set_sorted_bbl_indices(sorted_bbl_indices);
+  t->tfg_llvm_discard_ub_assumes_before_preprocess();
   t->tfg_preprocess();
 
   return t;
@@ -4256,7 +4257,7 @@ sym_exec_llvm::sym_exec_populate_potential_scev_relations(Module* M, string cons
 }
 
 dshared_ptr<ftmap_t>
-sym_exec_llvm::get_function_tfg_map(Module* M, set<string> FunNamesVec/*, bool DisableModelingOfUninitVarUB*/, context* ctx, dshared_ptr<ftmap_t const> const& src_ftmap, bool gen_scev, bool model_llvm_semantics, bool always_use_call_context_any, map<llvm_value_id_t, string_ref>* value_to_name_map, context::xml_output_format_t xml_output_format)
+sym_exec_llvm::get_function_tfg_map(Module* M, set<string> FunNamesVec/*, bool DisableModelingOfUninitVarUB*/, context* ctx, dshared_ptr<ftmap_t const> const& src_ftmap, bool gen_scev, bool model_llvm_semantics, bool discard_llvm_ub_assumes, bool always_use_call_context_any, map<llvm_value_id_t, string_ref>* value_to_name_map, context::xml_output_format_t xml_output_format)
 {
   //map<string, pair<callee_summary_t, dshared_ptr<tfg_llvm_t>>> function_tfg_map;
   map<call_context_ref, dshared_ptr<tfg_ssa_t>> function_tfg_map;
@@ -4318,7 +4319,7 @@ sym_exec_llvm::get_function_tfg_map(Module* M, set<string> FunNamesVec/*, bool D
     DYN_DEBUG(llvm2tfg, cout << __func__ << " " << __LINE__ << ": Doing " << fname << endl; cout.flush());
     map<shared_ptr<tfg_edge const>, Instruction *> eimap;
 
-    dshared_ptr<tfg_llvm_t> t_src = sym_exec_llvm::get_tfg(f, M, fname, ctx, src_tfg, model_llvm_semantics, value_to_name_map, eimap, scev_map, srcdst_keyword, xml_output_format);
+    dshared_ptr<tfg_llvm_t> t_src = sym_exec_llvm::get_tfg(f, M, fname, ctx, src_tfg, model_llvm_semantics, discard_llvm_ub_assumes, value_to_name_map, eimap, scev_map, srcdst_keyword, xml_output_format);
 
     //dshared_ptr<tfg_ssa_t> t_src_ssa = tfg_ssa_t::tfg_ssa_construct_from_non_ssa_tfg(t_src, dshared_ptr<tfg const>::dshared_nullptr());
     //XXX: hack begin
