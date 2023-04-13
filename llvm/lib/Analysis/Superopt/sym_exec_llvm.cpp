@@ -3046,7 +3046,9 @@ sym_exec_llvm::get_tfg(llvm::Function& F, llvm::Module const *M, string const &n
   t->tfg_initialize_uninit_nonce_on_start_edge(map_get_keys(local_refs), se.m_srcdst_keyword);
 
   t->tfg_llvm_set_sorted_bbl_indices(sorted_bbl_indices);
-  t->tfg_llvm_discard_ub_assumes_before_preprocess();
+  if (discard_llvm_ub_assumes) {
+    t->tfg_llvm_discard_ub_assumes_before_preprocess();
+  }
   t->tfg_preprocess();
 
   return t;
