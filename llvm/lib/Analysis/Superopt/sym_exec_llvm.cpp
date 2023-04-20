@@ -3306,8 +3306,26 @@ sym_exec_llvm::add_edges(const llvm::BasicBlock& B, dshared_ptr<tfg_llvm_t const
   //errs() << "t.get_edges().size() = " << t.get_edges().size() << "\n";
   size_t insn_id = 0;
   bool pc_is_start = (t.get_edges().size() == 0);
+  set<pc> pcs_without_debug_info;
 
   for (const Instruction& I : B) {
+    optional<pair<int, int>> line_column_num;
+    DebugLoc const& dl = I.getDebugLoc();
+    DILocation* diloc = dl.get();
+    //cout << __func__ << " " << __LINE__ << ": pc_from = " << pc_from.to_string() << ", diloc = " << diloc << endl;
+    if (diloc) {
+      unsigned linenum = diloc->getLine();
+      unsigned column_num = diloc->getColumn();
+      line_column_num = make_pair(linenum, column_num);
+    }
+
+    if (line_column_num) {
+      for (auto const& p : pcs_without_debug_info) {
+        t.tfg_llvm_add_pc_line_number_mapping(p, line_column_num->first, line_column_num->second);
+      }
+      pcs_without_debug_info.clear();
+    }
+
     if (isa<PHINode const>(I)) {
       ASSERT(!pc_is_start);
       continue;
@@ -3362,16 +3380,10 @@ sym_exec_llvm::add_edges(const llvm::BasicBlock& B, dshared_ptr<tfg_llvm_t const
     if (!t.find_node(pc_from)) {
       t.add_node(from_node);
     }
-    {
-      DebugLoc const& dl = I.getDebugLoc();
-      DILocation* diloc = dl.get();
-      //cout << __func__ << " " << __LINE__ << ": pc_from = " << pc_from.to_string() << ", diloc = " << diloc << endl;
-      if (diloc) {
-        unsigned linenum = diloc->getLine();
-        unsigned column_num = diloc->getColumn();
-        t.tfg_llvm_add_pc_line_number_mapping(pc_from, linenum, column_num);
-        //cout << __func__ << " " << __LINE__ << ": pc_from = " << pc_from.to_string() << ", linenum = " << linenum << endl;
-      }
+    if (line_column_num) {
+      t.tfg_llvm_add_pc_line_number_mapping(pc_from, line_column_num->first, line_column_num->second);
+    } else {
+      pcs_without_debug_info.insert(pc_from);
     }
     insn_id++;
 
