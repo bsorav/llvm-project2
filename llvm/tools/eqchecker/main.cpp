@@ -88,10 +88,10 @@ llvmSemantics("llvm-semantics", cl::desc("<llvm-semantics.  Model poison and und
 static cl::opt<int>
 call_context_depth("call-context-depth", cl::desc("<call-context-depth.  The call context depth to use for pointsto-analysis."), cl::init(0));
 
-// Changed: Manish
-static cl::opt<int>
-unroll_factor("unroll-factor", cl::desc("<unroll-factor.  Unroll factor is used for security analysis"), cl::init(0));
-
+// // Changed: Manish
+// static cl::opt<int>
+// unroll_factor("unroll-factor", cl::desc("<unroll-factor.  Unroll factor is used for security analysis"), cl::init(0));
+// 
 
 static cl::opt<std::string>
 XmlOutputFormat("xml-output-format", cl::desc("<xml-output-format.  Format to use during xml printing.  [html|text-color|text-nocolor]"), cl::init("text-color"));
@@ -266,8 +266,11 @@ main(int argc, char **argv)
 
   dshared_ptr<ftmap_t> function_tfg_map = sym_exec_llvm::get_function_tfg_map(M1.get(), FunNamesVec, ctx, src_llptfg, !NoGenScev, llvmSemantics, nullptr, xml_output_format);
   function_tfg_map->ftmap_run_pointsto_analysis(false, dshared_ptr<tfg_llvm_t const>::dshared_nullptr(), {}, call_context_depth, true, xml_output_format);
-  // Changed: Manish
-  function_tfg_map->ftmap_run_security_analysis(call_context_depth,unroll_factor);
+  // // Changed: Manish
+  //   g_query_dir_init();
+  //   function_tfg_map->ftmap_run_security_analysis(call_context_depth,unroll_factor);
+  //   // cout<<"THe unroll factor is: "<<unroll_factor<<endl;
+  // // 
   //t->tfg_populate_relevant_memlabels(src_llvm_tfg);
   function_tfg_map->ftmap_add_start_pc_preconditions_for_each_tfg(/*se.m_srcdst_keyword*/);
 
