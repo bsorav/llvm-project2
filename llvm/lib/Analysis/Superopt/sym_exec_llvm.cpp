@@ -3030,7 +3030,6 @@ sym_exec_llvm::get_tfg(llvm::Function& F, llvm::Module const *M, string const &n
   //}
 
   se.get_tfg_common(*t);
-  t->tfg_llvm_set_ll_filename_parsed(ll_filename_parsed);
 
   if (scev_map.count(name)) {
     se.sym_exec_populate_tfg_scev_map(*t, scev_map.at(name));
@@ -4450,7 +4449,9 @@ sym_exec_llvm::sym_exec_get_function_tfg_map(Module* M, set<string> FunNamesVec/
       p.second->graph_to_stream(cout); cout << endl;
     }
   );
-  return make_dshared<ftmap_t>(function_tfg_map, always_use_call_context_any);
+  auto ftmap = make_dshared<ftmap_t>(function_tfg_map, always_use_call_context_any);
+  ftmap->ftmap_set_ll_filename_parsed(ll_filename_parsed);
+  return ftmap;
 }
 
 llvm_value_id_t
