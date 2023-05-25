@@ -251,6 +251,9 @@ main(int argc, char **argv)
       string fname = f.getName().str();
       outputStream << fname << " : " << sym_exec_common::get_num_insn(f) << "\n";
     }
+    outputStream.close();
+    outputStream.flush();
+    rename(OutputFilename_tmp.c_str(), OutputFilename.c_str());
 
     return 0;
   }
