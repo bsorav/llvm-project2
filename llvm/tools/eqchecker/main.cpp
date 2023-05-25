@@ -234,8 +234,14 @@ main(int argc, char **argv)
     NOT_REACHED();
   }
 
-  ofstream outputStream;
-  outputStream.open(OutputFilename, ios_base::out | ios_base::trunc);
+  string OutputFilename_tmp = [](){
+      ostringstream ss;
+      ss << OutputFilename << '.' << getpid();
+      return ss.str();
+    }();
+
+  ofstream outputStream(OutputFilename_tmp, ios_base::out | ios_base::trunc);
+  ASSERT(outputStream);
 
   if (DryRun) {
     for (const Function& f : *M1) {
@@ -245,6 +251,7 @@ main(int argc, char **argv)
       string fname = f.getName().str();
       outputStream << fname << " : " << sym_exec_common::get_num_insn(f) << "\n";
     }
+
     return 0;
   }
 
@@ -281,6 +288,8 @@ main(int argc, char **argv)
   autostop_timer func3_timer(string(__func__) + ".3");
   outputStream.close();
   outputStream.flush();
+
+  rename(OutputFilename_tmp.c_str(), OutputFilename.c_str());
 
   CPP_DBG_EXEC2(STATS,
     print_all_timers();
