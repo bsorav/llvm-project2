@@ -253,7 +253,18 @@ main(int argc, char **argv)
     }
     outputStream.close();
     outputStream.flush();
-    rename(OutputFilename_tmp.c_str(), OutputFilename.c_str());
+
+    int const num_tries = 10;
+    int i;
+    for (i = 0; i < num_tries; i++) {
+      if (rename(OutputFilename_tmp.c_str(), OutputFilename.c_str()) == 0) {
+        cout << "renamed successfully to " << OutputFilename << endl;
+        break;
+      };
+    }
+    if (i == num_tries) {
+      cout << "Could not rename to " << OutputFilename << endl;
+    }
 
     return 0;
   }
@@ -292,7 +303,18 @@ main(int argc, char **argv)
   outputStream.close();
   outputStream.flush();
 
-  rename(OutputFilename_tmp.c_str(), OutputFilename.c_str());
+  //rename(OutputFilename_tmp.c_str(), OutputFilename.c_str());
+
+  int const num_tries = 10;
+  int i;
+  for (i = 0; i < num_tries; i++) {
+    if (rename(OutputFilename_tmp.c_str(), OutputFilename.c_str()) == 0) {
+      break;
+    };
+  }
+  if (i == num_tries) {
+    cout << "Could not rename to " << OutputFilename << endl;
+  }
 
   CPP_DBG_EXEC2(STATS,
     print_all_timers();
