@@ -547,12 +547,12 @@ RewriteSymbolsLegacyPass::RewriteSymbolsLegacyPass(
 
 bool RewriteSymbolsLegacyPass::runOnModule(Module &M) {
   bool ret = Impl.runImpl(M);
-  std::error_code EC;
-  std::string s = M.getName().str();
-  s += ".cg.ll";
-  raw_fd_ostream ofs(s, EC);
-  M.print(ofs, nullptr, true);
-  ofs.close();
+  //std::error_code EC;
+  //std::string s = M.getName().str();
+  //s += ".cg.ll";
+  //raw_fd_ostream ofs(s, EC);
+  //M.print(ofs, nullptr, true);
+  //ofs.close();
   return ret;
 }
 
