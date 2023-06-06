@@ -45,6 +45,7 @@ using namespace llvm;
 
 #include "expr/consts_struct.h"
 #include "expr/expr.h"
+#include "expr/z3_solver.h"
 
 #include "tfg/tfg_llvm.h"
 
@@ -222,6 +223,8 @@ main(int argc, char **argv)
   DYN_DEBUG(llvm2tfg, errs() << "InputFilename = " << InputFilename1 << "\n");
 
   g_ctx_init(false);
+  g_query_dir_init();
+  solver_init();
   context *ctx = g_ctx;
   DataLayout const& dl = M1->getDataLayout();
   unsigned pointer_size = dl.getPointerSize();
