@@ -88,6 +88,12 @@ static cl::opt<bool> EarlyCSEDebugHash(
     cl::desc("Perform extra assertion checking to verify that SimpleValue's hash "
              "function is well-behaved w.r.t. its isEqual predicate"));
 
+static cl::opt<bool>
+NoLoadCSE("no-load-cse",
+          cl::desc("Do not perform CSE for load instructions"),
+          cl::init(false));
+
+
 //===----------------------------------------------------------------------===//
 // SimpleValue
 //===----------------------------------------------------------------------===//
@@ -1136,7 +1142,7 @@ bool EarlyCSE::processNode(DomTreeNode *Node) {
       // we can assume the current load loads the same value as the dominating
       // load.
       LoadValue InVal = AvailableLoads.lookup(MemInst.getPointerOperand());
-      if (InVal.DefInst != nullptr &&
+      if (!NoLoadCSE && InVal.DefInst != nullptr &&
           InVal.MatchingId == MemInst.getMatchingId() &&
           // We don't yet handle removing loads with ordering of any kind.
           !MemInst.isVolatile() && MemInst.isUnordered() &&
