@@ -143,6 +143,11 @@ MaxSmallBlockSize("simplifycfg-max-small-block-size", cl::Hidden, cl::init(10),
                   cl::desc("Max size of a block which is still considered "
                            "small enough to thread through"));
 
+static cl::opt<bool>
+NoMergeCalls("nomerge-calls",
+             cl::desc("Do not merge function calls (by hoisting or sinking)"),
+             cl::init(false));
+
 STATISTIC(NumBitMaps, "Number of switch instructions turned into bitmaps");
 STATISTIC(NumLinearMaps,
           "Number of switch instructions turned into linear mapping");
@@ -1325,10 +1330,10 @@ bool SimplifyCFGOpt::HoistThenElseCodeToIf(BranchInst *BI,
 
     // If any of the two call sites has nomerge attribute, stop hoisting.
     if (const auto *CB1 = dyn_cast<CallBase>(I1))
-      if (CB1->cannotMerge())
+      if (NoMergeCalls || CB1->cannotMerge())
         return Changed;
     if (const auto *CB2 = dyn_cast<CallBase>(I2))
-      if (CB2->cannotMerge())
+      if (NoMergeCalls || CB2->cannotMerge())
         return Changed;
 
     if (isa<DbgInfoIntrinsic>(I1) || isa<DbgInfoIntrinsic>(I2)) {
@@ -1521,7 +1526,7 @@ static bool canSinkInstructions(
     // that cannot satisfy the inline-asm constraints.
     // If the instruction has nomerge attribute, return false.
     if (const auto *C = dyn_cast<CallBase>(I))
-      if (C->isInlineAsm() || C->cannotMerge())
+      if (C->isInlineAsm() || NoMergeCalls || C->cannotMerge())
         return false;
 
     // Each instruction must have zero or one use.
