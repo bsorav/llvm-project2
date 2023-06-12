@@ -2963,8 +2963,25 @@ sym_exec_llvm::sym_exec_populate_tfg_scev_map(tfg_llvm_t& t_src, value_scev_map_
   }
 }
 
+void
+sym_exec_llvm::populate_debug_headers_for_subprogram(llvm::Function& F, dshared_ptr<tfg_llvm_t> t_llvm)
+{
+  // Get the debug metadata attached to the function
+  llvm::DISubprogram *Subprogram = F.getSubprogram();
+
+  // Check if the function has debug information
+  if (Subprogram) {
+    // The function has debug information, you can now access its properties
+    //llvm::StringRef Name = Subprogram->getName();
+    //llvm::DIFile *File = Subprogram->getFile();
+    unsigned line = Subprogram->getLine();
+    unsigned scopeLine = Subprogram->getScopeLine();
+    t_llvm->tfg_llvm_add_subprogram_debug_info(llvm_subprogram_debug_info_t(line, scopeLine));
+  }
+}
+
 dshared_ptr<tfg_llvm_t>
-sym_exec_llvm::get_tfg(llvm::Function& F, llvm::Module const *M, string const &name, context *ctx, dshared_ptr<tfg const> src_tfg, bool model_llvm_semantics, bool discard_llvm_ub_assumes, map<llvm_value_id_t, string_ref>* value_to_name_map, map<shared_ptr<tfg_edge const>, Instruction *>& eimap, map<string, value_scev_map_t> const& scev_map, string const& srcdst_keyword, context::xml_output_format_t xml_output_format)
+sym_exec_llvm::get_tfg(llvm::Function& F, llvm::Module const *M, string const &name, context *ctx, dshared_ptr<tfg const> src_tfg, bool model_llvm_semantics, bool dischard_llvm_ub_assumes map<llvm_value_id_t, string_ref>* value_to_name_map, map<shared_ptr<tfg_edge const>, Instruction *>& eimap, map<string, value_scev_map_t> const& scev_map, string const& srcdst_keyword, dshared_ptr<ll_filename_parsed_t> const& ll_filename_parsed, context::xml_output_format_t xml_output_format)
 {
   autostop_timer func_timer(__func__);
 
@@ -2976,7 +2993,8 @@ sym_exec_llvm::get_tfg(llvm::Function& F, llvm::Module const *M, string const &n
 
   list<string> sorted_bbl_indices;
   for (BasicBlock const& BB: F) {
-    sorted_bbl_indices.push_back(se.get_basicblock_index(BB));
+    string bbname = se.get_basicblock_index(BB);
+    sorted_bbl_indices.push_back(bbname);
   }
 
   //llvm::Function const &F = m_function;
@@ -2984,16 +3002,23 @@ sym_exec_llvm::get_tfg(llvm::Function& F, llvm::Module const *M, string const &n
   state start_state;
   se.get_state_template(pc::start(), start_state, srcdst_keyword);
   string fname = se.functionGetName(F);
+
+  if (ll_filename_parsed) {
+    ll_filename_parsed->ll_filename_identify_linenum_for_function(name);
+  }
+
   stringstream ss;
   ss << srcdst_keyword << "." G_LLVM_PREFIX "." << fname;
   dshared_ptr<tfg_llvm_t> t = make_dshared<tfg_llvm_t>(ss.str(), fname, ctx);
   ASSERT(t);
   t->set_start_state(start_state);
 
+  populate_debug_headers_for_subprogram(F, t);
+
   //this->populate_bbl_order_map();
 
   for(const BasicBlock& B : F) {
-    se.add_edges(B, src_tfg, model_llvm_semantics, *t, F/*, function_tfg_map*/, value_to_name_map/*, function_call_chain*/, eimap, scev_map, xml_output_format);
+    se.add_edges(B, src_tfg, model_llvm_semantics, *t, F/*, function_tfg_map*/, value_to_name_map/*, function_call_chain*/, eimap, scev_map, ll_filename_parsed, xml_output_format);
   }
 
   //for (const auto& arg : F.args()) {
@@ -3043,7 +3068,6 @@ sym_exec_llvm::get_tfg(llvm::Function& F, llvm::Module const *M, string const &n
 
   ASSERT(t->get_locals_map().size() == 0);
   t->set_locals_map(local_refs);
-  t->tfg_initialize_uninit_nonce_on_start_edge(map_get_keys(local_refs), se.m_srcdst_keyword);
 
   t->tfg_llvm_set_sorted_bbl_indices(sorted_bbl_indices);
   if (discard_llvm_ub_assumes) {
@@ -3283,15 +3307,42 @@ sym_exec_llvm::parse_stackrestore_intrinsic(Instruction const& I, tfg& t, pc con
 }
 
 void
-sym_exec_llvm::add_edges(const llvm::BasicBlock& B, dshared_ptr<tfg const> src_tfg, bool model_llvm_semantics, tfg_llvm_t& t, const llvm::Function& F/*, map<string, pair<callee_summary_t, dshared_ptr<tfg_llvm_t>>> *function_tfg_map*/, map<llvm_value_id_t, string_ref>* value_to_name_map/*, set<string> const *function_call_chain*/, map<shared_ptr<tfg_edge const>, Instruction *>& eimap, map<string, value_scev_map_t> const& scev_map, context::xml_output_format_t xml_output_format)
+sym_exec_llvm::add_edges(const llvm::BasicBlock& B, dshared_ptr<tfg const> src_tfg, bool model_llvm_semantics, tfg_llvm_t& t, const llvm::Function& F/*, map<string, pair<callee_summary_t, dshared_ptr<tfg_llvm_t>>> *function_tfg_map*/, map<llvm_value_id_t, string_ref>* value_to_name_map/*, set<string> const *function_call_chain*/, map<shared_ptr<tfg_edge const>, Instruction *>& eimap, map<string, value_scev_map_t> const& scev_map, dshared_ptr<ll_filename_parsed_t> const& ll_filename_parsed, context::xml_output_format_t xml_output_format)
 {
   //errs() << "Doing BB: " << get_basicblock_name(B) << "\n";
   //errs() << "t.get_edges().size() = " << t.get_edges().size() << "\n";
   size_t insn_id = 0;
   bool pc_is_start = (t.get_edges().size() == 0);
+  set<pc> pcs_without_debug_info;
+
+  string bbindex = get_basicblock_index(B);
+
+  if (ll_filename_parsed) {
+    ll_filename_parsed->ll_filename_identify_linenum_for_basic_block(bbindex);
+  }
 
   for (const Instruction& I : B) {
+    optional<pair<int, int>> line_column_num;
+    DebugLoc const& dl = I.getDebugLoc();
+    DILocation* diloc = dl.get();
+    //cout << __func__ << " " << __LINE__ << ": pc_from = " << pc_from.to_string() << ", diloc = " << diloc << endl;
+    if (diloc) {
+      unsigned linenum = diloc->getLine();
+      unsigned column_num = diloc->getColumn();
+      line_column_num = make_pair(linenum, column_num);
+    }
+
+    if (line_column_num) {
+      for (auto const& p : pcs_without_debug_info) {
+        t.tfg_llvm_add_pc_line_number_mapping(p, line_column_num->first, line_column_num->second);
+      }
+      pcs_without_debug_info.clear();
+    }
+
     if (isa<PHINode const>(I)) {
+      if (ll_filename_parsed) {
+        ll_filename_parsed->ll_filename_identify_linenum_for_phi_instruction(bbindex);
+      }
       ASSERT(!pc_is_start);
       continue;
     }
@@ -3299,10 +3350,13 @@ sym_exec_llvm::add_edges(const llvm::BasicBlock& B, dshared_ptr<tfg const> src_t
         || (isa<CallInst>(I) && cast<CallInst>(I).getIntrinsicID() == Intrinsic::dbg_addr)
         || (isa<CallInst>(I) && cast<CallInst>(I).getIntrinsicID() == Intrinsic::dbg_label)
        ) {
+      if (ll_filename_parsed) {
+        ll_filename_parsed->ll_filename_identify_linenum_for_dbg_addr_instruction(bbindex);
+      }
       continue;
     }
 
-    pc pc_from = get_pc_from_bbindex_and_insn_id(get_basicblock_index(B), insn_id);
+    pc pc_from = get_pc_from_bbindex_and_insn_id(bbindex, insn_id);
     pc pc_from_dbg;
     if (pc_is_start) {
       pc_from_dbg = pc::start();
@@ -3315,9 +3369,12 @@ sym_exec_llvm::add_edges(const llvm::BasicBlock& B, dshared_ptr<tfg const> src_t
       if (pc_is_start) {
         pc_from_for_dbg_parsing = pc_from_dbg;
       } else {
-        pc_from_for_dbg_parsing = pc(pc_from_dbg.get_type(), pc_from_dbg.get_index(), pc_from_dbg.get_subindex(), 0);
+        pc_from_for_dbg_parsing = pc(pc_from_dbg.get_type(), pc_from_dbg.get_index(), pc_from_dbg.get_subindex(), PC_SUBSUBINDEX_BASIC_BLOCK_ENTRY);
       }
       this->parse_dbg_declare_intrinsic(I, t, pc_from_for_dbg_parsing);
+      if (ll_filename_parsed) {
+        ll_filename_parsed->ll_filename_identify_linenum_for_dbg_declare_instruction(bbindex, pc_from_for_dbg_parsing);
+      }
       continue;
     }
 
@@ -3326,14 +3383,20 @@ sym_exec_llvm::add_edges(const llvm::BasicBlock& B, dshared_ptr<tfg const> src_t
       if (pc_is_start) {
         pc_from_for_dbg_parsing = pc_from_dbg;
       } else {
-        pc_from_for_dbg_parsing = pc(pc_from_dbg.get_type(), pc_from_dbg.get_index(), pc_from_dbg.get_subindex(), 0);
+        pc_from_for_dbg_parsing = pc(pc_from_dbg.get_type(), pc_from_dbg.get_index(), pc_from_dbg.get_subindex(), PC_SUBSUBINDEX_BASIC_BLOCK_ENTRY);
       }
       this->parse_dbg_value_intrinsic(I, t, pc_from_for_dbg_parsing);
+      if (ll_filename_parsed) {
+        ll_filename_parsed->ll_filename_identify_linenum_for_dbg_value_instruction(bbindex, pc_from_for_dbg_parsing);
+      }
       continue;
     }
 
     if (isa<CallInst>(I) && cast<CallInst>(I).getIntrinsicID() == Intrinsic::unseq_noalias) {
       //NOT_IMPLEMENTED();
+      if (ll_filename_parsed) {
+        ll_filename_parsed->ll_filename_identify_linenum_for_unseq_noalias_instruction(bbindex);
+      }
       continue;
     }
     if (pc_is_start) {
@@ -3341,20 +3404,18 @@ sym_exec_llvm::add_edges(const llvm::BasicBlock& B, dshared_ptr<tfg const> src_t
       //errs() << "setting pc_is_start to false\n";
     }
 
+    if (ll_filename_parsed) {
+      ll_filename_parsed->ll_filename_identify_linenum_for_regular_instruction(bbindex, pc_from);
+    }
+
     dshared_ptr<tfg_node> from_node = make_dshared<tfg_node>(pc_from);
     if (!t.find_node(pc_from)) {
       t.add_node(from_node);
     }
-    {
-      DebugLoc const& dl = I.getDebugLoc();
-      DILocation* diloc = dl.get();
-      //cout << __func__ << " " << __LINE__ << ": pc_from = " << pc_from.to_string() << ", diloc = " << diloc << endl;
-      if (diloc) {
-        unsigned linenum = diloc->getLine();
-        unsigned column_num = diloc->getColumn();
-        t.tfg_llvm_add_pc_line_number_mapping(pc_from, linenum, column_num);
-        //cout << __func__ << " " << __LINE__ << ": pc_from = " << pc_from.to_string() << ", linenum = " << linenum << endl;
-      }
+    if (line_column_num) {
+      t.tfg_llvm_add_pc_line_number_mapping(pc_from, line_column_num->first, line_column_num->second);
+    } else {
+      pcs_without_debug_info.insert(pc_from);
     }
     insn_id++;
 
@@ -3604,7 +3665,7 @@ sym_exec_llvm::get_callee_summaries_for_tfg(map<nextpc_id_t, string> const &next
       }
     }
     ASSERT(nextpc_id != -1);
-    ret[nextpc_id] = csum;
+    ret.emplace(nextpc_id, csum);
   }
   return ret;
 }
@@ -4259,7 +4320,7 @@ sym_exec_llvm::sym_exec_populate_potential_scev_relations(Module* M, string cons
 }
 
 dshared_ptr<ftmap_t>
-sym_exec_llvm::get_function_tfg_map(Module* M, set<string> FunNamesVec/*, bool DisableModelingOfUninitVarUB*/, context* ctx, dshared_ptr<ftmap_t const> const& src_ftmap, bool gen_scev, bool model_llvm_semantics, bool discard_llvm_ub_assumes, bool always_use_call_context_any, map<llvm_value_id_t, string_ref>* value_to_name_map, context::xml_output_format_t xml_output_format)
+sym_exec_llvm::sym_exec_get_function_tfg_map(Module* M, set<string> FunNamesVec/*, bool DisableModelingOfUninitVarUB*/, context* ctx, dshared_ptr<ftmap_t const> const& src_ftmap, bool gen_scev, bool model_llvm_semantics, bool discard_llvm_ub_assumes, bool always_use_call_context_any, string const& ll_filename, map<llvm_value_id_t, string_ref>* value_to_name_map, context::xml_output_format_t xml_output_format)
 {
   //map<string, pair<callee_summary_t, dshared_ptr<tfg_llvm_t>>> function_tfg_map;
   map<call_context_ref, dshared_ptr<tfg_ssa_t>> function_tfg_map;
@@ -4270,6 +4331,8 @@ sym_exec_llvm::get_function_tfg_map(Module* M, set<string> FunNamesVec/*, bool D
     dbgs().flush();
   );
   string srcdst_keyword = src_ftmap ? G_DST_KEYWORD : G_SRC_KEYWORD;
+
+  dshared_ptr<ll_filename_parsed_t> ll_filename_parsed = ll_filename != "" ? ll_filename_parsed_t::ll_filename_parsed_init(ll_filename) : dshared_ptr<ll_filename_parsed_t>::dshared_nullptr();
 
   map<string, value_scev_map_t> scev_map;
   //map<Function const*, LoopInfo const*> loopinfo_map;
@@ -4321,7 +4384,7 @@ sym_exec_llvm::get_function_tfg_map(Module* M, set<string> FunNamesVec/*, bool D
     DYN_DEBUG(llvm2tfg, cout << __func__ << " " << __LINE__ << ": Doing " << fname << endl; cout.flush());
     map<shared_ptr<tfg_edge const>, Instruction *> eimap;
 
-    dshared_ptr<tfg_llvm_t> t_src = sym_exec_llvm::get_tfg(f, M, fname, ctx, src_tfg, model_llvm_semantics, discard_llvm_ub_assumes, value_to_name_map, eimap, scev_map, srcdst_keyword, xml_output_format);
+    dshared_ptr<tfg_llvm_t> t_src = sym_exec_llvm::get_tfg(f, M, fname, ctx, src_tfg, model_llvm_semantics, discard_llvm_ub_assumes, value_to_name_map, eimap, scev_map, srcdst_keyword, ll_filename_parsed, xml_output_format);
 
     //dshared_ptr<tfg_ssa_t> t_src_ssa = tfg_ssa_t::tfg_ssa_construct_from_non_ssa_tfg(t_src, dshared_ptr<tfg const>::dshared_nullptr());
     //XXX: hack begin
@@ -4342,7 +4405,9 @@ sym_exec_llvm::get_function_tfg_map(Module* M, set<string> FunNamesVec/*, bool D
       p.second->graph_to_stream(cout); cout << endl;
     }
   );
-  return make_dshared<ftmap_t>(function_tfg_map, always_use_call_context_any);
+  auto ftmap = make_dshared<ftmap_t>(function_tfg_map, always_use_call_context_any);
+  ftmap->ftmap_set_ll_filename_parsed(ll_filename_parsed);
+  return ftmap;
 }
 
 llvm_value_id_t

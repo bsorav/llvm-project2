@@ -637,7 +637,8 @@ void PEI::spillCalleeSavedRegs(MachineFunction &MF) {
 /// AdjustStackOffset - Helper function used to adjust the stack frame offset.
 static inline void AdjustStackOffset(MachineFrameInfo &MFI, int FrameIdx,
                                      bool StackGrowsDown, int64_t &Offset,
-                                     Align &MaxAlign, unsigned Skew) {
+                                     Align &MaxAlign, unsigned Skew,
+                                     std::string const& FnName = "") {
   // If the stack grows down, add the object size to find the lowest address.
   auto ObjSz = MFI.getObjectSize(FrameIdx);
   if (StackGrowsDown)
@@ -655,13 +656,15 @@ static inline void AdjustStackOffset(MachineFrameInfo &MFI, int FrameIdx,
   if (StackGrowsDown) {
     LLVM_DEBUG(dbgs() << "alloc FI(" << FrameIdx << ") of size " << ObjSz << " at SP[" << -Offset
                       << "]\n");
-    errs() << _FNLN_ << ": alloc FI(" << FrameIdx << ") of size " << ObjSz << " at SP[" << -Offset
+    if (FnName.size())
+      errs() << _FNLN_ << ": function " << FnName << " alloc FI(" << FrameIdx << ") of size " << ObjSz << " at SP[" << -Offset
                       << "]\n";
     MFI.setObjectOffset(FrameIdx, -Offset); // Set the computed offset
   } else {
     LLVM_DEBUG(dbgs() << "alloc FI(" << FrameIdx << ") of size " << ObjSz << " at SP[" << Offset
                       << "]\n");
-    errs() << _FNLN_ << ": alloc FI(" << FrameIdx << ") of size " << ObjSz << " at SP[" << Offset
+    if (FnName.size())
+      errs() << _FNLN_ << ": function " << FnName << " alloc FI(" << FrameIdx << ") of size " << ObjSz << " at SP[" << Offset
                       << "]\n";
     MFI.setObjectOffset(FrameIdx, Offset);
     Offset += ObjSz;
@@ -1060,12 +1063,13 @@ void PEI::calculateFrameObjectOffsets(MachineFunction &MF) {
     computeFreeStackSlots(MFI, StackGrowsDown, MinCSFrameIndex, MaxCSFrameIndex,
                           FixedCSEnd, StackBytesFree);
 
+  std::string FnName = MF.getName().str();
   // Now walk the objects and actually assign base offsets to them.
   for (auto &Object : ObjectsToAllocate)
     if (!scavengeStackSlot(MFI, Object, StackGrowsDown, MaxAlign,
                            StackBytesFree)) {
       //errs() << _FNLN_ << ": calling AdjustStackOffset()\n";
-      AdjustStackOffset(MFI, Object, StackGrowsDown, Offset, MaxAlign, Skew);
+      AdjustStackOffset(MFI, Object, StackGrowsDown, Offset, MaxAlign, Skew, FnName);
     }
   // Make sure the special register scavenging spill slot is closest to the
   // stack pointer.

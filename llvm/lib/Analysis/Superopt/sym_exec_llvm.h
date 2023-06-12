@@ -2,7 +2,10 @@
 #define EQCHECKSYM_EXEC_LLVM_H
 
 #include "support/stdafx.h"
+
 #include "expr/expr.h"
+
+#include "gsupport/ll_filename_parsed.h"
 
 #include "tfg/tfg.h"
 #include "tfg/tfg_llvm.h"
@@ -43,6 +46,7 @@
 //#include "llvm/IR/Constant.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/Analysis/ScalarEvolutionExpressions.h"
+
 #include "sym_exec_common.h"
 
 using value_scev_map_t = map<string, scev_toplevel_t<pc>>;
@@ -74,7 +78,9 @@ public:
   //sort_ref get_mem_domain() const;
   //sort_ref get_mem_range() const;
 
-  static dshared_ptr<tfg_llvm_t> get_tfg(llvm::Function& F, llvm::Module const *M, string const &name, context *ctx, dshared_ptr<tfg const> src_tfg, bool model_llvm_semantics, bool discard_llvm_ub_assumes, map<llvm_value_id_t, string_ref>* value_to_name_map, map<shared_ptr<tfg_edge const>, llvm::Instruction *>& eimap, map<string, value_scev_map_t> const& scev_map, string const& srcdst_keyword, context::xml_output_format_t xml_output_format);
+  static dshared_ptr<tfg_llvm_t> get_tfg(llvm::Function& F, llvm::Module const *M, string const &name, context *ctx, dshared_ptr<tfg const> src_tfg, bool model_llvm_semantics, bool discard_llvm_ub_assumes, map<llvm_value_id_t, string_ref>* value_to_name_map, map<shared_ptr<tfg_edge const>, llvm::Instruction *>& eimap, map<string, value_scev_map_t> const& scev_map, string const& srcdst_keyword, dshared_ptr<ll_filename_parsed_t> const& ll_filename_parsed, context::xml_output_format_t xml_output_format);
+
+  static void populate_debug_headers_for_subprogram(llvm::Function& F, dshared_ptr<tfg_llvm_t> t_llvm);
 
   static pc get_start_pc(llvm::Function const& F);
 
@@ -93,7 +99,7 @@ public:
   //map<symbol_id_t, tuple<string, size_t, bool>> const &get_symbol_map() { return m_symbol_map; }
   //static string get_value_name(const llvm::Value& v);
   //virtual void process_phi_nodes(tfg &t, const llvm::BasicBlock* B_from, const pc& p_to, shared_ptr<tfg_node> const &from_node, const llvm::Function& F, expr_ref edgecond) override;
-  static dshared_ptr<ftmap_t> get_function_tfg_map(llvm::Module* M, set<string> FunNamesVec/*, bool DisableModelingOfUninitVarUB*/, context* ctx, dshared_ptr<ftmap_t const> const& src_ftmap, bool gen_scev, bool model_llvm_semantics, bool discard_llvm_ub_assumes, bool always_use_call_context_any, map<llvm_value_id_t, string_ref>* value_to_name_map = nullptr, context::xml_output_format_t xml_output_format = context::XML_OUTPUT_FORMAT_TEXT_NOCOLOR);
+  static dshared_ptr<ftmap_t> sym_exec_get_function_tfg_map(llvm::Module* M, set<string> FunNamesVec/*, bool DisableModelingOfUninitVarUB*/, context* ctx, dshared_ptr<ftmap_t const> const& src_ftmap, bool gen_scev, bool model_llvm_semantics, bool discard_llvm_ub_assumes, bool always_use_call_context_any, string const& ll_filename, map<llvm_value_id_t, string_ref>* value_to_name_map = nullptr, context::xml_output_format_t xml_output_format = context::XML_OUTPUT_FORMAT_TEXT_NOCOLOR);
   static map<string, value_scev_map_t> sym_exec_populate_potential_scev_relations(llvm::Module* M, string const& srcdst_keyword);
 
   static scev_toplevel_t<pc> get_scev_toplevel(llvm::Instruction& I, llvm::ScalarEvolution * scev, llvm::LoopInfo const* loopinfo, string const& srcdst_keyword, size_t word_length);
@@ -202,7 +208,7 @@ private:
   vector<control_flow_transfer> expand_switch(tfg &t, map<llvm_value_id_t, string_ref>* value_to_name_map, dshared_ptr<tfg_node> const &from_node, vector<control_flow_transfer> const &cfts, state const &state_to, unordered_set<expr_ref> const& cond_assumes, te_comment_t const& te_comment, llvm::Instruction * I, const llvm::BasicBlock& B, const llvm::Function& F, map<shared_ptr<tfg_edge const>, llvm::Instruction *>& eimap);
 
   void process_cft(tfg &t, dshared_ptr<tfg_node> const &from_node, pc const &pc_to, expr_ref target, expr_ref to_condition, state const &state_to, unordered_set<expr_ref> const& assumes, const llvm::BasicBlock& B, const llvm::Function& F);
-  void add_edges(const llvm::BasicBlock& B, dshared_ptr<tfg const> src_tfg, bool model_llvm_semantics, tfg_llvm_t& t, const llvm::Function& F/*, map<string, pair<callee_summary_t, dshared_ptr<tfg_llvm_t>>> *function_tfg_map*/, map<llvm_value_id_t, string_ref>* value_to_name_map/*, set<string> const *function_call_chain*/, map<shared_ptr<tfg_edge const>, llvm::Instruction *>& eimap, map<string, value_scev_map_t> const& scev_map, context::xml_output_format_t xml_output_format);
+  void add_edges(const llvm::BasicBlock& B, dshared_ptr<tfg const> src_tfg, bool model_llvm_semantics, tfg_llvm_t& t, const llvm::Function& F/*, map<string, pair<callee_summary_t, dshared_ptr<tfg_llvm_t>>> *function_tfg_map*/, map<llvm_value_id_t, string_ref>* value_to_name_map/*, set<string> const *function_call_chain*/, map<shared_ptr<tfg_edge const>, llvm::Instruction *>& eimap, map<string, value_scev_map_t> const& scev_map, dshared_ptr<ll_filename_parsed_t> const& ll_filename_parsed, context::xml_output_format_t xml_output_format);
 
   void sym_exec_populate_tfg_scev_map(tfg_llvm_t& t_src, value_scev_map_t const& value_scev_map) const;
 

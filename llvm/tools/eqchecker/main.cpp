@@ -46,6 +46,7 @@ using namespace llvm;
 
 #include "expr/consts_struct.h"
 #include "expr/expr.h"
+#include "expr/z3_solver.h"
 
 #include "tfg/tfg_llvm.h"
 
@@ -104,6 +105,10 @@ NoGenScev("no-gen-scev", cl::desc("<no-gen-scev. don't generate potential scev r
 static cl::opt<bool>
 Progress("progress", cl::desc("<progress. keep printing progress involving time/mem stats>"), cl::init(false));
 
+static cl::opt<std::string>
+ll_filename("ll-filename", cl::desc("<Disassembled LLVM used as input to identify linenum/column-num for PCs"), cl::init(""));
+
+
 //static cl::opt<bool>
 //NoCollapse("no-collapse", cl::desc("<no-collapse. Do not collapse basic blocks into single edges>"), cl::init(false));
 
@@ -161,11 +166,8 @@ main(int argc, char **argv)
   sys::PrintStackTraceOnErrorSignal(argv[0]);
   PrettyStackTraceProgram X(argc, argv);
 
-  //LLVMContext &Context = getGlobalContext();
   LLVMContext Context;
   llvm_shutdown_obj Y;  // Call llvm_shutdown() on exit.
-
-  //Context.setDiagnosticHandler(diagnosticHandler, argv[0]);
 
   CPP_DBG_EXEC(ARGV_PRINT,
       for (int i = 0; i < argc; i++) {
@@ -223,15 +225,10 @@ main(int argc, char **argv)
 
   assert(M1 /*&& M2*/);
   DYN_DEBUG(llvm2tfg, errs() << "InputFilename = " << InputFilename1 << "\n");
-  //errs() << InputFilename2 << "\n";
 
-  /*for(const pair<string, unsigned>& fun_name : fun_names)
-  {
-    errs() << fun_name.first << " : " << fun_name.second << "\n";
-  }*/
-
-  //context *ctx = new context(context::config(600, 600/*, true, true, true*/));
   g_ctx_init(false);
+  g_query_dir_init();
+  solver_init();
   context *ctx = g_ctx;
   DataLayout const& dl = M1->getDataLayout();
   unsigned pointer_size = dl.getPointerSize();
@@ -244,8 +241,14 @@ main(int argc, char **argv)
     NOT_REACHED();
   }
 
-  ofstream outputStream;
-  outputStream.open(OutputFilename, ios_base::out | ios_base::trunc);
+  string OutputFilename_tmp = [](){
+      ostringstream ss;
+      ss << OutputFilename << '.' << getpid();
+      return ss.str();
+    }();
+
+  ofstream outputStream(OutputFilename_tmp, ios_base::out | ios_base::trunc);
+  ASSERT(outputStream);
 
   if (DryRun) {
     for (const Function& f : *M1) {
@@ -255,6 +258,21 @@ main(int argc, char **argv)
       string fname = f.getName().str();
       outputStream << fname << " : " << sym_exec_common::get_num_insn(f) << "\n";
     }
+    outputStream.close();
+    outputStream.flush();
+
+    int const num_tries = 10;
+    int i;
+    for (i = 0; i < num_tries; i++) {
+      if (rename(OutputFilename_tmp.c_str(), OutputFilename.c_str()) == 0) {
+        cout << "renamed successfully to " << OutputFilename << endl;
+        break;
+      };
+    }
+    if (i == num_tries) {
+      cout << "Could not rename to " << OutputFilename << endl;
+    }
+
     return 0;
   }
 
@@ -268,10 +286,9 @@ main(int argc, char **argv)
     progress_flag = 1;
   }
 
-  dshared_ptr<ftmap_t> function_tfg_map = sym_exec_llvm::get_function_tfg_map(M1.get(), FunNamesVec, ctx, src_ftmap, !NoGenScev, llvmSemantics, discard_llvm_ub_assumes, always_use_call_context_any, nullptr, xml_output_format);
-  function_tfg_map->ftmap_run_pointsto_analysis(false, dshared_ptr<tfg const>::dshared_nullptr(), call_context_depth, always_use_call_context_any, true, xml_output_format);
-  //t->tfg_populate_relevant_memlabels(src_llvm_tfg);
-  function_tfg_map->ftmap_add_start_pc_preconditions_for_each_tfg(/*se.m_srcdst_keyword*/);
+  dshared_ptr<ftmap_t> function_tfg_map = sym_exec_llvm::sym_exec_get_function_tfg_map(M1.get(), FunNamesVec, ctx, src_ftmap, !NoGenScev, llvmSemantics, discard_llvm_ub_assumes, always_use_call_context_any, ll_filename, nullptr, xml_output_format);
+  function_tfg_map->ftmap_run_pointsto_analysis(nullopt, call_context_depth, always_use_call_context_any, true, xml_output_format);
+  function_tfg_map->ftmap_add_start_pc_preconditions_for_each_tfg();
 
   string llvm_header = M1->get_llvm_header_as_string();
   list<string> type_decls = M1->get_type_declarations_as_string();
@@ -280,30 +297,27 @@ main(int argc, char **argv)
   map<string, function_signature_t> fname_signature_map = M1->get_function_signature_map();
   pair<map<string, llvm_fn_attribute_id_t>, map<llvm_fn_attribute_id_t, string>> fname_attributes_map = M1->get_function_attributes_map();
   map<string, link_status_t> fname_linker_status_map = M1->get_function_link_status_map();
-  //map<llvm_fn_attribute_id_t, string> attributes = M1->get_attributes();
-  //string llvm_id = M1->get_llvm_identifier();
-  //string llvm_module_flags = M1->get_llvm_module_flags();
   list<string> llvm_metadata = M1->get_metadata_as_string();
 
   autostop_timer func2_timer(string(__func__) + ".2");
   llptfg_t llptfg(llvm_header, type_decls, globals_with_initializers, function_decls, *function_tfg_map, fname_signature_map, fname_attributes_map.first, fname_linker_status_map, fname_attributes_map.second, llvm_metadata);
   llptfg.print(outputStream);
-  //for (auto ft : function_tfg_map) {
-  //  string const &fname = ft.first;
-
-  //  outputStream << "=FunctionName: " << fname << "\n";
-  //  //outputStream << "=CalleeSummary:" << function_tfg_map.at(fname).first.callee_summary_to_string_for_eq() << "\n";
-  //  outputStream << function_tfg_map.at(fname).second->tfg_to_string_for_eq() << "\n";
-  //}
   autostop_timer func3_timer(string(__func__) + ".3");
   outputStream.close();
   outputStream.flush();
 
-  //ofstream llcopy;
-  //llcopy.open(OutputFilename + ".ll", ios_base::out | ios_base::trunc);
-  //llptfg.output_llvm_code(llcopy);
-  //llcopy.close();
-  //llcopy.flush();
+  //rename(OutputFilename_tmp.c_str(), OutputFilename.c_str());
+
+  int const num_tries = 10;
+  int i;
+  for (i = 0; i < num_tries; i++) {
+    if (rename(OutputFilename_tmp.c_str(), OutputFilename.c_str()) == 0) {
+      break;
+    };
+  }
+  if (i == num_tries) {
+    cout << "Could not rename to " << OutputFilename << endl;
+  }
 
   CPP_DBG_EXEC2(STATS,
     print_all_timers();
@@ -313,12 +327,4 @@ main(int argc, char **argv)
   outs().flush();
   errs().flush();
   exit(0);
-
-
-  //errs().changeColor(raw_ostream::RED);
-  //errs() << " : " << (e.check_eq("out.proof") ? "passed" : "---------------failed????????")<< "\n";
-  //errs().flush();
-  
-
-  return 0;
 }
