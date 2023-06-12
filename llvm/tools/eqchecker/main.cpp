@@ -90,7 +90,7 @@ static cl::opt<int>
 call_context_depth("call-context-depth", cl::desc("<call-context-depth.  The call context depth to use for pointsto-analysis."), cl::init(0));
 
 static cl::opt<bool>
-always_use_call_context_any("always-use-call-context-any", cl::desc("<always-use-call-context-any.  Always use call-context-any as soon as the maximum call-context depth is reached."), cl::init(true));
+always_use_call_context_any("always-use-call-context-any", cl::desc("<always-use-call-context-any.  Always use call-context-any as soon as the maximum call-context depth is reached."), cl::init(false));
 
 static cl::opt<std::string>
 XmlOutputFormat("xml-output-format", cl::desc("<xml-output-format.  Format to use during xml printing.  [html|text-color|text-nocolor]"), cl::init("text-color"));
