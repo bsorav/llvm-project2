@@ -57,7 +57,7 @@ using namespace llvm;
 
 static cl::opt<bool>
 NoDeadArgElim("no-dead-arg-elim",
-       cl::desc("Do not eliminated dead arguments through IPO"),
+       cl::desc("Do not eliminate dead arguments through IPO"),
        cl::init(false));
 
 
