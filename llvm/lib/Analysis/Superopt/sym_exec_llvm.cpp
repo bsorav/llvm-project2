@@ -1940,12 +1940,9 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
 
     size_t align = l->getAlignment();
     if (align != 0) {
+      // alignment restriction for the load value type
       expr_ref const& isaligned_assume = m_ctx->mk_islangaligned(addr, align);
-      //state_assumes.insert(isaligned_assume);
       add_state_assume(lname, isaligned_assume, state_in, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map); //state_assumes.insert(isaligned_assume);
-      //predicate p2(precond_t(m_ctx), m_ctx->mk_islangaligned(addr, align), expr_true(m_ctx), UNDEF_BEHAVIOUR_ASSUME_ALIGN_ISLANGALIGNED, predicate::assume);
-      //assumes.insert(p2);
-      //t.add_assume_pred(from_node->get_pc(), p2);
     }
     Type *lTy = (*l).getType();
     //add_align_assumes(lname, lTy, read_value, pc_to/*from_node->get_pc()*/, t);
@@ -2415,7 +2412,7 @@ sym_exec_common::instruction_to_te_comment(llvm::Instruction const& I, pc const&
   raw_string_ostream ss(s);
   char const* from_index = from_pc.get_index();
   int from_subindex = from_pc.get_subindex();
-  int from_subsubindex = from_pc.get_subsubindex();
+  //int from_subsubindex = from_pc.get_subsubindex();
   //bbl_order_descriptor_t const& bbo = m_bbl_order_map.at(from_index);
   //cout << __func__ << " " << __LINE__ << ": from_index = " << from_index << ", from_subindex = " << from_subindex << ", from_subsubindex = " << from_subsubindex << ", bbo = " << bbo.get_bbl_num() << ", to_pc = " << to_pc.to_string() << endl;
   ss << I;
@@ -3222,7 +3219,7 @@ sym_exec_llvm::parse_dbg_value_intrinsic(Instruction const& I, tfg_llvm_t& t, pc
   }
   string llvm_varname = string(G_INPUT_KEYWORD ".") + get_value_name(*v);
   string source_varname = DI.getVariable()->getName().str() + (m_srcdst_keyword == G_DST_KEYWORD ? "'" : "");
-  DIExpression* die = DI.getExpression(); //not used so far
+  //DIExpression* die = DI.getExpression(); //not used so far
   DYN_DEBUG(dbg_declare_intrinsic, std::cout << "source_varname = " << source_varname << "\n");
   DYN_DEBUG(dbg_declare_intrinsic, std::cout << "llvm_varname = " << llvm_varname << "\n");
   DYN_DEBUG(dbg_declare_intrinsic, std::cout << "pc_from = " << pc_from << "\n");
@@ -3484,7 +3481,7 @@ sym_exec_llvm::process_phi_nodes(tfg &t, map<llvm_value_id_t, string_ref>* value
 
     dshared_ptr<tfg_node> pc_to_phi_dst_node = get_next_intermediate_subsubindex_pc_node(t, from_node);
     DYN_DEBUG2(llvm2tfg, cout << __func__ << " " << __LINE__ << " " << get_timestamp(as1, sizeof as1) << ": from_node = " << from_node->get_pc() << ": pc_to_phi_node = " << pc_to_phi_node->get_pc() << ", pc_to_phi_dst_node = " << pc_to_phi_dst_node->get_pc() << endl);
-    string const& bbindex = get_basicblock_index(*B_to);
+    //string const& bbindex = get_basicblock_index(*B_to);
     //bbl_order_descriptor_t const& bbo = this->m_bbl_order_map.at(mk_string_ref(bbindex));
     auto e = mk_tfg_edge(pc_to_phi_node->get_pc(), pc_to_phi_dst_node->get_pc(), expr_true(m_ctx), state_out/*, t.get_start_state()*/, state_assumes, phi_node_to_te_comment(/*bbo, */inum, I));
     eimap.insert(make_pair(e, (Instruction *)&I));
