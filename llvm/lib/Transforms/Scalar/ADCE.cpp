@@ -71,6 +71,11 @@ static cl::opt<bool> RemoveControlFlowFlag("adce-remove-control-flow",
 static cl::opt<bool> RemoveLoops("adce-remove-loops", cl::init(false),
                                  cl::Hidden);
 
+cl::opt<bool>
+NoDCEFcalls("no-dce-fcalls",
+       cl::desc("Do not eliminate function calls during DCE"),
+       cl::init(false));
+
 namespace {
 
 /// Information about Instructions
@@ -327,6 +332,9 @@ bool AggressiveDeadCodeElimination::isAlwaysLive(Instruction &I) {
   // TODO -- use llvm::isInstructionTriviallyDead
   if (isa<CallInst>(I) && cast<CallInst>(I).getIntrinsicID() == Intrinsic::unseq_noalias)
       return true;
+  if (NoDCEFcalls && isa<CallInst>(I)) {
+    return true;
+  }
   if (I.isEHPad() || I.mayHaveSideEffects()) {
     // Skip any value profile instrumentation calls if they are
     // instrumenting constants.

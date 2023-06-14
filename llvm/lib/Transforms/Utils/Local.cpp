@@ -397,6 +397,9 @@ bool llvm::wouldInstructionBeTriviallyDead(Instruction *I,
     return true;
   }
 
+  if (NoDCEFcalls && isa<CallInst>(*I))
+    return false;
+
   if (!I->mayHaveSideEffects())
     return true;
 
