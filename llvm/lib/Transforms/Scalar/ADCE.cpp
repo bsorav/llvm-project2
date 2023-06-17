@@ -71,11 +71,6 @@ static cl::opt<bool> RemoveControlFlowFlag("adce-remove-control-flow",
 static cl::opt<bool> RemoveLoops("adce-remove-loops", cl::init(false),
                                  cl::Hidden);
 
-cl::opt<bool>
-NoDCEFcalls("no-dce-fcalls",
-       cl::desc("Do not eliminate function calls during DCE"),
-       cl::init(false));
-
 namespace {
 
 /// Information about Instructions
