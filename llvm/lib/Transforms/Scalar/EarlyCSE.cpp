@@ -88,6 +88,12 @@ static cl::opt<bool> EarlyCSEDebugHash(
     cl::desc("Perform extra assertion checking to verify that SimpleValue's hash "
              "function is well-behaved w.r.t. its isEqual predicate"));
 
+static cl::opt<bool>
+NoEarlyCSE("no-early-cse",
+          cl::desc("Do not perform early CSE"),
+          cl::init(false));
+
+
 //===----------------------------------------------------------------------===//
 // SimpleValue
 //===----------------------------------------------------------------------===//
@@ -921,6 +927,9 @@ bool EarlyCSE::handleBranchCondition(Instruction *CondInst,
 }
 
 bool EarlyCSE::processNode(DomTreeNode *Node) {
+  if (NoEarlyCSE) {
+    return false;
+  }
   bool Changed = false;
   BasicBlock *BB = Node->getBlock();
 
