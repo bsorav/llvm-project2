@@ -32,4 +32,6 @@ clean:
 
 .PHONY: distclean
 distclean:
-	rm -rf build
+	-rm -rf build cscope.files
+	-find . -name cscope.out |xargs rm -f
+	-find . -name tags |xargs rm -f
