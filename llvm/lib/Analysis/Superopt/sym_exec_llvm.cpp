@@ -3283,12 +3283,11 @@ sym_exec_llvm::parse_stacksave_intrinsic(Instruction const& I, tfg& t, pc const&
   //let's save the current state of mem.alloc in an SSA var
   state state_in, state_out;
   expr_ref mem_alloc_e = state_get_expr(state_in, m_mem_alloc_reg, this->get_mem_alloc_sort());
-  string memalloc_ssa_varname = opaque_keyname + "." + G_MEMALLOC_SSA_VARNAME_SUFFIX;
-  expr_ref memalloc_ssa_var = m_ctx->mk_var(string(G_INPUT_KEYWORD ".") + memalloc_ssa_varname, this->get_mem_alloc_sort());
+  string_ref memalloc_ssa_varname = context::get_memalloc_ssa_varname_from_opaque_key(m_srcdst_keyword, opaque_keyname);
+  expr_ref memalloc_ssa_var = m_ctx->get_input_expr_for_key(memalloc_ssa_varname, this->get_mem_alloc_sort());
   m_opaque_varname_to_memalloc_map.insert(make_pair(opaque_varname, memalloc_ssa_var));
-  //cout << _FNLN_ << ": opaque_varname = " << opaque_varname << ", memalloc_ssa_var = " << expr_string(memalloc_ssa_var) << endl;
 
-  state_set_expr(state_out, memalloc_ssa_varname, mem_alloc_e);
+  state_set_expr(state_out, memalloc_ssa_varname->get_str(), mem_alloc_e);
   return state_out;
 }
 
@@ -3317,7 +3316,6 @@ sym_exec_llvm::parse_stackrestore_intrinsic(Instruction const& I, tfg& t, pc con
   //restore the state of mem.alloc using the memalloc map
   ASSERT(m_opaque_varname_to_memalloc_map.count(opaque_varname));
   expr_ref saved_memalloc = m_opaque_varname_to_memalloc_map.at(opaque_varname);
-  //cout << _FNLN_ << ": opaque_varname = " << opaque_varname << ", saved_memalloc = " << expr_string(saved_memalloc) << endl;
 
   state_set_expr(state_out, this->m_mem_alloc_reg, saved_memalloc);
   return state_out;
