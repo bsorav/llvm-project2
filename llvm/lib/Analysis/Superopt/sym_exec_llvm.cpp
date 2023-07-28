@@ -1866,6 +1866,8 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
 
     transfer_poison_value_on_store(new_mem, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map);
 
+    add_state_assume("", gen_dereference_assume_expr(addr), state_in, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map);
+
     //Type *ElTy = Addr->getType();
     //string typeString = getTypeString(ElTy);
     //langtype_ref lt_addr = mk_langtype_ref(typeString);
@@ -1930,7 +1932,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     }
     set_expr(lname, read_value, state_out);
 
-    //add_dereference_assume(addr, assumes);
+    add_state_assume(lname, gen_dereference_assume_expr(addr), state_in, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map);
 
     //Type *ElTy = Addr->getType();
     //string typeString = getTypeString(ElTy);
