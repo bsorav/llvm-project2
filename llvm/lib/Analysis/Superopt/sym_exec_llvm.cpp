@@ -1201,7 +1201,6 @@ sym_exec_llvm::apply_memcpy_function(const CallInst* c, expr_ref fun_name_expr, 
       expr_ref const& src_isaligned_assume = m_ctx->mk_islangaligned(memcpy_src_expr, memcpy_src_align);
       add_state_assume("", src_isaligned_assume, state_in, assumes, from_node, model_llvm_semantics, t, value_to_name_map);
       expr_ref const& dst_isaligned_assume = m_ctx->mk_islangaligned(memcpy_dst_expr, memcpy_dst_align);
-      //assumes.insert(dst_isaligned_assume);
       add_state_assume("", dst_isaligned_assume, state_in, assumes, from_node, model_llvm_semantics, t, value_to_name_map);
     }
     pc cur_pc = from_node->get_pc();
@@ -1708,12 +1707,10 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
       if (is_c_alloca) {
         // add size != 0 assume
         expr_ref size_is_nonzero = m_ctx->mk_not(m_ctx->mk_eq(local_size_val, m_ctx->mk_zerobv(bvlen)));
-        //state_assumes.insert(size_is_nonzero);
         add_state_assume(iname, size_is_nonzero, state_in, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map); //state_assumes.insert(size_is_positive_assume);
       } else {
         // add size > 0 assume
         expr_ref size_is_positive_assume = m_ctx->mk_bvsgt(local_size_val, m_ctx->mk_zerobv(bvlen));
-        //state_assumes.insert(size_is_positive_assume);
         add_state_assume(iname, size_is_positive_assume, state_in, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map); //state_assumes.insert(size_is_positive_assume);
       }
       // add no overflow assume for (varsize_expr * local_type_alloc_size)
@@ -1885,11 +1882,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
 
     if (align != 0) {
       expr_ref const& isaligned_assume = m_ctx->mk_islangaligned(addr, align);
-      //state_assumes.insert(isaligned_assume);
       add_state_assume("", isaligned_assume, state_in, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map); //state_assumes.insert(isaligned_assume);
-      //predicate p3(precond_t(m_ctx), m_ctx->mk_islangaligned(addr, align), expr_true(m_ctx), UNDEF_BEHAVIOUR_ASSUME_ALIGN_ISLANGALIGNED, predicate::assume);
-      //assumes.insert(p3);
-      //t.add_assume_pred(from_node->get_pc(), p3);
     }
 
     transfer_poison_values("", addr, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map);
@@ -2480,7 +2473,6 @@ sym_exec_llvm::exec_gen_expr(const llvm::Instruction& I, string const& Iname, co
         || I.getOpcode() == Instruction::LShr
         || I.getOpcode() == Instruction::AShr) {
       ASSERT(args[0]->is_bv_sort());
-      //assumes.insert(gen_shiftcount_assume_expr(args[1], args[0]->get_sort()->get_size()));
       add_state_assume(Iname, gen_shiftcount_assume_expr(args[1], args[0]->get_sort()->get_size()), state_in, assumes, from_node, model_llvm_semantics, t, value_to_name_map);
     }
     if (   I.getOpcode() == Instruction::UDiv
@@ -2488,11 +2480,9 @@ sym_exec_llvm::exec_gen_expr(const llvm::Instruction& I, string const& Iname, co
         || I.getOpcode() == Instruction::URem
         || I.getOpcode() == Instruction::SRem) {
       ASSERT(args[0]->is_bv_sort());
-      //assumes.insert(gen_no_divbyzero_assume_expr(args[1]));
       add_state_assume(Iname, gen_no_divbyzero_assume_expr(args[1]), state_in, assumes, from_node, model_llvm_semantics, t, value_to_name_map);
       if (   I.getOpcode() == Instruction::SDiv
           || I.getOpcode() == Instruction::SRem) {
-        //assumes.insert(gen_div_no_overflow_assume_expr(args[0], args[1]));
         add_state_assume(Iname, gen_div_no_overflow_assume_expr(args[0], args[1]), state_in, assumes, from_node, model_llvm_semantics, t, value_to_name_map);
       }
     }
@@ -2578,7 +2568,6 @@ sym_exec_llvm::exec_gen_expr(const llvm::Instruction& I, string const& Iname, co
           bool index_is_positive = itype.isBoundedSequential(); // if base is array then index must be positive
           expr_ref overflow_expr = gen_no_mul_overflow_assume_expr(index, size_expr, index_is_positive);
           expr_ref assume = m_ctx->mk_isindexforsize(overflow_expr, size);
-          //assumes.insert(assume);
           add_state_assume(Iname, assume, state_in, assumes, from_node, model_llvm_semantics, t, value_to_name_map);
         }
       } else {
@@ -2602,7 +2591,6 @@ sym_exec_llvm::exec_gen_expr(const llvm::Instruction& I, string const& Iname, co
         // but when applied to the base pointer, there can be signed overflow.
         expr_ref gep_expr = m_ctx->mk_bvadd(ptr, new_cur_expr);
         expr_ref assume = m_ctx->mk_isgepoffset(gep_expr, offset_expr);
-        //assumes.insert(assume);
         add_state_assume(Iname, assume, state_in, assumes, from_node, model_llvm_semantics, t, value_to_name_map);
       }
 
@@ -2644,40 +2632,17 @@ sym_exec_llvm::gen_dereference_assume_expr(expr_ref const& a) const
   return m_ctx->mk_not(m_ctx->mk_eq(a, m_ctx->mk_zerobv(a->get_sort()->get_size())));
 }
 
-//void sym_exec_llvm::add_dereference_assume(expr_ref a, pc const &from_pc, tfg &t/*unordered_set<predicate> &assumes*/)
-//{
-//  predicate p(precond_t(m_ctx), this->gen_dereference_assume_expr(a), expr_true(m_ctx), UNDEF_BEHAVIOUR_ASSUME_DEREFERENCE);
-//  //assumes.insert(p);
-//  t.add_assume_pred(from_pc, p);
-//}
-
-
 expr_ref
 sym_exec_llvm::gen_shiftcount_assume_expr(expr_ref const& a, size_t shifted_val_size) const
 {
   return m_ctx->mk_isshiftcount(a, shifted_val_size);
 }
 
-//void sym_exec_llvm::add_shiftcount_assume(expr_ref a, size_t shifted_val_size, pc const &from_pc, tfg &t) const
-//{
-//  predicate p(precond_t(m_ctx), this->gen_shiftcount_assume_expr(a, shifted_val_size), expr_true(m_ctx), UNDEF_BEHAVIOUR_ASSUME_ISSHIFTCOUNT);
-//  //assumes.insert(p);
-//  t.add_assume_pred(from_pc, p);
-//}
-
 expr_ref
 sym_exec_llvm::gen_no_divbyzero_assume_expr(expr_ref const& a) const
 {
   return m_ctx->mk_not(m_ctx->mk_eq(a, m_ctx->mk_zerobv(a->get_sort()->get_size())));
 }
-
-//void
-//sym_exec_llvm::add_divbyzero_assume(expr_ref a, pc const &from_pc, tfg &t/*, unordered_set<predicate> &assumes*/) const
-//{
-//  ASSERT(a->is_bv_sort());
-//  predicate p(precond_t(m_ctx), this->gen_no_divbyzero_assume_expr(a), expr_true(m_ctx), UNDEF_BEHAVIOUR_ASSUME_DIVBYZERO);
-//  t.add_assume_pred(from_pc, p);
-//}
 
 expr_ref
 sym_exec_llvm::gen_div_no_overflow_assume_expr(expr_ref const& dividend, expr_ref const& divisor) const
@@ -2690,13 +2655,6 @@ sym_exec_llvm::gen_div_no_overflow_assume_expr(expr_ref const& dividend, expr_re
   // XXX verify this
   return m_ctx->mk_not(m_ctx->mk_and(m_ctx->mk_eq(divisor, m_ctx->mk_zerobv(bvsize)), m_ctx->mk_eq(dividend, m_ctx->mk_bv_const(bvsize, max_negative_value))));
 }
-
-//void sym_exec_llvm::add_div_no_overflow_assume(expr_ref dividend, expr_ref divisor, pc const &from_pc, tfg &t) const
-//{
-//  predicate p(precond_t(m_ctx), this->gen_div_no_overflow_assume_expr(dividend, divisor), expr_true(m_ctx), UNDEF_BEHAVIOUR_ASSUME_DIV_NO_OVERFLOW);
-//  //assumes.insert(p);
-//  t.add_assume_pred(from_pc, p);
-//}
 
 unordered_set<expr_ref>
 sym_exec_llvm::gen_align_assumes(string const &Elname, Type *ElTy, sort_ref const& s) const
