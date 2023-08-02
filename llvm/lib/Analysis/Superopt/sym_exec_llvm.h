@@ -153,6 +153,7 @@ private:
 
   expr_ref gen_shiftcount_assume_expr(expr_ref const& a, size_t shifted_val_size) const;
   expr_ref gen_dereference_assume_expr(expr_ref const& a) const;
+  expr_ref gen_is_aligned_assume_expr(expr_ref const& a, size_t align) const;
 
   expr_ref gen_no_divbyzero_assume_expr(expr_ref const& a) const;
   expr_ref gen_div_no_overflow_assume_expr(expr_ref const& dividend, expr_ref const& divisor) const;

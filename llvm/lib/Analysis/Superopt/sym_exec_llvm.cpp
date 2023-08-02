@@ -1105,8 +1105,7 @@ sym_exec_llvm::apply_memset_function(const CallInst* c, expr_ref fun_name_expr, 
     DYN_DEBUG(llvm2tfg_memset, cout << "memset_align_int = " << memset_align_int << endl);
     int count = memset_nbytes_expr->get_int64_value();
     if (count != 0) {
-      expr_ref const& dst_isaligned_assume = m_ctx->mk_islangaligned(memset_dst_expr, memset_align_int);
-      add_state_assume("", dst_isaligned_assume, state_in, assumes, from_node, model_llvm_semantics, t, value_to_name_map);
+      add_state_assume("", gen_is_aligned_assume_expr(memset_dst_expr, memset_align_int), state_in, assumes, from_node, model_llvm_semantics, t, value_to_name_map);
     }
     pc cur_pc = from_node->get_pc();
     dshared_ptr<tfg_node> intermediate_node = get_next_intermediate_subsubindex_pc_node(t, from_node);
@@ -1198,10 +1197,8 @@ sym_exec_llvm::apply_memcpy_function(const CallInst* c, expr_ref fun_name_expr, 
     DYN_DEBUG(llvm2tfg_memcpy, cout << "memcpy_src_align = " << memcpy_src_align << "; memcpy_dst_align = " << memcpy_dst_align << endl);
     int count = memcpy_nbytes_expr->get_int64_value();
     if (count != 0) {
-      expr_ref const& src_isaligned_assume = m_ctx->mk_islangaligned(memcpy_src_expr, memcpy_src_align);
-      add_state_assume("", src_isaligned_assume, state_in, assumes, from_node, model_llvm_semantics, t, value_to_name_map);
-      expr_ref const& dst_isaligned_assume = m_ctx->mk_islangaligned(memcpy_dst_expr, memcpy_dst_align);
-      add_state_assume("", dst_isaligned_assume, state_in, assumes, from_node, model_llvm_semantics, t, value_to_name_map);
+      add_state_assume("", gen_is_aligned_assume_expr(memcpy_src_expr, memcpy_src_align), state_in, assumes, from_node, model_llvm_semantics, t, value_to_name_map);
+      add_state_assume("", gen_is_aligned_assume_expr(memcpy_dst_expr, memcpy_dst_align), state_in, assumes, from_node, model_llvm_semantics, t, value_to_name_map);
     }
     pc cur_pc = from_node->get_pc();
     dshared_ptr<tfg_node> intermediate_node = get_next_intermediate_subsubindex_pc_node(t, from_node);
@@ -1715,7 +1712,6 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
       }
       // add no overflow assume for (varsize_expr * local_type_alloc_size)
       expr_ref no_overflow = gen_no_mul_overflow_assume_expr(varsize_expr, local_type_alloc_size_expr, /*varsize_expr is positive*/true);
-      //state_assumes.insert(no_overflow);
       add_state_assume(iname, no_overflow, state_in, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map); //state_assumes.insert(no_overflow);
     } else {
       local_size_val = m_ctx->mk_bv_const(get_word_length(), local_size);
@@ -1883,8 +1879,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     //t.add_assume_pred(from_node->get_pc(), p2);
 
     if (align != 0) {
-      expr_ref const& isaligned_assume = m_ctx->mk_islangaligned(addr, align);
-      add_state_assume("", isaligned_assume, state_in, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map); //state_assumes.insert(isaligned_assume);
+      add_state_assume("", gen_is_aligned_assume_expr(addr, align), state_in, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map);
     }
 
     transfer_poison_values("", addr, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map);
@@ -1944,8 +1939,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     size_t align = l->getAlignment();
     if (align != 0) {
       // alignment restriction for the load value type
-      expr_ref const& isaligned_assume = m_ctx->mk_islangaligned(addr, align);
-      add_state_assume(lname, isaligned_assume, state_in, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map); //state_assumes.insert(isaligned_assume);
+      add_state_assume(lname, gen_is_aligned_assume_expr(addr, align), state_in, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map); //state_assumes.insert(isaligned_assume);
     }
     Type *lTy = (*l).getType();
     //add_align_assumes(lname, lTy, read_value, pc_to/*from_node->get_pc()*/, t);
@@ -2635,6 +2629,13 @@ sym_exec_llvm::gen_dereference_assume_expr(expr_ref const& a) const
 }
 
 expr_ref
+sym_exec_llvm::gen_is_aligned_assume_expr(expr_ref const& a, size_t align) const
+{
+  ASSERT(a->is_bv_sort());
+  return m_ctx->mk_islangaligned(a, align);
+}
+
+expr_ref
 sym_exec_llvm::gen_shiftcount_assume_expr(expr_ref const& a, size_t shifted_val_size) const
 {
   return m_ctx->mk_isshiftcount(a, shifted_val_size);
@@ -2683,19 +2684,6 @@ sym_exec_llvm::gen_align_assumes(string const &Elname, Type *ElTy, sort_ref cons
   }
   return ret;
 }
-
-//void sym_exec_llvm::add_align_assumes(string const &Elname, Type *ElTy/*llvm::Value const &arg*/, expr_ref a, pc const &pc_to, tfg &t) const
-//{
-//  unordered_set<expr_ref> const& assumes = gen_align_assumes(Elname, ElTy, a->get_sort());
-//  for (auto const& a_expr : assumes) {
-//    string comment;
-//    if (a_expr->get_operation_kind() == expr::OP_ISLANGALIGNED) { comment = UNDEF_BEHAVIOUR_ASSUME_ALIGN_ISLANGALIGNED; }
-//    else { NOT_REACHED(); }
-//
-//    predicate p(precond_t(m_ctx), a_expr, expr_true(m_ctx), comment, predicate::assume);
-//    t.add_assume_pred(pc_to, p);
-//  }
-//}
 
 scev_op_t
 sym_exec_llvm::get_scev_op_from_scev_type(SCEVTypes scevtype)
