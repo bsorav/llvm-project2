@@ -1485,7 +1485,7 @@ sym_exec_llvm::apply_general_function(const CallInst* c, expr_ref fun_name_expr,
 
       set_expr(Elname, c_expr, state_out);
       //add_align_assumes(Elname, ElTy, c_expr, pc_to, t);
-      unordered_set_union(succ_assumes, gen_align_assumes(Elname, ElTy, c_expr->get_sort()));
+      unordered_set_union(succ_assumes, gen_ptr_align_assumes(Elname, ElTy, c_expr->get_sort()));
       DYN_DEBUG2(llvm2tfg, errs() << "\n\nfun sort: " << m_ctx->expr_to_string_table(fun) << "\n");
     }
   }
@@ -1948,7 +1948,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     tfg_edge_ref e = mk_tfg_edge(from_node->get_pc(), intermediate_node->get_pc(), expr_true(m_ctx), state_out/*, t.get_start_state()*/, state_assumes, te_comment);
     t.add_edge(e);
 
-    unordered_set<expr_ref> align_assumes = gen_align_assumes(lname, lTy, read_value->get_sort());
+    unordered_set<expr_ref> align_assumes = gen_ptr_align_assumes(lname, lTy, read_value->get_sort());
     for (auto const& align_assume : align_assumes) {
       add_state_assume(lname, align_assume, state_in, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map); //state_assumes.insert(align_assume);
     }
@@ -2660,7 +2660,7 @@ sym_exec_llvm::gen_div_no_overflow_assume_expr(expr_ref const& dividend, expr_re
 }
 
 unordered_set<expr_ref>
-sym_exec_llvm::gen_align_assumes(string const &Elname, Type *ElTy, sort_ref const& s) const
+sym_exec_llvm::gen_ptr_align_assumes(string const &Elname, Type *ElTy, sort_ref const& s) const
 {
   unordered_set<expr_ref> ret;
   expr_ref Elexpr = m_ctx->mk_var(string(G_INPUT_KEYWORD ".") + Elname, s);
@@ -3701,7 +3701,7 @@ sym_exec_llvm::gen_arg_assumes() const
     pair<argnum_t, expr_ref> const &a = m_arguments.at(get_value_name(arg));
     string Elname = get_value_name(arg)/* + SRC_INPUT_ARG_NAME_SUFFIX*/;
     Type *ElTy = arg.getType();
-    unordered_set_union(arg_assumes, gen_align_assumes(Elname, ElTy, a.second->get_sort()));
+    unordered_set_union(arg_assumes, gen_ptr_align_assumes(Elname, ElTy, a.second->get_sort()));
   }
   return arg_assumes;
 }

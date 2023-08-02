@@ -148,7 +148,7 @@ private:
   pair<unordered_set<expr_ref>,unordered_set<expr_ref>> apply_va_start_function(const llvm::CallInst* c, state const& state_in, state &state_out, unordered_set<expr_ref> const& state_assumes, string const& cur_function_name, dshared_ptr<tfg_node>& from_node, bool model_llvm_semantics, tfg& t, map<llvm_value_id_t,string_ref>* value_to_name_map);
   pair<unordered_set<expr_ref>,unordered_set<expr_ref>> apply_va_copy_function(const llvm::CallInst* c, state const& state_in, state &state_out, unordered_set<expr_ref> const& state_assumes, string const& cur_function_name, dshared_ptr<tfg_node>& from_node, bool model_llvm_semantics, tfg& t, map<llvm_value_id_t,string_ref>* value_to_name_map);
 
-  unordered_set<expr_ref> gen_align_assumes(std::string const &elname, llvm::Type *elTy, sort_ref const& s) const;
+  unordered_set<expr_ref> gen_ptr_align_assumes(std::string const &elname, llvm::Type *elTy, sort_ref const& s) const;
   //void add_align_assumes(std::string const &elname, llvm::Type *elTy, expr_ref a, pc const&from_pc, tfg &t) const;
 
   expr_ref gen_shiftcount_assume_expr(expr_ref const& a, size_t shifted_val_size) const;
