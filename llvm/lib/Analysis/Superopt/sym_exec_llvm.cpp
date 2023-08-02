@@ -2662,27 +2662,22 @@ sym_exec_llvm::gen_div_no_overflow_assume_expr(expr_ref const& dividend, expr_re
 unordered_set<expr_ref>
 sym_exec_llvm::gen_ptr_align_assumes(string const &Elname, Type *ElTy, sort_ref const& s) const
 {
-  unordered_set<expr_ref> ret;
-  expr_ref Elexpr = m_ctx->mk_var(string(G_INPUT_KEYWORD ".") + Elname, s);
-  if (isa<const PointerType>(ElTy)) {
-    PointerType *ElTyPointer = cast<PointerType>(ElTy);
-    Type *ElTy2 = ElTyPointer->getElementType();
-    //string typeString2 = getTypeString(ElTy2);
-    //cout << __func__ << " " << __LINE__ << ": typeString2 = " << typeString2 << endl;
-    if (ElTy2->isSized()) {
-      const DataLayout& dl = m_module->getDataLayout();
-      size_t elty2_size = dl.getTypeAllocSize(ElTy2);
-      if (elty2_size != 0) {
-        expr_ref assume2 = m_ctx->mk_islangaligned(Elexpr, elty2_size);
-        ret.insert(assume2);
-        //predicate p2(precond_t(m_ctx), m_ctx->mk_islangaligned(Elexpr, elty2_size), expr_true(m_ctx), UNDEF_BEHAVIOUR_ASSUME_ALIGN_ISLANGALIGNED, predicate::assume);
-        //cout << __func__ << " " << __LINE__ << ": adding assume " << expr_string(assume2) << endl;
-        //assumes.insert(p2);
-        //t.add_assume_pred(pc_to, p2);
-      }
-    }
-  }
-  return ret;
+  return {};
+  //unordered_set<expr_ref> ret;
+  //expr_ref Elexpr = m_ctx->mk_var(string(G_INPUT_KEYWORD ".") + Elname, s);
+  //if (isa<const PointerType>(ElTy)) {
+  //  PointerType *ElTyPointer = cast<PointerType>(ElTy);
+  //  Type *ElTy2 = ElTyPointer->getElementType();
+  //  if (ElTy2->isSized()) {
+  //    const DataLayout& dl = m_module->getDataLayout();
+  //    size_t elty2_size = dl.getTypeAllocSize(ElTy2);
+  //    if (elty2_size != 0) {
+  //      expr_ref assume2 = m_ctx->mk_islangaligned(Elexpr, elty2_size);
+  //      ret.insert(assume2);
+  //    }
+  //  }
+  //}
+  //return ret;
 }
 
 scev_op_t
