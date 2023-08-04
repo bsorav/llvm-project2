@@ -16,7 +16,8 @@ build:
 
 .PHONY: install
 install: build
-	ninja -C build llc opt llvm-config llvm-dis llvm-link llvm-as llvm2tfg harvest-dwarf LLVMSuperopt.so LLVMLockstep.so harvest-dwarf clang scan-build scan-view #UnsequencedAliasVisitor.so 
+	# ninja -C build llc opt llvm-config llvm-dis llvm-link llvm-as llvm2tfg harvest-dwarf LLVMSuperopt.so LLVMLockstep.so harvest-dwarf clang scan-build scan-view #UnsequencedAliasVisitor.so 
+	ninja -C build llc opt llvm-config llvm-dis llvm-link llvm-as llvm2tfg harvest-dwarf LLVMSuperopt.so harvest-dwarf clang scan-build scan-view #UnsequencedAliasVisitor.so LLVMLockstep.so 
 
 .PHONY: llvm2tfg
 llvm2tfg:
