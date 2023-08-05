@@ -1740,12 +1740,12 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
 
     expr_ref mem_e = state_get_expr(state_in, m_mem_reg, this->get_mem_sort());
     expr_ref mem_alloc_e = state_get_expr(state_in, m_mem_alloc_reg, this->get_mem_alloc_sort());
-    string local_alloc_count_ssa_varname = m_ctx->get_local_alloc_count_ssa_varname(this->get_srcdst_keyword(), local_id)->get_str();
+    string local_alloc_count_ssa_varname = m_ctx->get_local_alloc_count_ssa_varname(this->get_srcdst_keyword(), local_id, false)->get_str();
     expr_ref local_alloc_count_ssa_var = state_get_expr(state_in, local_alloc_count_ssa_varname, m_ctx->mk_count_sort());
     // local.<id>            <- alloca_ptr
     // local.alloc.count.ssa <- local.alloc.count
     state_set_expr(state_out, local_addr_key, m_ctx->get_local_ptr_expr_for_id(local_id, local_alloc_count_var, mem_alloc_e, ml_local, local_size_var));
-    state_set_expr(state_out, local_alloc_count_ssa_varname, local_alloc_count_var); //XXX: doesn't this amount to a no-op?
+    state_set_expr(state_out, local_alloc_count_ssa_varname, local_alloc_count_var);
 
     pc intermediate_pc1 = t.tfg_get_next_intermediate_pc_for_subsubindex(pc(from_node->get_pc().get_type(), from_node->get_pc().get_index(), from_node->get_pc().get_subindex(), PC_SUBSUBINDEX_ALLOCA_START));
     ASSERT(t.find_node(intermediate_pc1) == 0);
