@@ -1728,7 +1728,6 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     dshared_ptr<tfg_node> intermediate_node0 = make_dshared<tfg_node>(intermediate_pc0);
     t.add_node(intermediate_node0);
 
-    //dshared_ptr<tfg_node> intermediate_node0 = get_next_intermediate_subsubindex_pc_node(t, from_node);
     ASSERT(intermediate_node0);
     tfg_edge_ref e0 = mk_tfg_edge(from_node->get_pc(), intermediate_node0->get_pc(), expr_true(m_ctx), state_out, state_assumes, te_comment);
     t.add_edge(e0);
@@ -1752,9 +1751,6 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     dshared_ptr<tfg_node> intermediate_node1 = make_dshared<tfg_node>(intermediate_pc1);
     t.add_node(intermediate_node1);
 
-    //dshared_ptr<tfg_node> intermediate_node1 = get_next_intermediate_subsubindex_pc_node(t, from_node);
-    //ASSERT(intermediate_node1);
-
     tfg_edge_ref e1 = mk_tfg_edge(from_node->get_pc(), intermediate_node1->get_pc(), expr_true(m_ctx), state_out, state_assumes, te_comment);
     t.add_edge(e1);
 
@@ -1763,18 +1759,6 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     state_out = state_in;
     state_assumes.clear();
 
-    //The following assumes are now removed; they will be a part of the WFconds
-    //// alloca returned addr can never be 0
-    //expr_ref ret_addr_non_zero = m_ctx->mk_not(m_ctx->mk_eq(local_addr_var, m_ctx->mk_zerobv(get_word_length())));
-    //state_assumes.insert(ret_addr_non_zero);
-    //// alloca returned addr does not cause overflow: alloca_ptr <= (alloca_ptr + size - 1)
-    //expr_ref ret_addr_no_overflow = m_ctx->mk_bvule(local_addr_var, m_ctx->mk_bvadd(local_addr_var, m_ctx->mk_bvsub(local_size_var, m_ctx->mk_onebv(get_word_length()))));
-    //state_assumes.insert(ret_addr_no_overflow);
-    //if (align != 0) {
-    //  // alloca returned addr is aligned
-    //  expr_ref isaligned = m_ctx->mk_islangaligned(local_addr_var, align);
-    //  state_assumes.insert(isaligned);
-    //}
     // <llvm-var> <- local.<id>
     state_set_expr(state_out, iname, local_addr_var);
 
@@ -1782,9 +1766,6 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     ASSERT(t.find_node(intermediate_pc2) == 0);
     dshared_ptr<tfg_node> intermediate_node2 = make_dshared<tfg_node>(intermediate_pc2);
     t.add_node(intermediate_node2);
-
-    //dshared_ptr<tfg_node> intermediate_node2 = get_next_intermediate_subsubindex_pc_node(t, from_node);
-    //ASSERT(intermediate_node2);
 
     tfg_edge_ref e2 = mk_tfg_edge(from_node->get_pc(), intermediate_node2->get_pc(), expr_true(m_ctx), state_out, state_assumes, te_comment);
     t.add_edge(e2);
@@ -1805,9 +1786,6 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     dshared_ptr<tfg_node> intermediate_node3 = make_dshared<tfg_node>(intermediate_pc3);
     t.add_node(intermediate_node3);
 
-    //dshared_ptr<tfg_node> intermediate_node3 = get_next_intermediate_subsubindex_pc_node(t, from_node);
-    //ASSERT(intermediate_node3);
-
     tfg_edge_ref e3 = mk_tfg_edge(from_node->get_pc(), intermediate_node3->get_pc(), expr_true(m_ctx), state_out, state_assumes, te_comment);
     t.add_edge(e3);
 
@@ -1817,7 +1795,6 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     state_assumes.clear();
 
     // local.alloc.count <- local.alloc.count+1
-    //state_set_expr(state_out, m_ctx->get_local_alloc_count_varname(this->get_srcdst_keyword())->get_str(), m_ctx->mk_increment_count(local_alloc_count_var));
     state_set_expr(state_out, local_alloc_count_varname, m_ctx->mk_increment_count(local_alloc_count_var));
     break;
   }
