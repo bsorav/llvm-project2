@@ -1723,7 +1723,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     // local_size.id <- size expr
     state_set_expr(state_out, m_ctx->get_key_from_input_expr(local_size_var)->get_str(), local_size_val);
 
-    pc intermediate_pc0 = t.tfg_get_next_intermediate_pc_for_subsubindex(pc(from_node->get_pc().get_type(), from_node->get_pc().get_index(), from_node->get_pc().get_subindex(), PC_SUBSUBINDEX_ALLOCA_START));
+    pc intermediate_pc0 = t.tfg_get_next_intermediate_pc_for_subsubindex(pc(from_node->get_pc().get_type(), from_node->get_pc().get_index(), from_node->get_pc().get_subindex(), PC_SUBSUBINDEX_ALLOC_START));
     ASSERT(t.find_node(intermediate_pc0) == 0);
     dshared_ptr<tfg_node> intermediate_node0 = make_dshared<tfg_node>(intermediate_pc0);
     t.add_node(intermediate_node0);
@@ -1741,12 +1741,12 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     expr_ref mem_alloc_e = state_get_expr(state_in, m_mem_alloc_reg, this->get_mem_alloc_sort());
     string local_alloc_count_ssa_varname = m_ctx->get_local_alloc_count_ssa_varname(this->get_srcdst_keyword(), local_id, false)->get_str();
     expr_ref local_alloc_count_ssa_var = state_get_expr(state_in, local_alloc_count_ssa_varname, m_ctx->mk_count_sort());
-    // local.<id>            <- alloca_ptr
+    // local.<id>            <- alloc_ptr
     // local.alloc.count.ssa <- local.alloc.count
     state_set_expr(state_out, local_addr_key, m_ctx->get_local_ptr_expr_for_id(local_id, local_alloc_count_var, mem_alloc_e, ml_local, local_size_var));
     state_set_expr(state_out, local_alloc_count_ssa_varname, local_alloc_count_var);
 
-    pc intermediate_pc1 = t.tfg_get_next_intermediate_pc_for_subsubindex(pc(from_node->get_pc().get_type(), from_node->get_pc().get_index(), from_node->get_pc().get_subindex(), PC_SUBSUBINDEX_ALLOCA_START));
+    pc intermediate_pc1 = t.tfg_get_next_intermediate_pc_for_subsubindex(pc(from_node->get_pc().get_type(), from_node->get_pc().get_index(), from_node->get_pc().get_subindex(), PC_SUBSUBINDEX_ALLOC_START));
     ASSERT(t.find_node(intermediate_pc1) == 0);
     dshared_ptr<tfg_node> intermediate_node1 = make_dshared<tfg_node>(intermediate_pc1);
     t.add_node(intermediate_node1);
@@ -1762,7 +1762,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     // <llvm-var> <- local.<id>
     state_set_expr(state_out, iname, local_addr_var);
 
-    pc intermediate_pc2 = t.tfg_get_next_intermediate_pc_for_subsubindex(pc(from_node->get_pc().get_type(), from_node->get_pc().get_index(), from_node->get_pc().get_subindex(), PC_SUBSUBINDEX_ALLOCA_START));
+    pc intermediate_pc2 = t.tfg_get_next_intermediate_pc_for_subsubindex(pc(from_node->get_pc().get_type(), from_node->get_pc().get_index(), from_node->get_pc().get_subindex(), PC_SUBSUBINDEX_ALLOC_START));
     ASSERT(t.find_node(intermediate_pc2) == 0);
     dshared_ptr<tfg_node> intermediate_node2 = make_dshared<tfg_node>(intermediate_pc2);
     t.add_node(intermediate_node2);
@@ -1775,13 +1775,13 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     state_out = state_in;
     state_assumes.clear();
 
-    // mem.alloc <- alloca
+    // mem.alloc <- alloc
     // mem       <- store_unint
-    expr_ref new_mem_alloc = m_ctx->mk_alloca(mem_alloc_e, ml_local, local_addr_var, local_size_var);
+    expr_ref new_mem_alloc = m_ctx->mk_alloc(mem_alloc_e, ml_local, local_addr_var, local_size_var);
     state_set_expr(state_out, m_mem_alloc_reg, new_mem_alloc);
     state_set_expr(state_out, m_mem_reg, m_ctx->mk_store_uninit(mem_e, new_mem_alloc, ml_local, local_addr_var, local_size_var, local_alloc_count_ssa_var));
 
-    pc intermediate_pc3 = t.tfg_get_next_intermediate_pc_for_subsubindex(pc(from_node->get_pc().get_type(), from_node->get_pc().get_index(), from_node->get_pc().get_subindex(), PC_SUBSUBINDEX_ALLOCA_START));
+    pc intermediate_pc3 = t.tfg_get_next_intermediate_pc_for_subsubindex(pc(from_node->get_pc().get_type(), from_node->get_pc().get_index(), from_node->get_pc().get_subindex(), PC_SUBSUBINDEX_ALLOC_START));
     ASSERT(t.find_node(intermediate_pc3) == 0);
     dshared_ptr<tfg_node> intermediate_node3 = make_dshared<tfg_node>(intermediate_pc3);
     t.add_node(intermediate_node3);
