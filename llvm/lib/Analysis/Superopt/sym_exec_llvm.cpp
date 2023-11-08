@@ -1344,20 +1344,6 @@ sym_exec_common::function_belongs_to_program(string const &fun_name) const
   return false;
 }
 
-//string
-//sym_exec_llvm::get_local_alloc_count_varname() const
-//{
-//  return this->get_srcdst_keyword() + "." + G_LOCAL_ALLOC_COUNT_VARNAME/*m_local_alloc_count_varname*/;
-//}
-
-//string
-//sym_exec_llvm::get_local_alloc_count_ssa_varname(pc const& p) const
-//{
-//  return this->get_srcdst_keyword() + "." + G_LOCAL_ALLOC_COUNT_SSA_VARNAME + "." + p.to_string();
-//}
-
-
-
 pair<unordered_set<expr_ref>,unordered_set<expr_ref>>
 sym_exec_llvm::apply_general_function(const CallInst* c, expr_ref fun_name_expr, string const &fun_name, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, Function *F, state const &state_in, state &state_out, unordered_set<expr_ref> const& state_assumes, string const &cur_function_name, dshared_ptr<tfg_node> &from_node, bool model_llvm_semantics, tfg &t/*, map<string, pair<callee_summary_t, dshared_ptr<tfg_llvm_t>>> *function_tfg_map*/, map<llvm_value_id_t, string_ref>* value_to_name_map/*, set<string> const *function_call_chain*/, map<string, value_scev_map_t> const& scev_map, context::xml_output_format_t xml_output_format)
 {
@@ -1719,7 +1705,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     // == intermediate edge 0 ==
     string local_alloc_count_varname = m_ctx->get_local_alloc_count_varname(this->get_srcdst_keyword())->get_str();
     expr_ref local_alloc_count_var = state_get_expr(state_in, local_alloc_count_varname, m_ctx->mk_count_sort());
-    expr_ref local_size_var = m_ctx->get_local_size_expr_for_id(local_id/*, local_alloc_count_var*/, m_ctx->mk_bv_sort(get_word_length()), m_srcdst_keyword);
+    expr_ref local_size_var = m_ctx->get_local_size_expr_for_id(local_id, m_ctx->mk_bv_sort(get_word_length()), m_srcdst_keyword);
     // local_size.id <- size expr
     state_set_expr(state_out, m_ctx->get_key_from_input_expr(local_size_var)->get_str(), local_size_val);
 
