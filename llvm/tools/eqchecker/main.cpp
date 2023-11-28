@@ -47,6 +47,8 @@ using namespace llvm;
 #include "expr/expr.h"
 #include "expr/z3_solver.h"
 
+#include "graph/points_to_algo.h"
+
 #include "tfg/tfg_llvm.h"
 
 #include "eq/eqcheck.h"
@@ -103,6 +105,10 @@ Progress("progress", cl::desc("<progress. keep printing progress involving time/
 
 static cl::opt<std::string>
 ll_filename("ll-filename", cl::desc("<Disassembled LLVM used as input to identify linenum/column-num for PCs"), cl::init(""));
+
+static cl::opt<std::string>
+points_to_algo("points-to-algo", cl::desc("[" POINTS_TO_ALGO_ANDERSEN "|" POINTS_TO_ALGO_NONE "]"), cl::init(POINTS_TO_ALGO_ANDERSEN));
+
 
 
 //static cl::opt<bool>
@@ -286,8 +292,9 @@ main(int argc, char **argv)
     progress_flag = 1;
   }
 
-  dshared_ptr<ftmap_t> function_tfg_map = sym_exec_llvm::sym_exec_get_function_tfg_map(M1.get(), FunNamesVec, ctx, src_llptfg, !NoGenScev, llvmSemantics, always_use_call_context_any, ll_filename, nullptr, xml_output_format);
-  function_tfg_map->ftmap_run_pointsto_analysis(nullopt, call_context_depth, always_use_call_context_any, true, xml_output_format);
+  auto points_to_algo_val = points_to_algo_t::points_to_algo_from_string(points_to_algo);
+  dshared_ptr<ftmap_t> function_tfg_map = sym_exec_llvm::sym_exec_get_function_tfg_map(M1.get(), FunNamesVec, ctx, src_llptfg, !NoGenScev, llvmSemantics, always_use_call_context_any, ll_filename, points_to_algo_val, nullptr, xml_output_format);
+  function_tfg_map->ftmap_run_pointsto_analysis(points_to_algo_val, nullopt, call_context_depth, always_use_call_context_any, true, xml_output_format);
   function_tfg_map->ftmap_add_start_pc_preconditions_for_each_tfg();
   function_tfg_map->ftmap_add_store_uninit_at_dealloc_of_contiguous_locals_for_each_tfg();
 
@@ -320,7 +327,7 @@ main(int argc, char **argv)
     cout << "Could not rename to " << OutputFilename << endl;
   }
 
-  CPP_DBG_EXEC2(STATS,
+  CPP_DBG_EXEC(STATS,
     print_all_timers();
     cout << stats::get() << endl;
   );
