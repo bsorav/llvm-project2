@@ -218,7 +218,9 @@ main(int argc, char **argv)
       errs() << ff << "\n";
     }
   );
+  MSG("Reading Module from input file...");
   std::unique_ptr<Module> M1 = readModule(Context, InputFilename1);
+  MSG("done Reading Module from input file...");
   //std::unique_ptr<Module> M2 = readModule(Context, InputFilename2);
 
   if (!M1) {
@@ -235,6 +237,7 @@ main(int argc, char **argv)
   DataLayout const& dl = M1->getDataLayout();
   unsigned pointer_size = dl.getPointerSize();
   //cout << __func__ << " " << __LINE__ << ": pointer_size = " << pointer_size << endl;
+  MSG("Parsing consts db...");
   if (pointer_size == QWORD_LEN/BYTE_LEN) {
     ctx->parse_consts_db(SUPEROPTDBS_DIR "/../etfg_x64/consts_db");
   } else if (pointer_size == DWORD_LEN/BYTE_LEN) {
@@ -242,6 +245,7 @@ main(int argc, char **argv)
   } else {
     NOT_REACHED();
   }
+  MSG("done Parsing consts db...");
 
   string OutputFilename_tmp = [](){
       ostringstream ss;
@@ -285,7 +289,9 @@ main(int argc, char **argv)
       cout << __func__ << " " << __LINE__ << ": parsing failed" << endl;
       NOT_REACHED();
     }
+    MSG(string("Reading LLPTFG from file " + src_etfg_filename + "...").c_str());
     src_llptfg = make_shared<llptfg_t const>(in_src, ctx);
+    MSG(string("done Reading LLPTTFG from file " + src_etfg_filename + "...").c_str());
   }
 
   if (Progress) {
@@ -293,7 +299,9 @@ main(int argc, char **argv)
   }
 
   auto points_to_algo_val = points_to_algo_t::points_to_algo_from_string(points_to_algo);
+  MSG("Symbolic execution to obtain the Transfer Function Graph (TFG)...");
   dshared_ptr<ftmap_t> function_tfg_map = sym_exec_llvm::sym_exec_get_function_tfg_map(M1.get(), FunNamesVec, ctx, src_llptfg, !NoGenScev, llvmSemantics, always_use_call_context_any, ll_filename, points_to_algo_val, nullptr, xml_output_format);
+  MSG("Points-to analysis on the Transfer Function Graph (TFG)...");
   function_tfg_map->ftmap_run_pointsto_analysis(points_to_algo_val, nullopt, call_context_depth, always_use_call_context_any, true, xml_output_format);
   function_tfg_map->ftmap_add_start_pc_preconditions_for_each_tfg();
   function_tfg_map->ftmap_add_store_uninit_at_dealloc_of_contiguous_locals_for_each_tfg();

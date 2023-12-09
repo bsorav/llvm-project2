@@ -2928,6 +2928,9 @@ sym_exec_llvm::get_tfg(llvm::Function& F, llvm::Module const *M, string const &n
   unsigned pointer_size = dl.getPointerSize();
   //cout << __func__ << " " << __LINE__ << ": pointer_size = " << pointer_size << endl;
   ASSERT(pointer_size == DWORD_LEN/BYTE_LEN || pointer_size == QWORD_LEN/BYTE_LEN);
+
+  //cout << timestamp() << ": " << _FNLN_ << ": declaring sym_exec_llvm object\n";
+
   sym_exec_llvm se(ctx, M, F, src_llvm_tfg/*, gen_callee_summary*/, BYTE_LEN, pointer_size * BYTE_LEN, srcdst_keyword);
 
   list<string> sorted_bbl_indices;
@@ -2936,6 +2939,7 @@ sym_exec_llvm::get_tfg(llvm::Function& F, llvm::Module const *M, string const &n
     sorted_bbl_indices.push_back(bbname);
   }
 
+  //cout << timestamp() << ": " << _FNLN_ << ": populating state template\n";
   //llvm::Function const &F = m_function;
   se.populate_state_template(F, model_llvm_semantics);
   state start_state;
@@ -2952,13 +2956,17 @@ sym_exec_llvm::get_tfg(llvm::Function& F, llvm::Module const *M, string const &n
   ASSERT(t);
   t->set_start_state(start_state);
 
+  //cout << timestamp() << ": " << _FNLN_ << ": populating debug headers\n";
+
   populate_debug_headers_for_subprogram(F, t);
 
   //this->populate_bbl_order_map();
 
+  //cout << timestamp() << ": " << _FNLN_ << ": adding basic blocks\n";  cout.flush();
   for(const BasicBlock& B : F) {
     se.add_edges(B, src_llvm_tfg, model_llvm_semantics, *t, F/*, function_tfg_map*/, value_to_name_map/*, function_call_chain*/, eimap, scev_map, ll_filename_parsed, xml_output_format);
   }
+  //cout << timestamp() << ": " << _FNLN_ << ": done adding basic blocks\n";
 
   //for (const auto& arg : F.args()) {
   //  pair<argnum_t, expr_ref> const &a = m_arguments.at(get_value_name(arg));
@@ -2969,9 +2977,11 @@ sym_exec_llvm::get_tfg(llvm::Function& F, llvm::Module const *M, string const &n
 
   se.get_tfg_common(*t);
 
+  //cout << timestamp() << ": " << _FNLN_ << ": populating scev count\n"; cout.flush();
   if (scev_map.count(name)) {
     se.sym_exec_populate_tfg_scev_map(*t, scev_map.at(name));
   }
+  //cout << timestamp() << ": " << _FNLN_ << ": populated scev count\n";
 
   map<allocsite_t, graph_local_t> const& local_refs = se.get_local_refs();
 
@@ -2995,6 +3005,7 @@ sym_exec_llvm::get_tfg(llvm::Function& F, llvm::Module const *M, string const &n
   graph_symbol_map_t symbol_map = graph_symbol_map_t::create_graph_symbol_map(syms, se.m_touched_symbols);
   //cout << _FNLN_ << ": symbol_map =\n"; symbol_map.graph_symbol_map_to_stream(cout); cout << endl;
 
+  //cout << timestamp() << ": " << _FNLN_ << ": setting symbol map\n";
   set<symbol_id_t> all_symbols = map_get_keys(symbol_map.get_map());
   //t->set_symbol_map_for_touched_symbols(symbol_map, all_symbols);
   t->tfg_set_symbol_map(symbol_map);
@@ -3009,7 +3020,10 @@ sym_exec_llvm::get_tfg(llvm::Function& F, llvm::Module const *M, string const &n
   t->set_locals_map(local_refs);
 
   t->tfg_llvm_set_sorted_bbl_indices(sorted_bbl_indices);
+
+  //cout << timestamp() << ": " << _FNLN_ << ": calling tfg_preprocess()\n";
   t->tfg_preprocess();
+  //cout << timestamp() << ": " << _FNLN_ << ": done tfg_preprocess()\n";
 
   return t;
 }
@@ -4366,6 +4380,13 @@ sym_exec_llvm::sym_exec_get_function_tfg_map(Module* M, set<string> FunNamesVec/
     map<shared_ptr<tfg_edge const>, Instruction *> eimap;
 
     dshared_ptr<tfg_llvm_t> t_src = sym_exec_llvm::get_tfg(f, M, fname, ctx, src_llvm_tfg, model_llvm_semantics, value_to_name_map, eimap, scev_map, srcdst_keyword, ll_filename_parsed, points_to_algo, xml_output_format);
+
+    {
+      stringstream ss;
+      ss << "Converted LLVM IR bitcode to Transfer Function Graph (TFG) for function " << fname;
+      MSG(ss.str().c_str());
+    }
+
 
     //dshared_ptr<tfg_ssa_t> t_src_ssa = tfg_ssa_t::tfg_ssa_construct_from_non_ssa_tfg(t_src, dshared_ptr<tfg const>::dshared_nullptr());
     //XXX: hack begin
