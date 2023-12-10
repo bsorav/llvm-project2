@@ -41,6 +41,7 @@
 #include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/Casting.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/IPO.h"
@@ -53,6 +54,12 @@
 using namespace llvm;
 
 #define DEBUG_TYPE "deadargelim"
+
+static cl::opt<bool>
+NoDeadArgElim("no-dead-arg-elim",
+       cl::desc("Do not eliminate dead arguments through IPO"),
+       cl::init(false));
+
 
 STATISTIC(NumArgumentsEliminated, "Number of unread args removed");
 STATISTIC(NumRetValsEliminated  , "Number of unused return values removed");
@@ -75,6 +82,9 @@ namespace {
     }
 
     bool runOnModule(Module &M) override {
+      if (NoDeadArgElim) {
+        return false;
+      }
       if (skipModule(M))
         return false;
       DeadArgumentEliminationPass DAEP(ShouldHackArguments());

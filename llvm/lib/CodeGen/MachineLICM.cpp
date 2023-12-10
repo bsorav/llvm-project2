@@ -98,6 +98,12 @@ DisableHoistingToHotterBlocks("disable-hoisting-to-hotter-blocks",
                               clEnumValN(UseBFI::All, "all",
                               "enable the feature with/wo profile data")));
 
+static cl::opt<bool>
+NoMachineLICM("no-machine-licm",
+       cl::desc("Do not perform LICM on machine code"),
+       cl::init(false));
+
+
 STATISTIC(NumHoisted,
           "Number of machine instructions hoisted out of loops");
 STATISTIC(NumLowRP,
@@ -335,6 +341,9 @@ static bool LoopIsOuterMostWithPredecessor(MachineLoop *CurLoop) {
 }
 
 bool MachineLICMBase::runOnMachineFunction(MachineFunction &MF) {
+  if (NoMachineLICM) {
+    return false;
+  }
   if (skipFunction(MF.getFunction()))
     return false;
 

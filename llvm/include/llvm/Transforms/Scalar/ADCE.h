@@ -16,7 +16,10 @@
 #ifndef LLVM_TRANSFORMS_SCALAR_ADCE_H
 #define LLVM_TRANSFORMS_SCALAR_ADCE_H
 
+#include "llvm/Support/CommandLine.h"
 #include "llvm/IR/PassManager.h"
+
+extern llvm::cl::opt<bool> NoDCEFcalls;
 
 namespace llvm {
 
