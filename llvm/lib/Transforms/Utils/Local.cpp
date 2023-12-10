@@ -361,6 +361,8 @@ bool llvm::isInstructionTriviallyDead(Instruction *I,
                                       const TargetLibraryInfo *TLI) {
   if (isa<CallInst>(*I) && cast<CallInst>(*I).getIntrinsicID() == Intrinsic::unseq_noalias)
     return false;
+  if (isa<CallInst>(*I) && cast<CallInst>(*I).getIntrinsicID() == Intrinsic::break_statement_marker)
+    return false;
   if (!I->use_empty())
     return false;
   return wouldInstructionBeTriviallyDead(I, TLI);
@@ -369,6 +371,8 @@ bool llvm::isInstructionTriviallyDead(Instruction *I,
 bool llvm::wouldInstructionBeTriviallyDead(Instruction *I,
                                            const TargetLibraryInfo *TLI) {
   if (isa<CallInst>(*I) && cast<CallInst>(*I).getIntrinsicID() == Intrinsic::unseq_noalias)
+      return false;
+  if (isa<CallInst>(*I) && cast<CallInst>(*I).getIntrinsicID() == Intrinsic::break_statement_marker)
       return false;
 
   if (I->isTerminator())
@@ -396,6 +400,9 @@ bool llvm::wouldInstructionBeTriviallyDead(Instruction *I,
       return false;
     return true;
   }
+
+  if (NoDCEFcalls && isa<CallInst>(*I))
+    return false;
 
   if (!I->mayHaveSideEffects())
     return true;

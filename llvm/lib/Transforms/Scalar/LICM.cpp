@@ -103,6 +103,12 @@ static cl::opt<uint32_t> MaxNumUsesTraversed(
     cl::desc("Max num uses visited for identifying load "
              "invariance in loop using invariant start (default = 8)"));
 
+static cl::opt<bool>
+NoLICM("no-licm",
+       cl::desc("Do not perform LICM"),
+       cl::init(false));
+
+
 // Default value of zero implies we use the regular alias set tracker mechanism
 // instead of the cross product using AA to identify aliasing of the memory
 // location we are interested in.
@@ -201,6 +207,9 @@ struct LegacyLICMPass : public LoopPass {
   }
 
   bool runOnLoop(Loop *L, LPPassManager &LPM) override {
+    if (NoLICM) {
+      return false;
+    }
     if (skipLoop(L))
       return false;
 
