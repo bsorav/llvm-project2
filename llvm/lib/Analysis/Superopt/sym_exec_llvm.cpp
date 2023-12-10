@@ -1,4 +1,3 @@
-#include <tuple>
 #include <llvm/Support/ToolOutputFile.h>
 #include <llvm/IR/InstIterator.h>
 #include <llvm/IR/DebugInfoMetadata.h>
@@ -9,7 +8,6 @@
 #include "llvm/Transforms/Utils/Debugify.h"
 
 #include "sym_exec_llvm.h"
-//#include "sym_exec_mir.h"
 #include "dfa_helper.h"
 
 #include "support/dyn_debug.h"
@@ -1657,24 +1655,27 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
   case Instruction::Alloca:
   {
     const AllocaInst* a =  cast<const AllocaInst>(&I);
-    string iname = get_value_name(*a);
+    string const iname = get_value_name(*a);
     Type *ElTy = a->getAllocatedType();
     Value const* ArraySize = a->getArraySize();
-    unsigned align = a->getAlignment();
-    bool is_varsize = !(a->getAllocationSizeInBits(dl).hasValue());
+    unsigned const align = a->getAlignment();
+    auto const op_alloc_size_bits = a->getAllocationSizeInBits(dl);
+    bool const is_varsize = !(op_alloc_size_bits.hasValue());
 
-    uint64_t local_type_alloc_size = dl.getTypeAllocSize(ElTy);
+    uint64_t const local_type_alloc_size = dl.getTypeAllocSize(ElTy);
     uint64_t local_size = local_type_alloc_size;
     if (const ConstantInt* constArraySize = dyn_cast<const ConstantInt>(ArraySize)) {
       local_size *= constArraySize->getZExtValue();
+      ASSERT(!is_varsize);
+      ASSERT(local_size == op_alloc_size_bits.getValue()/8);
     }
 
-    allocsite_t local_id(from_node->get_pc());
-    allocstack_t local_id_stack = allocstack_t::allocstack_singleton(cur_function_name, local_id);
-    memlabel_t ml_local = memlabel_t::memlabel_local(local_id_stack);
-    expr_ref local_addr_var = m_cs.get_local_addr(local_id_stack, m_srcdst_keyword);
+    allocsite_t const local_id(from_node->get_pc());
+    allocstack_t const local_id_stack = allocstack_t::allocstack_singleton(cur_function_name, local_id);
+    memlabel_t const ml_local = memlabel_t::memlabel_local(local_id_stack);
+    expr_ref const local_addr_var = m_cs.get_local_addr(local_id_stack, m_srcdst_keyword);
 
-    string local_addr_key = m_ctx->get_key_from_input_expr(local_addr_var)->get_str();
+    string const local_addr_key = m_ctx->get_key_from_input_expr(local_addr_var)->get_str();
     m_local_refs.insert(make_pair(local_id, graph_local_t(iname, local_size, align, is_varsize)));
 
     expr_ref local_size_val;
@@ -1683,7 +1684,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
       tie(varsize_expr, state_assumes) = get_expr_adding_edges_for_intermediate_vals(*ArraySize, iname, state_in, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map);
       unsigned bvlen = varsize_expr->get_sort()->get_size();
       ASSERT(bvlen == get_word_length());
-      expr_ref local_type_alloc_size_expr = m_ctx->mk_bv_const(bvlen, local_type_alloc_size);
+      expr_ref const local_type_alloc_size_expr = m_ctx->mk_bv_const(bvlen, local_type_alloc_size);
       local_size_val = m_ctx->mk_bvmul(varsize_expr, local_type_alloc_size_expr);
 
       bool is_c_alloca = false; // TODO
@@ -1702,84 +1703,58 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     } else {
       local_size_val = m_ctx->mk_bv_const(get_word_length(), local_size);
     }
+
+    auto add_edge_with_state = [this,&t,&from_node,&state_in,&state_out,&state_assumes,&te_comment]()
+      {
+        pc intermediate_pc = t.tfg_get_next_intermediate_pc_for_subsubindex(pc(from_node->get_pc().get_type(), from_node->get_pc().get_index(), from_node->get_pc().get_subindex(), PC_SUBSUBINDEX_ALLOC_START));
+        ASSERT(t.find_node(intermediate_pc) == 0);
+        dshared_ptr<tfg_node> intermediate_node = make_dshared<tfg_node>(intermediate_pc);
+        t.add_node(intermediate_node);
+
+        ASSERT(intermediate_node);
+        tfg_edge_ref e = mk_tfg_edge(from_node->get_pc(), intermediate_node->get_pc(), expr_true(m_ctx), state_out, state_assumes, te_comment);
+        t.add_edge(e);
+
+        from_node = intermediate_node;
+        state_out = state_in;
+        state_assumes.clear();
+      };
+
+    string const local_alloc_count_varname = m_ctx->get_local_alloc_count_varname(this->get_srcdst_keyword())->get_str();
+    string const local_alloc_count_ssa_varname = m_ctx->get_local_alloc_count_ssa_varname(this->get_srcdst_keyword(), local_id, false)->get_str();
+    expr_ref const local_alloc_count_var = state_get_expr(state_in, local_alloc_count_varname, m_ctx->mk_count_sort());
+    expr_ref const local_alloc_count_ssa_var = state_get_expr(state_in, local_alloc_count_ssa_varname, m_ctx->mk_count_sort());
+    expr_ref const local_size_var = m_ctx->get_local_size_expr_for_id(local_id, m_ctx->mk_bv_sort(get_word_length()), m_srcdst_keyword);
+    expr_ref const mem_e = state_get_expr(state_in, m_mem_reg, this->get_mem_sort());
+    expr_ref const mem_alloc_e = state_get_expr(state_in, m_mem_alloc_reg, this->get_mem_alloc_sort());
+
     // == intermediate edge 0 ==
-    string local_alloc_count_varname = m_ctx->get_local_alloc_count_varname(this->get_srcdst_keyword())->get_str();
-    expr_ref local_alloc_count_var = state_get_expr(state_in, local_alloc_count_varname, m_ctx->mk_count_sort());
-    expr_ref local_size_var = m_ctx->get_local_size_expr_for_id(local_id, m_ctx->mk_bv_sort(get_word_length()), m_srcdst_keyword);
     // local_size.id <- size expr
     state_set_expr(state_out, m_ctx->get_key_from_input_expr(local_size_var)->get_str(), local_size_val);
-
-    pc intermediate_pc0 = t.tfg_get_next_intermediate_pc_for_subsubindex(pc(from_node->get_pc().get_type(), from_node->get_pc().get_index(), from_node->get_pc().get_subindex(), PC_SUBSUBINDEX_ALLOC_START));
-    ASSERT(t.find_node(intermediate_pc0) == 0);
-    dshared_ptr<tfg_node> intermediate_node0 = make_dshared<tfg_node>(intermediate_pc0);
-    t.add_node(intermediate_node0);
-
-    ASSERT(intermediate_node0);
-    tfg_edge_ref e0 = mk_tfg_edge(from_node->get_pc(), intermediate_node0->get_pc(), expr_true(m_ctx), state_out, state_assumes, te_comment);
-    t.add_edge(e0);
+    add_edge_with_state();
 
     // == intermediate edge 1 ==
-    from_node = intermediate_node0;
-    state_out = state_in;
-    state_assumes.clear();
-
-    expr_ref mem_e = state_get_expr(state_in, m_mem_reg, this->get_mem_sort());
-    expr_ref mem_alloc_e = state_get_expr(state_in, m_mem_alloc_reg, this->get_mem_alloc_sort());
-    string local_alloc_count_ssa_varname = m_ctx->get_local_alloc_count_ssa_varname(this->get_srcdst_keyword(), local_id, false)->get_str();
-    expr_ref local_alloc_count_ssa_var = state_get_expr(state_in, local_alloc_count_ssa_varname, m_ctx->mk_count_sort());
     // local.<id>            <- alloc_ptr
     // local.alloc.count.ssa <- local.alloc.count
     state_set_expr(state_out, local_addr_key, m_ctx->get_local_alloc_ptr_fn_expr_for_ml(local_alloc_count_var, ml_local));
     state_set_expr(state_out, local_alloc_count_ssa_varname, local_alloc_count_var);
-
-    pc intermediate_pc1 = t.tfg_get_next_intermediate_pc_for_subsubindex(pc(from_node->get_pc().get_type(), from_node->get_pc().get_index(), from_node->get_pc().get_subindex(), PC_SUBSUBINDEX_ALLOC_START));
-    ASSERT(t.find_node(intermediate_pc1) == 0);
-    dshared_ptr<tfg_node> intermediate_node1 = make_dshared<tfg_node>(intermediate_pc1);
-    t.add_node(intermediate_node1);
-
-    tfg_edge_ref e1 = mk_tfg_edge(from_node->get_pc(), intermediate_node1->get_pc(), expr_true(m_ctx), state_out, state_assumes, te_comment);
-    t.add_edge(e1);
+    add_edge_with_state();
 
     // == intermediate edge 2 ==
-    from_node = intermediate_node1;
-    state_out = state_in;
-    state_assumes.clear();
-
     // <llvm-var> <- local.<id>
     state_set_expr(state_out, iname, local_addr_var);
-
-    pc intermediate_pc2 = t.tfg_get_next_intermediate_pc_for_subsubindex(pc(from_node->get_pc().get_type(), from_node->get_pc().get_index(), from_node->get_pc().get_subindex(), PC_SUBSUBINDEX_ALLOC_START));
-    ASSERT(t.find_node(intermediate_pc2) == 0);
-    dshared_ptr<tfg_node> intermediate_node2 = make_dshared<tfg_node>(intermediate_pc2);
-    t.add_node(intermediate_node2);
-
-    tfg_edge_ref e2 = mk_tfg_edge(from_node->get_pc(), intermediate_node2->get_pc(), expr_true(m_ctx), state_out, state_assumes, te_comment);
-    t.add_edge(e2);
+    add_edge_with_state();
 
     // == intermediate edge 3 ==
-    from_node = intermediate_node2;
-    state_out = state_in;
-    state_assumes.clear();
-
     // mem.alloc <- alloc
     // mem       <- store_unint
-    expr_ref new_mem_alloc = m_ctx->mk_alloc(mem_alloc_e, ml_local, local_addr_var, local_size_var);
+    expr_ref const new_mem_alloc = m_ctx->mk_alloc(mem_alloc_e, ml_local, local_addr_var, local_size_var);
+    expr_ref const new_mem       = m_ctx->mk_store_uninit(mem_e, new_mem_alloc, ml_local, local_addr_var, local_size_var, local_alloc_count_ssa_var);
     state_set_expr(state_out, m_mem_alloc_reg, new_mem_alloc);
-    state_set_expr(state_out, m_mem_reg, m_ctx->mk_store_uninit(mem_e, new_mem_alloc, ml_local, local_addr_var, local_size_var, local_alloc_count_ssa_var));
-
-    pc intermediate_pc3 = t.tfg_get_next_intermediate_pc_for_subsubindex(pc(from_node->get_pc().get_type(), from_node->get_pc().get_index(), from_node->get_pc().get_subindex(), PC_SUBSUBINDEX_ALLOC_START));
-    ASSERT(t.find_node(intermediate_pc3) == 0);
-    dshared_ptr<tfg_node> intermediate_node3 = make_dshared<tfg_node>(intermediate_pc3);
-    t.add_node(intermediate_node3);
-
-    tfg_edge_ref e3 = mk_tfg_edge(from_node->get_pc(), intermediate_node3->get_pc(), expr_true(m_ctx), state_out, state_assumes, te_comment);
-    t.add_edge(e3);
+    state_set_expr(state_out, m_mem_reg, new_mem);
+    add_edge_with_state();
 
     // == intermediate edge 4 ==
-    from_node = intermediate_node3;
-    state_out = state_in;
-    state_assumes.clear();
-
     // local.alloc.count <- local.alloc.count+1
     state_set_expr(state_out, local_alloc_count_varname, m_ctx->mk_increment_count(local_alloc_count_var));
     break;
@@ -4061,7 +4036,7 @@ sym_exec_common::get_tfg_common(tfg &t)
     allocstack_t allocstack = allocstack_t::allocstack_singleton(t.get_function_name()->get_str(), allocsite);
     stringstream ss;
     ss << string(G_INPUT_KEYWORD ".") << m_srcdst_keyword << "." << G_LOCAL_KEYWORD << "." << allocstack.allocstack_to_string();
-    expr_ref arg_addr = m_ctx->mk_var(ss.str(), m_ctx->get_addr_sort());
+    expr_ref arg_addr = m_ctx->mk_var(ss.str(), m_ctx->mk_addr_sort());
     arg_exprs.insert(make_pair(mk_string_ref(argname), graph_arg_t(arg_addr, a.second)));
   }
   //t->add_assumes(pc::start(), assumes);
