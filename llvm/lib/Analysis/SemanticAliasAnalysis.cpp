@@ -66,12 +66,12 @@ SemanticAAResult::alias(const MemoryLocation &LocA,
 
   AliasResult retval;
   bool should_return_immediately = false;
-  DYN_DEBUG_MUTE(disableSemanticAA,
+  //DYN_DEBUG_MUTE(disableSemanticAA,
     // Forward the query to the next analysis.
     retval = AAResultBase::alias(LocA, LocB, AAQI);
     should_return_immediately = true; //to avoid control flow from inside the macro, simply set a flag
-  );
-  if (should_return_immediately) {
+  //);
+  if (true || should_return_immediately) {
     return retval;
   }
 
@@ -123,10 +123,10 @@ bool SemanticAAWrapperPass::doInitialization(Module &M)
 {
   DYN_DEBUG(aliasAnalysis, std::cout << "SemanticAAResult::doInitialization() called\n");
   bool should_return_immediately = false;
-  DYN_DEBUG_MUTE(disableSemanticAA,
+  //DYN_DEBUG_MUTE(disableSemanticAA,
     Result.reset(new SemanticAAResult(nullptr, nullptr));
     should_return_immediately = true; //to avoid control flow from inside the macro, simply set a flag
-  );
+  //);
   if (should_return_immediately) {
     return false;
   }
