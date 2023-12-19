@@ -1240,14 +1240,6 @@ sym_exec_llvm::apply_memcpy_function(const CallInst* c, expr_ref fun_name_expr, 
 }
 
 pair<unordered_set<expr_ref>,unordered_set<expr_ref>>
-sym_exec_llvm::apply_break_statement_marker_function(state &state_out, unordered_set<expr_ref> const& state_assumes)
-{
-  string code_marker_reg = m_srcdst_keyword + "." G_CODE_MARKER_VARNAME;
-  state_set_expr(state_out, code_marker_reg, m_ctx->mk_code_marker_break_statement(m_ctx->mk_var(code_marker_reg, m_ctx->mk_code_marker_sort())));
-  return make_pair(state_assumes, unordered_set<expr_ref>());
-}
-
-pair<unordered_set<expr_ref>,unordered_set<expr_ref>>
 sym_exec_llvm::apply_va_start_function(const CallInst* c, state const& state_in, state &state_out, unordered_set<expr_ref> const& state_assumes, string const& cur_function_name, dshared_ptr<tfg_node>& from_node, bool model_llvm_semantics, tfg& t, map<llvm_value_id_t,string_ref>* value_to_name_map)
 {
   const auto& va_list_ptr = c->getArgOperand(0);
@@ -2017,24 +2009,11 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
       fun_name = LLVM_OR_SPEC_FUNCTION_NAME_PREFIX G_SELFCALL_IDENTIFIER;
       fun_expr = m_ctx->mk_var(fun_name, m_ctx->mk_bv_sort(get_word_length()));
     }
-    string memcpy_fn = LLVM_FUNCTION_NAME_PREFIX G_LLVM_MEMCPY_FUNCTION;
-    string memset_fn = LLVM_FUNCTION_NAME_PREFIX G_LLVM_MEMSET_FUNCTION;
-    string break_statement_marker_fn = LLVM_FUNCTION_NAME_PREFIX G_LLVM_BREAK_STATEMENT_MARKER_FUNCTION;
+    string memcpy_fn = LLVM_OR_SPEC_FUNCTION_NAME_PREFIX G_LLVM_MEMCPY_FUNCTION;
+    string memset_fn = LLVM_OR_SPEC_FUNCTION_NAME_PREFIX G_LLVM_MEMSET_FUNCTION;
     unordered_set<expr_ref> succ_assumes;
-
-
-    //if (isa<CallInst>(I) && cast<CallInst>(I).getIntrinsicID() == Intrinsic::break_statement_marker) {
-    //  //NOT_IMPLEMENTED();
-    //  if (ll_filename_parsed) {
-    //    ll_filename_parsed->ll_filename_identify_linenum_for_break_statement_marker_instruction(bbindex);
-    //  }
-    //  continue;
-    //}
-
-    if (fun_name.substr(0, break_statement_marker_fn.length()) == break_statement_marker_fn) {
-      tie(state_assumes, succ_assumes) = apply_break_statement_marker_function(state_out, state_assumes);
-    } else if (fun_name.substr(0, memcpy_fn.length()) == memcpy_fn) {
-      tie(state_assumes, succ_assumes) = apply_memcpy_function(c, fun_expr, fun_name, src_llvm_tfg, calleeF, state_in, state_out, state_assumes, cur_function_name, from_node, model_llvm_semantics, F, t/*, function_tfg_map*/, value_to_name_map/*, function_call_chain*/, scev_map, xml_output_format);
+    if (fun_name.substr(0, memcpy_fn.length()) == memcpy_fn) {
+      tie(state_assumes, succ_assumes) = apply_memcpy_function(c, fun_expr, fun_name, src_tfg, calleeF, state_in, state_out, state_assumes, cur_function_name, from_node, model_llvm_semantics, F, t/*, function_tfg_map*/, value_to_name_map/*, function_call_chain*/, scev_map, xml_output_format);
     } else if (fun_name.substr(0, memset_fn.length()) == memset_fn) {
       tie(state_assumes, succ_assumes) = apply_memset_function(c, fun_expr, fun_name, src_tfg, calleeF, state_in, state_out, state_assumes, cur_function_name, from_node, model_llvm_semantics, F, t/*, function_tfg_map*/, value_to_name_map/*, function_call_chain*/, scev_map, xml_output_format);
     } else if (fun_name == LLVM_OR_SPEC_FUNCTION_NAME_PREFIX G_LLVM_VA_START_FUNCTION) {
@@ -3420,7 +3399,6 @@ sym_exec_llvm::add_edges(const llvm::BasicBlock& B, dshared_ptr<tfg const> src_t
       }
       continue;
     }
-
     if (pc_is_start) {
       pc_is_start = false;
       //errs() << "setting pc_is_start to false\n";

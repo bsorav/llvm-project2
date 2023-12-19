@@ -490,13 +490,6 @@ let IntrProperties = [IntrNoMem, IntrSpeculatable] in {
                                      llvm_vararg_ty]>;
 }
 
-// Break statement marker
-let IntrProperties = [IntrNoMem, IntrSpeculatable] in {
-  def int_break_statement_marker : Intrinsic<[],
-                                    []>;
-}
-
-
 // Note: we treat stacksave/stackrestore as writemem because we don't otherwise
 // model their dependencies on allocas.
 def int_stacksave     : Intrinsic<[llvm_ptr_ty]>,

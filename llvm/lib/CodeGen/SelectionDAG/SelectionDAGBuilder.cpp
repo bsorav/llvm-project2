@@ -6486,7 +6486,6 @@ void SelectionDAGBuilder::visitIntrinsicCall(const CallInst &I,
     setValue(&I, getValue(I.getOperand(0)));
     return;
   case Intrinsic::unseq_noalias:
-  case Intrinsic::break_statement_marker:
   case Intrinsic::assume:
   case Intrinsic::var_annotation:
   case Intrinsic::sideeffect:

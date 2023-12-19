@@ -29,7 +29,6 @@
 #include "llvm/IR/Module.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Support/Debug.h"
-#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/ManagedStatic.h"
@@ -44,12 +43,6 @@
 using namespace llvm;
 
 #define DEBUG_TYPE "ir"
-
-cl::opt<bool>
-NoDCEFcalls("no-dce-fcalls",
-       cl::desc("Do not eliminate function calls during DCE"),
-       cl::init(false));
-
 
 void llvm::initializeCore(PassRegistry &Registry) {
   initializeDominatorTreeWrapperPassPass(Registry);

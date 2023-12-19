@@ -89,8 +89,8 @@ static cl::opt<bool> EarlyCSEDebugHash(
              "function is well-behaved w.r.t. its isEqual predicate"));
 
 static cl::opt<bool>
-NoEarlyCSE("no-early-cse",
-          cl::desc("Do not perform early CSE"),
+NoLoadCSE("no-load-cse",
+          cl::desc("Do not perform CSE for load instructions"),
           cl::init(false));
 
 
@@ -927,9 +927,6 @@ bool EarlyCSE::handleBranchCondition(Instruction *CondInst,
 }
 
 bool EarlyCSE::processNode(DomTreeNode *Node) {
-  if (NoEarlyCSE) {
-    return false;
-  }
   bool Changed = false;
   BasicBlock *BB = Node->getBlock();
 
@@ -1145,7 +1142,7 @@ bool EarlyCSE::processNode(DomTreeNode *Node) {
       // we can assume the current load loads the same value as the dominating
       // load.
       LoadValue InVal = AvailableLoads.lookup(MemInst.getPointerOperand());
-      if (InVal.DefInst != nullptr &&
+      if (!NoLoadCSE && InVal.DefInst != nullptr &&
           InVal.MatchingId == MemInst.getMatchingId() &&
           // We don't yet handle removing loads with ordering of any kind.
           !MemInst.isVolatile() && MemInst.isUnordered() &&

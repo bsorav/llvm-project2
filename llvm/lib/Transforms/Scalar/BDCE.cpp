@@ -98,9 +98,6 @@ static bool bitTrackingDCE(Function &F, DemandedBits &DB) {
     if (isa<CallInst>(I) && cast<CallInst>(I).getIntrinsicID() == Intrinsic::unseq_noalias)
       continue;
 
-    if (NoDCEFcalls && isa<CallInst>(I)) {
-      continue;
-    }
     // If the instruction has side effects and no non-dbg uses,
     // skip it. This way we avoid computing known bits on an instruction
     // that will not help us.

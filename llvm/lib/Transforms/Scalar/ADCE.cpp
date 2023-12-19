@@ -327,9 +327,6 @@ bool AggressiveDeadCodeElimination::isAlwaysLive(Instruction &I) {
   // TODO -- use llvm::isInstructionTriviallyDead
   if (isa<CallInst>(I) && cast<CallInst>(I).getIntrinsicID() == Intrinsic::unseq_noalias)
       return true;
-  if (NoDCEFcalls && isa<CallInst>(I)) {
-    return true;
-  }
   if (I.isEHPad() || I.mayHaveSideEffects()) {
     // Skip any value profile instrumentation calls if they are
     // instrumenting constants.

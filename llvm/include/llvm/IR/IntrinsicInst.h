@@ -71,7 +71,6 @@ static inline bool isDbgInfoIntrinsic(Intrinsic::ID ID) {
   case Intrinsic::dbg_addr:
   case Intrinsic::dbg_label:
   case Intrinsic::unseq_noalias:
-  case Intrinsic::break_statement_marker:
     return true;
   default:
     return false;

@@ -1188,25 +1188,14 @@ void CodeGenFunction::EmitDeclStmt(const DeclStmt &S) {
     EmitDecl(*I);
 }
 
-void CodeGenFunction::EmitBreakStatementMarker(const BreakStmt &S)
-{
-  auto ValueFn = llvm::Intrinsic::getDeclaration(
-    &CGM.getModule(), llvm::Intrinsic::break_statement_marker);
-
-  std::vector<llvm::Value *> ValueArgs;
-  EmitNounwindRuntimeCall(ValueFn, ValueArgs);
-}
-
 void CodeGenFunction::EmitBreakStmt(const BreakStmt &S) {
   assert(!BreakContinueStack.empty() && "break stmt not in a loop or switch!");
 
   // If this code is reachable then emit a stop point (if generating
   // debug info). We have to do this ourselves because we are on the
   // "simple" statement path.
-  if (HaveInsertPoint()) {
+  if (HaveInsertPoint())
     EmitStopPoint(&S);
-  }
-  EmitBreakStatementMarker(S);
 
   EmitBranchThroughCleanup(BreakContinueStack.back().BreakBlock);
 }

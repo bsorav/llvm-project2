@@ -612,7 +612,6 @@ bool llvm::isAssumeLikeIntrinsic(const Instruction *I) {
       case Intrinsic::ptr_annotation:
       case Intrinsic::var_annotation:
       case Intrinsic::unseq_noalias:
-      case Intrinsic::break_statement_marker:
         return true;
       }
 

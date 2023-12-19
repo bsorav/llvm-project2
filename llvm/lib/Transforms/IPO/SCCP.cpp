@@ -3,16 +3,10 @@
 #include "llvm/Analysis/PostDominators.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/InitializePasses.h"
-#include "llvm/Support/CommandLine.h"
 #include "llvm/Transforms/IPO.h"
 #include "llvm/Transforms/Scalar/SCCP.h"
 
 using namespace llvm;
-
-static cl::opt<bool>
-NoIPSCCP("no-ip-sparse-conditional-constant-prop",
-       cl::desc("Do not propagate conditional constants through IPO"),
-       cl::init(false));
 
 PreservedAnalyses IPSCCPPass::run(Module &M, ModuleAnalysisManager &AM) {
   const DataLayout &DL = M.getDataLayout();
@@ -53,9 +47,6 @@ public:
   }
 
   bool runOnModule(Module &M) override {
-    if (NoIPSCCP) {
-      return false;
-    }
     if (skipModule(M))
       return false;
     const DataLayout &DL = M.getDataLayout();

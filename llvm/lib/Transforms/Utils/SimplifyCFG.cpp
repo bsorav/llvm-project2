@@ -4055,7 +4055,6 @@ static bool isCleanupBlockEmpty(Instruction *Inst, Instruction *RI) {
     case Intrinsic::dbg_label:
     case Intrinsic::lifetime_end:
     case Intrinsic::unseq_noalias:
-    case Intrinsic::break_statement_marker:
       break;
     default:
       return false;
