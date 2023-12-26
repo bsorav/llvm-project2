@@ -1722,8 +1722,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
       expr_ref const local_type_alloc_size_expr = m_ctx->mk_bv_const(bvlen, local_type_alloc_size);
       local_size_val = m_ctx->mk_bvmul(varsize_expr, local_type_alloc_size_expr);
 
-      bool is_c_alloca = false; // TODO
-      if (is_c_alloca) {
+      if (is_alloca) {
         // add size != 0 assume
         expr_ref size_is_nonzero = m_ctx->mk_not(m_ctx->mk_eq(local_size_val, m_ctx->mk_zerobv(bvlen)));
         add_state_assume(iname, size_is_nonzero, state_in, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map); //state_assumes.insert(size_is_positive_assume);
