@@ -627,14 +627,11 @@ sym_exec_llvm::populate_state_template(const llvm::Function& F, bool model_llvm_
 
     allocsite_t allocsite = allocsite_t::allocsite_arg(argnum);
     argnum++;
-    //m_state_templ.push_back({argname, s});
 
     Type* ty = v.getType();
     unsigned size = dl.getTypeAllocSize(ty);
     unsigned align = dl.getPrefTypeAlignment(ty);
-    //m_local_refs.insert(make_pair(m_local_num++, graph_local_t(argname, size, align)));
     m_local_refs.insert(make_pair(allocsite, graph_local_t(argname, size, align)));
-    //m_local_num = m_local_num.increment_by_one();
 
     if (model_llvm_semantics) {
       string arg_poison_varname = get_poison_value_varname(name);
@@ -1255,7 +1252,6 @@ sym_exec_llvm::apply_va_start_function(const CallInst* c, state const& state_in,
   // store vararg addr at the location pointed to by va_list_ptr
   tie(va_list_ptr_expr, assumes) = get_expr_adding_edges_for_intermediate_vals(*va_list_ptr, "", state_out, assumes, from_node, model_llvm_semantics, t, value_to_name_map);
 
-  //expr_ref vararg_addr = m_ctx->get_consts_struct().get_expr_value(reg_type_local, graph_locals_map_t::vararg_local_id());
   allocstack_t allocstack = allocstack_t::allocstack_singleton(cur_function_name, graph_locals_map_t::vararg_local_id());
   expr_ref vararg_addr = m_ctx->get_consts_struct().get_local_addr(allocstack, m_srcdst_keyword);
   expr_ref mem_alloc = state_get_expr(state_in, this->m_mem_alloc_reg, this->get_mem_alloc_sort());
@@ -3316,8 +3312,7 @@ sym_exec_llvm::add_edges(const llvm::BasicBlock& B, dshared_ptr<tfg_llvm_t const
     }
     insn_id++;
 
-    //exec(t.get_start_state(), I, from_node, B, F, insn_id, t, function_tfg_map, function_call_chain, eimap);
-    exec(state(), I, from_node, B, F, insn_id, src_llvm_tfg, model_llvm_semantics, t, value_to_name_map/*, function_call_chain*/, eimap, scev_map, xml_output_format);
+    exec(state(), I, from_node, B, F, insn_id, src_llvm_tfg, model_llvm_semantics, t, value_to_name_map, eimap, scev_map, xml_output_format);
   }
 }
 
