@@ -1524,6 +1524,44 @@ gen_no_mul_overflow_assume_expr(expr_ref const& a, expr_ref const& b, bool a_is_
   }
 }
 
+optional<string>
+skip_to_line_and_column_in_file(ifstream& in, unsigned linenum, unsigned column)
+{
+  for (unsigned ln = 1; ln < linenum; ++ln) {
+    if (!in.ignore(numeric_limits<streamsize>::max(), '\n')) {
+      return nullopt;
+    }
+  }
+  string line;
+  bool ok = !!getline(in, line);
+  ASSERT(ok);
+  if (line.length() <= column)
+    return nullopt;
+  return line.substr(column-1);
+}
+
+bool
+alloca_instruction_is_alloca_operator_in_src(llvm::Module const* M, llvm::Instruction const& I)
+{
+  ASSERT(M);
+  DebugLoc const& dl = I.getDebugLoc();
+  DILocation* diloc = dl.get();
+  if (diloc) {
+    unsigned linenum = diloc->getLine();
+    unsigned column_num = diloc->getColumn();
+    auto const fname = M->getSourceFileName();
+    ifstream in(fname, ios_base::in);
+    if (!in) {
+      cout << _FNLN_ << ": WARNING! failed to open source file " << fname << endl;
+      return false;
+    }
+    if (auto const op_line = skip_to_line_and_column_in_file(in, linenum, column_num)) {
+      return string_has_prefix(op_line.value(), "alloca");
+    }
+  }
+  return false;
+}
+
 void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dshared_ptr<tfg_node> from_node, llvm::BasicBlock const &B, llvm::Function const &F, size_t next_insn_id, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, bool model_llvm_semantics, tfg &t, map<llvm_value_id_t, string_ref>* value_to_name_map/*, set<string> const *function_call_chain*/, map<shared_ptr<tfg_edge const>, Instruction *>& eimap, map<string, value_scev_map_t> const& scev_map, context::xml_output_format_t xml_output_format)
 {
   DYN_DEBUG(llvm2tfg, errs() << __func__ << " " << __LINE__ << " " << get_timestamp(as1, sizeof as1) << ": sym exec doing: " << I << "\n");
@@ -1657,6 +1695,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     unsigned const align = a->getAlignment();
     auto const op_alloc_size_bits = a->getAllocationSizeInBits(dl);
     bool const is_varsize = !(op_alloc_size_bits.hasValue());
+    bool const is_alloca = alloca_instruction_is_alloca_operator_in_src(this->m_module, I);
 
     uint64_t const local_type_alloc_size = dl.getTypeAllocSize(ElTy);
     uint64_t local_size = local_type_alloc_size;
@@ -1672,7 +1711,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     expr_ref const local_addr_var = m_cs.get_local_addr(local_id_stack, m_srcdst_keyword);
 
     string const local_addr_key = m_ctx->get_key_from_input_expr(local_addr_var)->get_str();
-    m_local_refs.insert(make_pair(local_id, graph_local_t(iname, local_size, align, is_varsize)));
+    m_local_refs.emplace(local_id, graph_local_t(mk_string_ref(iname), local_size, align, is_varsize, is_alloca));
 
     expr_ref local_size_val;
     if (is_varsize) {
