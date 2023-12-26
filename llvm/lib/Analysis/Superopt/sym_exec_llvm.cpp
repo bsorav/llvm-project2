@@ -627,14 +627,11 @@ sym_exec_llvm::populate_state_template(const llvm::Function& F, bool model_llvm_
 
     allocsite_t allocsite = allocsite_t::allocsite_arg(argnum);
     argnum++;
-    //m_state_templ.push_back({argname, s});
 
     Type* ty = v.getType();
     unsigned size = dl.getTypeAllocSize(ty);
     unsigned align = dl.getPrefTypeAlignment(ty);
-    //m_local_refs.insert(make_pair(m_local_num++, graph_local_t(argname, size, align)));
     m_local_refs.insert(make_pair(allocsite, graph_local_t(argname, size, align)));
-    //m_local_num = m_local_num.increment_by_one();
 
     if (model_llvm_semantics) {
       string arg_poison_varname = get_poison_value_varname(name);
@@ -1255,7 +1252,6 @@ sym_exec_llvm::apply_va_start_function(const CallInst* c, state const& state_in,
   // store vararg addr at the location pointed to by va_list_ptr
   tie(va_list_ptr_expr, assumes) = get_expr_adding_edges_for_intermediate_vals(*va_list_ptr, "", state_out, assumes, from_node, model_llvm_semantics, t, value_to_name_map);
 
-  //expr_ref vararg_addr = m_ctx->get_consts_struct().get_expr_value(reg_type_local, graph_locals_map_t::vararg_local_id());
   allocstack_t allocstack = allocstack_t::allocstack_singleton(cur_function_name, graph_locals_map_t::vararg_local_id());
   expr_ref vararg_addr = m_ctx->get_consts_struct().get_local_addr(allocstack, m_srcdst_keyword);
   expr_ref mem_alloc = state_get_expr(state_in, this->m_mem_alloc_reg, this->get_mem_alloc_sort());
@@ -1528,6 +1524,44 @@ gen_no_mul_overflow_assume_expr(expr_ref const& a, expr_ref const& b, bool a_is_
   }
 }
 
+optional<string>
+skip_to_line_and_column_in_file(ifstream& in, unsigned linenum, unsigned column)
+{
+  for (unsigned ln = 1; ln < linenum; ++ln) {
+    if (!in.ignore(numeric_limits<streamsize>::max(), '\n')) {
+      return nullopt;
+    }
+  }
+  string line;
+  bool ok = !!getline(in, line);
+  ASSERT(ok);
+  if (line.length() <= column)
+    return nullopt;
+  return line.substr(column-1);
+}
+
+bool
+alloca_instruction_is_alloca_operator_in_src(llvm::Module const* M, llvm::Instruction const& I)
+{
+  ASSERT(M);
+  DebugLoc const& dl = I.getDebugLoc();
+  DILocation* diloc = dl.get();
+  if (diloc) {
+    unsigned linenum = diloc->getLine();
+    unsigned column_num = diloc->getColumn();
+    auto const fname = M->getSourceFileName();
+    ifstream in(fname, ios_base::in);
+    if (!in) {
+      cout << _FNLN_ << ": WARNING! failed to open source file " << fname << endl;
+      return false;
+    }
+    if (auto const op_line = skip_to_line_and_column_in_file(in, linenum, column_num)) {
+      return string_has_prefix(op_line.value(), "alloca");
+    }
+  }
+  return false;
+}
+
 void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dshared_ptr<tfg_node> from_node, llvm::BasicBlock const &B, llvm::Function const &F, size_t next_insn_id, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, bool model_llvm_semantics, tfg &t, map<llvm_value_id_t, string_ref>* value_to_name_map/*, set<string> const *function_call_chain*/, map<shared_ptr<tfg_edge const>, Instruction *>& eimap, map<string, value_scev_map_t> const& scev_map, context::xml_output_format_t xml_output_format)
 {
   DYN_DEBUG(llvm2tfg, errs() << __func__ << " " << __LINE__ << " " << get_timestamp(as1, sizeof as1) << ": sym exec doing: " << I << "\n");
@@ -1661,6 +1695,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     unsigned const align = a->getAlignment();
     auto const op_alloc_size_bits = a->getAllocationSizeInBits(dl);
     bool const is_varsize = !(op_alloc_size_bits.hasValue());
+    bool const is_alloca = alloca_instruction_is_alloca_operator_in_src(this->m_module, I);
 
     uint64_t const local_type_alloc_size = dl.getTypeAllocSize(ElTy);
     uint64_t local_size = local_type_alloc_size;
@@ -1676,7 +1711,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     expr_ref const local_addr_var = m_cs.get_local_addr(local_id_stack, m_srcdst_keyword);
 
     string const local_addr_key = m_ctx->get_key_from_input_expr(local_addr_var)->get_str();
-    m_local_refs.insert(make_pair(local_id, graph_local_t(iname, local_size, align, is_varsize)));
+    m_local_refs.emplace(local_id, graph_local_t(mk_string_ref(iname), local_size, align, is_varsize, is_alloca));
 
     expr_ref local_size_val;
     if (is_varsize) {
@@ -1687,8 +1722,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
       expr_ref const local_type_alloc_size_expr = m_ctx->mk_bv_const(bvlen, local_type_alloc_size);
       local_size_val = m_ctx->mk_bvmul(varsize_expr, local_type_alloc_size_expr);
 
-      bool is_c_alloca = false; // TODO
-      if (is_c_alloca) {
+      if (is_alloca) {
         // add size != 0 assume
         expr_ref size_is_nonzero = m_ctx->mk_not(m_ctx->mk_eq(local_size_val, m_ctx->mk_zerobv(bvlen)));
         add_state_assume(iname, size_is_nonzero, state_in, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map); //state_assumes.insert(size_is_positive_assume);
@@ -3330,8 +3364,7 @@ sym_exec_llvm::add_edges(const llvm::BasicBlock& B, dshared_ptr<tfg_llvm_t const
     }
     insn_id++;
 
-    //exec(t.get_start_state(), I, from_node, B, F, insn_id, t, function_tfg_map, function_call_chain, eimap);
-    exec(state(), I, from_node, B, F, insn_id, src_llvm_tfg, model_llvm_semantics, t, value_to_name_map/*, function_call_chain*/, eimap, scev_map, xml_output_format);
+    exec(state(), I, from_node, B, F, insn_id, src_llvm_tfg, model_llvm_semantics, t, value_to_name_map, eimap, scev_map, xml_output_format);
   }
 }
 
