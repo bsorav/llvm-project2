@@ -291,7 +291,7 @@ main(int argc, char **argv)
     }
     MSG(string("Reading LLPTFG from file " + src_etfg_filename + "...").c_str());
     src_llptfg = make_shared<llptfg_t const>(in_src, ctx);
-    MSG(string("done Reading LLPTTFG from file " + src_etfg_filename + "...").c_str());
+    MSG(string("done Reading LLPTFG from file " + src_etfg_filename + "...").c_str());
   }
 
   if (Progress) {

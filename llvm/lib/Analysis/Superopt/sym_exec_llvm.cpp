@@ -1736,8 +1736,13 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     // == intermediate edge 1 ==
     // local.<id>            <- alloc_ptr
     // local.alloc.count.ssa <- local.alloc.count
-    state_set_expr(state_out, local_addr_key, m_ctx->get_local_alloc_ptr_fn_expr_for_ml(local_alloc_count_var, ml_local));
+    expr_ref alloc_ptr_expr = m_ctx->get_local_alloc_ptr_fn_expr_for_ml(local_alloc_count_var, ml_local);
+    state_set_expr(state_out, local_addr_key, alloc_ptr_expr);
     state_set_expr(state_out, local_alloc_count_ssa_varname, local_alloc_count_var);
+    if (ctx->get_config().prefer_friendly_couunterexamples) {
+      expr_ref alloc_ptr_expr_ne_zero = m_ctx->mk_not(m_ctx->mk_eq(alloc_ptr_expr, m_ctx->mk_zerobv(alloc_ptr_expr->get_sort()->get_size())));
+      add_state_assume(iname, alloc_ptr_expr_ne_zero, state_in, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map); //state_assumes.insert(no_overflow);
+    }
     add_edge_with_state();
 
     // == intermediate edge 2 ==
