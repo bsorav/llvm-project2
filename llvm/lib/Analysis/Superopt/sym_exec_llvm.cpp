@@ -1543,6 +1543,7 @@ skip_to_line_and_column_in_file(ifstream& in, unsigned linenum, unsigned column)
 bool
 alloca_instruction_is_alloca_operator_in_src(llvm::Module const* M, llvm::Instruction const& I)
 {
+  // XXX TODO FIXME this hack should be replaced by a patch in clang code so that it generates a proper annotation for alloca() Alloca
   ASSERT(M);
   DebugLoc const& dl = I.getDebugLoc();
   DILocation* diloc = dl.get();
