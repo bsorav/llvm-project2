@@ -303,7 +303,7 @@ main(int argc, char **argv)
   dshared_ptr<ftmap_t> function_tfg_map = sym_exec_llvm::sym_exec_get_function_tfg_map(M1.get(), FunNamesVec, ctx, src_llptfg, !NoGenScev, llvmSemantics, always_use_call_context_any, ll_filename, points_to_algo_val, nullptr, xml_output_format);
   MSG("Points-to analysis on the Transfer Function Graph (TFG)...");
   function_tfg_map->ftmap_run_pointsto_analysis(points_to_algo_val, nullopt, call_context_depth, always_use_call_context_any, true, xml_output_format);
-  function_tfg_map->ftmap_add_start_pc_preconditions_for_each_tfg();
+  function_tfg_map->ftmap_add_start_pc_preconditions_for_each_tfg((src_llptfg != nullptr));
   //function_tfg_map->ftmap_add_store_uninit_at_alloc_of_locals_for_each_tfg();
   //function_tfg_map->ftmap_add_store_uninit_at_dealloc_of_contiguous_locals_for_each_tfg();
 
