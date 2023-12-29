@@ -109,6 +109,8 @@ ll_filename("ll-filename", cl::desc("<Disassembled LLVM used as input to identif
 static cl::opt<std::string>
 points_to_algo("points-to-algo", cl::desc("[" POINTS_TO_ALGO_ANDERSEN "|" POINTS_TO_ALGO_NONE "]"), cl::init(POINTS_TO_ALGO_ANDERSEN));
 
+static cl::opt<bool>
+dst_tfg_is_llvm("dst-tfg-is-llvm", cl::desc("Is the DST TFG LLVM? If not, rodata memlabel is used for all ro symbols"), cl::init(false));
 
 
 //static cl::opt<bool>
@@ -302,7 +304,7 @@ main(int argc, char **argv)
   MSG("Symbolic execution to obtain the Transfer Function Graph (TFG)...");
   dshared_ptr<ftmap_t> function_tfg_map = sym_exec_llvm::sym_exec_get_function_tfg_map(M1.get(), FunNamesVec, ctx, src_llptfg, !NoGenScev, llvmSemantics, always_use_call_context_any, ll_filename, points_to_algo_val, nullptr, xml_output_format);
   MSG("Points-to analysis on the Transfer Function Graph (TFG)...");
-  function_tfg_map->ftmap_run_pointsto_analysis(points_to_algo_val, nullopt, call_context_depth, always_use_call_context_any, true, xml_output_format);
+  function_tfg_map->ftmap_run_pointsto_analysis(points_to_algo_val, nullopt, call_context_depth, always_use_call_context_any, true, !dst_tfg_is_llvm, xml_output_format);
   function_tfg_map->ftmap_add_start_pc_preconditions_for_each_tfg((src_llptfg != nullptr));
   //function_tfg_map->ftmap_add_store_uninit_at_alloc_of_locals_for_each_tfg();
   //function_tfg_map->ftmap_add_store_uninit_at_dealloc_of_contiguous_locals_for_each_tfg();
