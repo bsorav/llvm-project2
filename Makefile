@@ -1,10 +1,3 @@
-DISTCC_AVAILABLE := $(shell command -v distcc 2> /dev/null)
-ifdef DISTCC_AVAILABLE
-  ifneq ($(shell distcc --show-hosts 2>/dev/null | wc -l),0)
-  	DISTCC_OPTS := -DCMAKE_C_COMPILER_LAUNCHER=distcc -DCMAKE_CXX_COMPILER_LAUNCHER=distcc
-	endif
-endif
-
 .PHONY: all
 all: install
 
@@ -16,8 +9,7 @@ build:
 
 .PHONY: install
 install: build
-	# ninja -C build llc opt llvm-config llvm-dis llvm-link llvm-as llvm2tfg harvest-dwarf LLVMSuperopt.so LLVMLockstep.so harvest-dwarf clang scan-build scan-view #UnsequencedAliasVisitor.so 
-	ninja -C build llc opt llvm-config llvm-dis llvm-link llvm-as llvm2tfg harvest-dwarf LLVMSuperopt.so harvest-dwarf clang scan-build scan-view #UnsequencedAliasVisitor.so LLVMLockstep.so 
+	ninja -C build llc opt llvm-config llvm-dis llvm-link llvm-as llvm2tfg harvest-dwarf LLVMSuperopt.so clang scan-build scan-view
 
 .PHONY: llvm2tfg
 llvm2tfg:
