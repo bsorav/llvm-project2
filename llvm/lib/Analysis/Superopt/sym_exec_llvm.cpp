@@ -609,6 +609,33 @@ void sym_exec_common::populate_state_template_common()
 
 }
 
+
+CType 
+sym_exec_common::getCType(llvm::Type* llvmTy) 
+{
+    CType typeInfo;
+    if (llvmTy->isVoidTy()) {
+      typeInfo = CType(CTypeID::VoidCTyID, false);
+    } else if (llvmTy->isIntegerTy()) {
+      typeInfo = CType(CTypeID::IntCTyID, false);
+    } else if (llvmTy->isFloatingPointTy()) {
+      typeInfo = CType(CTypeID::FloatCTyID, false);
+    } else if (llvmTy->isStructTy()) {
+      typeInfo = CType(CTypeID::StructCTyID, false);
+      vector<CType> subTypes;
+      for (unsigned int I = 0, E = llvmTy->getStructNumElements(); I < E; ++I) {
+        subTypes.push_back(getCType(llvmTy->getStructElementType(I)));  
+      }
+      typeInfo.SetSubTypes(subTypes);
+    } else if (llvmTy->isArrayTy()) {
+      typeInfo = CType(getCType(llvmTy->getArrayElementType()).GetCTypeID(), true);
+    } else if (llvmTy->isPointerTy()) {
+      typeInfo = getCType(llvmTy->getPointerElementType()); 
+      typeInfo.SetIsPointer(true);
+    }
+    return typeInfo;
+}
+
 void
 sym_exec_llvm::populate_state_template(const llvm::Function& F, bool model_llvm_semantics)
 {
@@ -632,6 +659,7 @@ sym_exec_llvm::populate_state_template(const llvm::Function& F, bool model_llvm_
     unsigned size = dl.getTypeAllocSize(ty);
     unsigned align = dl.getPrefTypeAlignment(ty);
     m_local_refs.insert(make_pair(allocsite, graph_local_t(argname, size, align)));
+    m_local_types.insert(make_pair(mk_string_ref(argname), getCType(ty)));
 
     if (model_llvm_semantics) {
       string arg_poison_varname = get_poison_value_varname(name);
@@ -2984,7 +3012,8 @@ sym_exec_llvm::get_tfg(llvm::Function& F, llvm::Module const *M, string const &n
   //cout << timestamp() << ": " << _FNLN_ << ": populated scev count\n";
 
   map<allocsite_t, graph_local_t> const& local_refs = se.get_local_refs();
-
+  map<string_ref, CType> const& types = se.get_types_map();
+  map<string_ref, CType> const& gtypes = se.get_global_types_map();
   //pc start_pc = this->get_start_pc();
   pc start_pc = sym_exec_llvm::get_start_pc(se.m_function);
   t->add_extra_node_at_start_pc(start_pc);
@@ -3018,7 +3047,8 @@ sym_exec_llvm::get_tfg(llvm::Function& F, llvm::Module const *M, string const &n
 
   ASSERT(t->get_locals_map().size() == 0);
   t->set_locals_map(local_refs);
-
+  t->set_local_types_map(types);
+  t->set_global_types_map(gtypes);
   t->tfg_llvm_set_sorted_bbl_indices(sorted_bbl_indices);
 
   //cout << timestamp() << ": " << _FNLN_ << ": calling tfg_preprocess()\n";
@@ -3791,11 +3821,12 @@ sym_exec_common::get_symbol_id_for_name(string const& name, dshared_ptr<tfg_llvm
   }
 }
 
-pair<map<symbol_id_t, graph_symbol_t>, map<pair<symbol_id_t, offset_t>, vector<char>>>
+tuple<map<symbol_id_t, graph_symbol_t>, map<pair<symbol_id_t, offset_t>, vector<char>>, map<string_ref, CType>>
 sym_exec_common::get_symbol_map_and_string_contents(Module const *M, list<pair<string, unsigned>> const &fun_names, dshared_ptr<tfg_llvm_t const> src_llvm_tfg)
 {
   map<symbol_id_t, graph_symbol_t> smap;
   map<pair<symbol_id_t, offset_t>, vector<char>> scontents;
+  map<string_ref, CType> tmap;
   symbol_id_t symbol_id = 1;
   for (auto &g : M->getGlobalList()) {
     const DataLayout &dl = M->getDataLayout();
@@ -3829,6 +3860,7 @@ sym_exec_common::get_symbol_map_and_string_contents(Module const *M, list<pair<s
       scontents[make_pair(symbol_id, 0)] = v;
     }
     symbol_id++;
+    tmap.insert(make_pair(mk_string_ref(name), sym_exec_common::getCType(ElTy)));
   }
   for (const auto &fun_name : fun_names) {
     symbol_id = get_symbol_id_for_name(fun_name.first, src_llvm_tfg, symbol_id);
@@ -3837,7 +3869,7 @@ sym_exec_common::get_symbol_map_and_string_contents(Module const *M, list<pair<s
     symbol_id++;
   }
   ASSERT(symbol_id < NUM_CANON_SYMBOLS);
-  return make_pair(smap, scontents);
+  return make_tuple(smap, scontents, tmap);
 }
 
 vector<char>
@@ -3917,8 +3949,8 @@ sym_exec_common::sym_exec_get_symbol_map(Module const *M, dshared_ptr<tfg_llvm_t
 {
   list<pair<string, unsigned>> fun_names = get_fun_names(M);
 
-  pair<map<symbol_id_t, graph_symbol_t>, map<pair<symbol_id_t, offset_t>, vector<char>>> pr = get_symbol_map_and_string_contents(M, fun_names, src_llvm_tfg);
-  return pr.first;
+  tuple<map<symbol_id_t, graph_symbol_t>, map<pair<symbol_id_t, offset_t>, vector<char>>, map<string_ref, CType>> pr = get_symbol_map_and_string_contents(M, fun_names, src_llvm_tfg);
+  return get<0>(pr);
 }
 
 map<pair<symbol_id_t, offset_t>, vector<char>>
@@ -3926,10 +3958,18 @@ sym_exec_common::get_string_contents(Module const *M, dshared_ptr<tfg_llvm_t con
 {
   list<pair<string, unsigned>> fun_names = get_fun_names(M);
 
-  pair<map<symbol_id_t, graph_symbol_t>, map<pair<symbol_id_t, offset_t>, vector<char>>> pr = get_symbol_map_and_string_contents(M, fun_names, src_llvm_tfg);
-  return pr.second;
+  tuple<map<symbol_id_t, graph_symbol_t>, map<pair<symbol_id_t, offset_t>, vector<char>>, map<string_ref, CType>> pr = get_symbol_map_and_string_contents(M, fun_names, src_llvm_tfg);
+  return get<1>(pr);
 }
 
+map<string_ref, CType> 
+sym_exec_common::sym_exec_get_global_types_map(Module const *M, dshared_ptr<tfg_llvm_t const> src_llvm_tfg)
+{
+  list<pair<string, unsigned>> fun_names = get_fun_names(M);
+
+  tuple<map<symbol_id_t, graph_symbol_t>, map<pair<symbol_id_t, offset_t>, vector<char>>, map<string_ref, CType>> pr = get_symbol_map_and_string_contents(M, fun_names, src_llvm_tfg);
+  return get<2>(pr);
+}
 unsigned
 sym_exec_common::get_num_insn(const Function& f)
 {

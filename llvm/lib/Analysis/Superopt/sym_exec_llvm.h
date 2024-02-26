@@ -59,7 +59,7 @@ class sym_exec_llvm : public sym_exec_common
 {
 public:
   sym_exec_llvm(context* ctx, llvm::Module const *module, llvm::Function& F, dshared_ptr<tfg_llvm_t const> src_llvm_tfg/*, bool gen_callee_summary*/, unsigned memory_addressable_size, unsigned word_length, string const& srcdst_keyword) :
-    sym_exec_common(ctx, make_dshared<list<pair<string, unsigned>> const>(sym_exec_common::get_fun_names(module)), make_dshared<map<symbol_id_t, graph_symbol_t> const>(sym_exec_common::sym_exec_get_symbol_map(module, src_llvm_tfg)), make_dshared<map<pair<symbol_id_t, offset_t>, vector<char>> const>(sym_exec_common::get_string_contents(module, src_llvm_tfg)), /*gen_callee_summary, */memory_addressable_size, word_length, srcdst_keyword),
+    sym_exec_common(ctx, make_dshared<list<pair<string, unsigned>> const>(sym_exec_common::get_fun_names(module)), make_dshared<map<symbol_id_t, graph_symbol_t> const>(sym_exec_common::sym_exec_get_symbol_map(module, src_llvm_tfg)), make_dshared<map<pair<symbol_id_t, offset_t>, vector<char>> const>(sym_exec_common::get_string_contents(module, src_llvm_tfg)), make_dshared<map<string_ref, CType> const>(sym_exec_common::sym_exec_get_global_types_map(module, src_llvm_tfg)),/*gen_callee_summary, */memory_addressable_size, word_length, srcdst_keyword),
     m_module(module), m_function(F), m_rounding_mode_at_start_pc(ctx->mk_rounding_mode_const(rounding_mode_t::round_to_nearest_ties_to_even()))
   {}
   virtual ~sym_exec_llvm() {}
