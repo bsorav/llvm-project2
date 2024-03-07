@@ -28,7 +28,7 @@
 class sym_exec_common
 {
 public:
-  sym_exec_common(context* ctx/*, consts_struct_t const &cs*/, dshared_ptr<list<pair<string, unsigned>> const> fun_names, dshared_ptr<map<symbol_id_t, graph_symbol_t> const> symbol_map, dshared_ptr<map<pair<symbol_id_t, offset_t>, vector<char>> const> string_contents, dshared_ptr<map<string_ref, CType> const> types,/*, bool gen_callee_summary*/ unsigned memory_addressable_size, unsigned word_length, string const& srcdst_keyword) :
+  sym_exec_common(context* ctx/*, consts_struct_t const &cs*/, dshared_ptr<list<pair<string, unsigned>> const> fun_names, dshared_ptr<map<symbol_id_t, graph_symbol_t> const> symbol_map, dshared_ptr<map<pair<symbol_id_t, offset_t>, vector<char>> const> string_contents, dshared_ptr<graph_type_map_t const> types,/*, bool gen_callee_summary*/ unsigned memory_addressable_size, unsigned word_length, string const& srcdst_keyword) :
     m_ctx(ctx), m_cs(ctx->get_consts_struct()), m_fun_names(fun_names), m_symbol_map(symbol_map), m_string_contents(string_contents), m_global_types(types), /*, m_gen_callee_summary(gen_callee_summary)*/ m_memory_addressable_size(memory_addressable_size), m_word_length(word_length), m_mem_reg(srcdst_keyword + "." LLVM_MEM_SYMBOL), m_mem_alloc_reg(srcdst_keyword + "." LLVM_MEM_SYMBOL "." G_ALLOC_SYMBOL), m_mem_poison_reg(srcdst_keyword + "." LLVM_MEM_SYMBOL "." G_POISON_SYMBOL), m_memlabel_varnum(0), m_srcdst_keyword(srcdst_keyword)
   {
     //list<pair<string, unsigned>> fun_names;
@@ -66,23 +66,24 @@ public:
   static bool update_function_call_args_and_retvals_with_atlocals(dshared_ptr<tfg> t_src);
 
   map<allocsite_t, graph_local_t> const &get_local_refs() { return m_local_refs; }
-  map<string_ref, CType> &get_types_map() { return m_local_types; }
-  map<string_ref, CType> const &get_global_types_map() { return *m_global_types; }
+  graph_type_map_t &get_types_map() { return m_local_types; }
+  graph_type_map_t const &get_global_types_map() { return *m_global_types; }
   map<symbol_id_t, graph_symbol_t> const &sym_exec_get_symbol_map() { return *m_symbol_map; }
   string get_value_name(const llvm::Value& v) const;
   static string get_value_name_using_srcdst_keyword(const llvm::Value& v, string const& srcdst_keyword);
   static list<pair<string, unsigned>> get_fun_names(llvm::Module const *M);
-  static tuple<map<symbol_id_t, graph_symbol_t>, map<pair<symbol_id_t, offset_t>, vector<char>>, map<string_ref, CType>> get_symbol_map_and_string_contents(llvm::Module const *M, list<pair<string, unsigned>> const &fun_names, dshared_ptr<tfg_llvm_t const> src_llvm_tfg);
+  static tuple<map<symbol_id_t, graph_symbol_t>, map<pair<symbol_id_t, offset_t>, vector<char>>, graph_type_map_t> get_symbol_map_and_string_contents(llvm::Module const *M, list<pair<string, unsigned>> const &fun_names, dshared_ptr<tfg_llvm_t const> src_llvm_tfg);
   static vector<char> get_constant_bytes(llvm::Constant const* c);
   static map<symbol_id_t, graph_symbol_t> sym_exec_get_symbol_map(llvm::Module const *M, dshared_ptr<tfg_llvm_t const> src_llvm_tfg);
   static map<pair<symbol_id_t, offset_t>, vector<char>> get_string_contents(llvm::Module const *M, dshared_ptr<tfg_llvm_t const> src_llvm_tfg);
-  static map<string_ref, CType> sym_exec_get_global_types_map(llvm::Module const *M, dshared_ptr<tfg_llvm_t const> src_llvm_tfg);
+  static graph_type_map_t sym_exec_get_global_types_map(llvm::Module const *M, dshared_ptr<tfg_llvm_t const> src_llvm_tfg);
   static unsigned get_num_insn(const llvm::Function& f);
   context *get_context() const { return m_ctx; }
   list<pair<string, unsigned>> const &get_fun_names() const { return *m_fun_names; }
   //bool gen_callee_summary() const { return m_gen_callee_summary; }
   static symbol_id_t get_symbol_id_for_name(string const& name, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, symbol_id_t input_symbol_id);
-  static CType getCType(llvm::Type* llvmTy);
+  static ctype_ref get_ctype(llvm::Type* llvmTy, const llvm::DataLayout &dl, unordered_map<llvm::Type*, ctype_ref> &cache);
+  static ctype_ref update_ctype_subtypes(llvm::Type* llvmTy, ctype_ref structTy, unordered_map<llvm::Type*, ctype_ref> &cache);
 
 protected:
   te_comment_t phi_node_to_te_comment(/*bbl_order_descriptor_t const& bbo, */int inum, llvm::Instruction const& I) const;
@@ -211,8 +212,8 @@ protected:
   //std::map<symbol_id_t, tuple<string, size_t, variable_constness_t>> const &m_symbol_map;
   dshared_ptr<map<graph_loc_id_t, graph_symbol_t> const> m_symbol_map;
   dshared_ptr<std::map<pair<symbol_id_t, offset_t>, vector<char>> const> m_string_contents;
-  dshared_ptr<map<string_ref, CType> const> m_global_types;
-  map<string_ref, CType> m_local_types;
+  dshared_ptr<graph_type_map_t const> m_global_types;
+  graph_type_map_t m_local_types;
   //bool m_gen_callee_summary;
   unsigned m_memory_addressable_size;
   unsigned m_word_length;
