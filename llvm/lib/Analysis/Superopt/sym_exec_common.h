@@ -83,7 +83,7 @@ public:
   //bool gen_callee_summary() const { return m_gen_callee_summary; }
   static symbol_id_t get_symbol_id_for_name(string const& name, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, symbol_id_t input_symbol_id);
   static ctype_ref get_ctype(llvm::Type* llvmTy, const llvm::DataLayout &dl, unordered_map<llvm::Type*, ctype_ref> &cache);
-  static ctype_ref update_ctype_subtypes(llvm::Type* llvmTy, ctype_ref structTy, unordered_map<llvm::Type*, ctype_ref> &cache);
+  static ctype_ref update_struct_fields(llvm::Type* llvmTy, ctype_ref structTy, unordered_map<llvm::Type*, ctype_ref> &cache);
 
 protected:
   te_comment_t phi_node_to_te_comment(/*bbl_order_descriptor_t const& bbo, */int inum, llvm::Instruction const& I) const;

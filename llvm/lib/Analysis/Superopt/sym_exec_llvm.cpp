@@ -609,11 +609,11 @@ void sym_exec_common::populate_state_template_common()
 
 }
 
-
+// when a struct have a reference to itself as a field; a second pass is needed to update the fields of pointer to struct;
 ctype_ref
-sym_exec_common::update_ctype_subtypes(llvm::Type* llvmTy, ctype_ref CTy, unordered_map<llvm::Type*, ctype_ref > &cache) {
+sym_exec_common::update_struct_fields(llvm::Type* llvmTy, ctype_ref CTy, unordered_map<llvm::Type*, ctype_ref > &cache) {
     if (llvmTy->isPointerTy()) {
-     update_ctype_subtypes(llvmTy->getPointerElementType(), CTy, cache); 
+     update_struct_fields(llvmTy->getPointerElementType(), CTy, cache); 
      return CTy;
     }
     if (!llvmTy->isStructTy() || !CTy->isStructTy()) {
@@ -621,12 +621,12 @@ sym_exec_common::update_ctype_subtypes(llvm::Type* llvmTy, ctype_ref CTy, unorde
     }
     // Update the subTypes info
     struct_ctype_ref structTy = dynamic_pointer_cast<StructCType>(CTy);
-    SubTypeList newSubTypes = structTy->GetSubTypes();
+    StructFieldList newStructFields = structTy->GetStructFields();
     for (unsigned int I = 0, E = llvmTy->getStructNumElements(); I < E; ++I) {
       llvm::Type* subTy = llvmTy->getStructElementType(I);
-      newSubTypes[I].first = cache.at(subTy);
+      newStructFields[I].first = cache.at(subTy);
     }
-    structTy->SetSubTypes(newSubTypes);
+    structTy->SetStructFields(newStructFields);
     ctype_ref newCTy = dynamic_pointer_cast<CType>(structTy);
     return newCTy;
 }
@@ -655,12 +655,12 @@ sym_exec_common::get_ctype(llvm::Type* llvmTy, const llvm::DataLayout &dl, unord
       CTy->SetIsPointer(true);
     } else if (llvmTy->isStructTy()) {
       const StructLayout *sl = dl.getStructLayout(cast<llvm::StructType>(llvmTy));
-      SubTypeList subTypes;
+      StructFieldList fields;
       for (unsigned int I = 0, E = llvmTy->getStructNumElements(); I < E; ++I) {
         ctype_ref subTy = get_ctype(llvmTy->getStructElementType(I), dl, cache);
-        subTypes.push_back({subTy, sl->getElementOffset(I)});  
+        fields.push_back({subTy, sl->getElementOffset(I)});  
       }
-      struct_ctype_ref structTy = make_dshared<StructCType>(CTypeID::StructCTyID, false, sl->getSizeInBytes(), subTypes);
+      struct_ctype_ref structTy = make_dshared<StructCType>(CTypeID::StructCTyID, false, sl->getSizeInBytes(), fields);
       ASSERT(structTy);
       CTy = static_pointer_cast<CType>(structTy);
     } 
@@ -694,7 +694,7 @@ sym_exec_llvm::populate_state_template(const llvm::Function& F, bool model_llvm_
     m_local_refs.insert(make_pair(allocsite, graph_local_t(argname, size, align)));
     unordered_map<llvm::Type*, ctype_ref> cache;
     ctype_ref CTy = get_ctype(ty, dl, cache);
-    CTy = update_ctype_subtypes(ty, CTy, cache);
+    CTy = update_struct_fields(ty, CTy, cache);
     m_local_types.insert(make_pair(mk_string_ref(argname), CTy));
     
     if (model_llvm_semantics) {
@@ -3899,7 +3899,7 @@ sym_exec_common::get_symbol_map_and_string_contents(Module const *M, list<pair<s
     symbol_id++;
     unordered_map<llvm::Type*, ctype_ref> cache;
     ctype_ref CTy = get_ctype(ElTy, dl, cache);
-    CTy = update_ctype_subtypes(ElTy, CTy, cache);
+    CTy = update_struct_fields(ElTy, CTy, cache);
     tmap.insert(make_pair(mk_string_ref(name), CTy));
   }
   for (const auto &fun_name : fun_names) {
