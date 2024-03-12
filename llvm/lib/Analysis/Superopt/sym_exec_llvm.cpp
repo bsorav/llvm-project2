@@ -641,12 +641,17 @@ sym_exec_common::get_ctype(llvm::Type* llvmTy, const llvm::DataLayout &dl, unord
 
     ctype_ref CTy;
     cache.insert({llvmTy, CTy});
+    uint64_t cTypeSize = dl.getTypeSizeInBits(llvmTy).getFixedSize() / 8;
     if (llvmTy->isVoidTy()) {
-      CTy = make_dshared<CType>(CTypeID::VoidCTyID, false);
+      CTy = make_dshared<CType>(CTypeID::VoidCTyID, false, cTypeSize);
     } else if (llvmTy->isIntegerTy()) {
-      CTy = make_dshared<CType>(CTypeID::IntCTyID, false);
+      if (llvmTy->isIntegerTy(8)) {
+        CTy = make_dshared<CType>(CTypeID::CharCTyID, false, cTypeSize);
+      } else {
+        CTy = make_dshared<CType>(CTypeID::IntCTyID, false, cTypeSize);
+      }
     } else if (llvmTy->isFloatingPointTy()) {
-      CTy = make_dshared<CType>(CTypeID::FloatCTyID, false);
+      CTy = make_dshared<CType>(CTypeID::FloatCTyID, false, cTypeSize);
     } else if (llvmTy->isArrayTy()) {
       CTy = get_ctype(llvmTy->getArrayElementType(), dl, cache);
       CTy->SetIsPointer(true);
