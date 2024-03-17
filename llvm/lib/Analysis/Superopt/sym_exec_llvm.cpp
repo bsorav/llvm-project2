@@ -4451,7 +4451,10 @@ sym_exec_llvm::sym_exec_get_function_tfg_map(Module* M, set<string> FunNamesVec/
     }
   );
   auto ftmap = make_dshared<ftmap_t>(function_tfg_map, always_use_call_context_any);
-  ftmap->ftmap_set_ll_filename_parsed(ll_filename_parsed);
+  ASSERT(ftmap);
+  if (ll_filename_parsed) {
+    ftmap->ftmap_set_ll_filename_parsed(ll_filename_parsed);
+  }
   return ftmap;
 }
 
