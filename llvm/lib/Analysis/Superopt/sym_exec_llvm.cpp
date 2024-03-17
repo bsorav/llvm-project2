@@ -1691,107 +1691,119 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
   {
     const AllocaInst* a =  cast<const AllocaInst>(&I);
     string const iname = get_value_name(*a);
-    Type *ElTy = a->getAllocatedType();
-    Value const* ArraySize = a->getArraySize();
-    unsigned const align = a->getAlignment();
-    auto const op_alloc_size_bits = a->getAllocationSizeInBits(dl);
-    bool const is_varsize = !(op_alloc_size_bits.hasValue());
-    bool const is_alloca = alloca_instruction_is_alloca_operator_in_src(this->m_module, I);
-
-    uint64_t const local_type_alloc_size = dl.getTypeAllocSize(ElTy);
-    uint64_t local_size = local_type_alloc_size;
-    if (const ConstantInt* constArraySize = dyn_cast<const ConstantInt>(ArraySize)) {
-      local_size *= constArraySize->getZExtValue();
-      ASSERT(!is_varsize);
-      ASSERT(local_size == op_alloc_size_bits.getValue()/8);
-    }
-
-    allocsite_t const local_id(from_node->get_pc());
-    allocstack_t const local_id_stack = allocstack_t::allocstack_singleton(cur_function_name, local_id);
-    memlabel_t const ml_local = memlabel_t::memlabel_local(local_id_stack);
-    expr_ref const local_addr_var = m_cs.get_local_addr(local_id_stack, m_srcdst_keyword);
-
-    string const local_addr_key = m_ctx->get_key_from_input_expr(local_addr_var)->get_str();
-    m_local_refs.emplace(local_id, graph_local_t(mk_string_ref(iname), local_size, align, is_varsize, is_alloca));
-
-    expr_ref local_size_val;
-    if (is_varsize) {
-      expr_ref varsize_expr;
-      tie(varsize_expr, state_assumes) = get_expr_adding_edges_for_intermediate_vals(*ArraySize, iname, state_in, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map);
-      unsigned bvlen = varsize_expr->get_sort()->get_size();
-      ASSERT(bvlen == get_word_length());
-      expr_ref const local_type_alloc_size_expr = m_ctx->mk_bv_const(bvlen, local_type_alloc_size);
-      local_size_val = m_ctx->mk_bvmul(varsize_expr, local_type_alloc_size_expr);
-
-      if (is_alloca) {
-        // add size != 0 assume
-        expr_ref size_is_nonzero = m_ctx->mk_not(m_ctx->mk_eq(local_size_val, m_ctx->mk_zerobv(bvlen)));
-        add_state_assume(iname, size_is_nonzero, state_in, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map); //state_assumes.insert(size_is_positive_assume);
+    if (auto const* dilocal = this->alloca_is_for_parameter(a)) {
+      ASSERT(dilocal);
+      if (auto const param_addr = this->get_addr_expr_for_param_from_param_dilocal(F, t, *dilocal)) {
+      state_set_expr(state_out, iname, param_addr);
+      // cout << "Setting " << iname << " <- " << expr_string(param_addr) << " for param alloca" << endl;
       } else {
-        // add size > 0 assume
-        expr_ref size_is_positive_assume = m_ctx->mk_bvsgt(local_size_val, m_ctx->mk_zerobv(bvlen));
-        add_state_assume(iname, size_is_positive_assume, state_in, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map); //state_assumes.insert(size_is_positive_assume);
+        cout << "param_name = " << dilocal->getName().str() << endl;
+        cout << "alloca value " << iname << endl;
+        NOT_IMPLEMENTED();
       }
-      // add no overflow assume for (varsize_expr * local_type_alloc_size)
-      expr_ref no_overflow = gen_no_mul_overflow_assume_expr(varsize_expr, local_type_alloc_size_expr, /*varsize_expr is positive*/true);
-      add_state_assume(iname, no_overflow, state_in, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map); //state_assumes.insert(no_overflow);
     } else {
-      local_size_val = m_ctx->mk_bv_const(get_word_length(), local_size);
+      Type *ElTy = a->getAllocatedType();
+      Value const* ArraySize = a->getArraySize();
+      unsigned const align = a->getAlignment();
+      auto const op_alloc_size_bits = a->getAllocationSizeInBits(dl);
+      bool const is_varsize = !(op_alloc_size_bits.hasValue());
+      bool const is_alloca = alloca_instruction_is_alloca_operator_in_src(this->m_module, I);
+
+      uint64_t const local_type_alloc_size = dl.getTypeAllocSize(ElTy);
+      uint64_t local_size = local_type_alloc_size;
+      if (const ConstantInt* constArraySize = dyn_cast<const ConstantInt>(ArraySize)) {
+        local_size *= constArraySize->getZExtValue();
+        ASSERT(!is_varsize);
+        ASSERT(local_size == op_alloc_size_bits.getValue()/8);
+      }
+
+      allocsite_t const local_id(from_node->get_pc());
+      allocstack_t const local_id_stack = allocstack_t::allocstack_singleton(cur_function_name, local_id);
+      memlabel_t const ml_local = memlabel_t::memlabel_local(local_id_stack);
+      expr_ref const local_addr_var = m_cs.get_local_addr(local_id_stack, m_srcdst_keyword);
+
+      string const local_addr_key = m_ctx->get_key_from_input_expr(local_addr_var)->get_str();
+      m_local_refs.emplace(local_id, graph_local_t(mk_string_ref(iname), local_size, align, is_varsize, is_alloca));
+
+      expr_ref local_size_val;
+      if (is_varsize) {
+        expr_ref varsize_expr;
+        tie(varsize_expr, state_assumes) = get_expr_adding_edges_for_intermediate_vals(*ArraySize, iname, state_in, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map);
+        unsigned bvlen = varsize_expr->get_sort()->get_size();
+        ASSERT(bvlen == get_word_length());
+        expr_ref const local_type_alloc_size_expr = m_ctx->mk_bv_const(bvlen, local_type_alloc_size);
+        local_size_val = m_ctx->mk_bvmul(varsize_expr, local_type_alloc_size_expr);
+
+        if (is_alloca) {
+          // add size != 0 assume
+          expr_ref size_is_nonzero = m_ctx->mk_not(m_ctx->mk_eq(local_size_val, m_ctx->mk_zerobv(bvlen)));
+          add_state_assume(iname, size_is_nonzero, state_in, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map); //state_assumes.insert(size_is_positive_assume);
+        } else {
+          // add size > 0 assume
+          expr_ref size_is_positive_assume = m_ctx->mk_bvsgt(local_size_val, m_ctx->mk_zerobv(bvlen));
+          add_state_assume(iname, size_is_positive_assume, state_in, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map); //state_assumes.insert(size_is_positive_assume);
+        }
+        // add no overflow assume for (varsize_expr * local_type_alloc_size)
+        expr_ref no_overflow = gen_no_mul_overflow_assume_expr(varsize_expr, local_type_alloc_size_expr, /*varsize_expr is positive*/true);
+        add_state_assume(iname, no_overflow, state_in, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map); //state_assumes.insert(no_overflow);
+      } else {
+        local_size_val = m_ctx->mk_bv_const(get_word_length(), local_size);
+      }
+
+      auto add_edge_with_state = [this,&t,&from_node,&state_in,&state_out,&state_assumes,&te_comment]()
+        {
+          pc intermediate_pc = t.tfg_get_next_intermediate_pc_for_subsubindex(pc(from_node->get_pc().get_type(), from_node->get_pc().get_index(), from_node->get_pc().get_subindex(), PC_SUBSUBINDEX_ALLOC_START));
+          ASSERT(t.find_node(intermediate_pc) == 0);
+          dshared_ptr<tfg_node> intermediate_node = make_dshared<tfg_node>(intermediate_pc);
+          t.add_node(intermediate_node);
+
+          ASSERT(intermediate_node);
+          tfg_edge_ref e = mk_tfg_edge(from_node->get_pc(), intermediate_node->get_pc(), expr_true(m_ctx), state_out, state_assumes, te_comment);
+          t.add_edge(e);
+
+          from_node = intermediate_node;
+          state_out = state_in;
+          state_assumes.clear();
+        };
+
+      string const local_alloc_count_varname = m_ctx->get_local_alloc_count_varname(this->get_srcdst_keyword())->get_str();
+      string const local_alloc_count_ssa_varname = m_ctx->get_local_alloc_count_ssa_varname(this->get_srcdst_keyword(), local_id, false)->get_str();
+      expr_ref const local_alloc_count_var = state_get_expr(state_in, local_alloc_count_varname, m_ctx->mk_count_sort());
+      expr_ref const local_alloc_count_ssa_var = state_get_expr(state_in, local_alloc_count_ssa_varname, m_ctx->mk_count_sort());
+      expr_ref const local_size_var = m_ctx->get_local_size_expr_for_id(local_id, m_ctx->mk_bv_sort(get_word_length()), m_srcdst_keyword);
+      expr_ref const mem_e = state_get_expr(state_in, m_mem_reg, this->get_mem_sort());
+      expr_ref const mem_alloc_e = state_get_expr(state_in, m_mem_alloc_reg, this->get_mem_alloc_sort());
+
+      // == intermediate edge 0 ==
+      // local_size.id <- size expr
+      state_set_expr(state_out, m_ctx->get_key_from_input_expr(local_size_var)->get_str(), local_size_val);
+      add_edge_with_state();
+
+      // == intermediate edge 1 ==
+      // local.<id>            <- alloc_ptr
+      // local.alloc.count.ssa <- local.alloc.count
+      state_set_expr(state_out, local_addr_key, m_ctx->get_local_alloc_ptr_fn_expr_for_ml(local_alloc_count_var, ml_local));
+      state_set_expr(state_out, local_alloc_count_ssa_varname, local_alloc_count_var);
+      add_edge_with_state();
+
+      // == intermediate edge 2 ==
+      // <llvm-var> <- local.<id>
+      state_set_expr(state_out, iname, local_addr_var);
+      add_edge_with_state();
+
+      // == intermediate edge 3 ==
+      // mem.alloc <- alloc
+      // mem       <- store_unint
+      expr_ref const new_mem_alloc = m_ctx->mk_alloc(mem_alloc_e, ml_local, local_addr_var, local_size_var);
+      expr_ref const new_mem       = m_ctx->mk_store_uninit(mem_e, new_mem_alloc, ml_local, local_addr_var, local_size_var, local_alloc_count_ssa_var);
+      state_set_expr(state_out, m_mem_alloc_reg, new_mem_alloc);
+      state_set_expr(state_out, m_mem_reg, new_mem);
+      add_edge_with_state();
+
+      // == intermediate edge 4 ==
+      // local.alloc.count <- local.alloc.count+1
+      state_set_expr(state_out, local_alloc_count_varname, m_ctx->mk_increment_count(local_alloc_count_var));
     }
-
-    auto add_edge_with_state = [this,&t,&from_node,&state_in,&state_out,&state_assumes,&te_comment]()
-      {
-        pc intermediate_pc = t.tfg_get_next_intermediate_pc_for_subsubindex(pc(from_node->get_pc().get_type(), from_node->get_pc().get_index(), from_node->get_pc().get_subindex(), PC_SUBSUBINDEX_ALLOC_START));
-        ASSERT(t.find_node(intermediate_pc) == 0);
-        dshared_ptr<tfg_node> intermediate_node = make_dshared<tfg_node>(intermediate_pc);
-        t.add_node(intermediate_node);
-
-        ASSERT(intermediate_node);
-        tfg_edge_ref e = mk_tfg_edge(from_node->get_pc(), intermediate_node->get_pc(), expr_true(m_ctx), state_out, state_assumes, te_comment);
-        t.add_edge(e);
-
-        from_node = intermediate_node;
-        state_out = state_in;
-        state_assumes.clear();
-      };
-
-    string const local_alloc_count_varname = m_ctx->get_local_alloc_count_varname(this->get_srcdst_keyword())->get_str();
-    string const local_alloc_count_ssa_varname = m_ctx->get_local_alloc_count_ssa_varname(this->get_srcdst_keyword(), local_id, false)->get_str();
-    expr_ref const local_alloc_count_var = state_get_expr(state_in, local_alloc_count_varname, m_ctx->mk_count_sort());
-    expr_ref const local_alloc_count_ssa_var = state_get_expr(state_in, local_alloc_count_ssa_varname, m_ctx->mk_count_sort());
-    expr_ref const local_size_var = m_ctx->get_local_size_expr_for_id(local_id, m_ctx->mk_bv_sort(get_word_length()), m_srcdst_keyword);
-    expr_ref const mem_e = state_get_expr(state_in, m_mem_reg, this->get_mem_sort());
-    expr_ref const mem_alloc_e = state_get_expr(state_in, m_mem_alloc_reg, this->get_mem_alloc_sort());
-
-    // == intermediate edge 0 ==
-    // local_size.id <- size expr
-    state_set_expr(state_out, m_ctx->get_key_from_input_expr(local_size_var)->get_str(), local_size_val);
-    add_edge_with_state();
-
-    // == intermediate edge 1 ==
-    // local.<id>            <- alloc_ptr
-    // local.alloc.count.ssa <- local.alloc.count
-    state_set_expr(state_out, local_addr_key, m_ctx->get_local_alloc_ptr_fn_expr_for_ml(local_alloc_count_var, ml_local));
-    state_set_expr(state_out, local_alloc_count_ssa_varname, local_alloc_count_var);
-    add_edge_with_state();
-
-    // == intermediate edge 2 ==
-    // <llvm-var> <- local.<id>
-    state_set_expr(state_out, iname, local_addr_var);
-    add_edge_with_state();
-
-    // == intermediate edge 3 ==
-    // mem.alloc <- alloc
-    // mem       <- store_unint
-    expr_ref const new_mem_alloc = m_ctx->mk_alloc(mem_alloc_e, ml_local, local_addr_var, local_size_var);
-    expr_ref const new_mem       = m_ctx->mk_store_uninit(mem_e, new_mem_alloc, ml_local, local_addr_var, local_size_var, local_alloc_count_ssa_var);
-    state_set_expr(state_out, m_mem_alloc_reg, new_mem_alloc);
-    state_set_expr(state_out, m_mem_reg, new_mem);
-    add_edge_with_state();
-
-    // == intermediate edge 4 ==
-    // local.alloc.count <- local.alloc.count+1
-    state_set_expr(state_out, local_alloc_count_varname, m_ctx->mk_increment_count(local_alloc_count_var));
     break;
   }
   case Instruction::Store:
@@ -2915,6 +2927,76 @@ sym_exec_llvm::populate_debug_headers_for_subprogram(llvm::Function& F, dshared_
   }
 }
 
+void
+sym_exec_llvm::populate_local_variable_address_metadata(Function const& F)
+{
+  for(BasicBlock const& B : F) {
+    for (Instruction const& I : B) {
+      if (isa<CallInst>(I) && cast<CallInst>(I).getIntrinsicID() == Intrinsic::dbg_declare) {
+        CallInst const& CI       = cast<CallInst>(I);
+        DbgDeclareInst const& DI = cast<DbgDeclareInst>(CI);
+        ASSERT(DI.isAddressOfVariable());
+        Value const* local_addr = DI.getAddress();
+        ASSERT(local_addr);
+        DILocalVariable const* dilocal = DI.getVariable();
+        ASSERT(dilocal);
+        m_local_addr_to_dilocal.emplace(local_addr, dilocal);
+        // errs() << _FNLN_ << ": added entry to m_local_addr_to_dilocal map: " << *local_addr << " -> " << *dilocal << "\n";
+      }
+    }
+  }
+}
+
+DILocalVariable const*
+sym_exec_llvm::alloca_is_for_parameter(Instruction const* AI) const
+{
+  ASSERT(AI);
+  ASSERT(AI->getOpcode() == Instruction::Alloca);
+  if (!m_local_addr_to_dilocal.count(AI)) {
+    return nullptr; // debug metadata not available for this Alloca, return safe false
+  }
+  DILocalVariable const* dilocal = m_local_addr_to_dilocal.at(AI);
+  return dilocal->isParameter() ? dilocal : nullptr;
+}
+
+expr_ref
+sym_exec_llvm::get_addr_expr_for_param_from_param_dilocal(Function const& F, tfg const& t, DILocalVariable const& dilocal) const
+{
+  ASSERT(dilocal.isParameter());
+  graph_arg_id_t argnum = 0;
+  bool is_agg = false;
+  if (dyn_cast<DICompositeType>(dilocal.getType())) {
+    // for composite types the struct is expanded in args and alloca'ted in prologue
+    // the name of the member field args are set to "<name>.i" for i'th field (see `case ABIArgInfo::Expand` of `EmitFunctionProlog` in `lib/CodeGen/CGCall.cpp`)
+    string const param_name = dilocal.getName().str() + "."; // we add the '.' to identify the member fields using a string prefix check
+    StringRef param_name_ref{param_name};
+    expr_vector param_addrs;
+    bool matched = false;
+    for (auto const& arg : F.args()) {
+      if (arg.getName().startswith(param_name_ref)) {
+        param_addrs.push_back(t.get_argument_regs().addr_at(mk_string_ref(graph_arg_regs_t::get_argname_from_argnum(argnum))));
+        matched = true;
+      } else if (matched) { // failed to match after matching previously
+        break;
+      }
+      ++argnum;
+    }
+    if (param_addrs.size()) {
+      return m_ctx->mk_donotsimplify_return_first(param_addrs);
+    }
+    return nullptr;
+  } else {
+    StringRef param_name{dilocal.getName()};
+    for (auto const& arg : F.args()) {
+      if (param_name == arg.getName()) {
+        return t.get_argument_regs().addr_at(mk_string_ref(graph_arg_regs_t::get_argname_from_argnum(argnum)));
+      }
+      ++argnum;
+    }
+    return nullptr;
+  }
+}
+
 dshared_ptr<tfg_llvm_t>
 sym_exec_llvm::get_tfg(llvm::Function& F, llvm::Module const *M, string const &name, context *ctx, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, bool model_llvm_semantics, map<llvm_value_id_t, string_ref>* value_to_name_map, map<shared_ptr<tfg_edge const>, Instruction *>& eimap, map<string, value_scev_map_t> const& scev_map, string const& srcdst_keyword, dshared_ptr<ll_filename_parsed_t> const& ll_filename_parsed, context::xml_output_format_t xml_output_format)
 {
@@ -2949,8 +3031,10 @@ sym_exec_llvm::get_tfg(llvm::Function& F, llvm::Module const *M, string const &n
   t->set_start_state(start_state);
 
   populate_debug_headers_for_subprogram(F, t);
+  se.populate_local_variable_address_metadata(F);
 
   //this->populate_bbl_order_map();
+  se.get_tfg_common(*t);
 
   for(const BasicBlock& B : F) {
     se.add_edges(B, src_llvm_tfg, model_llvm_semantics, *t, F/*, function_tfg_map*/, value_to_name_map/*, function_call_chain*/, eimap, scev_map, ll_filename_parsed, xml_output_format);

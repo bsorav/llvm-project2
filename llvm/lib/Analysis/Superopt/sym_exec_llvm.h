@@ -232,12 +232,18 @@ private:
 
   static map<nextpc_id_t, callee_summary_t> get_callee_summaries_for_tfg(map<nextpc_id_t, string> const &nextpc_map, map<string, callee_summary_t> const &callee_summaries);
 
+  void populate_local_variable_address_metadata(llvm::Function const& F);
+  llvm::DILocalVariable const* alloca_is_for_parameter(llvm::Instruction const* AI) const;
+  expr_ref get_addr_expr_for_param_from_param_dilocal(llvm::Function const& F, tfg const& t, llvm::DILocalVariable const& dilocal) const;
+
   //const std::dshared_ptr<llvm::Module>& m_module;
   llvm::Module const *m_module;
   llvm::Function &m_function;
   map<string, llvm::BasicBlock const *> m_pc2bb_cache;
 
   map<string, expr_ref> m_opaque_varname_to_memalloc_map;
+
+  map<llvm::Value const*, llvm::DILocalVariable const*> m_local_addr_to_dilocal;
 
   //see https://docs.microsoft.com/en-us/cpp/build/x64-calling-convention?view=msvc-160 where it says that the value is ROUND_TO_NEAREST at the start of program execution (x86 calling conventions).  XXX: We are taking some liberty here by extending this assumption to the start of every function; a more precise way to model this would involve using a variable (instead of a constant) for the rounding mode at the start pc
   expr_ref m_rounding_mode_at_start_pc;
