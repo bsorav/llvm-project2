@@ -88,7 +88,6 @@ sym_exec_common::get_value_name(const Value& v) const
 string
 sym_exec_common::get_value_name_using_srcdst_keyword(const Value& v, string const& srcdst_keyword)
 {
-  //errs() << "get_value_name: " << v << " ---- ";
   assert(!v.getType()->isVoidTy());
 
   string ret;
@@ -98,9 +97,6 @@ sym_exec_common::get_value_name_using_srcdst_keyword(const Value& v, string cons
   //errs() << "name:" << ret << "\n";
   errs().flush();
 
-  //if(m_value_name_map.count(ret) > 0)
-  //  return m_value_name_map.at(ret);
-  //else
   if (ret.substr(0, 1) == "@") {
     return ret; //ret.substr(1);
   } else {
@@ -3040,15 +3036,6 @@ sym_exec_llvm::get_tfg(llvm::Function& F, llvm::Module const *M, string const &n
     se.add_edges(B, src_llvm_tfg, model_llvm_semantics, *t, F/*, function_tfg_map*/, value_to_name_map/*, function_call_chain*/, eimap, scev_map, ll_filename_parsed, xml_output_format);
   }
 
-  //for (const auto& arg : F.args()) {
-  //  pair<argnum_t, expr_ref> const &a = m_arguments.at(get_value_name(arg));
-  //  string Elname = get_value_name(arg) + SRC_INPUT_ARG_NAME_SUFFIX;
-  //  Type *ElTy = arg.getType();
-  //  add_type_and_align_assumes(Elname, ElTy, a.second, pc::start(), *t/*, assumes*/, UNDEF_BEHAVIOUR_ASSUME_ARG_ISLANGTYPE);
-  //}
-
-  se.get_tfg_common(*t);
-
   if (scev_map.count(name)) {
     se.sym_exec_populate_tfg_scev_map(*t, scev_map.at(name));
   }
@@ -4157,11 +4144,9 @@ sym_exec_common::get_tfg_common(tfg &t)
     expr_ref arg_addr = m_ctx->mk_var(ss.str(), m_ctx->mk_addr_sort());
     arg_exprs.insert(make_pair(mk_string_ref(argname), graph_arg_t(arg_addr, a.second)));
   }
-  //t->add_assumes(pc::start(), assumes);
 
   state start_state;
   get_state_template(pc::start(), start_state);
-  //arg_exprs.push_back(t.find_entry_node()->get_state().get_expr(m_mem_reg));
   t.set_argument_regs(arg_exprs);
   get_state_template(pc::start(), start_state);
   t.set_start_state(start_state);
