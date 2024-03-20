@@ -104,6 +104,13 @@ Progress("progress", cl::desc("<progress. keep printing progress involving time/
 static cl::opt<std::string>
 ll_filename("ll-filename", cl::desc("<Disassembled LLVM used as input to identify linenum/column-num for PCs"), cl::init(""));
 
+static cl::opt<std::string>
+calling_conventions("calling-conventions", cl::desc("[eq specific] calling conventions assumed while generating LLVM IR.  Valid values: linux-i386"), cl::init("linux-i386"));
+
+static cl::opt<std::string>
+dst_compiler("dst-compiler", cl::desc("[eq specific] Compiler used for generating target assembly.  Valid values: gcc, clang, icc, unknown."), cl::init("unknown"));
+
+
 
 //static cl::opt<bool>
 //NoCollapse("no-collapse", cl::desc("<no-collapse. Do not collapse basic blocks into single edges>"), cl::init(false));
@@ -286,7 +293,12 @@ main(int argc, char **argv)
     progress_flag = 1;
   }
 
-  dshared_ptr<ftmap_t> function_tfg_map = sym_exec_llvm::sym_exec_get_function_tfg_map(M1.get(), FunNamesVec, ctx, src_llptfg, !NoGenScev, llvmSemantics, always_use_call_context_any, ll_filename, nullptr, xml_output_format);
+  auto const opt_cc = calling_conventions_from_string(calling_conventions);
+  auto const opt_dst_compiler = dst_compiler_from_string(dst_compiler);
+  ASSERT(opt_cc.has_value());
+  ASSERT(opt_dst_compiler.has_value());
+
+  dshared_ptr<ftmap_t> function_tfg_map = sym_exec_llvm::sym_exec_get_function_tfg_map(M1.get(), FunNamesVec, ctx, src_llptfg, !NoGenScev, llvmSemantics, always_use_call_context_any, ll_filename, nullptr, xml_output_format, opt_cc.value(), opt_dst_compiler.value());
   function_tfg_map->ftmap_run_pointsto_analysis(nullopt, call_context_depth, always_use_call_context_any, true, xml_output_format);
   function_tfg_map->ftmap_add_start_pc_preconditions_for_each_tfg();
   //function_tfg_map->ftmap_add_store_uninit_at_alloc_of_locals_for_each_tfg();

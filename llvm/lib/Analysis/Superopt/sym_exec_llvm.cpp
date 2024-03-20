@@ -29,6 +29,38 @@
 using namespace llvm;
 static char as1[40960];
 
+optional<calling_conventions_t>
+calling_conventions_from_string(string const& s)
+{
+  if (s == "linux-i386")
+    return calling_conventions_t::LINUX_I386;
+  if (s == "linux-amd64")
+    return calling_conventions_t::LINUX_AMD64;
+  return nullopt;
+}
+
+optional<dst_compiler_t>
+dst_compiler_from_string(string const& s)
+{
+  if (s == "gcc")
+    return dst_compiler_t::GCC;
+  if (s == "gpp")
+    return dst_compiler_t::GCC;
+  if (s == "clang")
+    return dst_compiler_t::CLANG;
+  if (s == "clangpp")
+    return dst_compiler_t::CLANG;
+  if (s == "icc")
+    return dst_compiler_t::ICC;
+  if (s == "icx")
+    return dst_compiler_t::ICX;
+  if (s == "ack")
+    return dst_compiler_t::ACK;
+  //if (s == "unknown")
+  return dst_compiler_t::UNKNOWN;
+  // return nullopt;
+}
+
 sort_ref sym_exec_common::get_mem_domain() const
 {
   return m_ctx->mk_bv_sort(m_word_length);
@@ -2994,7 +3026,7 @@ sym_exec_llvm::get_addr_expr_for_param_from_param_dilocal(Function const& F, tfg
 }
 
 dshared_ptr<tfg_llvm_t>
-sym_exec_llvm::get_tfg(llvm::Function& F, llvm::Module const *M, string const &name, context *ctx, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, bool model_llvm_semantics, map<llvm_value_id_t, string_ref>* value_to_name_map, map<shared_ptr<tfg_edge const>, Instruction *>& eimap, map<string, value_scev_map_t> const& scev_map, string const& srcdst_keyword, dshared_ptr<ll_filename_parsed_t> const& ll_filename_parsed, context::xml_output_format_t xml_output_format)
+sym_exec_llvm::get_tfg(llvm::Function& F, llvm::Module const *M, string const &name, context *ctx, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, bool model_llvm_semantics, map<llvm_value_id_t, string_ref>* value_to_name_map, map<shared_ptr<tfg_edge const>, Instruction *>& eimap, map<string, value_scev_map_t> const& scev_map, string const& srcdst_keyword, dshared_ptr<ll_filename_parsed_t> const& ll_filename_parsed, context::xml_output_format_t xml_output_format, calling_conventions_t const& cc, dst_compiler_t const& dst_compiler)
 {
   autostop_timer func_timer(__func__);
 
@@ -3002,7 +3034,7 @@ sym_exec_llvm::get_tfg(llvm::Function& F, llvm::Module const *M, string const &n
   unsigned pointer_size = dl.getPointerSize();
   //cout << __func__ << " " << __LINE__ << ": pointer_size = " << pointer_size << endl;
   ASSERT(pointer_size == DWORD_LEN/BYTE_LEN || pointer_size == QWORD_LEN/BYTE_LEN);
-  sym_exec_llvm se(ctx, M, F, src_llvm_tfg/*, gen_callee_summary*/, BYTE_LEN, pointer_size * BYTE_LEN, srcdst_keyword);
+  sym_exec_llvm se(ctx, M, F, src_llvm_tfg/*, gen_callee_summary*/, BYTE_LEN, pointer_size * BYTE_LEN, srcdst_keyword, cc, dst_compiler);
 
   list<string> sorted_bbl_indices;
   for (BasicBlock const& BB: F) {
@@ -4365,7 +4397,7 @@ sym_exec_llvm::sym_exec_populate_potential_scev_relations(Module* M, string cons
 }
 
 dshared_ptr<ftmap_t>
-sym_exec_llvm::sym_exec_get_function_tfg_map(Module* M, set<string> FunNamesVec/*, bool DisableModelingOfUninitVarUB*/, context* ctx, dshared_ptr<llptfg_t const> const& src_llptfg, bool gen_scev, bool model_llvm_semantics, bool always_use_call_context_any, string const& ll_filename, map<llvm_value_id_t, string_ref>* value_to_name_map, context::xml_output_format_t xml_output_format)
+sym_exec_llvm::sym_exec_get_function_tfg_map(Module* M, set<string> FunNamesVec/*, bool DisableModelingOfUninitVarUB*/, context* ctx, dshared_ptr<llptfg_t const> const& src_llptfg, bool gen_scev, bool model_llvm_semantics, bool always_use_call_context_any, string const& ll_filename, map<llvm_value_id_t, string_ref>* value_to_name_map, context::xml_output_format_t xml_output_format, calling_conventions_t const& cc, dst_compiler_t const& dst_compiler)
 {
   //map<string, pair<callee_summary_t, dshared_ptr<tfg_llvm_t>>> function_tfg_map;
   map<call_context_ref, dshared_ptr<tfg_ssa_t>> function_tfg_map;
@@ -4429,7 +4461,7 @@ sym_exec_llvm::sym_exec_get_function_tfg_map(Module* M, set<string> FunNamesVec/
     DYN_DEBUG(llvm2tfg, cout << __func__ << " " << __LINE__ << ": Doing " << fname << endl; cout.flush());
     map<shared_ptr<tfg_edge const>, Instruction *> eimap;
 
-    dshared_ptr<tfg_llvm_t> t_src = sym_exec_llvm::get_tfg(f, M, fname, ctx, src_llvm_tfg, model_llvm_semantics, value_to_name_map, eimap, scev_map, srcdst_keyword, ll_filename_parsed, xml_output_format);
+    dshared_ptr<tfg_llvm_t> t_src = sym_exec_llvm::get_tfg(f, M, fname, ctx, src_llvm_tfg, model_llvm_semantics, value_to_name_map, eimap, scev_map, srcdst_keyword, ll_filename_parsed, xml_output_format, cc, dst_compiler);
 
     //dshared_ptr<tfg_ssa_t> t_src_ssa = tfg_ssa_t::tfg_ssa_construct_from_non_ssa_tfg(t_src, dshared_ptr<tfg const>::dshared_nullptr());
     //XXX: hack begin

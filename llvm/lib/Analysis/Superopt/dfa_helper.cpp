@@ -70,7 +70,7 @@ function2tfg(Function *F, Module *M, map<shared_ptr<tfg_edge const>, Instruction
   ValueToValueMapTy VMap;
   //unique_ptr<Module> Mcopy = CloneModule(*M, VMap);
   //sym_exec_llvm se(ctx, M, *F, dshared_ptr<tfg_llvm_t const>::dshared_nullptr()/*, false*/, BYTE_LEN, DWORD_LEN, G_SRC_KEYWORD);
-  dshared_ptr<tfg_llvm_t> ret = sym_exec_llvm::get_tfg(*F, M, F->getName().str(), ctx, dshared_ptr<tfg_llvm_t const>::dshared_nullptr(), false /*model_llvm_semantics*/, nullptr/*, nullptr*/, eimap, {}, G_SRC_KEYWORD, dshared_ptr<ll_filename_parsed_t>::dshared_nullptr(), context::XML_OUTPUT_FORMAT_TEXT_NOCOLOR);
+  dshared_ptr<tfg_llvm_t> ret = sym_exec_llvm::get_tfg(*F, M, F->getName().str(), ctx, dshared_ptr<tfg_llvm_t const>::dshared_nullptr(), false /*model_llvm_semantics*/, nullptr/*, nullptr*/, eimap, {}, G_SRC_KEYWORD, dshared_ptr<ll_filename_parsed_t>::dshared_nullptr(), context::XML_OUTPUT_FORMAT_TEXT_NOCOLOR, calling_conventions_t::LINUX_I386, dst_compiler_t::UNKNOWN);
   pc start_pc = sym_exec_llvm::get_start_pc(*F);
   ret->add_extra_node_at_start_pc(start_pc);
   DYN_DEBUG(function2tfg,
