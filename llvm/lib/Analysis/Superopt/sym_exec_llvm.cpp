@@ -1718,13 +1718,16 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
   case Instruction::Alloca:
   {
     const AllocaInst* a =  cast<const AllocaInst>(&I);
+    ASSERT(a);
     string const iname = get_value_name(*a);
-    if (auto const* dilocal = this->alloca_is_for_parameter(a)) {
-      ASSERT(dilocal);
-      if (auto const param_addr = this->get_addr_expr_for_param_from_param_dilocal(F, t, *dilocal)) {
+    auto const* dilocal = this->get_dilocal_for_alloca(a);
+    expr_ref param_addr;
+    if (dilocal && this->alloca_corresponds_to_a_local_parameter(*a, *dilocal, F, t, param_addr)) {
+      if (param_addr) {
       state_set_expr(state_out, iname, param_addr);
       // cout << "Setting " << iname << " <- " << expr_string(param_addr) << " for param alloca" << endl;
       } else {
+        cout << "param_addr could not be determined for Alloca corresponding to param" << endl;
         cout << "param_name = " << dilocal->getName().str() << endl;
         cout << "alloca value " << iname << endl;
         NOT_IMPLEMENTED();
@@ -2976,30 +2979,65 @@ sym_exec_llvm::populate_local_variable_address_metadata(Function const& F)
 }
 
 DILocalVariable const*
-sym_exec_llvm::alloca_is_for_parameter(Instruction const* AI) const
+sym_exec_llvm::get_dilocal_for_alloca(llvm::AllocaInst const* AI) const
 {
   ASSERT(AI);
-  ASSERT(AI->getOpcode() == Instruction::Alloca);
   if (!m_local_addr_to_dilocal.count(AI)) {
-    return nullptr; // debug metadata not available for this Alloca, return safe false
+    return nullptr; // debug metadata not available for this Alloca
   }
-  DILocalVariable const* dilocal = m_local_addr_to_dilocal.at(AI);
-  return dilocal->isParameter() ? dilocal : nullptr;
+  return m_local_addr_to_dilocal.at(AI);
 }
 
-expr_ref
-sym_exec_llvm::get_addr_expr_for_param_from_param_dilocal(Function const& F, tfg const& t, DILocalVariable const& dilocal) const
+bool
+sym_exec_llvm::parameter_alloca_should_be_replaced_with_parameter_address(AllocaInst const& a, DILocalVariable const& dilocal) const
 {
-  ASSERT(dilocal.isParameter());
-  graph_arg_id_t argnum = 0;
-  bool is_agg = false;
+  if (this->m_cc != calling_conventions_t::LINUX_I386)
+    NOT_IMPLEMENTED();
+
+  // if the dst-compiler is non-clang, we always replace the alloca with parameter address
+  if (this->m_dst_compiler != dst_compiler_t::CLANG)
+    return true;
+
+  ASSERT(this->m_dst_compiler == dst_compiler_t::CLANG);
+
+  // for non-aggregate, even clang uses parameter address
+  bool const is_agg = dyn_cast<DICompositeType>(dilocal.getType());
+  if (!is_agg)
+    return true;
+
+  // if the aggregate is DWORD sized singleton then clang/llvm uses parameter address
+  DataLayout const& dl = m_module->getDataLayout();
+  auto op_alloc_sz = a.getAllocationSizeInBits(dl);
+  if (   !a.isArrayAllocation()
+      && op_alloc_sz.hasValue()
+      && *op_alloc_sz == DWORD_LEN)
+    return true;
+
+  // otherwise the alloca is retained
+  return false;
+}
+
+bool
+sym_exec_llvm::alloca_corresponds_to_a_local_parameter(AllocaInst const& a, DILocalVariable const& dilocal, Function const& F, tfg const& t, expr_ref& param_addr) const
+{
+  if (!dilocal.isParameter())
+    return false;
+
+  if (!this->parameter_alloca_should_be_replaced_with_parameter_address(a, dilocal)) {
+    // cout << _FNLN_ << ": " << F.getName().str() << ": NOT replacing alloca associated with parameter " << dilocal.getName().str() << endl;
+    return false;
+  }
+  // cout << _FNLN_ << ": " << F.getName().str() << ": replacing alloca associated with parameter " << dilocal.getName().str() << endl;
+
   if (dyn_cast<DICompositeType>(dilocal.getType())) {
     // for composite types the struct is expanded in args and alloca'ted in prologue
     // the name of the member field args are set to "<name>.i" for i'th field (see `case ABIArgInfo::Expand` of `EmitFunctionProlog` in `lib/CodeGen/CGCall.cpp`)
     string const param_name = dilocal.getName().str() + "."; // we add the '.' to identify the member fields using a string prefix check
     StringRef param_name_ref{param_name};
+
     expr_vector param_addrs;
     bool matched = false;
+    graph_arg_id_t argnum = 0;
     for (auto const& arg : F.args()) {
       if (arg.getName().startswith(param_name_ref)) {
         param_addrs.push_back(t.get_argument_regs().addr_at(mk_string_ref(graph_arg_regs_t::get_argname_from_argnum(argnum))));
@@ -3010,18 +3048,29 @@ sym_exec_llvm::get_addr_expr_for_param_from_param_dilocal(Function const& F, tfg
       ++argnum;
     }
     if (param_addrs.size()) {
-      return m_ctx->mk_donotsimplify_return_first(param_addrs);
+      if (param_addrs.size() == 1) {
+        param_addr = param_addrs.front();
+      } else {
+        param_addr = m_ctx->mk_donotsimplify_return_first(param_addrs);
+      }
+      return true;
     }
-    return nullptr;
+    // this is not expected to happen
+    param_addr = nullptr;
+    return true;
   } else {
     StringRef param_name{dilocal.getName()};
+    graph_arg_id_t argnum = 0;
     for (auto const& arg : F.args()) {
       if (param_name == arg.getName()) {
-        return t.get_argument_regs().addr_at(mk_string_ref(graph_arg_regs_t::get_argname_from_argnum(argnum)));
+        param_addr = t.get_argument_regs().addr_at(mk_string_ref(graph_arg_regs_t::get_argname_from_argnum(argnum)));
+        return true;
       }
       ++argnum;
     }
-    return nullptr;
+    // this is not expected to happen
+    param_addr = nullptr;
+    return true;
   }
 }
 

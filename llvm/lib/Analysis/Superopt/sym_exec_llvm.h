@@ -241,8 +241,9 @@ private:
   static map<nextpc_id_t, callee_summary_t> get_callee_summaries_for_tfg(map<nextpc_id_t, string> const &nextpc_map, map<string, callee_summary_t> const &callee_summaries);
 
   void populate_local_variable_address_metadata(llvm::Function const& F);
-  llvm::DILocalVariable const* alloca_is_for_parameter(llvm::Instruction const* AI) const;
-  expr_ref get_addr_expr_for_param_from_param_dilocal(llvm::Function const& F, tfg const& t, llvm::DILocalVariable const& dilocal) const;
+  llvm::DILocalVariable const* get_dilocal_for_alloca(llvm::AllocaInst const* AI) const;
+  bool parameter_alloca_should_be_replaced_with_parameter_address(llvm::AllocaInst const& a, llvm::DILocalVariable const& dilocal) const;
+  bool alloca_corresponds_to_a_local_parameter(llvm::AllocaInst const& a, llvm::DILocalVariable const& dilocal, llvm::Function const& F, tfg const& t, expr_ref& param_addr) const;
 
   //const std::dshared_ptr<llvm::Module>& m_module;
   llvm::Module const *m_module;
