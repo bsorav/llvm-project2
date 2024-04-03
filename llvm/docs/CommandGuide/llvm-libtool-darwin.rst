@@ -21,22 +21,47 @@ OPTIONS
 --------
 :program:`llvm-libtool-darwin` supports the following options:
 
+.. option:: -arch_only <architecture>
+
+  Build a static library only for the specified `<architecture>` and ignore all
+  other architectures in the files.
+
+.. option:: -D
+
+  Use zero for timestamps and UIDs/GIDs. This is set by default.
+
+.. option:: -filelist <listfile[,dirname]>
+
+  Read input file names from `<listfile>`. File names are specified in `<listfile>`
+  one per line, separated only by newlines. Whitespace on a line is assumed
+  to be part of the filename. If the directory name, `dirname`, is also
+  specified then it is prepended to each file name in the `<listfile>`.
+
 .. option:: -h, -help
 
   Show help and usage for this command.
 
-.. option:: -help-list
+.. option:: -l <x>
 
-  Show help and usage for this command without grouping the options
-  into categories.
+  Searches for the library libx.a in the library search path. If the string `<x>`
+  ends with '.o', then the library 'x' is searched for without prepending 'lib'
+  or appending '.a'. If the library is found, it is added to the list of input
+  files. Otherwise, an error is raised.
 
-.. option:: -color
+.. option:: -L <dir>
 
-  Use colors in output.
+  Adds `<dir>` to the list of directories in which to search for libraries. The
+  directories are searched in the order in which they are specified with
+  :option:`-L` and before the default search path. The default search path
+  includes directories `/lib`, `/usr/lib` and `/usr/local/lib`.
 
-.. option:: -version
+.. option:: -no_warning_for_no_symbols
 
-  Display the version of this program.
+   Do not warn about files that have no symbols.
+
+.. option:: -warnings_as_errors
+
+  Produce a non-zero exit status if any warnings are emitted.
 
 .. option:: -o <filename>
 
@@ -44,7 +69,19 @@ OPTIONS
 
 .. option:: -static
 
- Produces a static library from the input files.
+  Produces a static library from the input files.
+
+.. option:: -U
+
+  Use actual timestamps and UIDs/GIDs.
+
+.. option:: -V
+
+  Display the version of this program and perform any operation specified.
+
+.. option:: -version
+
+  Display the version of this program and exit immediately.
 
 EXIT STATUS
 -----------
@@ -55,7 +92,7 @@ Otherwise, it exits with code 0.
 BUGS
 ----
 
-To report bugs, please visit <https://bugs.llvm.org/>.
+To report bugs, please visit <https://github.com/llvm/llvm-project/issues/>.
 
 SEE ALSO
 --------

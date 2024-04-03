@@ -23,6 +23,7 @@ add_clang_library(clangTidyCERTModule
   LINK_LIBS
   clangTidy
   clangTidyBugproneModule
+  clangTidyConcurrencyModule
   clangTidyGoogleModule
   clangTidyMiscModule
   clangTidyPerformanceModule
@@ -31,6 +32,7 @@ add_clang_library(clangTidyCERTModule
 
   DEPENDS
   omp_gen
+  ClangDriverOptions
   )
 
 clang_target_link_libraries(clangTidyCERTModule

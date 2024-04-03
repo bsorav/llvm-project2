@@ -7,9 +7,12 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/DebugInfo/DWARF/DWARFDebugMacro.h"
+#include "llvm/ADT/DenseMap.h"
 #include "llvm/BinaryFormat/Dwarf.h"
-#include "llvm/DebugInfo/DWARF/DWARFContext.h"
 #include "llvm/DebugInfo/DWARF/DWARFDataExtractor.h"
+#include "llvm/DebugInfo/DWARF/DWARFDie.h"
+#include "llvm/DebugInfo/DWARF/DWARFFormValue.h"
+#include "llvm/Support/Errc.h"
 #include "llvm/Support/WithColor.h"
 #include "llvm/Support/raw_ostream.h"
 #include <cstdint>
@@ -40,7 +43,7 @@ void DWARFDebugMacro::dump(raw_ostream &OS) const {
   unsigned IndLevel = 0;
   for (const auto &Macros : MacroLists) {
     OS << format("0x%08" PRIx64 ":\n", Macros.Offset);
-    if (Macros.Header.Version >= 5)
+    if (Macros.IsDebugMacro)
       Macros.Header.dumpMacroHeader(OS);
     for (const Entry &E : Macros.Macros) {
       // There should not be DW_MACINFO_end_file when IndLevel is Zero. However,
@@ -52,8 +55,10 @@ void DWARFDebugMacro::dump(raw_ostream &OS) const {
         OS << "  ";
       IndLevel += (E.Type == DW_MACINFO_start_file);
       // Based on which version we are handling choose appropriate macro forms.
-      if (Macros.Header.Version >= 5)
-        WithColor(OS, HighlightColor::Macro).get() << MacroString(E.Type);
+      if (Macros.IsDebugMacro)
+        WithColor(OS, HighlightColor::Macro).get()
+            << (Macros.Header.Version < 5 ? GnuMacroString(E.Type)
+                                          : MacroString(E.Type));
       else
         WithColor(OS, HighlightColor::Macro).get() << MacinfoString(E.Type);
       switch (E.Type) {
@@ -67,6 +72,9 @@ void DWARFDebugMacro::dump(raw_ostream &OS) const {
         // DW_MACRO_start_file == DW_MACINFO_start_file
         // DW_MACRO_end_file   == DW_MACINFO_end_file
         // For readability/uniformity we are using DW_MACRO_*.
+        //
+        // The GNU .debug_macro extension's entries have the same encoding
+        // as DWARF 5's DW_MACRO_* entries, so we only use the latter here.
       case DW_MACRO_define:
       case DW_MACRO_undef:
       case DW_MACRO_define_strp:
@@ -97,8 +105,8 @@ void DWARFDebugMacro::dump(raw_ostream &OS) const {
 }
 
 Error DWARFDebugMacro::parseImpl(
-    Optional<DWARFUnitVector::iterator_range> Units,
-    Optional<DataExtractor> StringExtractor, DWARFDataExtractor Data,
+    std::optional<DWARFUnitVector::compile_unit_range> Units,
+    std::optional<DataExtractor> StringExtractor, DWARFDataExtractor Data,
     bool IsMacro) {
   uint64_t Offset = 0;
   MacroList *M = nullptr;
@@ -107,7 +115,7 @@ Error DWARFDebugMacro::parseImpl(
   if (IsMacro && Data.isValidOffset(Offset)) {
     // Keep a mapping from Macro contribution to CUs, this will
     // be needed while retrieving macro from DW_MACRO_define_strx form.
-    for (const auto &U : Units.getValue())
+    for (const auto &U : *Units)
       if (auto CUDIE = U->getUnitDIE())
         // Skip units which does not contibutes to macro section.
         if (auto MacroOffset = toSectionOffset(CUDIE.find(DW_AT_macros)))
@@ -118,6 +126,7 @@ Error DWARFDebugMacro::parseImpl(
       MacroLists.emplace_back();
       M = &MacroLists.back();
       M->Offset = Offset;
+      M->IsDebugMacro = IsMacro;
       if (IsMacro) {
         auto Err = M->Header.parseMacroHeader(Data, &Offset);
         if (Err)
@@ -188,13 +197,11 @@ Error DWARFDebugMacro::parseImpl(
       if (MacroContributionOffset == MacroToUnits.end())
         return createStringError(errc::invalid_argument,
                                  "Macro contribution of the unit not found");
-      Optional<uint64_t> StrOffset =
+      Expected<uint64_t> StrOffset =
           MacroContributionOffset->second->getStringOffsetSectionItem(
               Data.getULEB128(&Offset));
       if (!StrOffset)
-        return createStringError(
-            errc::invalid_argument,
-            "String offsets contribution of the unit not found");
+        return StrOffset.takeError();
       E.MacroStr =
           MacroContributionOffset->second->getStringExtractor().getCStr(
               &*StrOffset);

@@ -14,7 +14,13 @@
 #include "lldb/API/SBProcessInfo.h"
 #include "lldb/API/SBQueue.h"
 #include "lldb/API/SBTarget.h"
-#include <stdio.h>
+#include <cstdio>
+
+namespace lldb_private {
+namespace python {
+class SWIGBridge;
+}
+} // namespace lldb_private
 
 namespace lldb {
 
@@ -36,15 +42,13 @@ public:
 
   const lldb::SBProcess &operator=(const lldb::SBProcess &rhs);
 
-  SBProcess(const lldb::ProcessSP &process_sp);
-
   ~SBProcess();
 
   static const char *GetBroadcasterClassName();
 
   const char *GetPluginName();
 
-  // DEPRECATED: use GetPluginName()
+  LLDB_DEPRECATED_FIXME("Use GetPluginName()", "GetPluginName()")
   const char *GetShortPluginName();
 
   void Clear();
@@ -65,11 +69,13 @@ public:
 
   size_t GetAsyncProfileData(char *dst, size_t dst_len) const;
 
+#ifndef SWIG
   void ReportEventState(const lldb::SBEvent &event, FILE *out) const;
+#endif
 
   void ReportEventState(const lldb::SBEvent &event, SBFile file) const;
 
-  void ReportEventState(const lldb::SBEvent &event, FileSP file) const;
+  void ReportEventState(const lldb::SBEvent &event, FileSP BORROWED) const;
 
   void AppendEventStateReport(const lldb::SBEvent &event,
                               lldb::SBCommandReturnObject &result);
@@ -182,12 +188,20 @@ public:
   ///   The stop event corresponding to stop ID.
   lldb::SBEvent GetStopEventForStopID(uint32_t stop_id);
 
+  /// If the process is a scripted process, changes its state to the new state.
+  /// No-op otherwise.
+  ///
+  /// \param [in] new_state
+  ///   The new state that the scripted process should be set to.
+  ///
+  void ForceScriptedState(StateType new_state);
+
   size_t ReadMemory(addr_t addr, void *buf, size_t size, lldb::SBError &error);
 
   size_t WriteMemory(addr_t addr, const void *buf, size_t size,
                      lldb::SBError &error);
 
-  size_t ReadCStringFromMemory(addr_t addr, void *buf, size_t size,
+  size_t ReadCStringFromMemory(addr_t addr, void *char_buf, size_t size,
                                lldb::SBError &error);
 
   uint64_t ReadUnsignedFromMemory(addr_t addr, uint32_t byte_size,
@@ -223,31 +237,6 @@ public:
   bool GetDescription(lldb::SBStream &description);
 
   SBStructuredData GetExtendedCrashInformation();
-
-  /// Start Tracing with the given SBTraceOptions.
-  ///
-  /// \param[in] options
-  ///     Class containing trace options like trace buffer size, meta
-  ///     data buffer size, TraceType and any custom parameters
-  ///     {formatted as a JSON Dictionary}. In case of errors in
-  ///     formatting, an error would be reported.
-  ///     It must be noted that tracing options such as buffer sizes
-  ///     or other custom parameters passed maybe invalid for some
-  ///     trace technologies. In such cases the trace implementations
-  ///     could choose to either throw an error or could round off to
-  ///     the nearest valid options to start tracing if the passed
-  ///     value is not supported. To obtain the actual used trace
-  ///     options please use the GetTraceConfig API. For the custom
-  ///     parameters, only the parameters recognized by the target
-  ///     would be used and others would be ignored.
-  ///
-  /// \param[out] error
-  ///     An error explaining what went wrong.
-  ///
-  /// \return
-  ///     A SBTrace instance, which should be used
-  ///     to get the trace data or other trace related operations.
-  lldb::SBTrace StartTrace(SBTraceOptions &options, lldb::SBError &error);
 
   uint32_t GetNumSupportedHardwareWatchpoints(lldb::SBError &error) const;
 
@@ -301,13 +290,13 @@ public:
   /// paths till you find a matching library.
   ///
   /// \param[in] image_spec
-  ///     The name of the shared library that you want to load.  
+  ///     The name of the shared library that you want to load.
   ///     If image_spec is a relative path, the relative path will be
   ///     appended to the search paths.
   ///     If the image_spec is an absolute path, just the basename is used.
   ///
   /// \param[in] paths
-  ///     A list of paths to search for the library whose basename is 
+  ///     A list of paths to search for the library whose basename is
   ///     local_spec.
   ///
   /// \param[out] loaded_path
@@ -325,7 +314,7 @@ public:
   ///     library can't be opened.
   uint32_t LoadImageUsingPaths(const lldb::SBFileSpec &image_spec,
                                SBStringList &paths,
-                               lldb::SBFileSpec &loaded_path, 
+                               lldb::SBFileSpec &loaded_path,
                                lldb::SBError &error);
 
   lldb::SBError UnloadImage(uint32_t image_token);
@@ -362,7 +351,21 @@ public:
 
   bool IsInstrumentationRuntimePresent(InstrumentationRuntimeType type);
 
-  /// Save the state of the process in a core file (or mini dump on Windows).
+  /// Save the state of the process in a core file.
+  ///
+  /// \param[in] file_name - The name of the file to save the core file to.
+  ///
+  /// \param[in] flavor - Specify the flavor of a core file plug-in to save.
+  /// Currently supported flavors include "mach-o" and "minidump"
+  ///
+  /// \param[in] core_style - Specify the style of a core file to save.
+  lldb::SBError SaveCore(const char *file_name, const char *flavor,
+                         SaveCoreStyle core_style);
+
+  /// Save the state of the process with the a flavor that matches the
+  /// current process' main executable (if supported).
+  ///
+  /// \param[in] file_name - The name of the file to save the core file to.
   lldb::SBError SaveCore(const char *file_name);
 
   /// Query the address load_addr and store the details of the memory
@@ -395,19 +398,66 @@ public:
   /// valid.
   lldb::SBProcessInfo GetProcessInfo();
 
+  /// Allocate memory within the process.
+  ///
+  /// This function will allocate memory in the process's address space.
+  ///
+  /// \param[in] size
+  ///     The size of the allocation requested.
+  ///
+  /// \param[in] permissions
+  ///     Or together any of the lldb::Permissions bits.  The
+  ///     permissions on a given memory allocation can't be changed
+  ///     after allocation.  Note that a block that isn't set writable
+  ///     can still be written from lldb, just not by the process
+  ///     itself.
+  ///
+  /// \param[out] error
+  ///     An error object that gets filled in with any errors that
+  ///     might occur when trying allocate.
+  ///
+  /// \return
+  ///     The address of the allocated buffer in the process, or
+  ///     LLDB_INVALID_ADDRESS if the allocation failed.
+  lldb::addr_t AllocateMemory(size_t size, uint32_t permissions,
+                              lldb::SBError &error);
+
+  /// Deallocate memory in the process.
+  ///
+  /// This function will deallocate memory in the process's address
+  /// space that was allocated with AllocateMemory.
+  ///
+  /// \param[in] ptr
+  ///     A return value from AllocateMemory, pointing to the memory you
+  ///     want to deallocate.
+  ///
+  /// \return
+  ///     An error object describes any errors that occurred while
+  ///     deallocating.
+  ///
+  lldb::SBError DeallocateMemory(lldb::addr_t ptr);
+
+  lldb::SBScriptObject GetScriptedImplementation();
+
 protected:
   friend class SBAddress;
   friend class SBBreakpoint;
+  friend class SBBreakpointCallbackBaton;
   friend class SBBreakpointLocation;
   friend class SBCommandInterpreter;
   friend class SBDebugger;
   friend class SBExecutionContext;
   friend class SBFunction;
   friend class SBModule;
+  friend class SBPlatform;
   friend class SBTarget;
   friend class SBThread;
   friend class SBValue;
   friend class lldb_private::QueueImpl;
+
+  friend class lldb_private::python::SWIGBridge;
+
+  SBProcess(const lldb::ProcessSP &process_sp);
 
   lldb::ProcessSP GetSP() const;
 

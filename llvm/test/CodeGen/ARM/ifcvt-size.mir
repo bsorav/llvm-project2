@@ -1,4 +1,5 @@
-# RUN: llc %s -o - -run-pass=if-converter -debug-only=if-converter 2>%t| FileCheck %s
+# RUN: llc -mtriple=thumbv8a-unknown-linux-gnueabi %s -o - -run-pass=if-converter -debug-only=if-converter | FileCheck %s
+# RUN: llc -mtriple=thumbv7-unknown-linux-gnueabi %s -o - -run-pass=if-converter -debug-only=if-converter 2>%t| FileCheck %s
 # RUN: FileCheck %s < %t --check-prefix=DEBUG
 # REQUIRES: asserts
 
@@ -9,7 +10,6 @@
 # instructions, and selection of the CB(N)Z instructions.
 
 --- |
-  target triple = "thumbv7-unknown-linux-gnueabi"
 
   define void @fn1() minsize {
   entry:
@@ -553,7 +553,7 @@ body:             |
     INLINEASM_BR &"b ${0:l}", 1, 13, blockaddress(@fn9, %ir-block.lab1)
     tBX_RET 14, $noreg, implicit $r2
     
-  bb.5.lab1 (address-taken):
+  bb.5.lab1 (ir-block-address-taken %ir-block.lab1):
     liveins: $r0
 
     renamable $r0, dead $cpsr = nsw tADDi8 killed renamable $r0, 5, 14, $noreg

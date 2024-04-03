@@ -7,9 +7,6 @@ Provides the configuration class, which holds all information related to
 how this invocation of the test suite should be run.
 """
 
-from __future__ import absolute_import
-from __future__ import print_function
-
 # System modules
 import os
 
@@ -29,7 +26,7 @@ categories_list = None
 # set to true if we are going to use categories for cherry-picking test cases
 use_categories = False
 # Categories we want to skip
-skip_categories = ["darwin-log"]
+skip_categories = []
 # Categories we expect to fail
 xfail_categories = []
 # use this to track per-category failures
@@ -51,8 +48,7 @@ sdkroot = None
 dwarf_version = 0
 
 # Any overridden settings.
-# Always disable default dynamic types for testing purposes.
-settings = [('target.prefer-dynamic-value', 'no-dynamic-values')]
+settings = []
 
 # Path to the FileCheck testing tool. Not optional.
 filecheck = None
@@ -63,7 +59,7 @@ yaml2obj = None
 # The arch might dictate some specific CFLAGS to be passed to the toolchain to build
 # the inferior programs.  The global variable cflags_extras provides a hook to do
 # just that.
-cflags_extras = ''
+cflags_extras = ""
 
 # The filters (testclass.testmethod) used to admit tests into our test suite.
 filters = []
@@ -76,24 +72,10 @@ regexp = None
 skip_tests = None
 xfail_tests = None
 
-# By default, recorded session info for errored/failed test are dumped into its
-# own file under a session directory named after the timestamp of the test suite
-# run.  Use '-s session-dir-name' to specify a specific dir name.
-sdir_name = None
-
-# Valid options:
-# f - test file name (without extension)
-# n - test class name
-# m - test method name
-# a - architecture
-# c - compiler path
-# The default is to write all fields.
-session_file_format = 'fnmac'
-
 # Set this flag if there is any session info dumped during the test run.
 sdir_has_content = False
 # svn_info stores the output from 'svn info lldb.base.dir'.
-svn_info = ''
+svn_info = ""
 
 # Default verbosity is 0.
 verbose = 0
@@ -103,8 +85,12 @@ verbose = 0
 # because it doesn't work under a debugger
 testdirs = [lldbsuite.lldb_test_root]
 
+# The root of the test case tree (where the actual tests reside, not the test
+# infrastructure).
+test_src_root = lldbsuite.lldb_test_root
+
 # Separator string.
-separator = '-' * 70
+separator = "-" * 70
 
 failed = False
 
@@ -112,6 +98,9 @@ failed = False
 lldb_platform_name = None
 lldb_platform_url = None
 lldb_platform_working_dir = None
+
+# Apple SDK
+apple_sdk = None
 
 # The base directory in which the tests are being built.
 test_build_dir = None
@@ -124,13 +113,6 @@ clang_module_cache_dir = None
 # Test results handling globals
 test_result = None
 
-# Reproducers
-capture_path = None
-replay_path = None
-
-# Test rerun configuration vars
-rerun_all_issues = False
-
 # The names of all tests. Used to assert we don't have two tests with the
 # same base name.
 all_tests = set()
@@ -138,14 +120,20 @@ all_tests = set()
 # LLDB library directory.
 lldb_libs_dir = None
 
+libcxx_include_dir = None
+libcxx_include_target_dir = None
+libcxx_library_dir = None
+
 # A plugin whose tests will be enabled, like intel-pt.
 enabled_plugins = []
 
 
 def shouldSkipBecauseOfCategories(test_categories):
     if use_categories:
-        if len(test_categories) == 0 or len(
-                categories_list & set(test_categories)) == 0:
+        if (
+            len(test_categories) == 0
+            or len(categories_list & set(test_categories)) == 0
+        ):
             return True
 
     for category in skip_categories:
@@ -162,24 +150,10 @@ def get_filecheck_path():
     if filecheck and os.path.lexists(filecheck):
         return filecheck
 
+
 def get_yaml2obj_path():
     """
     Get the path to the yaml2obj tool.
     """
     if yaml2obj and os.path.lexists(yaml2obj):
         return yaml2obj
-
-def is_reproducer_replay():
-    """
-    Returns true when dotest is being replayed from a reproducer. Never use
-    this method to guard SB API calls as it will cause a divergence between
-    capture and replay.
-    """
-    return replay_path is not None
-
-def is_reproducer():
-    """
-    Returns true when dotest is capturing a reproducer or is being replayed
-    from a reproducer. Use this method to guard SB API calls.
-    """
-    return capture_path or replay_path

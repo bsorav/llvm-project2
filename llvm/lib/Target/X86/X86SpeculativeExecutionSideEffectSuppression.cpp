@@ -95,7 +95,7 @@ bool X86SpeculativeExecutionSideEffectSuppression::runOnMachineFunction(
   // user explicitly passed an SESES flag, or whether the SESES target feature
   // was set.
   if (!EnableSpeculativeExecutionSideEffectSuppression &&
-      !(Subtarget.useLVILoadHardening() && OptLevel == CodeGenOpt::None) &&
+      !(Subtarget.useLVILoadHardening() && OptLevel == CodeGenOptLevel::None) &&
       !Subtarget.useSpeculativeExecutionSideEffectSuppression())
     return false;
 
@@ -161,6 +161,7 @@ bool X86SpeculativeExecutionSideEffectSuppression::runOnMachineFunction(
 
       // This branch requires adding an LFENCE.
       if (!PrevInstIsLFENCE) {
+        assert(FirstTerminator && "Unknown terminator instruction");
         BuildMI(MBB, FirstTerminator, DebugLoc(), TII->get(X86::LFENCE));
         NumLFENCEsInserted++;
         Modified = true;

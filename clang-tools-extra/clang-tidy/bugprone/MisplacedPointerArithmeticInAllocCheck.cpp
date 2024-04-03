@@ -13,9 +13,7 @@
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace bugprone {
+namespace clang::tidy::bugprone {
 
 void MisplacedPointerArithmeticInAllocCheck::registerMatchers(
     MatchFinder *Finder) {
@@ -77,9 +75,9 @@ void MisplacedPointerArithmeticInAllocCheck::check(
       CallName = "operator new[]";
     } else {
       const auto *CtrE = New->getConstructExpr();
-      if (!CtrE->getArg(CtrE->getNumArgs() - 1)
-               ->getType()
-               ->isIntegralOrEnumerationType())
+      if (!CtrE || !CtrE->getArg(CtrE->getNumArgs() - 1)
+                                     ->getType()
+                                     ->isIntegralOrEnumerationType())
         return;
       CallName = "operator new";
     }
@@ -99,6 +97,4 @@ void MisplacedPointerArithmeticInAllocCheck::check(
       << FixItHint::CreateInsertion(NewRParen, RParen);
 }
 
-} // namespace bugprone
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::bugprone

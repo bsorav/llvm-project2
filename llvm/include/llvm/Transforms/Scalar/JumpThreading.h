@@ -16,32 +16,33 @@
 
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseSet.h"
-#include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/SmallVector.h"
-#include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/Analysis/BlockFrequencyInfo.h"
 #include "llvm/Analysis/BranchProbabilityInfo.h"
 #include "llvm/Analysis/DomTreeUpdater.h"
 #include "llvm/IR/ValueHandle.h"
-#include <memory>
+#include <optional>
 #include <utility>
 
 namespace llvm {
 
+class AAResults;
 class BasicBlock;
 class BinaryOperator;
 class BranchInst;
 class CmpInst;
 class Constant;
-class DomTreeUpdater;
 class Function;
 class Instruction;
 class IntrinsicInst;
 class LazyValueInfo;
 class LoadInst;
 class PHINode;
+class SelectInst;
+class SwitchInst;
 class TargetLibraryInfo;
+class TargetTransformInfo;
 class Value;
 
 /// A private "module" namespace for types and utilities used by
@@ -75,15 +76,18 @@ enum ConstantPreference { WantInteger, WantBlockAddress };
 /// In this case, the unconditional branch at the end of the first if can be
 /// revectored to the false side of the second if.
 class JumpThreadingPass : public PassInfoMixin<JumpThreadingPass> {
-  TargetLibraryInfo *TLI;
-  LazyValueInfo *LVI;
-  AliasAnalysis *AA;
-  DomTreeUpdater *DTU;
-  std::unique_ptr<BlockFrequencyInfo> BFI;
-  std::unique_ptr<BranchProbabilityInfo> BPI;
-  bool HasProfileData = false;
+  Function *F = nullptr;
+  FunctionAnalysisManager *FAM = nullptr;
+  TargetLibraryInfo *TLI = nullptr;
+  TargetTransformInfo *TTI = nullptr;
+  LazyValueInfo *LVI = nullptr;
+  AAResults *AA = nullptr;
+  std::unique_ptr<DomTreeUpdater> DTU;
+  std::optional<BlockFrequencyInfo *> BFI;
+  std::optional<BranchProbabilityInfo *> BPI;
+  bool ChangedSinceLastAnalysisUpdate = false;
   bool HasGuards = false;
-#ifdef NDEBUG
+#ifndef LLVM_ENABLE_ABI_BREAKING_CHECKS
   SmallPtrSet<const BasicBlock *, 16> LoopHeaders;
 #else
   SmallSet<AssertingVH<const BasicBlock>, 16> LoopHeaders;
@@ -96,80 +100,110 @@ public:
   JumpThreadingPass(int T = -1);
 
   // Glue for old PM.
-  bool runImpl(Function &F, TargetLibraryInfo *TLI_, LazyValueInfo *LVI_,
-               AliasAnalysis *AA_, DomTreeUpdater *DTU_, bool HasProfileData_,
-               std::unique_ptr<BlockFrequencyInfo> BFI_,
-               std::unique_ptr<BranchProbabilityInfo> BPI_);
+  bool runImpl(Function &F, FunctionAnalysisManager *FAM,
+               TargetLibraryInfo *TLI, TargetTransformInfo *TTI,
+               LazyValueInfo *LVI, AAResults *AA,
+               std::unique_ptr<DomTreeUpdater> DTU,
+               std::optional<BlockFrequencyInfo *> BFI,
+               std::optional<BranchProbabilityInfo *> BPI);
 
   PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
 
-  void releaseMemory() {
-    BFI.reset();
-    BPI.reset();
-  }
-
-  void FindLoopHeaders(Function &F);
-  bool ProcessBlock(BasicBlock *BB);
-  bool MaybeMergeBasicBlockIntoOnlyPred(BasicBlock *BB);
-  void UpdateSSA(BasicBlock *BB, BasicBlock *NewBB,
+  DomTreeUpdater *getDomTreeUpdater() const { return DTU.get(); }
+  void findLoopHeaders(Function &F);
+  bool processBlock(BasicBlock *BB);
+  bool maybeMergeBasicBlockIntoOnlyPred(BasicBlock *BB);
+  void updateSSA(BasicBlock *BB, BasicBlock *NewBB,
                  DenseMap<Instruction *, Value *> &ValueMapping);
-  DenseMap<Instruction *, Value *> CloneInstructions(BasicBlock::iterator BI,
+  DenseMap<Instruction *, Value *> cloneInstructions(BasicBlock::iterator BI,
                                                      BasicBlock::iterator BE,
                                                      BasicBlock *NewBB,
                                                      BasicBlock *PredBB);
-  bool TryThreadEdge(BasicBlock *BB,
+  bool tryThreadEdge(BasicBlock *BB,
                      const SmallVectorImpl<BasicBlock *> &PredBBs,
                      BasicBlock *SuccBB);
-  void ThreadEdge(BasicBlock *BB, const SmallVectorImpl<BasicBlock *> &PredBBs,
+  void threadEdge(BasicBlock *BB, const SmallVectorImpl<BasicBlock *> &PredBBs,
                   BasicBlock *SuccBB);
-  bool DuplicateCondBranchOnPHIIntoPred(
+  bool duplicateCondBranchOnPHIIntoPred(
       BasicBlock *BB, const SmallVectorImpl<BasicBlock *> &PredBBs);
 
-  bool ComputeValueKnownInPredecessorsImpl(
+  bool computeValueKnownInPredecessorsImpl(
       Value *V, BasicBlock *BB, jumpthreading::PredValueInfo &Result,
       jumpthreading::ConstantPreference Preference,
       DenseSet<Value *> &RecursionSet, Instruction *CxtI = nullptr);
   bool
-  ComputeValueKnownInPredecessors(Value *V, BasicBlock *BB,
+  computeValueKnownInPredecessors(Value *V, BasicBlock *BB,
                                   jumpthreading::PredValueInfo &Result,
                                   jumpthreading::ConstantPreference Preference,
                                   Instruction *CxtI = nullptr) {
     DenseSet<Value *> RecursionSet;
-    return ComputeValueKnownInPredecessorsImpl(V, BB, Result, Preference,
+    return computeValueKnownInPredecessorsImpl(V, BB, Result, Preference,
                                                RecursionSet, CxtI);
   }
 
-  Constant *EvaluateOnPredecessorEdge(BasicBlock *BB, BasicBlock *PredPredBB,
+  Constant *evaluateOnPredecessorEdge(BasicBlock *BB, BasicBlock *PredPredBB,
                                       Value *cond);
-  bool MaybeThreadThroughTwoBasicBlocks(BasicBlock *BB, Value *Cond);
-  void ThreadThroughTwoBasicBlocks(BasicBlock *PredPredBB, BasicBlock *PredBB,
+  bool maybethreadThroughTwoBasicBlocks(BasicBlock *BB, Value *Cond);
+  void threadThroughTwoBasicBlocks(BasicBlock *PredPredBB, BasicBlock *PredBB,
                                    BasicBlock *BB, BasicBlock *SuccBB);
-  bool ProcessThreadableEdges(Value *Cond, BasicBlock *BB,
+  bool processThreadableEdges(Value *Cond, BasicBlock *BB,
                               jumpthreading::ConstantPreference Preference,
                               Instruction *CxtI = nullptr);
 
-  bool ProcessBranchOnPHI(PHINode *PN);
-  bool ProcessBranchOnXOR(BinaryOperator *BO);
-  bool ProcessImpliedCondition(BasicBlock *BB);
+  bool processBranchOnPHI(PHINode *PN);
+  bool processBranchOnXOR(BinaryOperator *BO);
+  bool processImpliedCondition(BasicBlock *BB);
 
-  bool SimplifyPartiallyRedundantLoad(LoadInst *LI);
-  void UnfoldSelectInstr(BasicBlock *Pred, BasicBlock *BB, SelectInst *SI,
+  bool simplifyPartiallyRedundantLoad(LoadInst *LI);
+  void unfoldSelectInstr(BasicBlock *Pred, BasicBlock *BB, SelectInst *SI,
                          PHINode *SIUse, unsigned Idx);
 
-  bool TryToUnfoldSelect(CmpInst *CondCmp, BasicBlock *BB);
-  bool TryToUnfoldSelect(SwitchInst *SI, BasicBlock *BB);
-  bool TryToUnfoldSelectInCurrBB(BasicBlock *BB);
+  bool tryToUnfoldSelect(CmpInst *CondCmp, BasicBlock *BB);
+  bool tryToUnfoldSelect(SwitchInst *SI, BasicBlock *BB);
+  bool tryToUnfoldSelectInCurrBB(BasicBlock *BB);
 
-  bool ProcessGuards(BasicBlock *BB);
-  bool ThreadGuard(BasicBlock *BB, IntrinsicInst *Guard, BranchInst *BI);
+  bool processGuards(BasicBlock *BB);
+  bool threadGuard(BasicBlock *BB, IntrinsicInst *Guard, BranchInst *BI);
 
 private:
-  BasicBlock *SplitBlockPreds(BasicBlock *BB, ArrayRef<BasicBlock *> Preds,
+  BasicBlock *splitBlockPreds(BasicBlock *BB, ArrayRef<BasicBlock *> Preds,
                               const char *Suffix);
-  void UpdateBlockFreqAndEdgeWeight(BasicBlock *PredBB, BasicBlock *BB,
-                                    BasicBlock *NewBB, BasicBlock *SuccBB);
+  void updateBlockFreqAndEdgeWeight(BasicBlock *PredBB, BasicBlock *BB,
+                                    BasicBlock *NewBB, BasicBlock *SuccBB,
+                                    BlockFrequencyInfo *BFI,
+                                    BranchProbabilityInfo *BPI,
+                                    bool HasProfile);
   /// Check if the block has profile metadata for its outgoing edges.
   bool doesBlockHaveProfileData(BasicBlock *BB);
+
+  /// Returns analysis preserved by the pass.
+  PreservedAnalyses getPreservedAnalysis() const;
+
+  /// Helper function to run "external" analysis in the middle of JumpThreading.
+  /// It takes care of updating/invalidating other existing analysis
+  /// before/after  running the "external" one.
+  template <typename AnalysisT>
+  typename AnalysisT::Result *runExternalAnalysis();
+
+  /// Returns an existing instance of BPI if any, otherwise nullptr. By
+  /// "existing" we mean either cached result provided by FunctionAnalysisManger
+  /// or created by preceding call to 'getOrCreateBPI'.
+  BranchProbabilityInfo *getBPI();
+
+  /// Returns an existing instance of BFI if any, otherwise nullptr. By
+  /// "existing" we mean either cached result provided by FunctionAnalysisManger
+  /// or created by preceding call to 'getOrCreateBFI'.
+  BlockFrequencyInfo *getBFI();
+
+  /// Returns an existing instance of BPI if any, otherwise:
+  ///   if 'HasProfile' is true creates new instance through
+  ///   FunctionAnalysisManager, otherwise nullptr.
+  BranchProbabilityInfo *getOrCreateBPI(bool Force = false);
+
+  /// Returns an existing instance of BFI if any, otherwise:
+  ///   if 'HasProfile' is true creates new instance through
+  ///   FunctionAnalysisManager, otherwise nullptr.
+  BlockFrequencyInfo *getOrCreateBFI(bool Force = false);
 };
 
 } // end namespace llvm

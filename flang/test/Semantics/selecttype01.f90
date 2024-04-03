@@ -1,4 +1,4 @@
-! RUN: %S/test_errors.sh %s %t %f18
+! RUN: %python %S/test_errors.py %s %flang_fc1
 ! Test for checking select type constraints,
 module m1
   use ISO_C_BINDING
@@ -50,6 +50,8 @@ contains
     select type ( a )
       !ERROR: The type specification statement must have LEN type parameter as assumed
       type is ( character(len=10) ) !<-- assumed length-type
+      !ERROR: The type specification statement must have LEN type parameter as assumed
+      type is ( character )
       ! OK
       type is ( character(len=*) )
       !ERROR: The type specification statement must have LEN type parameter as assumed
@@ -119,6 +121,7 @@ subroutine CheckC1159b
   integer :: x
   !ERROR: Selector 'x' in SELECT TYPE statement must be polymorphic
   select type (a => x)
+  !ERROR: If selector is not unlimited polymorphic, an intrinsic type specification must not be specified in the type guard statement
   type is (integer)
     print *,'integer ',a
   end select
@@ -127,6 +130,7 @@ end
 subroutine CheckC1159c
   !ERROR: Selector 'x' in SELECT TYPE statement must be polymorphic
   select type (a => x)
+  !ERROR: If selector is not unlimited polymorphic, an intrinsic type specification must not be specified in the type guard statement
   type is (integer)
     print *,'integer ',a
   end select
@@ -164,6 +168,16 @@ subroutine CheckC1162
     type is (extsquare)
     !Handle same types
     type is (rectangle)
+    !ERROR: If selector is not unlimited polymorphic, an intrinsic type specification must not be specified in the type guard statement
+    type is(integer)
+    !ERROR: If selector is not unlimited polymorphic, an intrinsic type specification must not be specified in the type guard statement
+    type is(real)
+    !ERROR: If selector is not unlimited polymorphic, an intrinsic type specification must not be specified in the type guard statement
+    type is(logical)
+    !ERROR: If selector is not unlimited polymorphic, an intrinsic type specification must not be specified in the type guard statement
+    type is(character(len=*))
+    !ERROR: If selector is not unlimited polymorphic, an intrinsic type specification must not be specified in the type guard statement
+    type is(complex)
   end select
 
   !Unlimited polymorphic objects are allowed.
@@ -173,6 +187,25 @@ subroutine CheckC1162
     type is (unrelated)
   end select
 end
+
+module c1162a
+  type pdt(kind,len)
+    integer, kind :: kind
+    integer, len :: len
+  end type
+ contains
+  subroutine foo(x)
+    class(pdt(kind=1,len=:)), allocatable :: x
+    select type (x)
+    type is (pdt(kind=1, len=*))
+    !ERROR: Type specification 'pdt(kind=2_4,len=*)' must be an extension of TYPE 'pdt(kind=1_4,len=:)'
+    type is (pdt(kind=2, len=*))
+    !ERROR: Value of KIND type parameter 'kind' must be constant
+    !ERROR: Type specification 'pdt(kind=*,len=*)' must be an extension of TYPE 'pdt(kind=1_4,len=:)'
+    type is (pdt(kind=*, len=*))
+    end select
+  end subroutine
+end module
 
 subroutine CheckC1163
   use m1
@@ -186,6 +219,12 @@ subroutine CheckC1163
     class is (square)
     !ERROR: Type specification 'square' conflicts with previous type specification
     class is (square)
+  end select
+  select type (unlim_polymorphic)
+    type is (INTEGER(4))
+    type is (shape)
+    !ERROR: Type specification 'INTEGER(4)' conflicts with previous type specification
+    type is (INTEGER(4))
   end select
 end
 
@@ -238,4 +277,22 @@ subroutine WorkingPolymorphism
     CLASS DEFAULT
       print *, "default"
   end select
+end
+
+subroutine CheckNotProcedure
+  use m1
+  !ERROR: Selector may not be a procedure
+  select type (x=>f)
+  end select
+ contains
+  function f() result(res)
+    class(shape), allocatable :: res
+  end
+
+subroutine CheckAssumedRankInSelectType(var)
+  class(*), intent(in) :: var(..)
+  !ERROR: Assumed-rank variable may only be used as actual argument
+  select type(var)
+  end select
+ end
 end

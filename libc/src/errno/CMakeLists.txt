@@ -1,7 +1,10 @@
 add_entrypoint_object(
-  __errno_location
+  errno
   SRCS
-    errno_location.cpp
+    libc_errno.cpp
   HDRS
-    llvmlibc_errno.h
+    libc_errno.h     # Include this
+  DEPENDS
+    libc.include.errno
+    libc.src.__support.common
 )

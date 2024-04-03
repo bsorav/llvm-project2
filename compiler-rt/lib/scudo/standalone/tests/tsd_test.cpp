@@ -11,6 +11,8 @@
 #include "tsd_exclusive.h"
 #include "tsd_shared.h"
 
+#include <stdlib.h>
+
 #include <condition_variable>
 #include <mutex>
 #include <set>
@@ -23,26 +25,34 @@ template <class Config> class MockAllocator {
 public:
   using ThisT = MockAllocator<Config>;
   using TSDRegistryT = typename Config::template TSDRegistryT<ThisT>;
-  using CacheT = struct MockCache { volatile scudo::uptr Canary; };
+  using CacheT = struct MockCache {
+    volatile scudo::uptr Canary;
+  };
   using QuarantineCacheT = struct MockQuarantine {};
 
-  void initLinkerInitialized() {
+  void init() {
     // This should only be called once by the registry.
     EXPECT_FALSE(Initialized);
     Initialized = true;
   }
-  void reset() { memset(this, 0, sizeof(*this)); }
 
-  void unmapTestOnly() { TSDRegistry.unmapTestOnly(); }
-  void initCache(CacheT *Cache) { memset(Cache, 0, sizeof(*Cache)); }
-  void commitBack(scudo::TSD<MockAllocator> *TSD) {}
+  void unmapTestOnly() { TSDRegistry.unmapTestOnly(this); }
+  void initCache(CacheT *Cache) { *Cache = {}; }
+  void commitBack(UNUSED scudo::TSD<MockAllocator> *TSD) {}
   TSDRegistryT *getTSDRegistry() { return &TSDRegistry; }
   void callPostInitCallback() {}
 
   bool isInitialized() { return Initialized; }
 
+  void *operator new(size_t Size) {
+    void *P = nullptr;
+    EXPECT_EQ(0, posix_memalign(&P, alignof(ThisT), Size));
+    return P;
+  }
+  void operator delete(void *P) { free(P); }
+
 private:
-  bool Initialized;
+  bool Initialized = false;
   TSDRegistryT TSDRegistry;
 };
 
@@ -69,11 +79,10 @@ TEST(ScudoTSDTest, TSDRegistryInit) {
   };
   std::unique_ptr<AllocatorT, decltype(Deleter)> Allocator(new AllocatorT,
                                                            Deleter);
-  Allocator->reset();
   EXPECT_FALSE(Allocator->isInitialized());
 
   auto Registry = Allocator->getTSDRegistry();
-  Registry->initLinkerInitialized(Allocator.get());
+  Registry->initOnceMaybe(Allocator.get());
   EXPECT_TRUE(Allocator->isInitialized());
 }
 
@@ -84,7 +93,6 @@ template <class AllocatorT> static void testRegistry() {
   };
   std::unique_ptr<AllocatorT, decltype(Deleter)> Allocator(new AllocatorT,
                                                            Deleter);
-  Allocator->reset();
   EXPECT_FALSE(Allocator->isInitialized());
 
   auto Registry = Allocator->getTSDRegistry();
@@ -93,16 +101,18 @@ template <class AllocatorT> static void testRegistry() {
 
   bool UnlockRequired;
   auto TSD = Registry->getTSDAndLock(&UnlockRequired);
+  TSD->assertLocked(/*BypassCheck=*/!UnlockRequired);
   EXPECT_NE(TSD, nullptr);
-  EXPECT_EQ(TSD->Cache.Canary, 0U);
+  EXPECT_EQ(TSD->getCache().Canary, 0U);
   if (UnlockRequired)
     TSD->unlock();
 
   Registry->initThreadMaybe(Allocator.get(), /*MinimalInit=*/false);
   TSD = Registry->getTSDAndLock(&UnlockRequired);
+  TSD->assertLocked(/*BypassCheck=*/!UnlockRequired);
   EXPECT_NE(TSD, nullptr);
-  EXPECT_EQ(TSD->Cache.Canary, 0U);
-  memset(&TSD->Cache, 0x42, sizeof(TSD->Cache));
+  EXPECT_EQ(TSD->getCache().Canary, 0U);
+  memset(&TSD->getCache(), 0x42, sizeof(TSD->getCache()));
   if (UnlockRequired)
     TSD->unlock();
 }
@@ -129,18 +139,19 @@ template <typename AllocatorT> static void stressCache(AllocatorT *Allocator) {
   Registry->initThreadMaybe(Allocator, /*MinimalInit=*/false);
   bool UnlockRequired;
   auto TSD = Registry->getTSDAndLock(&UnlockRequired);
+  TSD->assertLocked(/*BypassCheck=*/!UnlockRequired);
   EXPECT_NE(TSD, nullptr);
   // For an exclusive TSD, the cache should be empty. We cannot guarantee the
   // same for a shared TSD.
   if (!UnlockRequired)
-    EXPECT_EQ(TSD->Cache.Canary, 0U);
+    EXPECT_EQ(TSD->getCache().Canary, 0U);
   // Transform the thread id to a uptr to use it as canary.
   const scudo::uptr Canary = static_cast<scudo::uptr>(
       std::hash<std::thread::id>{}(std::this_thread::get_id()));
-  TSD->Cache.Canary = Canary;
+  TSD->getCache().Canary = Canary;
   // Loop a few times to make sure that a concurrent thread isn't modifying it.
   for (scudo::uptr I = 0; I < 4096U; I++)
-    EXPECT_EQ(TSD->Cache.Canary, Canary);
+    EXPECT_EQ(TSD->getCache().Canary, Canary);
   if (UnlockRequired)
     TSD->unlock();
 }
@@ -153,7 +164,6 @@ template <class AllocatorT> static void testRegistryThreaded() {
   };
   std::unique_ptr<AllocatorT, decltype(Deleter)> Allocator(new AllocatorT,
                                                            Deleter);
-  Allocator->reset();
   std::thread Threads[32];
   for (scudo::uptr I = 0; I < ARRAY_SIZE(Threads); I++)
     Threads[I] = std::thread(stressCache<AllocatorT>, Allocator.get());
@@ -188,6 +198,7 @@ static void stressSharedRegistry(MockAllocator<SharedCaches> *Allocator) {
   bool UnlockRequired;
   for (scudo::uptr I = 0; I < 4096U; I++) {
     auto TSD = Registry->getTSDAndLock(&UnlockRequired);
+    TSD->assertLocked(/*BypassCheck=*/!UnlockRequired);
     EXPECT_NE(TSD, nullptr);
     Set.insert(reinterpret_cast<void *>(TSD));
     if (UnlockRequired)
@@ -201,6 +212,7 @@ static void stressSharedRegistry(MockAllocator<SharedCaches> *Allocator) {
 
 TEST(ScudoTSDTest, TSDRegistryTSDsCount) {
   Ready = false;
+  Pointers.clear();
   using AllocatorT = MockAllocator<SharedCaches>;
   auto Deleter = [](AllocatorT *A) {
     A->unmapTestOnly();
@@ -208,7 +220,6 @@ TEST(ScudoTSDTest, TSDRegistryTSDsCount) {
   };
   std::unique_ptr<AllocatorT, decltype(Deleter)> Allocator(new AllocatorT,
                                                            Deleter);
-  Allocator->reset();
   // We attempt to use as many TSDs as the shared cache offers by creating a
   // decent amount of threads that will be run concurrently and attempt to get
   // and lock TSDs. We put them all in a set and count the number of entries

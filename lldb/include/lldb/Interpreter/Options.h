@@ -14,11 +14,13 @@
 
 #include "lldb/Utility/Args.h"
 #include "lldb/Utility/CompletionRequest.h"
+#include "lldb/Utility/OptionDefinition.h"
 #include "lldb/Utility/Status.h"
 #include "lldb/lldb-defines.h"
 #include "lldb/lldb-private.h"
 
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/StringRef.h"
 
 namespace lldb_private {
 
@@ -39,12 +41,6 @@ struct OptionArgElement {
 };
 
 typedef std::vector<OptionArgElement> OptionElementVector;
-
-static inline bool isprint8(int ch) {
-  if (ch & 0xffffff00u)
-    return false;
-  return llvm::isPrint(ch);
-}
 
 /// \class Options Options.h "lldb/Interpreter/Options.h"
 /// A command line option parsing protocol class.
@@ -91,7 +87,7 @@ public:
                                 const OptionDefinition &option_def,
                                 uint32_t output_max_columns);
 
-  void GenerateOptionUsage(Stream &strm, CommandObject *cmd,
+  void GenerateOptionUsage(Stream &strm, CommandObject &cmd,
                            uint32_t screen_width);
 
   bool SupportsLongOption(const char *long_option);
@@ -174,7 +170,7 @@ public:
   /// user wants returned.
   ///
   /// \return
-  ///     \btrue if we were in an option, \bfalse otherwise.
+  ///     \b true if we were in an option, \b false otherwise.
   bool HandleOptionCompletion(lldb_private::CompletionRequest &request,
                               OptionElementVector &option_map,
                               CommandInterpreter &interpreter);
@@ -259,8 +255,7 @@ public:
 
 class OptionGroupOptions : public Options {
 public:
-  OptionGroupOptions()
-      : Options(), m_option_defs(), m_option_infos(), m_did_finalize(false) {}
+  OptionGroupOptions() = default;
 
   ~OptionGroupOptions() override = default;
 
@@ -296,6 +291,21 @@ public:
   ///     copying the option definition.
   void Append(OptionGroup *group, uint32_t src_mask, uint32_t dst_mask);
 
+  /// Append selected options from a OptionGroup class.
+  ///
+  /// Append the subset of options from \a group, where the "long_option" value
+  /// is _not_ in \a exclude_long_options.
+  ///
+  /// \param[in] group
+  ///     A group of options to take option values from and copy their
+  ///     definitions into this class.
+  ///
+  /// \param[in] exclude_long_options
+  ///     A set of long option strings which indicate which option values values
+  ///     to limit from \a group.
+  void Append(OptionGroup *group,
+              llvm::ArrayRef<llvm::StringRef> exclude_long_options);
+
   void Finalize();
 
   bool DidFinalize() { return m_did_finalize; }
@@ -323,7 +333,7 @@ public:
 
   std::vector<OptionDefinition> m_option_defs;
   OptionInfos m_option_infos;
-  bool m_did_finalize;
+  bool m_did_finalize = false;
 };
 
 } // namespace lldb_private

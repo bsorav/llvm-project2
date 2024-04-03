@@ -33,8 +33,12 @@
 //   subtrees of interior nodes, and the visitor's Combine() to merge their
 //   results together.
 // - Overloads of operator() in each visitor handle the cases of interest.
+//
+// The default handler for semantics::Symbol will descend into the associated
+// expression of an ASSOCIATE (or related) construct entity.
 
 #include "expression.h"
+#include "flang/Common/indirection.h"
 #include "flang/Semantics/symbol.h"
 #include "flang/Semantics/type.h"
 #include <set>
@@ -50,7 +54,11 @@ public:
   Result operator()(const common::Indirection<A, C> &x) const {
     return visitor_(x.value());
   }
-  template <typename A> Result operator()(SymbolRef x) const {
+  template <typename A>
+  Result operator()(const common::ForwardOwningPointer<A> &p) const {
+    return visitor_(p.get());
+  }
+  template <typename _> Result operator()(const SymbolRef x) const {
     return visitor_(*x);
   }
   template <typename A> Result operator()(const std::unique_ptr<A> &x) const {
@@ -73,12 +81,16 @@ public:
       return visitor_.Default();
     }
   }
-  template <typename... A>
-  Result operator()(const std::variant<A...> &u) const {
-    return std::visit(visitor_, u);
+  template <typename... As>
+  Result operator()(const std::variant<As...> &u) const {
+    return common::visit([=](const auto &y) { return visitor_(y); }, u);
   }
   template <typename A> Result operator()(const std::vector<A> &x) const {
     return CombineContents(x);
+  }
+  template <typename A, typename B>
+  Result operator()(const std::pair<A, B> &x) const {
+    return Combine(x.first, x.second);
   }
 
   // Leaves
@@ -88,21 +100,21 @@ public:
   Result operator()(const NullPointer &) const { return visitor_.Default(); }
   template <typename T> Result operator()(const Constant<T> &x) const {
     if constexpr (T::category == TypeCategory::Derived) {
-      std::optional<Result> result;
-      for (const StructureConstructorValues &map : x.values()) {
-        for (const auto &pair : map) {
-          auto value{visitor_(pair.second.value())};
-          result = result
-              ? visitor_.Combine(std::move(*result), std::move(value))
-              : std::move(value);
-        }
-      }
-      return result ? *result : visitor_.Default();
+      return visitor_.Combine(
+          visitor_(x.result().derivedTypeSpec()), CombineContents(x.values()));
     } else {
       return visitor_.Default();
     }
   }
-  Result operator()(const Symbol &) const { return visitor_.Default(); }
+  Result operator()(const Symbol &symbol) const {
+    const Symbol &ultimate{symbol.GetUltimate()};
+    if (const auto *assoc{
+            ultimate.detailsIf<semantics::AssocEntityDetails>()}) {
+      return visitor_(assoc->expr());
+    } else {
+      return visitor_.Default();
+    }
+  }
   Result operator()(const StaticDataObject &) const {
     return visitor_.Default();
   }
@@ -111,16 +123,16 @@ public:
   // Variables
   Result operator()(const BaseObject &x) const { return visitor_(x.u); }
   Result operator()(const Component &x) const {
-    return Combine(x.base(), x.GetLastSymbol());
+    return Combine(x.base(), x.symbol());
   }
   Result operator()(const NamedEntity &x) const {
     if (const Component * component{x.UnwrapComponent()}) {
       return visitor_(*component);
     } else {
-      return visitor_(x.GetFirstSymbol());
+      return visitor_(DEREF(x.UnwrapSymbolRef()));
     }
   }
-  template <int KIND> Result operator()(const TypeParamInquiry<KIND> &x) const {
+  Result operator()(const TypeParamInquiry &x) const {
     return visitor_(x.base());
   }
   Result operator()(const Triplet &x) const {
@@ -197,11 +209,18 @@ public:
       const semantics::DerivedTypeSpec::ParameterMapType::value_type &x) const {
     return visitor_(x.second);
   }
+  Result operator()(
+      const semantics::DerivedTypeSpec::ParameterMapType &x) const {
+    return CombineContents(x);
+  }
   Result operator()(const semantics::DerivedTypeSpec &x) const {
-    return CombineContents(x.parameters());
+    return Combine(x.typeSymbol(), x.parameters());
   }
   Result operator()(const StructureConstructorValues::value_type &x) const {
     return visitor_(x.second);
+  }
+  Result operator()(const StructureConstructorValues &x) const {
+    return CombineContents(x);
   }
   Result operator()(const StructureConstructor &x) const {
     return visitor_.Combine(visitor_(x.derivedTypeSpec()), CombineContents(x));
@@ -222,14 +241,24 @@ public:
   template <typename T> Result operator()(const Expr<T> &x) const {
     return visitor_(x.u);
   }
+  Result operator()(const Assignment &x) const {
+    return Combine(x.lhs, x.rhs, x.u);
+  }
+  Result operator()(const Assignment::Intrinsic &) const {
+    return visitor_.Default();
+  }
+  Result operator()(const GenericExprWrapper &x) const { return visitor_(x.v); }
+  Result operator()(const GenericAssignmentWrapper &x) const {
+    return visitor_(x.v);
+  }
 
 private:
   template <typename ITER> Result CombineRange(ITER iter, ITER end) const {
     if (iter == end) {
       return visitor_.Default();
     } else {
-      Result result{visitor_(*iter++)};
-      for (; iter != end; ++iter) {
+      Result result{visitor_(*iter)};
+      for (++iter; iter != end; ++iter) {
         result = visitor_.Combine(std::move(result), visitor_(*iter));
       }
       return result;
@@ -241,7 +270,7 @@ private:
   }
 
   template <typename A, typename... Bs>
-  Result Combine(const A &x, const Bs &... ys) const {
+  Result Combine(const A &x, const Bs &...ys) const {
     if constexpr (sizeof...(Bs) == 0) {
       return visitor_(x);
     } else {

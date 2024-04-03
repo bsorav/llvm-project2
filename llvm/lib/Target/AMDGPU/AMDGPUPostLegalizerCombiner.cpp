@@ -1,4 +1,4 @@
-//=== lib/CodeGen/GlobalISel/AMDGPUPostLegalizerCombiner.cpp ---------------===//
+//=== lib/CodeGen/GlobalISel/AMDGPUPostLegalizerCombiner.cpp --------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -11,40 +11,154 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "AMDGPUTargetMachine.h"
+#include "AMDGPU.h"
+#include "AMDGPUCombinerHelper.h"
 #include "AMDGPULegalizerInfo.h"
+#include "GCNSubtarget.h"
+#include "MCTargetDesc/AMDGPUMCTargetDesc.h"
 #include "llvm/CodeGen/GlobalISel/Combiner.h"
 #include "llvm/CodeGen/GlobalISel/CombinerHelper.h"
 #include "llvm/CodeGen/GlobalISel/CombinerInfo.h"
+#include "llvm/CodeGen/GlobalISel/GIMatchTableExecutorImpl.h"
 #include "llvm/CodeGen/GlobalISel/GISelKnownBits.h"
+#include "llvm/CodeGen/GlobalISel/GenericMachineInstrs.h"
 #include "llvm/CodeGen/GlobalISel/MIPatternMatch.h"
 #include "llvm/CodeGen/MachineDominators.h"
-#include "llvm/CodeGen/MachineFunctionPass.h"
 #include "llvm/CodeGen/TargetPassConfig.h"
-#include "llvm/Support/Debug.h"
-#include "MCTargetDesc/AMDGPUMCTargetDesc.h"
+#include "llvm/IR/IntrinsicsAMDGPU.h"
+#include "llvm/Target/TargetMachine.h"
+
+#define GET_GICOMBINER_DEPS
+#include "AMDGPUGenPreLegalizeGICombiner.inc"
+#undef GET_GICOMBINER_DEPS
 
 #define DEBUG_TYPE "amdgpu-postlegalizer-combiner"
 
 using namespace llvm;
 using namespace MIPatternMatch;
 
-struct FMinFMaxLegacyInfo {
-  Register LHS;
-  Register RHS;
-  Register True;
-  Register False;
-  CmpInst::Predicate Pred;
+namespace {
+#define GET_GICOMBINER_TYPES
+#include "AMDGPUGenPostLegalizeGICombiner.inc"
+#undef GET_GICOMBINER_TYPES
+
+class AMDGPUPostLegalizerCombinerImpl : public Combiner {
+protected:
+  const AMDGPUPostLegalizerCombinerImplRuleConfig &RuleConfig;
+  const GCNSubtarget &STI;
+  const SIInstrInfo &TII;
+  // TODO: Make CombinerHelper methods const.
+  mutable AMDGPUCombinerHelper Helper;
+
+public:
+  AMDGPUPostLegalizerCombinerImpl(
+      MachineFunction &MF, CombinerInfo &CInfo, const TargetPassConfig *TPC,
+      GISelKnownBits &KB, GISelCSEInfo *CSEInfo,
+      const AMDGPUPostLegalizerCombinerImplRuleConfig &RuleConfig,
+      const GCNSubtarget &STI, MachineDominatorTree *MDT,
+      const LegalizerInfo *LI);
+
+  static const char *getName() { return "AMDGPUPostLegalizerCombinerImpl"; }
+
+  bool tryCombineAllImpl(MachineInstr &I) const;
+  bool tryCombineAll(MachineInstr &I) const override;
+
+  struct FMinFMaxLegacyInfo {
+    Register LHS;
+    Register RHS;
+    Register True;
+    Register False;
+    CmpInst::Predicate Pred;
+  };
+
+  // TODO: Make sure fmin_legacy/fmax_legacy don't canonicalize
+  bool matchFMinFMaxLegacy(MachineInstr &MI, FMinFMaxLegacyInfo &Info) const;
+  void applySelectFCmpToFMinToFMaxLegacy(MachineInstr &MI,
+                                         const FMinFMaxLegacyInfo &Info) const;
+
+  bool matchUCharToFloat(MachineInstr &MI) const;
+  void applyUCharToFloat(MachineInstr &MI) const;
+
+  bool
+  matchRcpSqrtToRsq(MachineInstr &MI,
+                    std::function<void(MachineIRBuilder &)> &MatchInfo) const;
+
+  // FIXME: Should be able to have 2 separate matchdatas rather than custom
+  // struct boilerplate.
+  struct CvtF32UByteMatchInfo {
+    Register CvtVal;
+    unsigned ShiftOffset;
+  };
+
+  bool matchCvtF32UByteN(MachineInstr &MI,
+                         CvtF32UByteMatchInfo &MatchInfo) const;
+  void applyCvtF32UByteN(MachineInstr &MI,
+                         const CvtF32UByteMatchInfo &MatchInfo) const;
+
+  bool matchRemoveFcanonicalize(MachineInstr &MI, Register &Reg) const;
+
+  // Combine unsigned buffer load and signed extension instructions to generate
+  // signed buffer laod instructions.
+  bool matchCombineSignExtendInReg(
+      MachineInstr &MI, std::pair<MachineInstr *, unsigned> &MatchInfo) const;
+  void applyCombineSignExtendInReg(
+      MachineInstr &MI, std::pair<MachineInstr *, unsigned> &MatchInfo) const;
+
+  // Find the s_mul_u64 instructions where the higher bits are either
+  // zero-extended or sign-extended.
+  bool matchCombine_s_mul_u64(MachineInstr &MI, unsigned &NewOpcode) const;
+  // Replace the s_mul_u64 instructions with S_MUL_I64_I32_PSEUDO if the higher
+  // 33 bits are sign extended and with S_MUL_U64_U32_PSEUDO if the higher 32
+  // bits are zero extended.
+  void applyCombine_s_mul_u64(MachineInstr &MI, unsigned &NewOpcode) const;
+
+private:
+#define GET_GICOMBINER_CLASS_MEMBERS
+#define AMDGPUSubtarget GCNSubtarget
+#include "AMDGPUGenPostLegalizeGICombiner.inc"
+#undef GET_GICOMBINER_CLASS_MEMBERS
+#undef AMDGPUSubtarget
 };
 
-// TODO: Make sure fmin_legacy/fmax_legacy don't canonicalize
-static bool matchFMinFMaxLegacy(MachineInstr &MI, MachineRegisterInfo &MRI,
-                                MachineFunction &MF, FMinFMaxLegacyInfo &Info) {
-  // FIXME: Combines should have subtarget predicates, and we shouldn't need
-  // this here.
-  if (!MF.getSubtarget<GCNSubtarget>().hasFminFmaxLegacy())
-    return false;
+#define GET_GICOMBINER_IMPL
+#define AMDGPUSubtarget GCNSubtarget
+#include "AMDGPUGenPostLegalizeGICombiner.inc"
+#undef AMDGPUSubtarget
+#undef GET_GICOMBINER_IMPL
 
+AMDGPUPostLegalizerCombinerImpl::AMDGPUPostLegalizerCombinerImpl(
+    MachineFunction &MF, CombinerInfo &CInfo, const TargetPassConfig *TPC,
+    GISelKnownBits &KB, GISelCSEInfo *CSEInfo,
+    const AMDGPUPostLegalizerCombinerImplRuleConfig &RuleConfig,
+    const GCNSubtarget &STI, MachineDominatorTree *MDT, const LegalizerInfo *LI)
+    : Combiner(MF, CInfo, TPC, &KB, CSEInfo), RuleConfig(RuleConfig), STI(STI),
+      TII(*STI.getInstrInfo()),
+      Helper(Observer, B, /*IsPreLegalize*/ false, &KB, MDT, LI),
+#define GET_GICOMBINER_CONSTRUCTOR_INITS
+#include "AMDGPUGenPostLegalizeGICombiner.inc"
+#undef GET_GICOMBINER_CONSTRUCTOR_INITS
+{
+}
+
+bool AMDGPUPostLegalizerCombinerImpl::tryCombineAll(MachineInstr &MI) const {
+  if (tryCombineAllImpl(MI))
+    return true;
+
+  switch (MI.getOpcode()) {
+  case TargetOpcode::G_SHL:
+  case TargetOpcode::G_LSHR:
+  case TargetOpcode::G_ASHR:
+    // On some subtargets, 64-bit shift is a quarter rate instruction. In the
+    // common case, splitting this into a move and a 32-bit shift is faster and
+    // the same code size.
+    return Helper.tryCombineShiftToUnmerge(MI, 32);
+  }
+
+  return false;
+}
+
+bool AMDGPUPostLegalizerCombinerImpl::matchFMinFMaxLegacy(
+    MachineInstr &MI, FMinFMaxLegacyInfo &Info) const {
   // FIXME: Type predicate on pattern
   if (MRI.getType(MI.getOperand(0).getReg()) != LLT::scalar(32))
     return false;
@@ -58,6 +172,8 @@ static bool matchFMinFMaxLegacy(MachineInstr &MI, MachineRegisterInfo &MRI,
   Info.True = MI.getOperand(2).getReg();
   Info.False = MI.getOperand(3).getReg();
 
+  // TODO: Handle case where the the selected value is an fneg and the compared
+  // constant is the negation of the selected value.
   if (!(Info.LHS == Info.True && Info.RHS == Info.False) &&
       !(Info.LHS == Info.False && Info.RHS == Info.True))
     return false;
@@ -77,12 +193,11 @@ static bool matchFMinFMaxLegacy(MachineInstr &MI, MachineRegisterInfo &MRI,
   }
 }
 
-static void applySelectFCmpToFMinToFMaxLegacy(MachineInstr &MI,
-                                              const FMinFMaxLegacyInfo &Info) {
-
-  auto buildNewInst = [&MI](unsigned Opc, Register X, Register Y) {
-    MachineIRBuilder MIB(MI);
-    MIB.buildInstr(Opc, {MI.getOperand(0)}, {X, Y}, MI.getFlags());
+void AMDGPUPostLegalizerCombinerImpl::applySelectFCmpToFMinToFMaxLegacy(
+    MachineInstr &MI, const FMinFMaxLegacyInfo &Info) const {
+  B.setInstrAndDebugLoc(MI);
+  auto buildNewInst = [&MI, this](unsigned Opc, Register X, Register Y) {
+    B.buildInstr(Opc, {MI.getOperand(0)}, {X, Y}, MI.getFlags());
   };
 
   switch (Info.Pred) {
@@ -127,8 +242,8 @@ static void applySelectFCmpToFMinToFMaxLegacy(MachineInstr &MI,
   MI.eraseFromParent();
 }
 
-static bool matchUCharToFloat(MachineInstr &MI, MachineRegisterInfo &MRI,
-                              MachineFunction &MF, CombinerHelper &Helper) {
+bool AMDGPUPostLegalizerCombinerImpl::matchUCharToFloat(
+    MachineInstr &MI) const {
   Register DstReg = MI.getOperand(0).getReg();
 
   // TODO: We could try to match extracting the higher bytes, which would be
@@ -147,48 +262,88 @@ static bool matchUCharToFloat(MachineInstr &MI, MachineRegisterInfo &MRI,
   return false;
 }
 
-static void applyUCharToFloat(MachineInstr &MI) {
-  MachineIRBuilder B(MI);
+void AMDGPUPostLegalizerCombinerImpl::applyUCharToFloat(
+    MachineInstr &MI) const {
+  B.setInstrAndDebugLoc(MI);
 
   const LLT S32 = LLT::scalar(32);
 
   Register DstReg = MI.getOperand(0).getReg();
   Register SrcReg = MI.getOperand(1).getReg();
-  LLT Ty = B.getMRI()->getType(DstReg);
-  LLT SrcTy = B.getMRI()->getType(SrcReg);
+  LLT Ty = MRI.getType(DstReg);
+  LLT SrcTy = MRI.getType(SrcReg);
   if (SrcTy != S32)
     SrcReg = B.buildAnyExtOrTrunc(S32, SrcReg).getReg(0);
 
   if (Ty == S32) {
-    B.buildInstr(AMDGPU::G_AMDGPU_CVT_F32_UBYTE0, {DstReg},
-                   {SrcReg}, MI.getFlags());
+    B.buildInstr(AMDGPU::G_AMDGPU_CVT_F32_UBYTE0, {DstReg}, {SrcReg},
+                 MI.getFlags());
   } else {
-    auto Cvt0 = B.buildInstr(AMDGPU::G_AMDGPU_CVT_F32_UBYTE0, {S32},
-                             {SrcReg}, MI.getFlags());
+    auto Cvt0 = B.buildInstr(AMDGPU::G_AMDGPU_CVT_F32_UBYTE0, {S32}, {SrcReg},
+                             MI.getFlags());
     B.buildFPTrunc(DstReg, Cvt0, MI.getFlags());
   }
 
   MI.eraseFromParent();
 }
 
-// FIXME: Should be able to have 2 separate matchdatas rather than custom struct
-// boilerplate.
-struct CvtF32UByteMatchInfo {
-  Register CvtVal;
-  unsigned ShiftOffset;
-};
+bool AMDGPUPostLegalizerCombinerImpl::matchRcpSqrtToRsq(
+    MachineInstr &MI,
+    std::function<void(MachineIRBuilder &)> &MatchInfo) const {
+  auto getRcpSrc = [=](const MachineInstr &MI) -> MachineInstr * {
+    if (!MI.getFlag(MachineInstr::FmContract))
+      return nullptr;
 
-static bool matchCvtF32UByteN(MachineInstr &MI, MachineRegisterInfo &MRI,
-                              MachineFunction &MF,
-                              CvtF32UByteMatchInfo &MatchInfo) {
+    if (auto *GI = dyn_cast<GIntrinsic>(&MI)) {
+      if (GI->is(Intrinsic::amdgcn_rcp))
+        return MRI.getVRegDef(MI.getOperand(2).getReg());
+    }
+    return nullptr;
+  };
+
+  auto getSqrtSrc = [=](const MachineInstr &MI) -> MachineInstr * {
+    if (!MI.getFlag(MachineInstr::FmContract))
+      return nullptr;
+    MachineInstr *SqrtSrcMI = nullptr;
+    auto Match =
+        mi_match(MI.getOperand(0).getReg(), MRI, m_GFSqrt(m_MInstr(SqrtSrcMI)));
+    (void)Match;
+    return SqrtSrcMI;
+  };
+
+  MachineInstr *RcpSrcMI = nullptr, *SqrtSrcMI = nullptr;
+  // rcp(sqrt(x))
+  if ((RcpSrcMI = getRcpSrc(MI)) && (SqrtSrcMI = getSqrtSrc(*RcpSrcMI))) {
+    MatchInfo = [SqrtSrcMI, &MI](MachineIRBuilder &B) {
+      B.buildIntrinsic(Intrinsic::amdgcn_rsq, {MI.getOperand(0)})
+          .addUse(SqrtSrcMI->getOperand(0).getReg())
+          .setMIFlags(MI.getFlags());
+    };
+    return true;
+  }
+
+  // sqrt(rcp(x))
+  if ((SqrtSrcMI = getSqrtSrc(MI)) && (RcpSrcMI = getRcpSrc(*SqrtSrcMI))) {
+    MatchInfo = [RcpSrcMI, &MI](MachineIRBuilder &B) {
+      B.buildIntrinsic(Intrinsic::amdgcn_rsq, {MI.getOperand(0)})
+          .addUse(RcpSrcMI->getOperand(0).getReg())
+          .setMIFlags(MI.getFlags());
+    };
+    return true;
+  }
+  return false;
+}
+
+bool AMDGPUPostLegalizerCombinerImpl::matchCvtF32UByteN(
+    MachineInstr &MI, CvtF32UByteMatchInfo &MatchInfo) const {
   Register SrcReg = MI.getOperand(1).getReg();
 
   // Look through G_ZEXT.
-  mi_match(SrcReg, MRI, m_GZExt(m_Reg(SrcReg)));
+  bool IsShr = mi_match(SrcReg, MRI, m_GZExt(m_Reg(SrcReg)));
 
   Register Src0;
   int64_t ShiftAmt;
-  bool IsShr = mi_match(SrcReg, MRI, m_GLShr(m_Reg(Src0), m_ICst(ShiftAmt)));
+  IsShr = mi_match(SrcReg, MRI, m_GLShr(m_Reg(Src0), m_ICst(ShiftAmt)));
   if (IsShr || mi_match(SrcReg, MRI, m_GShl(m_Reg(Src0), m_ICst(ShiftAmt)))) {
     const unsigned Offset = MI.getOpcode() - AMDGPU::G_AMDGPU_CVT_F32_UBYTE0;
 
@@ -207,14 +362,14 @@ static bool matchCvtF32UByteN(MachineInstr &MI, MachineRegisterInfo &MRI,
   return false;
 }
 
-static void applyCvtF32UByteN(MachineInstr &MI,
-                              const CvtF32UByteMatchInfo &MatchInfo) {
-  MachineIRBuilder B(MI);
+void AMDGPUPostLegalizerCombinerImpl::applyCvtF32UByteN(
+    MachineInstr &MI, const CvtF32UByteMatchInfo &MatchInfo) const {
+  B.setInstrAndDebugLoc(MI);
   unsigned NewOpc = AMDGPU::G_AMDGPU_CVT_F32_UBYTE0 + MatchInfo.ShiftOffset / 8;
 
   const LLT S32 = LLT::scalar(32);
   Register CvtSrc = MatchInfo.CvtVal;
-  LLT SrcTy = B.getMRI()->getType(MatchInfo.CvtVal);
+  LLT SrcTy = MRI.getType(MatchInfo.CvtVal);
   if (SrcTy != S32) {
     assert(SrcTy.isScalar() && SrcTy.getSizeInBits() >= 8);
     CvtSrc = B.buildAnyExt(S32, CvtSrc).getReg(0);
@@ -225,61 +380,86 @@ static void applyCvtF32UByteN(MachineInstr &MI,
   MI.eraseFromParent();
 }
 
-#define AMDGPUPOSTLEGALIZERCOMBINERHELPER_GENCOMBINERHELPER_DEPS
-#include "AMDGPUGenPostLegalizeGICombiner.inc"
-#undef AMDGPUPOSTLEGALIZERCOMBINERHELPER_GENCOMBINERHELPER_DEPS
+bool AMDGPUPostLegalizerCombinerImpl::matchRemoveFcanonicalize(
+    MachineInstr &MI, Register &Reg) const {
+  const SITargetLowering *TLI = static_cast<const SITargetLowering *>(
+      MF.getSubtarget().getTargetLowering());
+  Reg = MI.getOperand(1).getReg();
+  return TLI->isCanonicalized(Reg, MF);
+}
 
-namespace {
-#define AMDGPUPOSTLEGALIZERCOMBINERHELPER_GENCOMBINERHELPER_H
-#include "AMDGPUGenPostLegalizeGICombiner.inc"
-#undef AMDGPUPOSTLEGALIZERCOMBINERHELPER_GENCOMBINERHELPER_H
+// The buffer_load_{i8, i16} intrinsics are intially lowered as buffer_load_{u8,
+// u16} instructions. Here, the buffer_load_{u8, u16} instructions are combined
+// with sign extension instrucions in order to generate buffer_load_{i8, i16}
+// instructions.
 
-class AMDGPUPostLegalizerCombinerInfo final : public CombinerInfo {
-  GISelKnownBits *KB;
-  MachineDominatorTree *MDT;
+// Identify buffer_load_{u8, u16}.
+bool AMDGPUPostLegalizerCombinerImpl::matchCombineSignExtendInReg(
+    MachineInstr &MI, std::pair<MachineInstr *, unsigned> &MatchData) const {
+  Register LoadReg = MI.getOperand(1).getReg();
+  if (!MRI.hasOneNonDBGUse(LoadReg))
+    return false;
 
-public:
-  AMDGPUGenPostLegalizerCombinerHelperRuleConfig GeneratedRuleCfg;
-
-  AMDGPUPostLegalizerCombinerInfo(bool EnableOpt, bool OptSize, bool MinSize,
-                                  const AMDGPULegalizerInfo *LI,
-                                  GISelKnownBits *KB, MachineDominatorTree *MDT)
-      : CombinerInfo(/*AllowIllegalOps*/ false, /*ShouldLegalizeIllegal*/ true,
-                     /*LegalizerInfo*/ LI, EnableOpt, OptSize, MinSize),
-        KB(KB), MDT(MDT) {
-    if (!GeneratedRuleCfg.parseCommandLineOption())
-      report_fatal_error("Invalid rule identifier");
+  // Check if the first operand of the sign extension is a subword buffer load
+  // instruction.
+  MachineInstr *LoadMI = MRI.getVRegDef(LoadReg);
+  int64_t Width = MI.getOperand(2).getImm();
+  switch (LoadMI->getOpcode()) {
+  case AMDGPU::G_AMDGPU_BUFFER_LOAD_UBYTE:
+    MatchData = {LoadMI, AMDGPU::G_AMDGPU_BUFFER_LOAD_SBYTE};
+    return Width == 8;
+  case AMDGPU::G_AMDGPU_BUFFER_LOAD_USHORT:
+    MatchData = {LoadMI, AMDGPU::G_AMDGPU_BUFFER_LOAD_SSHORT};
+    return Width == 16;
+  case AMDGPU::G_AMDGPU_S_BUFFER_LOAD_UBYTE:
+    MatchData = {LoadMI, AMDGPU::G_AMDGPU_S_BUFFER_LOAD_SBYTE};
+    return Width == 8;
+  case AMDGPU::G_AMDGPU_S_BUFFER_LOAD_USHORT:
+    MatchData = {LoadMI, AMDGPU::G_AMDGPU_S_BUFFER_LOAD_SSHORT};
+    return Width == 16;
   }
-
-  bool combine(GISelChangeObserver &Observer, MachineInstr &MI,
-               MachineIRBuilder &B) const override;
-};
-
-bool AMDGPUPostLegalizerCombinerInfo::combine(GISelChangeObserver &Observer,
-                                              MachineInstr &MI,
-                                              MachineIRBuilder &B) const {
-  CombinerHelper Helper(Observer, B, KB, MDT);
-  AMDGPUGenPostLegalizerCombinerHelper Generated(GeneratedRuleCfg);
-
-  if (Generated.tryCombineAll(Observer, MI, B, Helper))
-    return true;
-
-  switch (MI.getOpcode()) {
-  case TargetOpcode::G_SHL:
-  case TargetOpcode::G_LSHR:
-  case TargetOpcode::G_ASHR:
-    // On some subtargets, 64-bit shift is a quarter rate instruction. In the
-    // common case, splitting this into a move and a 32-bit shift is faster and
-    // the same code size.
-    return Helper.tryCombineShiftToUnmerge(MI, 32);
-  }
-
   return false;
 }
 
-#define AMDGPUPOSTLEGALIZERCOMBINERHELPER_GENCOMBINERHELPER_CPP
-#include "AMDGPUGenPostLegalizeGICombiner.inc"
-#undef AMDGPUPOSTLEGALIZERCOMBINERHELPER_GENCOMBINERHELPER_CPP
+// Combine buffer_load_{u8, u16} and the sign extension instruction to generate
+// buffer_load_{i8, i16}.
+void AMDGPUPostLegalizerCombinerImpl::applyCombineSignExtendInReg(
+    MachineInstr &MI, std::pair<MachineInstr *, unsigned> &MatchData) const {
+  auto [LoadMI, NewOpcode] = MatchData;
+  LoadMI->setDesc(TII.get(NewOpcode));
+  // Update the destination register of the load with the destination register
+  // of the sign extension.
+  Register SignExtendInsnDst = MI.getOperand(0).getReg();
+  LoadMI->getOperand(0).setReg(SignExtendInsnDst);
+  // Remove the sign extension.
+  MI.eraseFromParent();
+}
+
+bool AMDGPUPostLegalizerCombinerImpl::matchCombine_s_mul_u64(
+    MachineInstr &MI, unsigned &NewOpcode) const {
+  Register Src0 = MI.getOperand(1).getReg();
+  Register Src1 = MI.getOperand(2).getReg();
+  if (MRI.getType(Src0) != LLT::scalar(64))
+    return false;
+
+  if (KB->getKnownBits(Src1).countMinLeadingZeros() >= 32 &&
+      KB->getKnownBits(Src0).countMinLeadingZeros() >= 32) {
+    NewOpcode = AMDGPU::G_AMDGPU_S_MUL_U64_U32;
+    return true;
+  }
+
+  if (KB->computeNumSignBits(Src1) >= 33 &&
+      KB->computeNumSignBits(Src0) >= 33) {
+    NewOpcode = AMDGPU::G_AMDGPU_S_MUL_I64_I32;
+    return true;
+  }
+  return false;
+}
+
+void AMDGPUPostLegalizerCombinerImpl::applyCombine_s_mul_u64(
+    MachineInstr &MI, unsigned &NewOpcode) const {
+  Helper.replaceOpcodeWith(MI, NewOpcode);
+}
 
 // Pass boilerplate
 // ================
@@ -297,8 +477,10 @@ public:
   bool runOnMachineFunction(MachineFunction &MF) override;
 
   void getAnalysisUsage(AnalysisUsage &AU) const override;
+
 private:
   bool IsOptNone;
+  AMDGPUPostLegalizerCombinerImplRuleConfig RuleConfig;
 };
 } // end anonymous namespace
 
@@ -316,8 +498,11 @@ void AMDGPUPostLegalizerCombiner::getAnalysisUsage(AnalysisUsage &AU) const {
 }
 
 AMDGPUPostLegalizerCombiner::AMDGPUPostLegalizerCombiner(bool IsOptNone)
-  : MachineFunctionPass(ID), IsOptNone(IsOptNone) {
+    : MachineFunctionPass(ID), IsOptNone(IsOptNone) {
   initializeAMDGPUPostLegalizerCombinerPass(*PassRegistry::getPassRegistry());
+
+  if (!RuleConfig.parseCommandLineOption())
+    report_fatal_error("Invalid rule identifier");
 }
 
 bool AMDGPUPostLegalizerCombiner::runOnMachineFunction(MachineFunction &MF) {
@@ -327,25 +512,28 @@ bool AMDGPUPostLegalizerCombiner::runOnMachineFunction(MachineFunction &MF) {
   auto *TPC = &getAnalysis<TargetPassConfig>();
   const Function &F = MF.getFunction();
   bool EnableOpt =
-      MF.getTarget().getOptLevel() != CodeGenOpt::None && !skipFunction(F);
+      MF.getTarget().getOptLevel() != CodeGenOptLevel::None && !skipFunction(F);
 
   const GCNSubtarget &ST = MF.getSubtarget<GCNSubtarget>();
-  const AMDGPULegalizerInfo *LI
-    = static_cast<const AMDGPULegalizerInfo *>(ST.getLegalizerInfo());
+  const AMDGPULegalizerInfo *LI =
+      static_cast<const AMDGPULegalizerInfo *>(ST.getLegalizerInfo());
 
   GISelKnownBits *KB = &getAnalysis<GISelKnownBitsAnalysis>().get(MF);
   MachineDominatorTree *MDT =
       IsOptNone ? nullptr : &getAnalysis<MachineDominatorTree>();
-  AMDGPUPostLegalizerCombinerInfo PCInfo(EnableOpt, F.hasOptSize(),
-                                         F.hasMinSize(), LI, KB, MDT);
-  Combiner C(PCInfo, TPC);
-  return C.combineMachineInstrs(MF, /*CSEInfo*/ nullptr);
+
+  CombinerInfo CInfo(/*AllowIllegalOps*/ false, /*ShouldLegalizeIllegal*/ true,
+                     LI, EnableOpt, F.hasOptSize(), F.hasMinSize());
+
+  AMDGPUPostLegalizerCombinerImpl Impl(MF, CInfo, TPC, *KB, /*CSEInfo*/ nullptr,
+                                       RuleConfig, ST, MDT, LI);
+  return Impl.combineMachineInstrs();
 }
 
 char AMDGPUPostLegalizerCombiner::ID = 0;
 INITIALIZE_PASS_BEGIN(AMDGPUPostLegalizerCombiner, DEBUG_TYPE,
-                      "Combine AMDGPU machine instrs after legalization",
-                      false, false)
+                      "Combine AMDGPU machine instrs after legalization", false,
+                      false)
 INITIALIZE_PASS_DEPENDENCY(TargetPassConfig)
 INITIALIZE_PASS_DEPENDENCY(GISelKnownBitsAnalysis)
 INITIALIZE_PASS_END(AMDGPUPostLegalizerCombiner, DEBUG_TYPE,

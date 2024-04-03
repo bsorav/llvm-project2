@@ -5,12 +5,12 @@ add_lldb_library(lldbUtilityHelpers
 
   LINK_LIBS
     lldbUtility
-    lldbSymbolHelpers
+    llvm_gtest
 
   LINK_COMPONENTS
     Support
     ObjectYAML
   )
-include_directories(${LLVM_MAIN_SRC_DIR}/utils/unittest/googletest/include)
 
+add_subdirectory(Host)
 add_subdirectory(Symbol)

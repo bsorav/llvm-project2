@@ -96,11 +96,7 @@ void clang::ProcessWarningOptions(DiagnosticsEngine &Diags,
 
       // Check to see if this warning starts with "no-", if so, this is a
       // negative form of the option.
-      bool isPositive = true;
-      if (Opt.startswith("no-")) {
-        isPositive = false;
-        Opt = Opt.substr(3);
-      }
+      bool isPositive = !Opt.consume_front("no-");
 
       // Figure out how this option affects the warning.  If -Wfoo, map the
       // diagnostic to a warning, if -Wno-foo, map it to ignore.
@@ -130,11 +126,14 @@ void clang::ProcessWarningOptions(DiagnosticsEngine &Diags,
       }
 
       // -Werror/-Wno-error is a special case, not controlled by the option
-      // table. It also has the "specifier" form of -Werror=foo and -Werror-foo.
-      if (Opt.startswith("error")) {
+      // table. It also has the "specifier" form of -Werror=foo. GCC supports
+      // the deprecated -Werror-implicit-function-declaration which is used by
+      // a few projects.
+      if (Opt.starts_with("error")) {
         StringRef Specifier;
         if (Opt.size() > 5) {  // Specifier must be present.
-          if ((Opt[5] != '=' && Opt[5] != '-') || Opt.size() == 6) {
+          if (Opt[5] != '=' &&
+              Opt.substr(5) != "-implicit-function-declaration") {
             if (Report)
               Diags.Report(diag::warn_unknown_warning_specifier)
                 << "-Werror" << ("-W" + OrigOpt.str());
@@ -159,7 +158,7 @@ void clang::ProcessWarningOptions(DiagnosticsEngine &Diags,
       }
 
       // -Wfatal-errors is yet another special case.
-      if (Opt.startswith("fatal-errors")) {
+      if (Opt.starts_with("fatal-errors")) {
         StringRef Specifier;
         if (Opt.size() != 12) {
           if ((Opt[12] != '=' && Opt[12] != '-') || Opt.size() == 13) {
@@ -195,14 +194,12 @@ void clang::ProcessWarningOptions(DiagnosticsEngine &Diags,
       }
     }
 
-    for (unsigned i = 0, e = Opts.Remarks.size(); i != e; ++i) {
-      StringRef Opt = Opts.Remarks[i];
+    for (StringRef Opt : Opts.Remarks) {
       const auto Flavor = diag::Flavor::Remark;
 
       // Check to see if this warning starts with "no-", if so, this is a
       // negative form of the option.
-      bool IsPositive = !Opt.startswith("no-");
-      if (!IsPositive) Opt = Opt.substr(3);
+      bool IsPositive = !Opt.consume_front("no-");
 
       auto Severity = IsPositive ? diag::Severity::Remark
                                  : diag::Severity::Ignored;

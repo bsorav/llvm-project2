@@ -15,19 +15,23 @@
 #define LLVM_UTILS_TABLEGEN_CODEGENSCHEDULE_H
 
 #include "llvm/ADT/APInt.h"
+#include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/STLExtras.h"
-#include "llvm/ADT/StringMap.h"
-#include "llvm/Support/ErrorHandling.h"
+#include "llvm/ADT/StringRef.h"
 #include "llvm/TableGen/Record.h"
 #include "llvm/TableGen/SetTheory.h"
+#include <cassert>
+#include <string>
+#include <utility>
+#include <vector>
 
 namespace llvm {
 
 class CodeGenTarget;
 class CodeGenSchedModels;
 class CodeGenInstruction;
-class CodeGenRegisterClass;
 
 using RecVec = std::vector<Record*>;
 using RecIter = std::vector<Record*>::const_iterator;
@@ -95,7 +99,7 @@ struct CodeGenSchedRW {
 /// Represent a transition between SchedClasses induced by SchedVariant.
 struct CodeGenSchedTransition {
   unsigned ToClassIdx;
-  IdxVec ProcIndices;
+  unsigned ProcIndex;
   RecVec PredTerm;
 };
 
@@ -140,14 +144,15 @@ struct CodeGenSchedClass {
   // Instructions should be ignored by this class because they have been split
   // off to join another inferred class.
   RecVec InstRWs;
+  // InstRWs processor indices. Filled in inferFromInstRWs
+  DenseSet<unsigned> InstRWProcIndices;
 
   CodeGenSchedClass(unsigned Index, std::string Name, Record *ItinClassDef)
     : Index(Index), Name(std::move(Name)), ItinClassDef(ItinClassDef) {}
 
   bool isKeyEqual(Record *IC, ArrayRef<unsigned> W,
                   ArrayRef<unsigned> R) const {
-    return ItinClassDef == IC && makeArrayRef(Writes) == W &&
-           makeArrayRef(Reads) == R;
+    return ItinClassDef == IC && ArrayRef(Writes) == W && ArrayRef(Reads) == R;
   }
 
   // Is this class generated from a variants if existing classes? Instructions
@@ -407,6 +412,8 @@ public:
   ArrayRef<OpcodeGroup> getGroups() const { return Groups; }
 };
 
+using ProcModelMapTy = DenseMap<const Record *, unsigned>;
+
 /// Top level container for machine model data.
 class CodeGenSchedModels {
   RecordKeeper &Records;
@@ -419,7 +426,6 @@ class CodeGenSchedModels {
   std::vector<CodeGenProcModel> ProcModels;
 
   // Map Processor's MachineModel or ProcItin to a CodeGenProcModel index.
-  using ProcModelMapTy = DenseMap<Record*, unsigned>;
   ProcModelMapTy ProcModelMap;
 
   // Per-operand SchedReadWrite types.
@@ -441,6 +447,7 @@ class CodeGenSchedModels {
   InstClassMapTy InstrClassMap;
 
   std::vector<STIPredicateFunction> STIPredicates;
+  std::vector<unsigned> getAllProcIndices() const;
 
 public:
   CodeGenSchedModels(RecordKeeper& RK, const CodeGenTarget &TGT);

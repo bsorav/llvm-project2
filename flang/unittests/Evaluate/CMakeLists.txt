@@ -3,24 +3,25 @@ add_library(FortranEvaluateTesting
   testing.cpp
   fp-testing.cpp
 )
+if (LLVM_LINK_LLVM_DYLIB)
+  set(llvm_libs LLVM)
+else()
+  llvm_map_components_to_libnames(llvm_libs Support)
+endif()
 
 target_link_libraries(FortranEvaluateTesting
-  LLVMSupport
-)
+  ${llvm_libs})
 
 add_flang_nongtest_unittest(leading-zero-bit-count
   FortranEvaluateTesting
-  LLVMSupport
 )
 
 add_flang_nongtest_unittest(bit-population-count
   FortranEvaluateTesting
-  LLVMSupport
 )
 
 add_flang_nongtest_unittest(uint128
   FortranEvaluateTesting
-  LLVMSupport
 )
 
 add_flang_nongtest_unittest(expression
@@ -29,14 +30,12 @@ add_flang_nongtest_unittest(expression
   FortranEvaluate
   FortranSemantics
   FortranParser
-  LLVMSupport
 )
 
 add_flang_nongtest_unittest(integer
   FortranEvaluateTesting
   FortranEvaluate
   FortranSemantics
-  LLVMSupport
 )
 
 add_flang_nongtest_unittest(intrinsics
@@ -47,14 +46,12 @@ add_flang_nongtest_unittest(intrinsics
   FortranSemantics
   FortranParser
   FortranRuntime
-  LLVMSupport
 )
 
 add_flang_nongtest_unittest(logical
   FortranEvaluateTesting
   FortranEvaluate
   FortranSemantics
-  LLVMSupport
 )
 
 # GCC -fno-exceptions breaks the fenv.h interfaces needed to capture
@@ -68,7 +65,6 @@ add_flang_nongtest_unittest(real
   FortranEvaluate
   FortranDecimal
   FortranSemantics
-  LLVMSupport
 )
 llvm_update_compile_flags(real.test)
 
@@ -77,7 +73,6 @@ add_flang_nongtest_unittest(reshape
   FortranSemantics
   FortranEvaluate
   FortranRuntime
-  LLVMSupport
 )
 
 add_flang_nongtest_unittest(ISO-Fortran-binding
@@ -85,7 +80,6 @@ add_flang_nongtest_unittest(ISO-Fortran-binding
   FortranEvaluate
   FortranSemantics
   FortranRuntime
-  LLVMSupport
 )
 
 add_flang_nongtest_unittest(folding
@@ -93,5 +87,4 @@ add_flang_nongtest_unittest(folding
   FortranEvaluateTesting
   FortranEvaluate
   FortranSemantics
-  LLVMSupport
 )

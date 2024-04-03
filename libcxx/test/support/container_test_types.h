@@ -5,6 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+
 #ifndef SUPPORT_CONTAINER_TEST_TYPES_H
 #define SUPPORT_CONTAINER_TEST_TYPES_H
 
@@ -49,12 +50,12 @@
 //----------------------------------------------------------------------------
 /*
  * Usage: The following example checks that 'unordered_map::emplace(Args&&...)'
- *        with 'Args = [CopyInsertable<1> const&, CopyInsertible<2>&&]'
+ *        with 'Args = [CopyInsertable<1> const&, CopyInsertable<2>&&]'
  *        calls 'alloc.construct(value_type*, Args&&...)' with the same types.
  *
  * // Typedefs for container
- * using Key = CopyInsertible<1>;
- * using Value = CopyInsertible<2>;
+ * using Key = CopyInsertable<1>;
+ * using Value = CopyInsertable<2>;
  * using ValueTp = std::pair<const Key, Value>;
  * using Alloc = ContainerTestAllocator<ValueTp, ValueTp>;
  * using Map = std::unordered_map<Key, Value, std::hash<Key>, std::equal_to<Key>, Alloc>;
@@ -84,8 +85,11 @@
  *
  */
 
-#include <functional>
 #include <cassert>
+#include <cstddef>
+#include <functional>
+#include <new>
+#include <utility>
 
 #include "test_macros.h"
 
@@ -425,9 +429,9 @@ namespace std {
   template <int ID>
   struct hash< ::CopyInsertable<ID> > {
     typedef ::CopyInsertable<ID> argument_type;
-    typedef size_t result_type;
+    typedef std::size_t result_type;
 
-    size_t operator()(argument_type const& arg) const {
+    std::size_t operator()(argument_type const& arg) const {
       return arg.data;
     }
   };

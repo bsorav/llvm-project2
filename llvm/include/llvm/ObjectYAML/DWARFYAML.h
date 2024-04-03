@@ -21,30 +21,12 @@
 #include "llvm/ObjectYAML/YAML.h"
 #include "llvm/Support/YAMLTraits.h"
 #include <cstdint>
+#include <optional>
+#include <unordered_map>
 #include <vector>
 
 namespace llvm {
 namespace DWARFYAML {
-
-struct InitialLength {
-  uint32_t TotalLength;
-  uint64_t TotalLength64;
-
-  bool isDWARF64() const { return TotalLength == UINT32_MAX; }
-
-  uint64_t getLength() const {
-    return isDWARF64() ? TotalLength64 : TotalLength;
-  }
-
-  void setLength(uint64_t Len) {
-    if (Len >= (uint64_t)UINT32_MAX) {
-      TotalLength64 = Len;
-      TotalLength = UINT32_MAX;
-    } else {
-      TotalLength = Len;
-    }
-  }
-};
 
 struct AttributeAbbrev {
   llvm::dwarf::Attribute Attribute;
@@ -53,10 +35,15 @@ struct AttributeAbbrev {
 };
 
 struct Abbrev {
-  Optional<yaml::Hex64> Code;
+  std::optional<yaml::Hex64> Code;
   llvm::dwarf::Tag Tag;
   llvm::dwarf::Constants Children;
   std::vector<AttributeAbbrev> Attributes;
+};
+
+struct AbbrevTable {
+  std::optional<uint64_t> ID;
+  std::vector<Abbrev> Table;
 };
 
 struct ARangeDescriptor {
@@ -66,10 +53,10 @@ struct ARangeDescriptor {
 
 struct ARange {
   dwarf::DwarfFormat Format;
-  Optional<yaml::Hex64> Length;
+  std::optional<yaml::Hex64> Length;
   uint16_t Version;
   yaml::Hex64 CuOffset;
-  Optional<yaml::Hex8> AddrSize;
+  std::optional<yaml::Hex8> AddrSize;
   yaml::Hex8 SegSize;
   std::vector<ARangeDescriptor> Descriptors;
 };
@@ -83,8 +70,8 @@ struct RangeEntry {
 
 /// Class that describes a single range list inside the .debug_ranges section.
 struct Ranges {
-  Optional<llvm::yaml::Hex64> Offset;
-  Optional<llvm::yaml::Hex8> AddrSize;
+  std::optional<llvm::yaml::Hex64> Offset;
+  std::optional<llvm::yaml::Hex8> AddrSize;
   std::vector<RangeEntry> Entries;
 };
 
@@ -95,7 +82,8 @@ struct PubEntry {
 };
 
 struct PubSection {
-  InitialLength Length;
+  dwarf::DwarfFormat Format;
+  yaml::Hex64 Length;
   uint16_t Version;
   uint32_t UnitOffset;
   uint32_t UnitSize;
@@ -120,10 +108,13 @@ struct DWARFContext {
 };
 
 struct Unit {
-  dwarf::FormParams FormParams;
-  Optional<yaml::Hex64> Length;
+  dwarf::DwarfFormat Format;
+  std::optional<yaml::Hex64> Length;
+  uint16_t Version;
+  std::optional<uint8_t> AddrSize;
   llvm::dwarf::UnitType Type; // Added in DWARF 5
-  yaml::Hex64 AbbrOffset;
+  std::optional<uint64_t> AbbrevTableID;
+  std::optional<yaml::Hex64> AbbrOffset;
   std::vector<Entry> Entries;
 };
 
@@ -136,7 +127,7 @@ struct File {
 
 struct LineTableOpcode {
   dwarf::LineNumberOps Opcode;
-  uint64_t ExtLen;
+  std::optional<uint64_t> ExtLen;
   dwarf::LineNumberExtendedOps SubOpcode;
   uint64_t Data;
   int64_t SData;
@@ -147,16 +138,16 @@ struct LineTableOpcode {
 
 struct LineTable {
   dwarf::DwarfFormat Format;
-  uint64_t Length;
+  std::optional<uint64_t> Length;
   uint16_t Version;
-  uint64_t PrologueLength;
+  std::optional<uint64_t> PrologueLength;
   uint8_t MinInstLength;
   uint8_t MaxOpsPerInst;
   uint8_t DefaultIsStmt;
   uint8_t LineBase;
   uint8_t LineRange;
-  uint8_t OpcodeBase;
-  std::vector<uint8_t> StandardOpcodeLengths;
+  std::optional<uint8_t> OpcodeBase;
+  std::optional<std::vector<uint8_t>> StandardOpcodeLengths;
   std::vector<StringRef> IncludeDirs;
   std::vector<File> Files;
   std::vector<LineTableOpcode> Opcodes;
@@ -169,19 +160,24 @@ struct SegAddrPair {
 
 struct AddrTableEntry {
   dwarf::DwarfFormat Format;
-  Optional<yaml::Hex64> Length;
+  std::optional<yaml::Hex64> Length;
   yaml::Hex16 Version;
-  Optional<yaml::Hex8> AddrSize;
+  std::optional<yaml::Hex8> AddrSize;
   yaml::Hex8 SegSelectorSize;
   std::vector<SegAddrPair> SegAddrPairs;
 };
 
 struct StringOffsetsTable {
   dwarf::DwarfFormat Format;
-  Optional<yaml::Hex64> Length;
+  std::optional<yaml::Hex64> Length;
   yaml::Hex16 Version;
   yaml::Hex16 Padding;
   std::vector<yaml::Hex64> Offsets;
+};
+
+struct DWARFOperation {
+  dwarf::LocationAtom Operator;
+  std::vector<yaml::Hex64> Values;
 };
 
 struct RnglistEntry {
@@ -189,45 +185,64 @@ struct RnglistEntry {
   std::vector<yaml::Hex64> Values;
 };
 
+struct LoclistEntry {
+  dwarf::LoclistEntries Operator;
+  std::vector<yaml::Hex64> Values;
+  std::optional<yaml::Hex64> DescriptionsLength;
+  std::vector<DWARFOperation> Descriptions;
+};
+
 template <typename EntryType> struct ListEntries {
-  Optional<std::vector<EntryType>> Entries;
-  Optional<yaml::BinaryRef> Content;
+  std::optional<std::vector<EntryType>> Entries;
+  std::optional<yaml::BinaryRef> Content;
 };
 
 template <typename EntryType> struct ListTable {
   dwarf::DwarfFormat Format;
-  Optional<yaml::Hex64> Length;
+  std::optional<yaml::Hex64> Length;
   yaml::Hex16 Version;
-  Optional<yaml::Hex8> AddrSize;
+  std::optional<yaml::Hex8> AddrSize;
   yaml::Hex8 SegSelectorSize;
-  Optional<uint32_t> OffsetEntryCount;
-  Optional<std::vector<yaml::Hex64>> Offsets;
+  std::optional<uint32_t> OffsetEntryCount;
+  std::optional<std::vector<yaml::Hex64>> Offsets;
   std::vector<ListEntries<EntryType>> Lists;
 };
 
 struct Data {
   bool IsLittleEndian;
   bool Is64BitAddrSize;
-  std::vector<Abbrev> AbbrevDecls;
-  std::vector<StringRef> DebugStrings;
-  Optional<std::vector<StringOffsetsTable>> DebugStrOffsets;
-  Optional<std::vector<ARange>> DebugAranges;
-  std::vector<Ranges> DebugRanges;
-  std::vector<AddrTableEntry> DebugAddr;
-  Optional<PubSection> PubNames;
-  Optional<PubSection> PubTypes;
+  std::vector<AbbrevTable> DebugAbbrev;
+  std::optional<std::vector<StringRef>> DebugStrings;
+  std::optional<std::vector<StringOffsetsTable>> DebugStrOffsets;
+  std::optional<std::vector<ARange>> DebugAranges;
+  std::optional<std::vector<Ranges>> DebugRanges;
+  std::optional<std::vector<AddrTableEntry>> DebugAddr;
+  std::optional<PubSection> PubNames;
+  std::optional<PubSection> PubTypes;
 
-  Optional<PubSection> GNUPubNames;
-  Optional<PubSection> GNUPubTypes;
+  std::optional<PubSection> GNUPubNames;
+  std::optional<PubSection> GNUPubTypes;
 
   std::vector<Unit> CompileUnits;
 
   std::vector<LineTable> DebugLines;
-  Optional<std::vector<ListTable<RnglistEntry>>> DebugRnglists;
+  std::optional<std::vector<ListTable<RnglistEntry>>> DebugRnglists;
+  std::optional<std::vector<ListTable<LoclistEntry>>> DebugLoclists;
 
   bool isEmpty() const;
 
   SetVector<StringRef> getNonEmptySectionNames() const;
+
+  struct AbbrevTableInfo {
+    uint64_t Index;
+    uint64_t Offset;
+  };
+  Expected<AbbrevTableInfo> getAbbrevTableInfoByID(uint64_t ID) const;
+  StringRef getAbbrevTableContentByIndex(uint64_t Index) const;
+
+private:
+  mutable std::unordered_map<uint64_t, AbbrevTableInfo> AbbrevTableInfoMap;
+  mutable std::unordered_map<uint64_t, std::string> AbbrevTableContents;
 };
 
 } // end namespace DWARFYAML
@@ -235,6 +250,7 @@ struct Data {
 
 LLVM_YAML_IS_SEQUENCE_VECTOR(llvm::DWARFYAML::AttributeAbbrev)
 LLVM_YAML_IS_SEQUENCE_VECTOR(llvm::DWARFYAML::Abbrev)
+LLVM_YAML_IS_SEQUENCE_VECTOR(llvm::DWARFYAML::AbbrevTable)
 LLVM_YAML_IS_SEQUENCE_VECTOR(llvm::DWARFYAML::ARangeDescriptor)
 LLVM_YAML_IS_SEQUENCE_VECTOR(llvm::DWARFYAML::ARange)
 LLVM_YAML_IS_SEQUENCE_VECTOR(llvm::DWARFYAML::RangeEntry)
@@ -254,12 +270,22 @@ LLVM_YAML_IS_SEQUENCE_VECTOR(
 LLVM_YAML_IS_SEQUENCE_VECTOR(
     llvm::DWARFYAML::ListEntries<DWARFYAML::RnglistEntry>)
 LLVM_YAML_IS_SEQUENCE_VECTOR(llvm::DWARFYAML::RnglistEntry)
+LLVM_YAML_IS_SEQUENCE_VECTOR(
+    llvm::DWARFYAML::ListTable<DWARFYAML::LoclistEntry>)
+LLVM_YAML_IS_SEQUENCE_VECTOR(
+    llvm::DWARFYAML::ListEntries<DWARFYAML::LoclistEntry>)
+LLVM_YAML_IS_SEQUENCE_VECTOR(llvm::DWARFYAML::LoclistEntry)
+LLVM_YAML_IS_SEQUENCE_VECTOR(llvm::DWARFYAML::DWARFOperation)
 
 namespace llvm {
 namespace yaml {
 
 template <> struct MappingTraits<DWARFYAML::Data> {
   static void mapping(IO &IO, DWARFYAML::Data &DWARF);
+};
+
+template <> struct MappingTraits<DWARFYAML::AbbrevTable> {
+  static void mapping(IO &IO, DWARFYAML::AbbrevTable &AbbrevTable);
 };
 
 template <> struct MappingTraits<DWARFYAML::Abbrev> {
@@ -322,6 +348,10 @@ template <> struct MappingTraits<DWARFYAML::SegAddrPair> {
   static void mapping(IO &IO, DWARFYAML::SegAddrPair &SegAddrPair);
 };
 
+template <> struct MappingTraits<DWARFYAML::DWARFOperation> {
+  static void mapping(IO &IO, DWARFYAML::DWARFOperation &DWARFOperation);
+};
+
 template <typename EntryType>
 struct MappingTraits<DWARFYAML::ListTable<EntryType>> {
   static void mapping(IO &IO, DWARFYAML::ListTable<EntryType> &ListTable);
@@ -330,12 +360,16 @@ struct MappingTraits<DWARFYAML::ListTable<EntryType>> {
 template <typename EntryType>
 struct MappingTraits<DWARFYAML::ListEntries<EntryType>> {
   static void mapping(IO &IO, DWARFYAML::ListEntries<EntryType> &ListEntries);
-  static StringRef validate(IO &IO,
-                            DWARFYAML::ListEntries<EntryType> &ListEntries);
+  static std::string validate(IO &IO,
+                              DWARFYAML::ListEntries<EntryType> &ListEntries);
 };
 
 template <> struct MappingTraits<DWARFYAML::RnglistEntry> {
   static void mapping(IO &IO, DWARFYAML::RnglistEntry &RnglistEntry);
+};
+
+template <> struct MappingTraits<DWARFYAML::LoclistEntry> {
+  static void mapping(IO &IO, DWARFYAML::LoclistEntry &LoclistEntry);
 };
 
 template <> struct MappingTraits<DWARFYAML::AddrTableEntry> {
@@ -344,10 +378,6 @@ template <> struct MappingTraits<DWARFYAML::AddrTableEntry> {
 
 template <> struct MappingTraits<DWARFYAML::StringOffsetsTable> {
   static void mapping(IO &IO, DWARFYAML::StringOffsetsTable &StrOffsetsTable);
-};
-
-template <> struct MappingTraits<DWARFYAML::InitialLength> {
-  static void mapping(IO &IO, DWARFYAML::InitialLength &DWARF);
 };
 
 template <> struct ScalarEnumerationTraits<dwarf::DwarfFormat> {
@@ -431,6 +461,25 @@ template <> struct ScalarEnumerationTraits<dwarf::Constants> {
 template <> struct ScalarEnumerationTraits<dwarf::RnglistEntries> {
   static void enumeration(IO &io, dwarf::RnglistEntries &value) {
 #include "llvm/BinaryFormat/Dwarf.def"
+  }
+};
+
+#define HANDLE_DW_LLE(unused, name)                                            \
+  io.enumCase(value, "DW_LLE_" #name, dwarf::DW_LLE_##name);
+
+template <> struct ScalarEnumerationTraits<dwarf::LoclistEntries> {
+  static void enumeration(IO &io, dwarf::LoclistEntries &value) {
+#include "llvm/BinaryFormat/Dwarf.def"
+  }
+};
+
+#define HANDLE_DW_OP(id, name, version, vendor)                                \
+  io.enumCase(value, "DW_OP_" #name, dwarf::DW_OP_##name);
+
+template <> struct ScalarEnumerationTraits<dwarf::LocationAtom> {
+  static void enumeration(IO &io, dwarf::LocationAtom &value) {
+#include "llvm/BinaryFormat/Dwarf.def"
+    io.enumFallback<yaml::Hex8>(value);
   }
 };
 

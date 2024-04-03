@@ -10,14 +10,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "llvm/Transforms/Coroutines.h"
 #include "CoroInstr.h"
 #include "CoroInternal.h"
-#include "llvm-c/Transforms/Coroutines.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Analysis/CallGraph.h"
-#include "llvm/Analysis/CallGraphSCCPass.h"
 #include "llvm/IR/Attributes.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DerivedTypes.h"
@@ -26,14 +23,10 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Intrinsics.h"
-#include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Type.h"
-#include "llvm/InitializePasses.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/ErrorHandling.h"
-#include "llvm/Transforms/IPO.h"
-#include "llvm/Transforms/IPO/PassManagerBuilder.h"
 #include "llvm/Transforms/Utils/Local.h"
 #include <cassert>
 #include <cstddef>
@@ -41,68 +34,18 @@
 
 using namespace llvm;
 
-void llvm::initializeCoroutines(PassRegistry &Registry) {
-  initializeCoroEarlyLegacyPass(Registry);
-  initializeCoroSplitLegacyPass(Registry);
-  initializeCoroElideLegacyPass(Registry);
-  initializeCoroCleanupLegacyPass(Registry);
-}
-
-static void addCoroutineOpt0Passes(const PassManagerBuilder &Builder,
-                                   legacy::PassManagerBase &PM) {
-  PM.add(createCoroSplitLegacyPass());
-  PM.add(createCoroElideLegacyPass());
-
-  PM.add(createBarrierNoopPass());
-  PM.add(createCoroCleanupLegacyPass());
-}
-
-static void addCoroutineEarlyPasses(const PassManagerBuilder &Builder,
-                                    legacy::PassManagerBase &PM) {
-  PM.add(createCoroEarlyLegacyPass());
-}
-
-static void addCoroutineScalarOptimizerPasses(const PassManagerBuilder &Builder,
-                                              legacy::PassManagerBase &PM) {
-  PM.add(createCoroElideLegacyPass());
-}
-
-static void addCoroutineSCCPasses(const PassManagerBuilder &Builder,
-                                  legacy::PassManagerBase &PM) {
-  PM.add(createCoroSplitLegacyPass());
-}
-
-static void addCoroutineOptimizerLastPasses(const PassManagerBuilder &Builder,
-                                            legacy::PassManagerBase &PM) {
-  PM.add(createCoroCleanupLegacyPass());
-}
-
-void llvm::addCoroutinePassesToExtensionPoints(PassManagerBuilder &Builder) {
-  Builder.addExtension(PassManagerBuilder::EP_EarlyAsPossible,
-                       addCoroutineEarlyPasses);
-  Builder.addExtension(PassManagerBuilder::EP_EnabledOnOptLevel0,
-                       addCoroutineOpt0Passes);
-  Builder.addExtension(PassManagerBuilder::EP_CGSCCOptimizerLate,
-                       addCoroutineSCCPasses);
-  Builder.addExtension(PassManagerBuilder::EP_ScalarOptimizerLate,
-                       addCoroutineScalarOptimizerPasses);
-  Builder.addExtension(PassManagerBuilder::EP_OptimizerLast,
-                       addCoroutineOptimizerLastPasses);
-}
-
 // Construct the lowerer base class and initialize its members.
 coro::LowererBase::LowererBase(Module &M)
     : TheModule(M), Context(M.getContext()),
-      Int8Ptr(Type::getInt8PtrTy(Context)),
+      Int8Ptr(PointerType::get(Context, 0)),
       ResumeFnType(FunctionType::get(Type::getVoidTy(Context), Int8Ptr,
                                      /*isVarArg=*/false)),
       NullPtr(ConstantPointerNull::get(Int8Ptr)) {}
 
-// Creates a sequence of instructions to obtain a resume function address using
-// llvm.coro.subfn.addr. It generates the following sequence:
+// Creates a call to llvm.coro.subfn.addr to obtain a resume function address.
+// It generates the following:
 //
-//    call i8* @llvm.coro.subfn.addr(i8* %Arg, i8 %index)
-//    bitcast i8* %2 to void(i8*)*
+//    call ptr @llvm.coro.subfn.addr(ptr %Arg, i8 %index)
 
 Value *coro::LowererBase::makeSubFnCall(Value *Arg, int Index,
                                         Instruction *InsertPt) {
@@ -112,41 +55,57 @@ Value *coro::LowererBase::makeSubFnCall(Value *Arg, int Index,
   assert(Index >= CoroSubFnInst::IndexFirst &&
          Index < CoroSubFnInst::IndexLast &&
          "makeSubFnCall: Index value out of range");
-  auto *Call = CallInst::Create(Fn, {Arg, IndexVal}, "", InsertPt);
-
-  auto *Bitcast =
-      new BitCastInst(Call, ResumeFnType->getPointerTo(), "", InsertPt);
-  return Bitcast;
+  return CallInst::Create(Fn, {Arg, IndexVal}, "", InsertPt);
 }
+
+// NOTE: Must be sorted!
+static const char *const CoroIntrinsics[] = {
+    "llvm.coro.align",
+    "llvm.coro.alloc",
+    "llvm.coro.async.context.alloc",
+    "llvm.coro.async.context.dealloc",
+    "llvm.coro.async.resume",
+    "llvm.coro.async.size.replace",
+    "llvm.coro.async.store_resume",
+    "llvm.coro.begin",
+    "llvm.coro.destroy",
+    "llvm.coro.done",
+    "llvm.coro.end",
+    "llvm.coro.end.async",
+    "llvm.coro.frame",
+    "llvm.coro.free",
+    "llvm.coro.id",
+    "llvm.coro.id.async",
+    "llvm.coro.id.retcon",
+    "llvm.coro.id.retcon.once",
+    "llvm.coro.noop",
+    "llvm.coro.prepare.async",
+    "llvm.coro.prepare.retcon",
+    "llvm.coro.promise",
+    "llvm.coro.resume",
+    "llvm.coro.save",
+    "llvm.coro.size",
+    "llvm.coro.subfn.addr",
+    "llvm.coro.suspend",
+    "llvm.coro.suspend.async",
+    "llvm.coro.suspend.retcon",
+};
 
 #ifndef NDEBUG
 static bool isCoroutineIntrinsicName(StringRef Name) {
-  // NOTE: Must be sorted!
-  static const char *const CoroIntrinsics[] = {
-      "llvm.coro.alloc",
-      "llvm.coro.begin",
-      "llvm.coro.destroy",
-      "llvm.coro.done",
-      "llvm.coro.end",
-      "llvm.coro.frame",
-      "llvm.coro.free",
-      "llvm.coro.id",
-      "llvm.coro.id.retcon",
-      "llvm.coro.id.retcon.once",
-      "llvm.coro.noop",
-      "llvm.coro.param",
-      "llvm.coro.prepare.retcon",
-      "llvm.coro.promise",
-      "llvm.coro.resume",
-      "llvm.coro.save",
-      "llvm.coro.size",
-      "llvm.coro.subfn.addr",
-      "llvm.coro.suspend",
-      "llvm.coro.suspend.retcon",
-  };
   return Intrinsic::lookupLLVMIntrinsicByName(CoroIntrinsics, Name) != -1;
 }
 #endif
+
+bool coro::declaresAnyIntrinsic(const Module &M) {
+  for (StringRef Name : CoroIntrinsics) {
+    assert(isCoroutineIntrinsicName(Name) && "not a coroutine intrinsic");
+    if (M.getNamedValue(Name))
+      return true;
+  }
+
+  return false;
+}
 
 // Verifies if a module has named values listed. Also, in debug mode verifies
 // that names are intrinsic names.
@@ -173,53 +132,14 @@ void coro::replaceCoroFree(CoroIdInst *CoroId, bool Elide) {
     return;
 
   Value *Replacement =
-      Elide ? ConstantPointerNull::get(Type::getInt8PtrTy(CoroId->getContext()))
-            : CoroFrees.front()->getFrame();
+      Elide
+          ? ConstantPointerNull::get(PointerType::get(CoroId->getContext(), 0))
+          : CoroFrees.front()->getFrame();
 
   for (CoroFreeInst *CF : CoroFrees) {
     CF->replaceAllUsesWith(Replacement);
     CF->eraseFromParent();
   }
-}
-
-// FIXME: This code is stolen from CallGraph::addToCallGraph(Function *F), which
-// happens to be private. It is better for this functionality exposed by the
-// CallGraph.
-static void buildCGN(CallGraph &CG, CallGraphNode *Node) {
-  Function *F = Node->getFunction();
-
-  // Look for calls by this function.
-  for (Instruction &I : instructions(F))
-    if (auto *Call = dyn_cast<CallBase>(&I)) {
-      const Function *Callee = Call->getCalledFunction();
-      if (!Callee || !Intrinsic::isLeaf(Callee->getIntrinsicID()))
-        // Indirect calls of intrinsics are not allowed so no need to check.
-        // We can be more precise here by using TargetArg returned by
-        // Intrinsic::isLeaf.
-        Node->addCalledFunction(Call, CG.getCallsExternalNode());
-      else if (!Callee->isIntrinsic())
-        Node->addCalledFunction(Call, CG.getOrInsertFunction(Callee));
-    }
-}
-
-// Rebuild CGN after we extracted parts of the code from ParentFunc into
-// NewFuncs. Builds CGNs for the NewFuncs and adds them to the current SCC.
-void coro::updateCallGraph(Function &ParentFunc, ArrayRef<Function *> NewFuncs,
-                           CallGraph &CG, CallGraphSCC &SCC) {
-  // Rebuild CGN from scratch for the ParentFunc
-  auto *ParentNode = CG[&ParentFunc];
-  ParentNode->removeAllCalledFunctions();
-  buildCGN(CG, ParentNode);
-
-  SmallVector<CallGraphNode *, 8> Nodes(SCC.begin(), SCC.end());
-
-  for (Function *F : NewFuncs) {
-    CallGraphNode *Callee = CG.getOrInsertFunction(F);
-    Nodes.push_back(Callee);
-    buildCGN(CG, Callee);
-  }
-
-  SCC.initialize(Nodes);
 }
 
 static void clear(coro::Shape &Shape) {
@@ -247,6 +167,7 @@ static CoroSaveInst *createCoroSave(CoroBeginInst *CoroBegin,
 // Collect "interesting" coroutine intrinsics.
 void coro::Shape::buildFrom(Function &F) {
   bool HasFinalSuspend = false;
+  bool HasUnwindCoroEnd = false;
   size_t FinalSuspendIndex = 0;
   clear(*this);
   SmallVector<CoroFrameInst *, 8> CoroFrames;
@@ -260,6 +181,9 @@ void coro::Shape::buildFrom(Function &F) {
       case Intrinsic::coro_size:
         CoroSizes.push_back(cast<CoroSizeInst>(II));
         break;
+      case Intrinsic::coro_align:
+        CoroAligns.push_back(cast<CoroAlignInst>(II));
+        break;
       case Intrinsic::coro_frame:
         CoroFrames.push_back(cast<CoroFrameInst>(II));
         break;
@@ -269,6 +193,12 @@ void coro::Shape::buildFrom(Function &F) {
         if (II->use_empty())
           UnusedCoroSaves.push_back(cast<CoroSaveInst>(II));
         break;
+      case Intrinsic::coro_suspend_async: {
+        auto *Suspend = cast<CoroSuspendAsyncInst>(II);
+        Suspend->checkWellFormed();
+        CoroSuspends.push_back(Suspend);
+        break;
+      }
       case Intrinsic::coro_suspend_retcon: {
         auto Suspend = cast<CoroSuspendRetconInst>(II);
         CoroSuspends.push_back(Suspend);
@@ -297,18 +227,26 @@ void coro::Shape::buildFrom(Function &F) {
         if (CoroBegin)
           report_fatal_error(
                 "coroutine should have exactly one defining @llvm.coro.begin");
-        CB->addAttribute(AttributeList::ReturnIndex, Attribute::NonNull);
-        CB->addAttribute(AttributeList::ReturnIndex, Attribute::NoAlias);
-        CB->removeAttribute(AttributeList::FunctionIndex,
-                            Attribute::NoDuplicate);
+        CB->addRetAttr(Attribute::NonNull);
+        CB->addRetAttr(Attribute::NoAlias);
+        CB->removeFnAttr(Attribute::NoDuplicate);
         CoroBegin = CB;
         break;
       }
+      case Intrinsic::coro_end_async:
       case Intrinsic::coro_end:
-        CoroEnds.push_back(cast<CoroEndInst>(II));
-        if (CoroEnds.back()->isFallthrough()) {
+        CoroEnds.push_back(cast<AnyCoroEndInst>(II));
+        if (auto *AsyncEnd = dyn_cast<CoroAsyncEndInst>(II)) {
+          AsyncEnd->checkWellFormed();
+        }
+
+        if (CoroEnds.back()->isUnwind())
+          HasUnwindCoroEnd = true;
+
+        if (CoroEnds.back()->isFallthrough() && isa<CoroEndInst>(II)) {
           // Make sure that the fallthrough coro.end is the first element in the
           // CoroEnds vector.
+          // Note: I don't think this is neccessary anymore.
           if (CoroEnds.size() > 1) {
             if (CoroEnds.front()->isFallthrough())
               report_fatal_error(
@@ -325,7 +263,7 @@ void coro::Shape::buildFrom(Function &F) {
   if (!CoroBegin) {
     // Replace coro.frame which are supposed to be lowered to the result of
     // coro.begin with undef.
-    auto *Undef = UndefValue::get(Type::getInt8PtrTy(F.getContext()));
+    auto *Undef = UndefValue::get(PointerType::get(F.getContext(), 0));
     for (CoroFrameInst *CF : CoroFrames) {
       CF->replaceAllUsesWith(Undef);
       CF->eraseFromParent();
@@ -341,8 +279,8 @@ void coro::Shape::buildFrom(Function &F) {
     }
 
     // Replace all coro.ends with unreachable instruction.
-    for (CoroEndInst *CE : CoroEnds)
-      changeToUnreachable(CE, /*UseLLVMTrap=*/false);
+    for (AnyCoroEndInst *CE : CoroEnds)
+      changeToUnreachable(CE);
 
     return;
   }
@@ -353,11 +291,12 @@ void coro::Shape::buildFrom(Function &F) {
     auto SwitchId = cast<CoroIdInst>(Id);
     this->ABI = coro::ABI::Switch;
     this->SwitchLowering.HasFinalSuspend = HasFinalSuspend;
+    this->SwitchLowering.HasUnwindCoroEnd = HasUnwindCoroEnd;
     this->SwitchLowering.ResumeSwitch = nullptr;
     this->SwitchLowering.PromiseAlloca = SwitchId->getPromise();
     this->SwitchLowering.ResumeEntryBlock = nullptr;
 
-    for (auto AnySuspend : CoroSuspends) {
+    for (auto *AnySuspend : CoroSuspends) {
       auto Suspend = dyn_cast<CoroSuspendInst>(AnySuspend);
       if (!Suspend) {
 #ifndef NDEBUG
@@ -371,7 +310,19 @@ void coro::Shape::buildFrom(Function &F) {
     }
     break;
   }
-
+  case Intrinsic::coro_id_async: {
+    auto *AsyncId = cast<CoroIdAsyncInst>(Id);
+    AsyncId->checkWellFormed();
+    this->ABI = coro::ABI::Async;
+    this->AsyncLowering.Context = AsyncId->getStorage();
+    this->AsyncLowering.ContextArgNo = AsyncId->getStorageArgumentIndex();
+    this->AsyncLowering.ContextHeaderSize = AsyncId->getStorageSize();
+    this->AsyncLowering.ContextAlignment =
+        AsyncId->getStorageAlignment().value();
+    this->AsyncLowering.AsyncFuncPointer = AsyncId->getAsyncFunctionPointer();
+    this->AsyncLowering.AsyncCC = F.getCallingConv();
+    break;
+  };
   case Intrinsic::coro_id_retcon:
   case Intrinsic::coro_id_retcon_once: {
     auto ContinuationId = cast<AnyCoroIdRetconInst>(Id);
@@ -391,7 +342,7 @@ void coro::Shape::buildFrom(Function &F) {
     auto ResultTys = getRetconResultTypes();
     auto ResumeTys = getRetconResumeTypes();
 
-    for (auto AnySuspend : CoroSuspends) {
+    for (auto *AnySuspend : CoroSuspends) {
       auto Suspend = dyn_cast<CoroSuspendRetconInst>(AnySuspend);
       if (!Suspend) {
 #ifndef NDEBUG
@@ -512,6 +463,8 @@ Value *coro::Shape::emitAlloc(IRBuilder<> &Builder, Value *Size,
     addCallToCallGraph(CG, Call, Alloc);
     return Call;
   }
+  case coro::ABI::Async:
+    llvm_unreachable("can't allocate memory in coro async-lowering");
   }
   llvm_unreachable("Unknown coro::ABI enum");
 }
@@ -532,12 +485,14 @@ void coro::Shape::emitDealloc(IRBuilder<> &Builder, Value *Ptr,
     addCallToCallGraph(CG, Call, Dealloc);
     return;
   }
+  case coro::ABI::Async:
+    llvm_unreachable("can't allocate memory in coro async-lowering");
   }
   llvm_unreachable("Unknown coro::ABI enum");
 }
 
-LLVM_ATTRIBUTE_NORETURN
-static void fail(const Instruction *I, const char *Reason, Value *V) {
+[[noreturn]] static void fail(const Instruction *I, const char *Reason,
+                              Value *V) {
 #ifndef NDEBUG
   I->dump();
   if (V) {
@@ -633,24 +588,49 @@ void AnyCoroIdRetconInst::checkWellFormed() const {
   checkWFDealloc(this, getArgOperand(DeallocArg));
 }
 
-void LLVMAddCoroEarlyPass(LLVMPassManagerRef PM) {
-  unwrap(PM)->add(createCoroEarlyLegacyPass());
+static void checkAsyncFuncPointer(const Instruction *I, Value *V) {
+  auto *AsyncFuncPtrAddr = dyn_cast<GlobalVariable>(V->stripPointerCasts());
+  if (!AsyncFuncPtrAddr)
+    fail(I, "llvm.coro.id.async async function pointer not a global", V);
 }
 
-void LLVMAddCoroSplitPass(LLVMPassManagerRef PM) {
-  unwrap(PM)->add(createCoroSplitLegacyPass());
+void CoroIdAsyncInst::checkWellFormed() const {
+  checkConstantInt(this, getArgOperand(SizeArg),
+                   "size argument to coro.id.async must be constant");
+  checkConstantInt(this, getArgOperand(AlignArg),
+                   "alignment argument to coro.id.async must be constant");
+  checkConstantInt(this, getArgOperand(StorageArg),
+                   "storage argument offset to coro.id.async must be constant");
+  checkAsyncFuncPointer(this, getArgOperand(AsyncFuncPtrArg));
 }
 
-void LLVMAddCoroElidePass(LLVMPassManagerRef PM) {
-  unwrap(PM)->add(createCoroElideLegacyPass());
+static void checkAsyncContextProjectFunction(const Instruction *I,
+                                             Function *F) {
+  auto *FunTy = cast<FunctionType>(F->getValueType());
+  if (!FunTy->getReturnType()->isPointerTy())
+    fail(I,
+         "llvm.coro.suspend.async resume function projection function must "
+         "return a ptr type",
+         F);
+  if (FunTy->getNumParams() != 1 || !FunTy->getParamType(0)->isPointerTy())
+    fail(I,
+         "llvm.coro.suspend.async resume function projection function must "
+         "take one ptr type as parameter",
+         F);
 }
 
-void LLVMAddCoroCleanupPass(LLVMPassManagerRef PM) {
-  unwrap(PM)->add(createCoroCleanupLegacyPass());
+void CoroSuspendAsyncInst::checkWellFormed() const {
+  checkAsyncContextProjectFunction(this, getAsyncContextProjectionFunction());
 }
 
-void
-LLVMPassManagerBuilderAddCoroutinePassesToExtensionPoints(LLVMPassManagerBuilderRef PMB) {
-  PassManagerBuilder *Builder = unwrap(PMB);
-  addCoroutinePassesToExtensionPoints(*Builder);
+void CoroAsyncEndInst::checkWellFormed() const {
+  auto *MustTailCallFunc = getMustTailCallFunction();
+  if (!MustTailCallFunc)
+    return;
+  auto *FnTy = MustTailCallFunc->getFunctionType();
+  if (FnTy->getNumParams() != (arg_size() - 3))
+    fail(this,
+         "llvm.coro.end.async must tail call function argument type must "
+         "match the tail arguments",
+         MustTailCallFunc);
 }

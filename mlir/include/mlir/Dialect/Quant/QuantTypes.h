@@ -6,39 +6,28 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef MLIR_DIALECT_QUANT_QUANT_TYPES_H_
-#define MLIR_DIALECT_QUANT_QUANT_TYPES_H_
+#ifndef MLIR_DIALECT_QUANT_QUANTTYPES_H
+#define MLIR_DIALECT_QUANT_QUANTTYPES_H
 
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Builders.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/OpDefinition.h"
-#include "mlir/IR/StandardTypes.h"
 #include "mlir/IR/Types.h"
 #include "llvm/Support/MathExtras.h"
 
 namespace mlir {
 namespace quant {
-
-class QuantizedIntegerType;
-
 namespace detail {
 
 struct QuantizedTypeStorage;
 struct AnyQuantizedTypeStorage;
 struct UniformQuantizedTypeStorage;
 struct UniformQuantizedPerAxisTypeStorage;
+struct CalibratedQuantizedTypeStorage;
 
 } // namespace detail
-
-namespace QuantizationTypes {
-enum Kind {
-  Any = Type::FIRST_QUANTIZATION_TYPE,
-  UniformQuantized,
-  UniformQuantizedPerAxis,
-  LAST_USED_QUANTIZATION_TYPE = UniformQuantizedPerAxis,
-};
-} // namespace QuantizationTypes
 
 /// Enumeration of bit-mapped flags related to quantized types.
 namespace QuantizationFlags {
@@ -65,16 +54,13 @@ public:
   /// The maximum number of bits supported for storage types.
   static constexpr unsigned MaxStorageBits = 32;
 
-  static LogicalResult
-  verifyConstructionInvariants(Location loc, unsigned flags, Type storageType,
-                               Type expressedType, int64_t storageTypeMin,
-                               int64_t storageTypeMax);
+  static LogicalResult verify(function_ref<InFlightDiagnostic()> emitError,
+                              unsigned flags, Type storageType,
+                              Type expressedType, int64_t storageTypeMin,
+                              int64_t storageTypeMax);
 
   /// Support method to enable LLVM-style type casting.
-  static bool classof(Type type) {
-    return type.getKind() >= Type::FIRST_QUANTIZATION_TYPE &&
-           type.getKind() <= QuantizationTypes::LAST_USED_QUANTIZATION_TYPE;
-  }
+  static bool classof(Type type);
 
   /// Gets the minimum possible stored by a storageType. storageTypeMin must
   /// be greater than or equal to this value.
@@ -210,9 +196,9 @@ class AnyQuantizedType
                             detail::AnyQuantizedTypeStorage> {
 public:
   using Base::Base;
+  using Base::getChecked;
 
-  /// Support method to enable LLVM-style type casting.
-  static bool kindof(unsigned kind) { return kind == QuantizationTypes::Any; }
+  static constexpr StringLiteral name = "quant.any";
 
   /// Gets an instance of the type with all parameters specified but not
   /// checked.
@@ -222,15 +208,16 @@ public:
 
   /// Gets an instance of the type with all specified parameters checked.
   /// Returns a nullptr convertible type on failure.
-  static AnyQuantizedType getChecked(unsigned flags, Type storageType,
-                                     Type expressedType, int64_t storageTypeMin,
-                                     int64_t storageTypeMax, Location location);
+  static AnyQuantizedType
+  getChecked(function_ref<InFlightDiagnostic()> emitError, unsigned flags,
+             Type storageType, Type expressedType, int64_t storageTypeMin,
+             int64_t storageTypeMax);
 
   /// Verifies construction invariants and issues errors/warnings.
-  static LogicalResult
-  verifyConstructionInvariants(Location loc, unsigned flags, Type storageType,
-                               Type expressedType, int64_t storageTypeMin,
-                               int64_t storageTypeMax);
+  static LogicalResult verify(function_ref<InFlightDiagnostic()> emitError,
+                              unsigned flags, Type storageType,
+                              Type expressedType, int64_t storageTypeMin,
+                              int64_t storageTypeMax);
 };
 
 /// Represents a family of uniform, quantized types.
@@ -270,6 +257,9 @@ class UniformQuantizedType
                             detail::UniformQuantizedTypeStorage> {
 public:
   using Base::Base;
+  using Base::getChecked;
+
+  static constexpr StringLiteral name = "quant.uniform";
 
   /// Gets an instance of the type with all parameters specified but not
   /// checked.
@@ -281,21 +271,16 @@ public:
   /// Gets an instance of the type with all specified parameters checked.
   /// Returns a nullptr convertible type on failure.
   static UniformQuantizedType
-  getChecked(unsigned flags, Type storageType, Type expressedType, double scale,
-             int64_t zeroPoint, int64_t storageTypeMin, int64_t storageTypeMax,
-             Location location);
+  getChecked(function_ref<InFlightDiagnostic()> emitError, unsigned flags,
+             Type storageType, Type expressedType, double scale,
+             int64_t zeroPoint, int64_t storageTypeMin, int64_t storageTypeMax);
 
   /// Verifies construction invariants and issues errors/warnings.
-  static LogicalResult
-  verifyConstructionInvariants(Location loc, unsigned flags, Type storageType,
-                               Type expressedType, double scale,
-                               int64_t zeroPoint, int64_t storageTypeMin,
-                               int64_t storageTypeMax);
-
-  /// Support method to enable LLVM-style type casting.
-  static bool kindof(unsigned kind) {
-    return kind == QuantizationTypes::UniformQuantized;
-  }
+  static LogicalResult verify(function_ref<InFlightDiagnostic()> emitError,
+                              unsigned flags, Type storageType,
+                              Type expressedType, double scale,
+                              int64_t zeroPoint, int64_t storageTypeMin,
+                              int64_t storageTypeMax);
 
   /// Gets the scale term. The scale designates the difference between the real
   /// values corresponding to consecutive quantized values differing by 1.
@@ -332,6 +317,9 @@ class UniformQuantizedPerAxisType
                             detail::UniformQuantizedPerAxisTypeStorage> {
 public:
   using Base::Base;
+  using Base::getChecked;
+
+  static constexpr StringLiteral name = "quant.uniform_per_axis";
 
   /// Gets an instance of the type with all parameters specified but not
   /// checked.
@@ -344,23 +332,18 @@ public:
   /// Gets an instance of the type with all specified parameters checked.
   /// Returns a nullptr convertible type on failure.
   static UniformQuantizedPerAxisType
-  getChecked(unsigned flags, Type storageType, Type expressedType,
-             ArrayRef<double> scales, ArrayRef<int64_t> zeroPoints,
-             int32_t quantizedDimension, int64_t storageTypeMin,
-             int64_t storageTypeMax, Location location);
+  getChecked(function_ref<InFlightDiagnostic()> emitError, unsigned flags,
+             Type storageType, Type expressedType, ArrayRef<double> scales,
+             ArrayRef<int64_t> zeroPoints, int32_t quantizedDimension,
+             int64_t storageTypeMin, int64_t storageTypeMax);
 
   /// Verifies construction invariants and issues errors/warnings.
-  static LogicalResult
-  verifyConstructionInvariants(Location loc, unsigned flags, Type storageType,
-                               Type expressedType, ArrayRef<double> scales,
-                               ArrayRef<int64_t> zeroPoints,
-                               int32_t quantizedDimension,
-                               int64_t storageTypeMin, int64_t storageTypeMax);
-
-  /// Support method to enable LLVM-style type casting.
-  static bool kindof(unsigned kind) {
-    return kind == QuantizationTypes::UniformQuantizedPerAxis;
-  }
+  static LogicalResult verify(function_ref<InFlightDiagnostic()> emitError,
+                              unsigned flags, Type storageType,
+                              Type expressedType, ArrayRef<double> scales,
+                              ArrayRef<int64_t> zeroPoints,
+                              int32_t quantizedDimension,
+                              int64_t storageTypeMin, int64_t storageTypeMax);
 
   /// Gets the quantization scales. The scales designate the difference between
   /// the real values corresponding to consecutive quantized values differing
@@ -391,12 +374,42 @@ public:
   bool isFixedPoint() const {
     if (!isSigned())
       return false;
-    return llvm::all_of(getZeroPoints(),
-                        [](int64_t zeroPoint) { return zeroPoint != 0; });
+    return !llvm::is_contained(getZeroPoints(), 0);
   }
+};
+
+/// A quantized type that infers its range from given min/max values.
+///
+/// Typical syntax:
+///   quant.calibrated<f32<-0.922,0.981>>
+class CalibratedQuantizedType
+    : public Type::TypeBase<CalibratedQuantizedType, QuantizedType,
+                            detail::CalibratedQuantizedTypeStorage> {
+public:
+  using Base::Base;
+  using Base::getChecked;
+
+  static constexpr StringLiteral name = "quant.calibrated";
+
+  /// Gets an instance of the type with all parameters specified but not
+  /// checked.
+  static CalibratedQuantizedType get(Type expressedType, double min,
+                                     double max);
+
+  /// Gets an instance of the type with all specified parameters checked.
+  /// Returns a nullptr convertible type on failure.
+  static CalibratedQuantizedType
+  getChecked(function_ref<InFlightDiagnostic()> emitError, Type expressedType,
+             double min, double max);
+
+  /// Verifies construction invariants and issues errors/warnings.
+  static LogicalResult verify(function_ref<InFlightDiagnostic()> emitError,
+                              Type expressedType, double min, double max);
+  double getMin() const;
+  double getMax() const;
 };
 
 } // namespace quant
 } // namespace mlir
 
-#endif // MLIR_DIALECT_QUANT_QUANT_TYPES_H_
+#endif // MLIR_DIALECT_QUANT_QUANTTYPES_H

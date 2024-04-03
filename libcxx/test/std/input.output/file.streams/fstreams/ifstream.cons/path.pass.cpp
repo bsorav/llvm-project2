@@ -7,7 +7,9 @@
 //===----------------------------------------------------------------------===//
 
 // UNSUPPORTED: c++03, c++11, c++14
-// UNSUPPORTED: c++filesystem-disabled
+
+// UNSUPPORTED: availability-filesystem-missing
+
 // FILE_DEPENDENCIES: test.dat
 
 // <fstream>
@@ -18,9 +20,10 @@
 // explicit basic_ifstream(const filesystem::path& s,
 //     ios_base::openmode mode = ios_base::in);
 
-#include <fstream>
-#include <filesystem>
 #include <cassert>
+#include <filesystem>
+#include <fstream>
+#include <type_traits>
 
 #include "test_macros.h"
 
@@ -44,6 +47,8 @@ int main(int, char**) {
   // std::ifstream(const fs::path&, std::ios_base::openmode) is tested in
   // test/std/input.output/file.streams/fstreams/ofstream.cons/string.pass.cpp
   // which creates writable files.
+
+#ifndef TEST_HAS_NO_WIDE_CHARACTERS
   {
     std::wifstream fs(fs::path("test.dat"));
     double x = 0;
@@ -53,6 +58,7 @@ int main(int, char**) {
   // std::wifstream(const fs::path&, std::ios_base::openmode) is tested in
   // test/std/input.output/file.streams/fstreams/ofstream.cons/string.pass.cpp
   // which creates writable files.
+#endif
 
   return 0;
 }

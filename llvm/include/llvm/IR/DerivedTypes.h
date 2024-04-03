@@ -49,10 +49,11 @@ public:
   /// This enum is just used to hold constants we need for IntegerType.
   enum {
     MIN_INT_BITS = 1,        ///< Minimum number of bits that can be specified
-    MAX_INT_BITS = (1<<24)-1 ///< Maximum number of bits that can be specified
+    MAX_INT_BITS = (1<<23)   ///< Maximum number of bits that can be specified
       ///< Note that bit width is stored in the Type classes SubclassData field
-      ///< which has 24 bits. This yields a maximum bit width of 16,777,215
-      ///< bits.
+      ///< which has 24 bits. SelectionDAG type legalization can require a
+      ///< power of 2 IntegerType, so limit to the largest representable power
+      ///< of 2, 8388608.
   };
 
   /// This static method is the primary way of constructing an IntegerType.
@@ -86,12 +87,6 @@ public:
   /// @returns a bit mask with ones set for all the bits of this type.
   /// Get a bit mask for this type.
   APInt getMask() const;
-
-  /// This method determines if the width of this IntegerType is a power-of-2
-  /// in terms of 8 bit bytes.
-  /// @returns true if this is a power-of-2 byte width.
-  /// Is this a power-of-2 byte-width IntegerType ?
-  bool isPowerOf2ByteWidth() const;
 
   /// Methods for support type inquiry through isa, cast, and dyn_cast.
   static bool classof(const Type *T) {
@@ -133,11 +128,14 @@ public:
   param_iterator param_begin() const { return ContainedTys + 1; }
   param_iterator param_end() const { return &ContainedTys[NumContainedTys]; }
   ArrayRef<Type *> params() const {
-    return makeArrayRef(param_begin(), param_end());
+    return ArrayRef(param_begin(), param_end());
   }
 
   /// Parameter type accessors.
-  Type *getParamType(unsigned i) const { return ContainedTys[i+1]; }
+  Type *getParamType(unsigned i) const {
+    assert(i < getNumParams() && "getParamType() out of range!");
+    return ContainedTys[i + 1];
+  }
 
   /// Return the number of fixed parameters this function type requires.
   /// This does not consider varargs.
@@ -223,7 +221,9 @@ class StructType : public Type {
     SCDB_HasBody = 1,
     SCDB_Packed = 2,
     SCDB_IsLiteral = 4,
-    SCDB_IsSized = 8
+    SCDB_IsSized = 8,
+    SCDB_ContainsScalableVector = 16,
+    SCDB_NotContainsScalableVector = 32
   };
 
   /// For a named struct that actually has a name, this is a pointer to the
@@ -250,8 +250,7 @@ public:
   static std::enable_if_t<are_base_of<Type, Tys...>::value, StructType *>
   create(StringRef Name, Type *elt1, Tys *... elts) {
     assert(elt1 && "Cannot create a struct type with no elements with this");
-    SmallVector<llvm::Type *, 8> StructFields({elt1, elts...});
-    return create(StructFields, Name);
+    return create(ArrayRef<Type *>({elt1, elts...}), Name);
   }
 
   /// This static method is the primary way to create a literal StructType.
@@ -269,9 +268,12 @@ public:
   get(Type *elt1, Tys *... elts) {
     assert(elt1 && "Cannot create a struct type with no elements with this");
     LLVMContext &Ctx = elt1->getContext();
-    SmallVector<llvm::Type *, 8> StructFields({elt1, elts...});
-    return llvm::StructType::get(Ctx, StructFields);
+    return StructType::get(Ctx, ArrayRef<Type *>({elt1, elts...}));
   }
+
+  /// Return the type with the specified name, or null if there is none by that
+  /// name.
+  static StructType *getTypeByName(LLVMContext &C, StringRef Name);
 
   bool isPacked() const { return (getSubclassData() & SCDB_Packed) != 0; }
 
@@ -285,6 +287,18 @@ public:
 
   /// isSized - Return true if this is a sized type.
   bool isSized(SmallPtrSetImpl<Type *> *Visited = nullptr) const;
+
+  /// Returns true if this struct contains a scalable vector.
+  bool
+  containsScalableVectorType(SmallPtrSetImpl<Type *> *Visited = nullptr) const;
+
+  /// Returns true if this struct contains homogeneous scalable vector types.
+  /// Note that the definition of homogeneous scalable vector type is not
+  /// recursive here. That means the following structure will return false
+  /// when calling this function.
+  /// {{<vscale x 2 x i32>, <vscale x 4 x i64>},
+  ///  {<vscale x 2 x i32>, <vscale x 4 x i64>}}
+  bool containsHomogeneousScalableVectorTypes() const;
 
   /// Return true if this is a named struct that has a non-empty name.
   bool hasName() const { return SymbolTableEntry != nullptr; }
@@ -305,8 +319,7 @@ public:
   std::enable_if_t<are_base_of<Type, Tys...>::value, void>
   setBody(Type *elt1, Tys *... elts) {
     assert(elt1 && "Cannot create a struct type with no elements with this");
-    SmallVector<llvm::Type *, 8> StructFields({elt1, elts...});
-    setBody(StructFields);
+    setBody(ArrayRef<Type *>({elt1, elts...}));
   }
 
   /// Return true if the specified type is valid as a element type.
@@ -317,8 +330,8 @@ public:
 
   element_iterator element_begin() const { return ContainedTys; }
   element_iterator element_end() const { return &ContainedTys[NumContainedTys];}
-  ArrayRef<Type *> const elements() const {
-    return makeArrayRef(element_begin(), element_end());
+  ArrayRef<Type *> elements() const {
+    return ArrayRef(element_begin(), element_end());
   }
 
   /// Return true if this is layout identical to the specified struct.
@@ -420,44 +433,15 @@ public:
   VectorType(const VectorType &) = delete;
   VectorType &operator=(const VectorType &) = delete;
 
-  /// Get the number of elements in this vector. It does not make sense to call
-  /// this function on a scalable vector, and this will be moved into
-  /// FixedVectorType in a future commit
-  unsigned getNumElements() const {
-    ElementCount EC = getElementCount();
-#ifdef STRICT_FIXED_SIZE_VECTORS
-    assert(!EC.Scalable &&
-           "Request for fixed number of elements from scalable vector");
-    return EC.Min;
-#else
-    if (EC.Scalable)
-      WithColor::warning()
-          << "The code that requested the fixed number of elements has made "
-             "the assumption that this vector is not scalable. This assumption "
-             "was not correct, and this may lead to broken code\n";
-    return EC.Min;
-#endif
-  }
-
   Type *getElementType() const { return ContainedType; }
 
   /// This static method is the primary way to construct an VectorType.
   static VectorType *get(Type *ElementType, ElementCount EC);
 
-  /// Base class getter that specifically constructs a FixedVectorType. This
-  /// function is deprecated, and will be removed after LLVM 11 ships. Since
-  /// this always returns a FixedVectorType via a base VectorType pointer,
-  /// FixedVectorType::get(Type *, unsigned) is strictly better since no cast is
-  /// required to call getNumElements() on the result.
-  LLVM_ATTRIBUTE_DEPRECATED(
-      inline static VectorType *get(Type *ElementType, unsigned NumElements),
-      "The base class version of get with the scalable argument defaulted to "
-      "false is deprecated. Either call VectorType::get(Type *, unsigned, "
-      "bool) and pass false, or call FixedVectorType::get(Type *, unsigned).");
-
   static VectorType *get(Type *ElementType, unsigned NumElements,
                          bool Scalable) {
-    return VectorType::get(ElementType, {NumElements, Scalable});
+    return VectorType::get(ElementType,
+                           ElementCount::get(NumElements, Scalable));
   }
 
   static VectorType *get(Type *ElementType, const VectorType *Other) {
@@ -522,16 +506,18 @@ public:
   /// input type and the same element type.
   static VectorType *getHalfElementsVectorType(VectorType *VTy) {
     auto EltCnt = VTy->getElementCount();
-    assert ((EltCnt.Min & 1) == 0 &&
-            "Cannot halve vector with odd number of elements.");
-    return VectorType::get(VTy->getElementType(), EltCnt/2);
+    assert(EltCnt.isKnownEven() &&
+           "Cannot halve vector with odd number of elements.");
+    return VectorType::get(VTy->getElementType(),
+                           EltCnt.divideCoefficientBy(2));
   }
 
   /// This static method returns a VectorType with twice as many elements as the
   /// input type and the same element type.
   static VectorType *getDoubleElementsVectorType(VectorType *VTy) {
     auto EltCnt = VTy->getElementCount();
-    assert((EltCnt.Min * 2ull) <= UINT_MAX && "Too many elements in vector");
+    assert((EltCnt.getKnownMinValue() * 2ull) <= UINT_MAX &&
+           "Too many elements in vector");
     return VectorType::get(VTy->getElementType(), EltCnt * 2);
   }
 
@@ -548,10 +534,6 @@ public:
            T->getTypeID() == ScalableVectorTyID;
   }
 };
-
-inline VectorType *VectorType::get(Type *ElementType, unsigned NumElements) {
-  return VectorType::get(ElementType, NumElements, false);
-}
 
 /// Class to represent fixed width SIMD vectors
 class FixedVectorType : public VectorType {
@@ -596,6 +578,8 @@ public:
   static bool classof(const Type *T) {
     return T->getTypeID() == FixedVectorTyID;
   }
+
+  unsigned getNumElements() const { return ElementQuantity; }
 };
 
 /// Class to represent scalable SIMD vectors
@@ -655,14 +639,12 @@ public:
 };
 
 inline ElementCount VectorType::getElementCount() const {
-  return ElementCount(ElementQuantity, isa<ScalableVectorType>(this));
+  return ElementCount::get(ElementQuantity, isa<ScalableVectorType>(this));
 }
 
 /// Class to represent pointers.
 class PointerType : public Type {
-  explicit PointerType(Type *ElType, unsigned AddrSpace);
-
-  Type *PointeeTy;
+  explicit PointerType(LLVMContext &C, unsigned AddrSpace);
 
 public:
   PointerType(const PointerType &) = delete;
@@ -671,14 +653,21 @@ public:
   /// This constructs a pointer to an object of the specified type in a numbered
   /// address space.
   static PointerType *get(Type *ElementType, unsigned AddressSpace);
+  /// This constructs an opaque pointer to an object in a numbered address
+  /// space.
+  static PointerType *get(LLVMContext &C, unsigned AddressSpace);
 
   /// This constructs a pointer to an object of the specified type in the
-  /// generic address space (address space zero).
+  /// default address space (address space zero).
   static PointerType *getUnqual(Type *ElementType) {
     return PointerType::get(ElementType, 0);
   }
 
-  Type *getElementType() const { return PointeeTy; }
+  /// This constructs an opaque pointer to an object in the
+  /// default address space (address space zero).
+  static PointerType *getUnqual(LLVMContext &C) {
+    return PointerType::get(C, 0);
+  }
 
   /// Return true if the specified type is valid as a element type.
   static bool isValidElementType(Type *ElemTy);
@@ -705,18 +694,98 @@ Type *Type::getExtendedType() const {
   return cast<IntegerType>(this)->getExtendedType();
 }
 
+Type *Type::getWithNewType(Type *EltTy) const {
+  if (auto *VTy = dyn_cast<VectorType>(this))
+    return VectorType::get(EltTy, VTy->getElementCount());
+  return EltTy;
+}
+
 Type *Type::getWithNewBitWidth(unsigned NewBitWidth) const {
   assert(
       isIntOrIntVectorTy() &&
       "Original type expected to be a vector of integers or a scalar integer.");
-  Type *NewType = getIntNTy(getContext(), NewBitWidth);
-  if (auto *VTy = dyn_cast<VectorType>(this))
-    NewType = VectorType::get(NewType, VTy->getElementCount());
-  return NewType;
+  return getWithNewType(getIntNTy(getContext(), NewBitWidth));
 }
 
 unsigned Type::getPointerAddressSpace() const {
   return cast<PointerType>(getScalarType())->getAddressSpace();
+}
+
+/// Class to represent target extensions types, which are generally
+/// unintrospectable from target-independent optimizations.
+///
+/// Target extension types have a string name, and optionally have type and/or
+/// integer parameters. The exact meaning of any parameters is dependent on the
+/// target.
+class TargetExtType : public Type {
+  TargetExtType(LLVMContext &C, StringRef Name, ArrayRef<Type *> Types,
+                ArrayRef<unsigned> Ints);
+
+  // These strings are ultimately owned by the context.
+  StringRef Name;
+  unsigned *IntParams;
+
+public:
+  TargetExtType(const TargetExtType &) = delete;
+  TargetExtType &operator=(const TargetExtType &) = delete;
+
+  /// Return a target extension type having the specified name and optional
+  /// type and integer parameters.
+  static TargetExtType *get(LLVMContext &Context, StringRef Name,
+                            ArrayRef<Type *> Types = std::nullopt,
+                            ArrayRef<unsigned> Ints = std::nullopt);
+
+  /// Return the name for this target extension type. Two distinct target
+  /// extension types may have the same name if their type or integer parameters
+  /// differ.
+  StringRef getName() const { return Name; }
+
+  /// Return the type parameters for this particular target extension type. If
+  /// there are no parameters, an empty array is returned.
+  ArrayRef<Type *> type_params() const {
+    return ArrayRef(type_param_begin(), type_param_end());
+  }
+
+  using type_param_iterator = Type::subtype_iterator;
+  type_param_iterator type_param_begin() const { return ContainedTys; }
+  type_param_iterator type_param_end() const {
+    return &ContainedTys[NumContainedTys];
+  }
+
+  Type *getTypeParameter(unsigned i) const { return getContainedType(i); }
+  unsigned getNumTypeParameters() const { return getNumContainedTypes(); }
+
+  /// Return the integer parameters for this particular target extension type.
+  /// If there are no parameters, an empty array is returned.
+  ArrayRef<unsigned> int_params() const {
+    return ArrayRef(IntParams, getNumIntParameters());
+  }
+
+  unsigned getIntParameter(unsigned i) const { return IntParams[i]; }
+  unsigned getNumIntParameters() const { return getSubclassData(); }
+
+  enum Property {
+    /// zeroinitializer is valid for this target extension type.
+    HasZeroInit = 1U << 0,
+    /// This type may be used as the value type of a global variable.
+    CanBeGlobal = 1U << 1,
+  };
+
+  /// Returns true if the target extension type contains the given property.
+  bool hasProperty(Property Prop) const;
+
+  /// Returns an underlying layout type for the target extension type. This
+  /// type can be used to query size and alignment information, if it is
+  /// appropriate (although note that the layout type may also be void). It is
+  /// not legal to bitcast between this type and the layout type, however.
+  Type *getLayoutType() const;
+
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  static bool classof(const Type *T) { return T->getTypeID() == TargetExtTyID; }
+};
+
+StringRef Type::getTargetExtName() const {
+  return cast<TargetExtType>(this)->getName();
 }
 
 } // end namespace llvm

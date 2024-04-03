@@ -19,12 +19,13 @@
 #include "clang/AST/Type.h"
 #include "clang/Basic/AttrKinds.h"
 #include "clang/Basic/AttributeCommonInfo.h"
-#include "clang/Basic/LangOptions.h"
 #include "clang/Basic/LLVM.h"
+#include "clang/Basic/LangOptions.h"
 #include "clang/Basic/OpenMPKinds.h"
 #include "clang/Basic/Sanitizers.h"
 #include "clang/Basic/SourceLocation.h"
-#include "llvm/ADT/StringSwitch.h"
+#include "llvm/Frontend/HLSL/HLSLResource.h"
+#include "llvm/Support/CodeGen.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/VersionTuple.h"
 #include "llvm/Support/raw_ostream.h"
@@ -34,28 +35,29 @@
 namespace clang {
 class ASTContext;
 class AttributeCommonInfo;
-class IdentifierInfo;
-class ObjCInterfaceDecl;
-class Expr;
-class QualType;
 class FunctionDecl;
-class TypeSourceInfo;
 class OMPTraitInfo;
 
 /// Attr - This represents one attribute.
 class Attr : public AttributeCommonInfo {
 private:
+  LLVM_PREFERRED_TYPE(attr::Kind)
   unsigned AttrKind : 16;
 
 protected:
   /// An index into the spelling list of an
   /// attribute defined in Attr.td file.
+  LLVM_PREFERRED_TYPE(bool)
   unsigned Inherited : 1;
+  LLVM_PREFERRED_TYPE(bool)
   unsigned IsPackExpansion : 1;
+  LLVM_PREFERRED_TYPE(bool)
   unsigned Implicit : 1;
   // FIXME: These are properties of the attribute kind, not state for this
   // instance of the attribute.
+  LLVM_PREFERRED_TYPE(bool)
   unsigned IsLateParsed : 1;
+  LLVM_PREFERRED_TYPE(bool)
   unsigned InheritEvenIfAlreadyPresent : 1;
 
   void *operator new(size_t bytes) noexcept {
@@ -109,6 +111,8 @@ public:
 
   // Pretty print this attribute.
   void printPretty(raw_ostream &OS, const PrintingPolicy &Policy) const;
+
+  static StringRef getDocumentation(attr::Kind);
 };
 
 class TypeAttr : public Attr {
@@ -162,6 +166,21 @@ public:
   }
 };
 
+class DeclOrStmtAttr : public InheritableAttr {
+protected:
+  DeclOrStmtAttr(ASTContext &Context, const AttributeCommonInfo &CommonInfo,
+                 attr::Kind AK, bool IsLateParsed,
+                 bool InheritEvenIfAlreadyPresent)
+      : InheritableAttr(Context, CommonInfo, AK, IsLateParsed,
+                        InheritEvenIfAlreadyPresent) {}
+
+public:
+  static bool classof(const Attr *A) {
+    return A->getKind() >= attr::FirstDeclOrStmtAttr &&
+           A->getKind() <= attr::LastDeclOrStmtAttr;
+  }
+};
+
 class InheritableParamAttr : public InheritableAttr {
 protected:
   InheritableParamAttr(ASTContext &Context,
@@ -175,6 +194,22 @@ public:
   static bool classof(const Attr *A) {
     return A->getKind() >= attr::FirstInheritableParamAttr &&
            A->getKind() <= attr::LastInheritableParamAttr;
+  }
+};
+
+class HLSLAnnotationAttr : public InheritableAttr {
+protected:
+  HLSLAnnotationAttr(ASTContext &Context, const AttributeCommonInfo &CommonInfo,
+                     attr::Kind AK, bool IsLateParsed,
+                     bool InheritEvenIfAlreadyPresent)
+      : InheritableAttr(Context, CommonInfo, AK, IsLateParsed,
+                        InheritEvenIfAlreadyPresent) {}
+
+public:
+  // Implement isa/cast/dyncast/etc.
+  static bool classof(const Attr *A) {
+    return A->getKind() >= attr::FirstHLSLAnnotationAttr &&
+           A->getKind() <= attr::LastHLSLAnnotationAttr;
   }
 };
 
@@ -193,6 +228,8 @@ public:
     switch (getKind()) {
     case attr::SwiftContext:
       return ParameterABI::SwiftContext;
+    case attr::SwiftAsyncContext:
+      return ParameterABI::SwiftAsyncContext;
     case attr::SwiftErrorResult:
       return ParameterABI::SwiftErrorResult;
     case attr::SwiftIndirectResult:
@@ -213,7 +250,9 @@ public:
 class ParamIdx {
   // Idx is exposed only via accessors that specify specific encodings.
   unsigned Idx : 30;
+  LLVM_PREFERRED_TYPE(bool)
   unsigned HasThis : 1;
+  LLVM_PREFERRED_TYPE(bool)
   unsigned IsValid : 1;
 
   void assertComparable(const ParamIdx &I) const {
@@ -259,7 +298,10 @@ public:
 
   /// Construct from a result from \c serialize.
   static ParamIdx deserialize(SerialType S) {
-    ParamIdx P(*reinterpret_cast<ParamIdx *>(&S));
+    // Using this two-step static_cast via void * instead of reinterpret_cast
+    // silences a -Wstrict-aliasing false positive from GCC7 and earlier.
+    void *ParamIdxPtr = static_cast<void *>(&S);
+    ParamIdx P(*static_cast<ParamIdx *>(ParamIdxPtr));
     assert((!P.IsValid || P.Idx >= 1) && "valid Idx must be one-origin");
     return P;
   }
@@ -330,32 +372,12 @@ public:
 static_assert(sizeof(ParamIdx) == sizeof(ParamIdx::SerialType),
               "ParamIdx does not fit its serialization type");
 
-/// Contains information gathered from parsing the contents of TargetAttr.
-struct ParsedTargetAttr {
-  std::vector<std::string> Features;
-  StringRef Architecture;
-  StringRef BranchProtection;
-  bool DuplicateArchitecture = false;
-  bool operator ==(const ParsedTargetAttr &Other) const {
-    return DuplicateArchitecture == Other.DuplicateArchitecture &&
-           Architecture == Other.Architecture && Features == Other.Features;
-  }
-};
-
 #include "clang/AST/Attrs.inc"
 
-inline const DiagnosticBuilder &operator<<(const DiagnosticBuilder &DB,
-                                           const Attr *At) {
-  DB.AddTaggedVal(reinterpret_cast<intptr_t>(At),
-                  DiagnosticsEngine::ak_attr);
+inline const StreamingDiagnostic &operator<<(const StreamingDiagnostic &DB,
+                                             const Attr *At) {
+  DB.AddTaggedVal(reinterpret_cast<uint64_t>(At), DiagnosticsEngine::ak_attr);
   return DB;
-}
-
-inline const PartialDiagnostic &operator<<(const PartialDiagnostic &PD,
-                                           const Attr *At) {
-  PD.AddTaggedVal(reinterpret_cast<intptr_t>(At),
-                  DiagnosticsEngine::ak_attr);
-  return PD;
 }
 }  // end namespace clang
 

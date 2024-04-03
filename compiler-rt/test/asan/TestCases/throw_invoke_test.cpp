@@ -1,5 +1,8 @@
 // RUN: %clangxx_asan %s -o %t && %run %t
-// RUN: %clangxx_asan %s -o %t %linux_static_libstdcplusplus && %run %t
+// RUN: %clangxx_asan %s -o %t -static-libstdc++ && %run %t
+
+// Investigate why it fails with NDK 21.
+// UNSUPPORTED: android
 
 #include <stdio.h>
 static volatile int zero = 0;

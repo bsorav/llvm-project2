@@ -10,14 +10,13 @@
 //===----------------------------------------------------------------------===//
 
 #include "LeonPasses.h"
-#include "llvm/CodeGen/ISDOpcodes.h"
+#include "SparcSubtarget.h"
+#include "llvm/CodeGen/MachineBasicBlock.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineInstr.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
-#include "llvm/CodeGen/MachineRegisterInfo.h"
-#include "llvm/IR/DiagnosticInfo.h"
-#include "llvm/IR/LLVMContext.h"
 #include "llvm/Support/raw_ostream.h"
+
 using namespace llvm;
 
 LEONMachineFunctionPass::LEONMachineFunctionPass(char &ID)
@@ -39,12 +38,14 @@ InsertNOPLoad::InsertNOPLoad() : LEONMachineFunctionPass(ID) {}
 
 bool InsertNOPLoad::runOnMachineFunction(MachineFunction &MF) {
   Subtarget = &MF.getSubtarget<SparcSubtarget>();
+  if (!Subtarget->insertNOPLoad())
+    return false;
+
   const TargetInstrInfo &TII = *Subtarget->getInstrInfo();
   DebugLoc DL = DebugLoc();
 
   bool Modified = false;
-  for (auto MFI = MF.begin(), E = MF.end(); MFI != E; ++MFI) {
-    MachineBasicBlock &MBB = *MFI;
+  for (MachineBasicBlock &MBB : MF) {
     for (auto MBBI = MBB.begin(), E = MBB.end(); MBBI != E; ++MBBI) {
       MachineInstr &MI = *MBBI;
       unsigned Opcode = MI.getOpcode();
@@ -76,19 +77,19 @@ DetectRoundChange::DetectRoundChange() : LEONMachineFunctionPass(ID) {}
 
 bool DetectRoundChange::runOnMachineFunction(MachineFunction &MF) {
   Subtarget = &MF.getSubtarget<SparcSubtarget>();
+  if (!Subtarget->detectRoundChange())
+    return false;
 
   bool Modified = false;
-  for (auto MFI = MF.begin(), E = MF.end(); MFI != E; ++MFI) {
-    MachineBasicBlock &MBB = *MFI;
-    for (auto MBBI = MBB.begin(), E = MBB.end(); MBBI != E; ++MBBI) {
-      MachineInstr &MI = *MBBI;
+  for (MachineBasicBlock &MBB : MF) {
+    for (MachineInstr &MI : MBB) {
       unsigned Opcode = MI.getOpcode();
       if (Opcode == SP::CALL && MI.getNumOperands() > 0) {
         MachineOperand &MO = MI.getOperand(0);
 
         if (MO.isGlobal()) {
           StringRef FuncName = MO.getGlobal()->getName();
-          if (FuncName.compare_lower("fesetround") == 0) {
+          if (FuncName.compare_insensitive("fesetround") == 0) {
             errs() << "Error: You are using the detectroundchange "
                       "option to detect rounding changes that will "
                       "cause LEON errata. The only way to fix this "
@@ -126,12 +127,14 @@ FixAllFDIVSQRT::FixAllFDIVSQRT() : LEONMachineFunctionPass(ID) {}
 
 bool FixAllFDIVSQRT::runOnMachineFunction(MachineFunction &MF) {
   Subtarget = &MF.getSubtarget<SparcSubtarget>();
+  if (!Subtarget->fixAllFDIVSQRT())
+    return false;
+
   const TargetInstrInfo &TII = *Subtarget->getInstrInfo();
   DebugLoc DL = DebugLoc();
 
   bool Modified = false;
-  for (auto MFI = MF.begin(), E = MF.end(); MFI != E; ++MFI) {
-    MachineBasicBlock &MBB = *MFI;
+  for (MachineBasicBlock &MBB : MF) {
     for (auto MBBI = MBB.begin(), E = MBB.end(); MBBI != E; ++MBBI) {
       MachineInstr &MI = *MBBI;
       unsigned Opcode = MI.getOpcode();

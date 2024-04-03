@@ -20,8 +20,8 @@ b:
 // DWARF: .debug_info contents:
 // DWARF: DW_TAG_compile_unit
 // DWARF-NOT:         DW_TAG_
-// DWARF:               DW_AT_low_pc (0x0000000000000000)
-// DWARF:               DW_AT_high_pc (0x0000000000000004)
+// DWARF:               DW_AT_low_pc (0x00000000)
+// DWARF:               DW_AT_high_pc (0x00000004)
 
 // DWARF: DW_TAG_label
 // DWARF-NEXT: DW_AT_name ("b")
@@ -33,8 +33,8 @@ b:
 
 
 // DWARF: .debug_line contents:
-// DWARF:      0x0000000000000000      7      0      1   0   0  is_stmt
-// DWARF-NEXT: 0x0000000000000004      7      0      1   0   0  is_stmt end_sequence
+// DWARF:      0x0000000000000000      7      0      1   0   0       0  is_stmt
+// DWARF-NEXT: 0x0000000000000004      7      0      1   0   0       0  is_stmt end_sequence
 
 
 // DWARF-NOT: .debug_ranges contents:

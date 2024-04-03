@@ -18,13 +18,12 @@
 #include "llvm/Support/Format.h"
 #include "llvm/Support/LineIterator.h"
 #include "llvm/Support/MemoryBuffer.h"
-#include "llvm/Support/Unicode.h"
+#include "llvm/Support/VersionTuple.h"
 #include "llvm/Support/YAMLParser.h"
 #include "llvm/Support/raw_ostream.h"
 #include <algorithm>
 #include <cassert>
 #include <cstdint>
-#include <cstdlib>
 #include <cstring>
 #include <string>
 #include <vector>
@@ -46,6 +45,10 @@ void *IO::getContext() const {
 
 void IO::setContext(void *Context) {
   Ctxt = Context;
+}
+
+void IO::setAllowUnknownKeys(bool Allow) {
+  llvm_unreachable("Only supported for Input");
 }
 
 //===----------------------------------------------------------------------===//
@@ -72,13 +75,6 @@ Input::~Input() = default;
 
 std::error_code Input::error() { return EC; }
 
-// Pin the vtables to this file.
-void Input::HNode::anchor() {}
-void Input::EmptyHNode::anchor() {}
-void Input::ScalarHNode::anchor() {}
-void Input::MapHNode::anchor() {}
-void Input::SequenceHNode::anchor() {}
-
 bool Input::outputting() const {
   return false;
 }
@@ -96,8 +92,9 @@ bool Input::setCurrentDocument() {
       ++DocIterator;
       return setCurrentDocument();
     }
+    releaseHNodeBuffers();
     TopNode = createHNodes(N);
-    CurrentNode = TopNode.get();
+    CurrentNode = TopNode;
     return true;
   }
   return false;
@@ -159,6 +156,8 @@ bool Input::preflightKey(const char *Key, bool Required, bool, bool &UseDefault,
   if (!CurrentNode) {
     if (Required)
       EC = make_error_code(errc::invalid_argument);
+    else
+      UseDefault = true;
     return false;
   }
 
@@ -171,7 +170,7 @@ bool Input::preflightKey(const char *Key, bool Required, bool, bool &UseDefault,
     return false;
   }
   MN->ValidKeys.push_back(Key);
-  HNode *Value = MN->Mapping[Key].get();
+  HNode *Value = MN->Mapping[Key].first;
   if (!Value) {
     if (Required)
       setError(CurrentNode, Twine("missing required key '") + Key + "'");
@@ -197,8 +196,12 @@ void Input::endMapping() {
     return;
   for (const auto &NN : MN->Mapping) {
     if (!is_contained(MN->ValidKeys, NN.first())) {
-      setError(NN.second.get(), Twine("unknown key '") + NN.first() + "'");
-      break;
+      const SMRange &ReportLoc = NN.second.second;
+      if (!AllowUnknownKeys) {
+        setError(ReportLoc, Twine("unknown key '") + NN.first() + "'");
+        break;
+      } else
+        reportWarning(ReportLoc, Twine("unknown key '") + NN.first() + "'");
     }
   }
 }
@@ -230,7 +233,7 @@ bool Input::preflightElement(unsigned Index, void *&SaveInfo) {
     return false;
   if (SequenceHNode *SQ = dyn_cast<SequenceHNode>(CurrentNode)) {
     SaveInfo = CurrentNode;
-    CurrentNode = SQ->Entries[Index].get();
+    CurrentNode = SQ->Entries[Index];
     return true;
   }
   return false;
@@ -247,7 +250,7 @@ bool Input::preflightFlowElement(unsigned index, void *&SaveInfo) {
     return false;
   if (SequenceHNode *SQ = dyn_cast<SequenceHNode>(CurrentNode)) {
     SaveInfo = CurrentNode;
-    CurrentNode = SQ->Entries[index].get();
+    CurrentNode = SQ->Entries[index];
     return true;
   }
   return false;
@@ -292,7 +295,7 @@ void Input::endEnumScalar() {
 bool Input::beginBitSetScalar(bool &DoClear) {
   BitValuesUsed.clear();
   if (SequenceHNode *SQ = dyn_cast<SequenceHNode>(CurrentNode)) {
-    BitValuesUsed.insert(BitValuesUsed.begin(), SQ->Entries.size(), false);
+    BitValuesUsed.resize(SQ->Entries.size());
   } else {
     setError(CurrentNode, "expected sequence of bit values");
   }
@@ -306,7 +309,7 @@ bool Input::bitSetMatch(const char *Str, bool) {
   if (SequenceHNode *SQ = dyn_cast<SequenceHNode>(CurrentNode)) {
     unsigned Index = 0;
     for (auto &N : SQ->Entries) {
-      if (ScalarHNode *SN = dyn_cast<ScalarHNode>(N.get())) {
+      if (ScalarHNode *SN = dyn_cast<ScalarHNode>(N)) {
         if (SN->value().equals(Str)) {
           BitValuesUsed[Index] = true;
           return true;
@@ -329,7 +332,7 @@ void Input::endBitSetScalar() {
     assert(BitValuesUsed.size() == SQ->Entries.size());
     for (unsigned i = 0; i < SQ->Entries.size(); ++i) {
       if (!BitValuesUsed[i]) {
-        setError(SQ->Entries[i].get(), "unknown bit value");
+        setError(SQ->Entries[i], "unknown bit value");
         return;
       }
     }
@@ -370,29 +373,62 @@ void Input::setError(Node *node, const Twine &message) {
   EC = make_error_code(errc::invalid_argument);
 }
 
-std::unique_ptr<Input::HNode> Input::createHNodes(Node *N) {
+void Input::setError(const SMRange &range, const Twine &message) {
+  Strm->printError(range, message);
+  EC = make_error_code(errc::invalid_argument);
+}
+
+void Input::reportWarning(HNode *hnode, const Twine &message) {
+  assert(hnode && "HNode must not be NULL");
+  Strm->printError(hnode->_node, message, SourceMgr::DK_Warning);
+}
+
+void Input::reportWarning(Node *node, const Twine &message) {
+  Strm->printError(node, message, SourceMgr::DK_Warning);
+}
+
+void Input::reportWarning(const SMRange &range, const Twine &message) {
+  Strm->printError(range, message, SourceMgr::DK_Warning);
+}
+
+void Input::releaseHNodeBuffers() {
+  EmptyHNodeAllocator.DestroyAll();
+  ScalarHNodeAllocator.DestroyAll();
+  SequenceHNodeAllocator.DestroyAll();
+  MapHNodeAllocator.DestroyAll();
+}
+
+Input::HNode *Input::createHNodes(Node *N) {
   SmallString<128> StringStorage;
-  if (ScalarNode *SN = dyn_cast<ScalarNode>(N)) {
+  switch (N->getType()) {
+  case Node::NK_Scalar: {
+    ScalarNode *SN = dyn_cast<ScalarNode>(N);
     StringRef KeyStr = SN->getValue(StringStorage);
     if (!StringStorage.empty()) {
       // Copy string to permanent storage
       KeyStr = StringStorage.str().copy(StringAllocator);
     }
-    return std::make_unique<ScalarHNode>(N, KeyStr);
-  } else if (BlockScalarNode *BSN = dyn_cast<BlockScalarNode>(N)) {
+    return new (ScalarHNodeAllocator.Allocate()) ScalarHNode(N, KeyStr);
+  }
+  case Node::NK_BlockScalar: {
+    BlockScalarNode *BSN = dyn_cast<BlockScalarNode>(N);
     StringRef ValueCopy = BSN->getValue().copy(StringAllocator);
-    return std::make_unique<ScalarHNode>(N, ValueCopy);
-  } else if (SequenceNode *SQ = dyn_cast<SequenceNode>(N)) {
-    auto SQHNode = std::make_unique<SequenceHNode>(N);
+    return new (ScalarHNodeAllocator.Allocate()) ScalarHNode(N, ValueCopy);
+  }
+  case Node::NK_Sequence: {
+    SequenceNode *SQ = dyn_cast<SequenceNode>(N);
+    auto SQHNode = new (SequenceHNodeAllocator.Allocate()) SequenceHNode(N);
     for (Node &SN : *SQ) {
       auto Entry = createHNodes(&SN);
       if (EC)
         break;
-      SQHNode->Entries.push_back(std::move(Entry));
+      SQHNode->Entries.push_back(Entry);
     }
-    return std::move(SQHNode);
-  } else if (MappingNode *Map = dyn_cast<MappingNode>(N)) {
-    auto mapHNode = std::make_unique<MapHNode>(N);
+    return SQHNode;
+  }
+  case Node::NK_Mapping: {
+    MappingNode *Map = dyn_cast<MappingNode>(N);
+    auto mapHNode = new (MapHNodeAllocator.Allocate()) MapHNode(N);
     for (KeyValueNode &KVN : *Map) {
       Node *KeyNode = KVN.getKey();
       ScalarNode *Key = dyn_cast_or_null<ScalarNode>(KeyNode);
@@ -410,15 +446,22 @@ std::unique_ptr<Input::HNode> Input::createHNodes(Node *N) {
         // Copy string to permanent storage
         KeyStr = StringStorage.str().copy(StringAllocator);
       }
+      if (mapHNode->Mapping.count(KeyStr))
+        // From YAML spec: "The content of a mapping node is an unordered set of
+        // key/value node pairs, with the restriction that each of the keys is
+        // unique."
+        setError(KeyNode, Twine("duplicated mapping key '") + KeyStr + "'");
       auto ValueHNode = createHNodes(Value);
       if (EC)
         break;
-      mapHNode->Mapping[KeyStr] = std::move(ValueHNode);
+      mapHNode->Mapping[KeyStr] =
+          std::make_pair(std::move(ValueHNode), KeyNode->getSourceRange());
     }
     return std::move(mapHNode);
-  } else if (isa<NullNode>(N)) {
-    return std::make_unique<EmptyHNode>(N);
-  } else {
+  }
+  case Node::NK_Null:
+    return new (EmptyHNodeAllocator.Allocate()) EmptyHNode(N);
+  default:
     setError(N, "unknown node kind");
     return nullptr;
   }
@@ -427,6 +470,8 @@ std::unique_ptr<Input::HNode> Input::createHNodes(Node *N) {
 void Input::setError(const Twine &Message) {
   setError(CurrentNode, Message);
 }
+
+void Input::setAllowUnknownKeys(bool Allow) { AllowUnknownKeys = Allow; }
 
 bool Input::canElideEmptySequence() {
   return false;
@@ -498,8 +543,9 @@ std::vector<StringRef> Output::keys() {
 }
 
 bool Output::preflightKey(const char *Key, bool Required, bool SameAsDefault,
-                          bool &UseDefault, void *&) {
+                          bool &UseDefault, void *&SaveInfo) {
   UseDefault = false;
+  SaveInfo = nullptr;
   if (Required || !SameAsDefault || WriteDefaultValues) {
     auto State = StateStack.back();
     if (State == inFlowMapFirstKey || State == inFlowMapOtherKey) {
@@ -563,14 +609,15 @@ void Output::endSequence() {
   // If we did not emit anything, we should explicitly emit an empty sequence
   if (StateStack.back() == inSeqFirstElement) {
     Padding = PaddingBeforeContainer;
-    newLineCheck();
+    newLineCheck(/*EmptySequence=*/true);
     output("[]");
     Padding = "\n";
   }
   StateStack.pop_back();
 }
 
-bool Output::preflightElement(unsigned, void *&) {
+bool Output::preflightElement(unsigned, void *&SaveInfo) {
+  SaveInfo = nullptr;
   return true;
 }
 
@@ -598,7 +645,7 @@ void Output::endFlowSequence() {
   outputUpToEndOfLine(" ]");
 }
 
-bool Output::preflightFlowElement(unsigned, void *&) {
+bool Output::preflightFlowElement(unsigned, void *&SaveInfo) {
   if (NeedFlowSequenceComma)
     output(", ");
   if (WrapColumn && Column > WrapColumn) {
@@ -608,6 +655,7 @@ bool Output::preflightFlowElement(unsigned, void *&) {
     Column = ColumnAtFlowStart;
     output("  ");
   }
+  SaveInfo = nullptr;
   return true;
 }
 
@@ -769,7 +817,7 @@ void Output::outputNewLine() {
 // if seq in middle, use "- " if firstKey, else use "  "
 //
 
-void Output::newLineCheck() {
+void Output::newLineCheck(bool EmptySequence) {
   if (Padding != "\n") {
     output(Padding);
     Padding = {};
@@ -778,7 +826,7 @@ void Output::newLineCheck() {
   outputNewLine();
   Padding = {};
 
-  if (StateStack.size() == 0)
+  if (StateStack.size() == 0 || EmptySequence)
     return;
 
   unsigned Indent = StateStack.size() - 1;
@@ -802,7 +850,6 @@ void Output::newLineCheck() {
   if (OutputDash) {
     output("- ");
   }
-
 }
 
 void Output::paddedKey(StringRef key) {
@@ -856,11 +903,8 @@ void ScalarTraits<bool>::output(const bool &Val, void *, raw_ostream &Out) {
 }
 
 StringRef ScalarTraits<bool>::input(StringRef Scalar, void *, bool &Val) {
-  if (Scalar.equals("true")) {
-    Val = true;
-    return StringRef();
-  } else if (Scalar.equals("false")) {
-    Val = false;
+  if (std::optional<bool> Parsed = parseBool(Scalar)) {
+    Val = *Parsed;
     return StringRef();
   }
   return "invalid boolean";
@@ -1031,8 +1075,7 @@ StringRef ScalarTraits<float>::input(StringRef Scalar, void *, float &Val) {
 }
 
 void ScalarTraits<Hex8>::output(const Hex8 &Val, void *, raw_ostream &Out) {
-  uint8_t Num = Val;
-  Out << format("0x%02X", Num);
+  Out << format("0x%" PRIX8, (uint8_t)Val);
 }
 
 StringRef ScalarTraits<Hex8>::input(StringRef Scalar, void *, Hex8 &Val) {
@@ -1046,8 +1089,7 @@ StringRef ScalarTraits<Hex8>::input(StringRef Scalar, void *, Hex8 &Val) {
 }
 
 void ScalarTraits<Hex16>::output(const Hex16 &Val, void *, raw_ostream &Out) {
-  uint16_t Num = Val;
-  Out << format("0x%04X", Num);
+  Out << format("0x%" PRIX16, (uint16_t)Val);
 }
 
 StringRef ScalarTraits<Hex16>::input(StringRef Scalar, void *, Hex16 &Val) {
@@ -1061,8 +1103,7 @@ StringRef ScalarTraits<Hex16>::input(StringRef Scalar, void *, Hex16 &Val) {
 }
 
 void ScalarTraits<Hex32>::output(const Hex32 &Val, void *, raw_ostream &Out) {
-  uint32_t Num = Val;
-  Out << format("0x%08X", Num);
+  Out << format("0x%" PRIX32, (uint32_t)Val);
 }
 
 StringRef ScalarTraits<Hex32>::input(StringRef Scalar, void *, Hex32 &Val) {
@@ -1076,8 +1117,7 @@ StringRef ScalarTraits<Hex32>::input(StringRef Scalar, void *, Hex32 &Val) {
 }
 
 void ScalarTraits<Hex64>::output(const Hex64 &Val, void *, raw_ostream &Out) {
-  uint64_t Num = Val;
-  Out << format("0x%016llX", Num);
+  Out << format("0x%" PRIX64, (uint64_t)Val);
 }
 
 StringRef ScalarTraits<Hex64>::input(StringRef Scalar, void *, Hex64 &Val) {
@@ -1085,5 +1125,17 @@ StringRef ScalarTraits<Hex64>::input(StringRef Scalar, void *, Hex64 &Val) {
   if (getAsUnsignedInteger(Scalar, 0, Num))
     return "invalid hex64 number";
   Val = Num;
+  return StringRef();
+}
+
+void ScalarTraits<VersionTuple>::output(const VersionTuple &Val, void *,
+                                        llvm::raw_ostream &Out) {
+  Out << Val.getAsString();
+}
+
+StringRef ScalarTraits<VersionTuple>::input(StringRef Scalar, void *,
+                                            VersionTuple &Val) {
+  if (Val.tryParse(Scalar))
+    return "invalid version format";
   return StringRef();
 }

@@ -9,10 +9,11 @@
 #ifndef LLVM_DEBUGINFO_CODEVIEW_TYPEHASHING_H
 #define LLVM_DEBUGINFO_CODEVIEW_TYPEHASHING_H
 
-#include "llvm/ADT/DenseMapInfo.h"
+#include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/Hashing.h"
+#include "llvm/ADT/StringRef.h"
 
-#include "llvm/DebugInfo/CodeView/CodeView.h"
+#include "llvm/DebugInfo/CodeView/CVRecord.h"
 #include "llvm/DebugInfo/CodeView/TypeCollection.h"
 #include "llvm/DebugInfo/CodeView/TypeIndex.h"
 
@@ -21,6 +22,7 @@
 #include <type_traits>
 
 namespace llvm {
+class raw_ostream;
 namespace codeview {
 
 /// A locally hashed type represents a straightforward hash code of a serialized
@@ -59,7 +61,8 @@ struct LocallyHashedType {
 
 enum class GlobalTypeHashAlg : uint16_t {
   SHA1 = 0, // standard 20-byte SHA1 hash
-  SHA1_8    // last 8-bytes of standard SHA1 hash
+  SHA1_8,   // last 8-bytes of standard SHA1 hash
+  BLAKE3,   // truncated 8-bytes BLAKE3
 };
 
 /// A globally hashed type represents a hash value that is sufficient to
@@ -68,7 +71,7 @@ enum class GlobalTypeHashAlg : uint16_t {
 /// TypeIndex that refers to B with a previously-computed global hash for B.  As
 /// this is a recursive algorithm (e.g. the global hash of B also depends on the
 /// global hashes of the types that B refers to), a global hash can uniquely
-/// identify identify that A occurs in another stream that has a completely
+/// identify that A occurs in another stream that has a completely
 /// different graph structure.  Although the hash itself is slower to compute,
 /// probing is much faster with a globally hashed type, because the hash itself
 /// is considered "as good as" the original type.  Since type records can be
@@ -85,6 +88,16 @@ struct GloballyHashedType {
   std::array<uint8_t, 8> Hash;
 
   bool empty() const { return *(const uint64_t*)Hash.data() == 0; }
+
+  friend inline bool operator==(const GloballyHashedType &L,
+                                const GloballyHashedType &R) {
+    return L.Hash == R.Hash;
+  }
+
+  friend inline bool operator!=(const GloballyHashedType &L,
+                                const GloballyHashedType &R) {
+    return !(L.Hash == R.Hash);
+  }
 
   /// Given a sequence of bytes representing a record, compute a global hash for
   /// this record.  Due to the nature of global hashes incorporating the hashes
@@ -161,15 +174,10 @@ struct GloballyHashedType {
     return Hashes;
   }
 };
-#if defined(_MSC_VER)
-// is_trivially_copyable is not available in older versions of libc++, but it is
-// available in all supported versions of MSVC, so at least this gives us some
-// coverage.
 static_assert(std::is_trivially_copyable<GloballyHashedType>::value,
               "GloballyHashedType must be trivially copyable so that we can "
               "reinterpret_cast arrays of hash data to arrays of "
               "GloballyHashedType");
-#endif
 } // namespace codeview
 
 template <> struct DenseMapInfo<codeview::LocallyHashedType> {
@@ -206,7 +214,7 @@ template <> struct DenseMapInfo<codeview::GloballyHashedType> {
 
   static bool isEqual(codeview::GloballyHashedType LHS,
                       codeview::GloballyHashedType RHS) {
-    return LHS.Hash == RHS.Hash;
+    return LHS == RHS;
   }
 };
 

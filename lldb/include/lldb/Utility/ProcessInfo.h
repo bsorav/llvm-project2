@@ -14,8 +14,7 @@
 #include "lldb/Utility/Environment.h"
 #include "lldb/Utility/FileSpec.h"
 #include "lldb/Utility/NameMatches.h"
-#include "lldb/Utility/Reproducer.h"
-#include "llvm/Support/YAMLTraits.h"
+#include "lldb/Utility/StructuredData.h"
 #include <vector>
 
 namespace lldb_private {
@@ -88,18 +87,50 @@ public:
   Environment &GetEnvironment() { return m_environment; }
   const Environment &GetEnvironment() const { return m_environment; }
 
+  bool IsScriptedProcess() const;
+
+  lldb::ScriptedMetadataSP GetScriptedMetadata() const {
+    return m_scripted_metadata_sp;
+  }
+
+  void SetScriptedMetadata(lldb::ScriptedMetadataSP metadata_sp) {
+    m_scripted_metadata_sp = metadata_sp;
+  }
+
+  // Get and set the actual listener that will be used for the process events
+  lldb::ListenerSP GetListener() const { return m_listener_sp; }
+
+  void SetListener(const lldb::ListenerSP &listener_sp) {
+    m_listener_sp = listener_sp;
+  }
+
+  lldb::ListenerSP GetHijackListener() const { return m_hijack_listener_sp; }
+
+  void SetHijackListener(const lldb::ListenerSP &listener_sp) {
+    m_hijack_listener_sp = listener_sp;
+  }
+
+  lldb::ListenerSP GetShadowListener() const { return m_shadow_listener_sp; }
+
+  void SetShadowListener(const lldb::ListenerSP &listener_sp) {
+    m_shadow_listener_sp = listener_sp;
+  }
+
 protected:
-  template <class T> friend struct llvm::yaml::MappingTraits;
   FileSpec m_executable;
   std::string m_arg0; // argv[0] if supported. If empty, then use m_executable.
   // Not all process plug-ins support specifying an argv[0] that differs from
   // the resolved platform executable (which is in m_executable)
   Args m_arguments; // All program arguments except argv[0]
   Environment m_environment;
-  uint32_t m_uid;
-  uint32_t m_gid;
+  uint32_t m_uid = UINT32_MAX;
+  uint32_t m_gid = UINT32_MAX;
   ArchSpec m_arch;
-  lldb::pid_t m_pid;
+  lldb::pid_t m_pid = LLDB_INVALID_PROCESS_ID;
+  lldb::ScriptedMetadataSP m_scripted_metadata_sp = nullptr;
+  lldb::ListenerSP m_listener_sp = nullptr;
+  lldb::ListenerSP m_hijack_listener_sp = nullptr;
+  lldb::ListenerSP m_shadow_listener_sp = nullptr;
 };
 
 // ProcessInstanceInfo
@@ -108,9 +139,7 @@ protected:
 // to that process.
 class ProcessInstanceInfo : public ProcessInfo {
 public:
-  ProcessInstanceInfo()
-      : ProcessInfo(), m_euid(UINT32_MAX), m_egid(UINT32_MAX),
-        m_parent_pid(LLDB_INVALID_PROCESS_ID) {}
+  ProcessInstanceInfo() = default;
 
   ProcessInstanceInfo(const char *name, const ArchSpec &arch, lldb::pid_t pid)
       : ProcessInfo(name, arch, pid), m_euid(UINT32_MAX), m_egid(UINT32_MAX),
@@ -151,13 +180,32 @@ public:
                       bool verbose) const;
 
 protected:
-  friend struct llvm::yaml::MappingTraits<ProcessInstanceInfo>;
-  uint32_t m_euid;
-  uint32_t m_egid;
-  lldb::pid_t m_parent_pid;
+  uint32_t m_euid = UINT32_MAX;
+  uint32_t m_egid = UINT32_MAX;
+  lldb::pid_t m_parent_pid = LLDB_INVALID_PROCESS_ID;
 };
 
 typedef std::vector<ProcessInstanceInfo> ProcessInstanceInfoList;
+
+class ProcessInfoList {
+public:
+  ProcessInfoList(const ProcessInstanceInfoList &list) : m_list(list) {}
+
+  uint32_t GetSize() const { return m_list.size(); }
+
+  bool GetProcessInfoAtIndex(uint32_t idx, ProcessInstanceInfo &info) {
+    if (idx < m_list.size()) {
+      info = m_list[idx];
+      return true;
+    }
+    return false;
+  }
+
+  void Clear() { return m_list.clear(); }
+
+private:
+  ProcessInstanceInfoList m_list;
+};
 
 // ProcessInstanceInfoMatch
 //
@@ -165,14 +213,11 @@ typedef std::vector<ProcessInstanceInfo> ProcessInstanceInfoList;
 
 class ProcessInstanceInfoMatch {
 public:
-  ProcessInstanceInfoMatch()
-      : m_match_info(), m_name_match_type(NameMatch::Ignore),
-        m_match_all_users(false) {}
+  ProcessInstanceInfoMatch() = default;
 
   ProcessInstanceInfoMatch(const char *process_name,
                            NameMatch process_name_match_type)
-      : m_match_info(), m_name_match_type(process_name_match_type),
-        m_match_all_users(false) {
+      : m_name_match_type(process_name_match_type), m_match_all_users(false) {
     m_match_info.GetExecutableFile().SetFile(process_name,
                                              FileSpec::Style::native);
   }
@@ -212,56 +257,10 @@ public:
 
 protected:
   ProcessInstanceInfo m_match_info;
-  NameMatch m_name_match_type;
-  bool m_match_all_users;
+  NameMatch m_name_match_type = NameMatch::Ignore;
+  bool m_match_all_users = false;
 };
 
-namespace repro {
-class ProcessInfoRecorder : public AbstractRecorder {
-public:
-  ProcessInfoRecorder(const FileSpec &filename, std::error_code &ec)
-      : AbstractRecorder(filename, ec) {}
-
-  static llvm::Expected<std::unique_ptr<ProcessInfoRecorder>>
-  Create(const FileSpec &filename);
-
-  void Record(const ProcessInstanceInfoList &process_infos);
-};
-
-class ProcessInfoProvider : public repro::Provider<ProcessInfoProvider> {
-public:
-  struct Info {
-    static const char *name;
-    static const char *file;
-  };
-
-  ProcessInfoProvider(const FileSpec &directory) : Provider(directory) {}
-
-  ProcessInfoRecorder *GetNewProcessInfoRecorder();
-
-  void Keep() override;
-  void Discard() override;
-
-  static char ID;
-
-private:
-  std::unique_ptr<llvm::raw_fd_ostream> m_stream_up;
-  std::vector<std::unique_ptr<ProcessInfoRecorder>> m_process_info_recorders;
-};
-
-llvm::Optional<ProcessInstanceInfoList> GetReplayProcessInstanceInfoList();
-
-} // namespace repro
 } // namespace lldb_private
-
-LLVM_YAML_IS_SEQUENCE_VECTOR(lldb_private::ProcessInstanceInfo)
-
-namespace llvm {
-namespace yaml {
-template <> struct MappingTraits<lldb_private::ProcessInstanceInfo> {
-  static void mapping(IO &io, lldb_private::ProcessInstanceInfo &PII);
-};
-} // namespace yaml
-} // namespace llvm
 
 #endif // LLDB_UTILITY_PROCESSINFO_H

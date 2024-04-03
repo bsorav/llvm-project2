@@ -1,11 +1,11 @@
-! RUN: %S/test_symbols.sh %s %t %f18
+! RUN: %python %S/test_symbols.py %s %flang_fc1
  !DEF: /MainProgram1/ipdt DerivedType
  !DEF: /MainProgram1/ipdt/k TypeParam INTEGER(4)
  type :: ipdt(k)
   !REF: /MainProgram1/ipdt/k
   integer, kind :: k
   !REF: /MainProgram1/ipdt/k
-  !DEF: /MainProgram1/ipdt/x ObjectEntity INTEGER(int(k,kind=8))
+  !DEF: /MainProgram1/ipdt/x ObjectEntity INTEGER(int(int(k,kind=4),kind=8))
   integer(kind=k) :: x
  end type ipdt
  !DEF: /MainProgram1/rpdt DerivedType
@@ -14,7 +14,7 @@
   !REF: /MainProgram1/rpdt/k
   integer, kind :: k
   !REF: /MainProgram1/rpdt/k
-  !DEF: /MainProgram1/rpdt/x ObjectEntity REAL(int(k,kind=8))
+  !DEF: /MainProgram1/rpdt/x ObjectEntity REAL(int(int(k,kind=4),kind=8))
   real(kind=k) :: x
  end type rpdt
  !DEF: /MainProgram1/zpdt DerivedType
@@ -23,7 +23,7 @@
   !REF: /MainProgram1/zpdt/k
   integer, kind :: k
   !REF: /MainProgram1/zpdt/k
-  !DEF: /MainProgram1/zpdt/x ObjectEntity COMPLEX(int(k,kind=8))
+  !DEF: /MainProgram1/zpdt/x ObjectEntity COMPLEX(int(int(k,kind=4),kind=8))
   complex(kind=k) :: x
  end type zpdt
  !DEF: /MainProgram1/lpdt DerivedType
@@ -32,7 +32,7 @@
   !REF: /MainProgram1/lpdt/k
   integer, kind :: k
   !REF: /MainProgram1/lpdt/k
-  !DEF: /MainProgram1/lpdt/x ObjectEntity LOGICAL(int(k,kind=8))
+  !DEF: /MainProgram1/lpdt/x ObjectEntity LOGICAL(int(int(k,kind=4),kind=8))
   logical(kind=k) :: x
  end type lpdt
  !REF: /MainProgram1/ipdt
@@ -60,9 +60,6 @@
  !DEF: /MainProgram1/a8 ObjectEntity TYPE(rpdt(k=8_4))
  type(rpdt(8)) :: a8
  !REF: /MainProgram1/rpdt
- !DEF: /MainProgram1/a10 ObjectEntity TYPE(rpdt(k=10_4))
- type(rpdt(10)) :: a10
- !REF: /MainProgram1/rpdt
  !DEF: /MainProgram1/a16 ObjectEntity TYPE(rpdt(k=16_4))
  type(rpdt(16)) :: a16
  !REF: /MainProgram1/zpdt
@@ -74,9 +71,6 @@
  !REF: /MainProgram1/zpdt
  !DEF: /MainProgram1/z8 ObjectEntity TYPE(zpdt(k=8_4))
  type(zpdt(8)) :: z8
- !REF: /MainProgram1/zpdt
- !DEF: /MainProgram1/z10 ObjectEntity TYPE(zpdt(k=10_4))
- type(zpdt(10)) :: z10
  !REF: /MainProgram1/zpdt
  !DEF: /MainProgram1/z16 ObjectEntity TYPE(zpdt(k=16_4))
  type(zpdt(16)) :: z16

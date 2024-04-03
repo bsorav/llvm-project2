@@ -12,17 +12,26 @@
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Lex/PreprocessorOptions.h"
 #include "clang/Serialization/ASTReader.h"
+#include <optional>
 
-namespace clang {
-namespace tooling {
+#define DEBUG_TYPE "clang-tidy"
+
+namespace clang::tooling {
 
 class ExpandModularHeadersPPCallbacks::FileRecorder {
 public:
   /// Records that a given file entry is needed for replaying callbacks.
-  void addNecessaryFile(const FileEntry *File) { FilesToRecord.insert(File); }
+  void addNecessaryFile(FileEntryRef File) {
+    // Don't record modulemap files because it breaks same file detection.
+    if (!(File.getName().ends_with("module.modulemap") ||
+          File.getName().ends_with("module.private.modulemap") ||
+          File.getName().ends_with("module.map") ||
+          File.getName().ends_with("module_private.map")))
+      FilesToRecord.insert(File);
+  }
 
   /// Records content for a file and adds it to the FileSystem.
-  void recordFileContent(const FileEntry *File,
+  void recordFileContent(FileEntryRef File,
                          const SrcMgr::ContentCache &ContentCache,
                          llvm::vfs::InMemoryFileSystem &InMemoryFs) {
     // Return if we are not interested in the contents of this file.
@@ -30,12 +39,12 @@ public:
       return;
 
     // FIXME: Why is this happening? We might be losing contents here.
-    if (!ContentCache.getRawBuffer())
+    std::optional<StringRef> Data = ContentCache.getBufferDataIfLoaded();
+    if (!Data)
       return;
 
-    InMemoryFs.addFile(File->getName(), /*ModificationTime=*/0,
-                       llvm::MemoryBuffer::getMemBufferCopy(
-                           ContentCache.getRawBuffer()->getBuffer()));
+    InMemoryFs.addFile(File.getName(), /*ModificationTime=*/0,
+                       llvm::MemoryBuffer::getMemBufferCopy(*Data));
     // Remove the file from the set of necessary files.
     FilesToRecord.erase(File);
   }
@@ -43,14 +52,16 @@ public:
   /// Makes sure we have contents for all the files we were interested in. Ideally
   /// `FilesToRecord` should be empty.
   void checkAllFilesRecorded() {
-    for (auto FileEntry : FilesToRecord)
-      llvm::errs() << "Did not record contents for input file: "
-                   << FileEntry->getName() << "\n";
+    LLVM_DEBUG({
+      for (auto FileEntry : FilesToRecord)
+        llvm::dbgs() << "Did not record contents for input file: "
+                     << FileEntry.getName() << "\n";
+    });
   }
 
 private:
   /// A set of files whose contents are to be recorded.
-  llvm::DenseSet<const FileEntry *> FilesToRecord;
+  llvm::DenseSet<FileEntryRef> FilesToRecord;
 };
 
 ExpandModularHeadersPPCallbacks::ExpandModularHeadersPPCallbacks(
@@ -68,6 +79,9 @@ ExpandModularHeadersPPCallbacks::ExpandModularHeadersPPCallbacks(
   OverlayFS->pushOverlay(InMemoryFs);
 
   Diags.setSourceManager(&Sources);
+  // FIXME: Investigate whatever is there better way to initialize DiagEngine
+  // or whatever DiagEngine can be shared by multiple preprocessors
+  ProcessWarningOptions(Diags, Compiler.getDiagnosticOpts());
 
   LangOpts.Modules = false;
 
@@ -86,7 +100,7 @@ ExpandModularHeadersPPCallbacks::ExpandModularHeadersPPCallbacks(
                                               /*OwnsHeaderSearch=*/false);
   PP->Initialize(Compiler.getTarget(), Compiler.getAuxTarget());
   InitializePreprocessor(*PP, *PO, Compiler.getPCHContainerReader(),
-                         Compiler.getFrontendOpts());
+                         Compiler.getFrontendOpts(), Compiler.getCodeGenOpts());
   ApplyHeaderSearchOptions(*HeaderInfo, *HSO, LangOpts,
                            Compiler.getTarget().getTriple());
 }
@@ -111,10 +125,10 @@ void ExpandModularHeadersPPCallbacks::handleModuleFile(
   Compiler.getASTReader()->visitInputFiles(
       *MF, true, false,
       [this](const serialization::InputFile &IF, bool /*IsSystem*/) {
-        Recorder->addNecessaryFile(IF.getFile());
+        Recorder->addNecessaryFile(*IF.getFile());
       });
   // Recursively handle all transitively imported modules.
-  for (auto Import : MF->Imports)
+  for (auto *Import : MF->Imports)
     handleModuleFile(Import);
 }
 
@@ -151,12 +165,13 @@ void ExpandModularHeadersPPCallbacks::FileChanged(
 void ExpandModularHeadersPPCallbacks::InclusionDirective(
     SourceLocation DirectiveLoc, const Token &IncludeToken,
     StringRef IncludedFilename, bool IsAngled, CharSourceRange FilenameRange,
-    const FileEntry *IncludedFile, StringRef SearchPath, StringRef RelativePath,
-    const Module *Imported, SrcMgr::CharacteristicKind FileType) {
+    OptionalFileEntryRef IncludedFile, StringRef SearchPath,
+    StringRef RelativePath, const Module *Imported,
+    SrcMgr::CharacteristicKind FileType) {
   if (Imported) {
     serialization::ModuleFile *MF =
         Compiler.getASTReader()->getModuleManager().lookup(
-            Imported->getASTFile());
+            *Imported->getASTFile());
     handleModuleFile(MF);
   }
   parseToLocation(DirectiveLoc);
@@ -212,18 +227,19 @@ void ExpandModularHeadersPPCallbacks::PragmaDiagnostic(SourceLocation Loc,
   parseToLocation(Loc);
 }
 void ExpandModularHeadersPPCallbacks::HasInclude(SourceLocation Loc, StringRef,
-                                                 bool, Optional<FileEntryRef>,
+                                                 bool, OptionalFileEntryRef,
                                                  SrcMgr::CharacteristicKind) {
   parseToLocation(Loc);
 }
 void ExpandModularHeadersPPCallbacks::PragmaOpenCLExtension(
     SourceLocation NameLoc, const IdentifierInfo *, SourceLocation StateLoc,
     unsigned) {
-  // FIME: Figure out whether it's the right location to parse to.
+  // FIXME: Figure out whether it's the right location to parse to.
   parseToLocation(NameLoc);
 }
 void ExpandModularHeadersPPCallbacks::PragmaWarning(SourceLocation Loc,
-                                                    StringRef, ArrayRef<int>) {
+                                                    PragmaWarningSpecifier,
+                                                    ArrayRef<int>) {
   parseToLocation(Loc);
 }
 void ExpandModularHeadersPPCallbacks::PragmaWarningPush(SourceLocation Loc,
@@ -245,7 +261,7 @@ void ExpandModularHeadersPPCallbacks::MacroExpands(const Token &MacroNameTok,
                                                    const MacroDefinition &,
                                                    SourceRange Range,
                                                    const MacroArgs *) {
-  // FIME: Figure out whether it's the right location to parse to.
+  // FIXME: Figure out whether it's the right location to parse to.
   parseToLocation(Range.getBegin());
 }
 void ExpandModularHeadersPPCallbacks::MacroDefined(const Token &MacroNameTok,
@@ -260,12 +276,12 @@ void ExpandModularHeadersPPCallbacks::MacroUndefined(
 void ExpandModularHeadersPPCallbacks::Defined(const Token &MacroNameTok,
                                               const MacroDefinition &,
                                               SourceRange Range) {
-  // FIME: Figure out whether it's the right location to parse to.
+  // FIXME: Figure out whether it's the right location to parse to.
   parseToLocation(Range.getBegin());
 }
 void ExpandModularHeadersPPCallbacks::SourceRangeSkipped(
     SourceRange Range, SourceLocation EndifLoc) {
-  // FIME: Figure out whether it's the right location to parse to.
+  // FIXME: Figure out whether it's the right location to parse to.
   parseToLocation(EndifLoc);
 }
 void ExpandModularHeadersPPCallbacks::If(SourceLocation Loc, SourceRange,
@@ -292,5 +308,4 @@ void ExpandModularHeadersPPCallbacks::Endif(SourceLocation Loc,
   parseToLocation(Loc);
 }
 
-} // namespace tooling
-} // namespace clang
+} // namespace clang::tooling

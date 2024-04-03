@@ -1,25 +1,31 @@
 // RUN: %clang_cc1 -triple arm64-none-linux-gnu -target-feature +neon -target-feature +fullfp16 -target-feature +v8.2a\
-// RUN: -fallow-half-arguments-and-returns -flax-vector-conversions=none -S -disable-O0-optnone -emit-llvm -o - %s \
-// RUN: | opt -S -mem2reg \
+// RUN: -flax-vector-conversions=none -S -disable-O0-optnone -emit-llvm -o - %s \
+// RUN: | opt -S -passes=mem2reg \
 // RUN: | FileCheck --check-prefix=COMMON --check-prefix=COMMONIR --check-prefix=UNCONSTRAINED %s
 // RUN: %clang_cc1 -triple arm64-none-linux-gnu -target-feature +neon -target-feature +fullfp16 -target-feature +v8.2a\
-// RUN: -ffp-exception-behavior=strict \
-// RUN: -fexperimental-strict-floating-point \
-// RUN: -fallow-half-arguments-and-returns -flax-vector-conversions=none -S -disable-O0-optnone -emit-llvm -o - %s \
-// RUN: | opt -S -mem2reg \
-// RUN: | FileCheck --check-prefix=COMMON --check-prefix=COMMONIR --check-prefix=CONSTRAINED %s
+// RUN: -ffp-exception-behavior=maytrap -DEXCEPT=1 \
+// RUN: -flax-vector-conversions=none -S -disable-O0-optnone -emit-llvm -o - %s \
+// RUN: | opt -S -passes=mem2reg \
+// RUN: | FileCheck --check-prefix=COMMON --check-prefix=COMMONIR --check-prefix=CONSTRAINED --implicit-check-not=fpexcept.maytrap %s
 // RUN: %clang_cc1 -triple arm64-none-linux-gnu -target-feature +neon -target-feature +fullfp16 -target-feature +v8.2a\
-// RUN: -fallow-half-arguments-and-returns -flax-vector-conversions=none -S -disable-O0-optnone -emit-llvm -o - %s \
-// RUN: | opt -S -mem2reg | llc -o=- - \
+// RUN: -flax-vector-conversions=none -S -disable-O0-optnone -emit-llvm -o - %s \
+// RUN: | opt -S -passes=mem2reg | llc -o=- - \
 // RUN: | FileCheck --check-prefix=COMMON --check-prefix=CHECK-ASM %s
 // RUN: %clang_cc1 -triple arm64-none-linux-gnu -target-feature +neon -target-feature +fullfp16 -target-feature +v8.2a\
-// RUN: -ffp-exception-behavior=strict \
-// RUN: -fexperimental-strict-floating-point \
-// RUN: -fallow-half-arguments-and-returns -flax-vector-conversions=none -S -disable-O0-optnone -emit-llvm -o - %s \
-// RUN: | opt -S -mem2reg | llc -o=- - \
-// RUN: | FileCheck --check-prefix=COMMON --check-prefix=CHECK-ASM %s
+// RUN: -ffp-exception-behavior=maytrap -DEXCEPT=1 \
+// RUN: -flax-vector-conversions=none -S -disable-O0-optnone -emit-llvm -o - %s \
+// RUN: | opt -S -passes=mem2reg | llc -o=- - \
+// RUN: | FileCheck --check-prefix=COMMON --check-prefix=CHECK-ASM --implicit-check-not=fpexcept.maytrap  %s
 
 // REQUIRES: aarch64-registered-target
+
+// Test that the constrained intrinsics are picking up the exception
+// metadata from the AST instead of the global default from the command line.
+// Any cases of "fpexcept.maytrap" in this test are clang bugs.
+
+#if EXCEPT
+#pragma float_control(except, on)
+#endif
 
 #include <arm_neon.h>
 
@@ -61,10 +67,9 @@ float16x8_t test_vfmaq_f16(float16x8_t a, float16x8_t b, float16x8_t c) {
 
 // COMMON-LABEL: test_vfms_f16
 // COMMONIR:       [[SUB:%.*]] = fneg <4 x half> %b
-// CHECK-ASM:      fneg v{{[0-9]+}}.4h, v{{[0-9]+}}.4h
 // UNCONSTRAINED:  [[ADD:%.*]] = call <4 x half> @llvm.fma.v4f16(<4 x half> [[SUB]], <4 x half> %c, <4 x half> %a)
 // CONSTRAINED:    [[ADD:%.*]] = call <4 x half> @llvm.experimental.constrained.fma.v4f16(<4 x half> [[SUB]], <4 x half> %c, <4 x half> %a, metadata !"round.tonearest", metadata !"fpexcept.strict")
-// CHECK-ASM:      fmla v{{[0-9]+}}.4h, v{{[0-9]+}}.4h, v{{[0-9]+}}.4h
+// CHECK-ASM:      fmls v{{[0-9]+}}.4h, v{{[0-9]+}}.4h, v{{[0-9]+}}.4h
 // COMMONIR:       ret <4 x half> [[ADD]]
 float16x4_t test_vfms_f16(float16x4_t a, float16x4_t b, float16x4_t c) {
   return vfms_f16(a, b, c);
@@ -72,10 +77,9 @@ float16x4_t test_vfms_f16(float16x4_t a, float16x4_t b, float16x4_t c) {
 
 // COMMON-LABEL: test_vfmsq_f16
 // COMMONIR:       [[SUB:%.*]] = fneg <8 x half> %b
-// CHECK-ASM:      fneg v{{[0-9]+}}.8h, v{{[0-9]+}}.8h
 // UNCONSTRAINED:  [[ADD:%.*]] = call <8 x half> @llvm.fma.v8f16(<8 x half> [[SUB]], <8 x half> %c, <8 x half> %a)
 // CONSTRAINED:    [[ADD:%.*]] = call <8 x half> @llvm.experimental.constrained.fma.v8f16(<8 x half> [[SUB]], <8 x half> %c, <8 x half> %a, metadata !"round.tonearest", metadata !"fpexcept.strict")
-// CHECK-ASM:      fmla v{{[0-9]+}}.8h, v{{[0-9]+}}.8h, v{{[0-9]+}}.8h
+// CHECK-ASM:      fmls v{{[0-9]+}}.8h, v{{[0-9]+}}.8h, v{{[0-9]+}}.8h
 // COMMONIR:       ret <8 x half> [[ADD]]
 float16x8_t test_vfmsq_f16(float16x8_t a, float16x8_t b, float16x8_t c) {
   return vfmsq_f16(a, b, c);
@@ -146,7 +150,7 @@ float16x8_t test_vfmaq_laneq_f16(float16x8_t a, float16x8_t b, float16x8_t c) {
 }
 
 // COMMON-LABEL: test_vfma_n_f16
-// COMMONIR:      [[TMP0:%.*]] = insertelement <4 x half> undef, half %c, i32 0
+// COMMONIR:      [[TMP0:%.*]] = insertelement <4 x half> poison, half %c, i32 0
 // COMMONIR:      [[TMP1:%.*]] = insertelement <4 x half> [[TMP0]], half %c, i32 1
 // COMMONIR:      [[TMP2:%.*]] = insertelement <4 x half> [[TMP1]], half %c, i32 2
 // COMMONIR:      [[TMP3:%.*]] = insertelement <4 x half> [[TMP2]], half %c, i32 3
@@ -159,7 +163,7 @@ float16x4_t test_vfma_n_f16(float16x4_t a, float16x4_t b, float16_t c) {
 }
 
 // COMMON-LABEL: test_vfmaq_n_f16
-// COMMONIR:      [[TMP0:%.*]] = insertelement <8 x half> undef, half %c, i32 0
+// COMMONIR:      [[TMP0:%.*]] = insertelement <8 x half> poison, half %c, i32 0
 // COMMONIR:      [[TMP1:%.*]] = insertelement <8 x half> [[TMP0]], half %c, i32 1
 // COMMONIR:      [[TMP2:%.*]] = insertelement <8 x half> [[TMP1]], half %c, i32 2
 // COMMONIR:      [[TMP3:%.*]] = insertelement <8 x half> [[TMP2]], half %c, i32 3
@@ -267,7 +271,7 @@ float16x8_t test_vfmsq_laneq_f16(float16x8_t a, float16x8_t b, float16x8_t c) {
 
 // COMMON-LABEL: test_vfms_n_f16
 // COMMONIR:      [[SUB:%.*]]  = fneg <4 x half> %b
-// COMMONIR:      [[TMP0:%.*]] = insertelement <4 x half> undef, half %c, i32 0
+// COMMONIR:      [[TMP0:%.*]] = insertelement <4 x half> poison, half %c, i32 0
 // COMMONIR:      [[TMP1:%.*]] = insertelement <4 x half> [[TMP0]], half %c, i32 1
 // COMMONIR:      [[TMP2:%.*]] = insertelement <4 x half> [[TMP1]], half %c, i32 2
 // COMMONIR:      [[TMP3:%.*]] = insertelement <4 x half> [[TMP2]], half %c, i32 3
@@ -281,7 +285,7 @@ float16x4_t test_vfms_n_f16(float16x4_t a, float16x4_t b, float16_t c) {
 
 // COMMON-LABEL: test_vfmsq_n_f16
 // COMMONIR:      [[SUB:%.*]]  = fneg <8 x half> %b
-// COMMONIR:      [[TMP0:%.*]] = insertelement <8 x half> undef, half %c, i32 0
+// COMMONIR:      [[TMP0:%.*]] = insertelement <8 x half> poison, half %c, i32 0
 // COMMONIR:      [[TMP1:%.*]] = insertelement <8 x half> [[TMP0]], half %c, i32 1
 // COMMONIR:      [[TMP2:%.*]] = insertelement <8 x half> [[TMP1]], half %c, i32 2
 // COMMONIR:      [[TMP3:%.*]] = insertelement <8 x half> [[TMP2]], half %c, i32 3
@@ -332,4 +336,3 @@ float16_t test_vfmsh_lane_f16(float16_t a, float16_t b, float16x4_t c) {
 float16_t test_vfmsh_laneq_f16(float16_t a, float16_t b, float16x8_t c) {
   return vfmsh_laneq_f16(a, b, c, 7);
 }
-

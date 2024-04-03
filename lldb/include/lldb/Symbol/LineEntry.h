@@ -11,6 +11,7 @@
 
 #include "lldb/Core/AddressRange.h"
 #include "lldb/Utility/FileSpec.h"
+#include "lldb/Utility/SupportFile.h"
 #include "lldb/lldb-private.h"
 
 namespace lldb_private {
@@ -22,12 +23,6 @@ struct LineEntry {
   ///
   /// Initialize all member variables to invalid values.
   LineEntry();
-
-  LineEntry(const lldb::SectionSP &section_sp, lldb::addr_t section_offset,
-            lldb::addr_t byte_size, const FileSpec &file, uint32_t _line,
-            uint16_t _column, bool _is_start_of_statement,
-            bool _is_start_of_basic_block, bool _is_prologue_end,
-            bool _is_epilogue_begin, bool _is_terminal_entry);
 
   /// Clear the object's state.
   ///
@@ -139,11 +134,14 @@ struct LineEntry {
   AddressRange range; ///< The section offset address range for this line entry.
   FileSpec file; ///< The source file, possibly mapped by the target.source-map
                  ///setting
-  FileSpec original_file; ///< The original source file, from debug info.
-  uint32_t line; ///< The source line number, or zero if there is no line number
-                 ///information.
-  uint16_t column; ///< The column number of the source line, or zero if there
-                   ///is no column information.
+  lldb::SupportFileSP
+      original_file_sp; ///< The original source file, from debug info.
+  uint32_t line = LLDB_INVALID_LINE_NUMBER; ///< The source line number, or zero
+                                            ///< if there is no line number
+                                            /// information.
+  uint16_t column =
+      0; ///< The column number of the source line, or zero if there
+         /// is no column information.
   uint16_t is_start_of_statement : 1, ///< Indicates this entry is the beginning
                                       ///of a statement.
       is_start_of_basic_block : 1, ///< Indicates this entry is the beginning of

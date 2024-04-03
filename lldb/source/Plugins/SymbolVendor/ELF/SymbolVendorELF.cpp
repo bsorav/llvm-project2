@@ -8,7 +8,7 @@
 
 #include "SymbolVendorELF.h"
 
-#include <string.h>
+#include <cstring>
 
 #include "Plugins/ObjectFile/ELF/ObjectFileELF.h"
 #include "lldb/Core/Module.h"
@@ -16,7 +16,6 @@
 #include "lldb/Core/PluginManager.h"
 #include "lldb/Core/Section.h"
 #include "lldb/Host/Host.h"
-#include "lldb/Symbol/LocateSymbolFile.h"
 #include "lldb/Symbol/ObjectFile.h"
 #include "lldb/Target/Target.h"
 #include "lldb/Utility/StreamString.h"
@@ -31,9 +30,6 @@ LLDB_PLUGIN_DEFINE(SymbolVendorELF)
 SymbolVendorELF::SymbolVendorELF(const lldb::ModuleSP &module_sp)
     : SymbolVendor(module_sp) {}
 
-// Destructor
-SymbolVendorELF::~SymbolVendorELF() {}
-
 void SymbolVendorELF::Initialize() {
   PluginManager::RegisterPlugin(GetPluginNameStatic(),
                                 GetPluginDescriptionStatic(), CreateInstance);
@@ -43,12 +39,7 @@ void SymbolVendorELF::Terminate() {
   PluginManager::UnregisterPlugin(CreateInstance);
 }
 
-lldb_private::ConstString SymbolVendorELF::GetPluginNameStatic() {
-  static ConstString g_name("ELF");
-  return g_name;
-}
-
-const char *SymbolVendorELF::GetPluginDescriptionStatic() {
+llvm::StringRef SymbolVendorELF::GetPluginDescriptionStatic() {
   return "Symbol vendor for ELF that looks for dSYM files that match "
          "executables.";
 }
@@ -82,10 +73,9 @@ SymbolVendorELF::CreateInstance(const lldb::ModuleSP &module_sp,
   FileSpec fspec = module_sp->GetSymbolFileFileSpec();
   // Otherwise, try gnu_debuglink, if one exists.
   if (!fspec)
-    fspec = obj_file->GetDebugLink().getValueOr(FileSpec());
+    fspec = obj_file->GetDebugLink().value_or(FileSpec());
 
-  static Timer::Category func_cat(LLVM_PRETTY_FUNCTION);
-  Timer scoped_timer(func_cat, "SymbolVendorELF::CreateInstance (module = %s)",
+  LLDB_SCOPED_TIMERF("SymbolVendorELF::CreateInstance (module = %s)",
                      module_sp->GetFileSpec().GetPath().c_str());
 
   ModuleSpec module_spec;
@@ -96,7 +86,7 @@ SymbolVendorELF::CreateInstance(const lldb::ModuleSP &module_sp,
   module_spec.GetUUID() = uuid;
   FileSpecList search_paths = Target::GetDefaultDebugFileSearchPaths();
   FileSpec dsym_fspec =
-      Symbols::LocateExecutableSymbolFile(module_spec, search_paths);
+      PluginManager::LocateExecutableSymbolFile(module_spec, search_paths);
   if (!dsym_fspec)
     return nullptr;
 
@@ -119,6 +109,9 @@ SymbolVendorELF::CreateInstance(const lldb::ModuleSP &module_sp,
   // that.
   SectionList *module_section_list = module_sp->GetSectionList();
   SectionList *objfile_section_list = dsym_objfile_sp->GetSectionList();
+
+  if (!module_section_list || !objfile_section_list)
+    return nullptr;
 
   static const SectionType g_sections[] = {
       eSectionTypeDWARFDebugAbbrev,     eSectionTypeDWARFDebugAddr,
@@ -148,8 +141,3 @@ SymbolVendorELF::CreateInstance(const lldb::ModuleSP &module_sp,
   symbol_vendor->AddSymbolFileRepresentation(dsym_objfile_sp);
   return symbol_vendor;
 }
-
-// PluginInterface protocol
-ConstString SymbolVendorELF::GetPluginName() { return GetPluginNameStatic(); }
-
-uint32_t SymbolVendorELF::GetPluginVersion() { return 1; }

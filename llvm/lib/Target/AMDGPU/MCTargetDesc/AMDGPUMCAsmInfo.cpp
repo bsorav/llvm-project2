@@ -8,15 +8,14 @@
 //===----------------------------------------------------------------------===//
 
 #include "AMDGPUMCAsmInfo.h"
-#include "llvm/ADT/Triple.h"
-#include "llvm/MC/MCSubtargetInfo.h"
 #include "MCTargetDesc/AMDGPUMCTargetDesc.h"
+#include "llvm/MC/MCSubtargetInfo.h"
+#include "llvm/TargetParser/Triple.h"
 
 using namespace llvm;
 
 AMDGPUMCAsmInfo::AMDGPUMCAsmInfo(const Triple &TT,
-                                 const MCTargetOptions &Options)
-    : MCAsmInfoELF() {
+                                 const MCTargetOptions &Options) {
   CodePointerSize = (TT.getArch() == Triple::amdgcn) ? 8 : 4;
   StackGrowsUp = true;
   HasSingleParameterDotFile = false;
@@ -28,21 +27,19 @@ AMDGPUMCAsmInfo::AMDGPUMCAsmInfo(const Triple &TT,
   MaxInstLength = (TT.getArch() == Triple::amdgcn) ? 20 : 16;
   SeparatorString = "\n";
   CommentString = ";";
-  PrivateLabelPrefix = "";
   InlineAsmStart = ";#ASMSTART";
   InlineAsmEnd = ";#ASMEND";
 
   //===--- Data Emission Directives -------------------------------------===//
-  SunStyleELFSectionSwitchSyntax = true;
   UsesELFSectionDirectiveForBSS = true;
 
   //===--- Global Variable Emission Directives --------------------------===//
   HasAggressiveSymbolFolding = true;
   COMMDirectiveAlignmentIsInBytes = false;
   HasNoDeadStrip = true;
-  WeakRefDirective = ".weakref\t";
   //===--- Dwarf Emission Directives -----------------------------------===//
   SupportsDebugInformation = true;
+  UsesCFIWithoutEH = true;
   DwarfRegNumForCFI = true;
 
   UseIntegratedAssembler = false;
@@ -60,11 +57,11 @@ unsigned AMDGPUMCAsmInfo::getMaxInstLength(const MCSubtargetInfo *STI) const {
     return MaxInstLength;
 
   // Maximum for NSA encoded images
-  if (STI->getFeatureBits()[AMDGPU::FeatureNSAEncoding])
+  if (STI->hasFeature(AMDGPU::FeatureNSAEncoding))
     return 20;
 
   // 64-bit instruction with 32-bit literal.
-  if (STI->getFeatureBits()[AMDGPU::FeatureVOP3Literal])
+  if (STI->hasFeature(AMDGPU::FeatureVOP3Literal))
     return 12;
 
   return 8;

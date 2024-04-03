@@ -16,13 +16,13 @@
 #ifndef LLVM_TRANSFORMS_SCALAR_BDCE_H
 #define LLVM_TRANSFORMS_SCALAR_BDCE_H
 
-#include "llvm/Support/CommandLine.h"
-#include "llvm/IR/Function.h"
 #include "llvm/IR/PassManager.h"
 
 extern llvm::cl::opt<bool> NoDCEFcalls;
 
 namespace llvm {
+
+class Function;
 
 // The Bit-Tracking Dead Code Elimination pass.
 struct BDCEPass : PassInfoMixin<BDCEPass> {

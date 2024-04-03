@@ -1,4 +1,4 @@
-! RUN: %S/test_modfile.sh %s %t %f18
+! RUN: %python %S/test_modfile.py %s %flang_fc1
 ! Check modfile generation with use-association.
 
 module m1
@@ -135,8 +135,10 @@ module m6d
 end
 !Expect: m6d.mod
 !module m6d
+! use m6a,only:t1
 ! use m6a,only:t2=>t1
-! type(t2),parameter::p=t2()
+! private::t1
+! type(t2),parameter::p=t1()
 !end
 
 module m6e
@@ -157,4 +159,22 @@ end
 !   type(t2)::x
 !  end
 ! end interface
+!end
+
+module m7a
+  real :: x
+end
+!Expect: m7a.mod
+!module m7a
+! real(4)::x
+!end
+
+module m7b
+  use m7a
+  private
+end
+!Expect: m7b.mod
+!module m7b
+! use m7a,only:x
+! private::x
 !end

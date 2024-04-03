@@ -11,10 +11,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "llvm/ProfileData/InstrProf.h"
 #include "llvm/ProfileData/Coverage/CoverageMappingWriter.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/StringExtras.h"
+#include "llvm/ProfileData/InstrProf.h"
 #include "llvm/Support/Compression.h"
 #include "llvm/Support/LEB128.h"
 #include "llvm/Support/raw_ostream.h"
@@ -27,7 +28,7 @@ using namespace llvm;
 using namespace coverage;
 
 CoverageFilenamesSectionWriter::CoverageFilenamesSectionWriter(
-    ArrayRef<StringRef> Filenames)
+    ArrayRef<std::string> Filenames)
     : Filenames(Filenames) {
 #ifndef NDEBUG
   StringSet<> NameSet;
@@ -46,15 +47,13 @@ void CoverageFilenamesSectionWriter::write(raw_ostream &OS, bool Compress) {
     }
   }
 
-  SmallString<128> CompressedStr;
-  bool doCompression =
-      Compress && zlib::isAvailable() && DoInstrProfNameCompression;
-  if (doCompression) {
-    auto E =
-        zlib::compress(FilenamesStr, CompressedStr, zlib::BestSizeCompression);
-    if (E)
-      report_bad_alloc_error("Failed to zlib compress coverage data");
-  }
+  SmallVector<uint8_t, 128> CompressedStr;
+  bool doCompression = Compress && compression::zlib::isAvailable() &&
+                       DoInstrProfNameCompression;
+  if (doCompression)
+    compression::zlib::compress(arrayRefFromStringRef(FilenamesStr),
+                                CompressedStr,
+                                compression::zlib::BestSizeCompression);
 
   // ::= <num-filenames>
   //     <uncompressed-len>
@@ -63,7 +62,7 @@ void CoverageFilenamesSectionWriter::write(raw_ostream &OS, bool Compress) {
   encodeULEB128(Filenames.size(), OS);
   encodeULEB128(FilenamesStr.size(), OS);
   encodeULEB128(doCompression ? CompressedStr.size() : 0U, OS);
-  OS << (doCompression ? StringRef(CompressedStr) : StringRef(FilenamesStr));
+  OS << (doCompression ? toStringRef(CompressedStr) : StringRef(FilenamesStr));
 }
 
 namespace {
@@ -80,10 +79,14 @@ public:
                               ArrayRef<CounterMappingRegion> MappingRegions)
       : Expressions(Expressions) {
     AdjustedExpressionIDs.resize(Expressions.size(), 0);
-    for (const auto &I : MappingRegions)
+    for (const auto &I : MappingRegions) {
       mark(I.Count);
-    for (const auto &I : MappingRegions)
+      mark(I.FalseCount);
+    }
+    for (const auto &I : MappingRegions) {
       gatherUsed(I.Count);
+      gatherUsed(I.FalseCount);
+    }
   }
 
   void mark(Counter C) {
@@ -164,7 +167,15 @@ void CoverageMappingWriter::write(raw_ostream &OS) {
       return LHS.FileID < RHS.FileID;
     if (LHS.startLoc() != RHS.startLoc())
       return LHS.startLoc() < RHS.startLoc();
-    return LHS.Kind < RHS.Kind;
+
+    // Put `Decision` before `Expansion`.
+    auto getKindKey = [](CounterMappingRegion::RegionKind Kind) {
+      return (Kind == CounterMappingRegion::MCDCDecisionRegion
+                  ? 2 * CounterMappingRegion::ExpansionRegion - 1
+                  : 2 * Kind);
+    };
+
+    return getKindKey(LHS.Kind) < getKindKey(RHS.Kind);
   });
 
   // Write out the fileid -> filename mapping.
@@ -201,6 +212,7 @@ void CoverageMappingWriter::write(raw_ostream &OS) {
       PrevLineStart = 0;
     }
     Counter Count = Minimizer.adjust(I->Count);
+    Counter FalseCount = Minimizer.adjust(I->FalseCount);
     switch (I->Kind) {
     case CounterMappingRegion::CodeRegion:
     case CounterMappingRegion::GapRegion:
@@ -226,6 +238,30 @@ void CoverageMappingWriter::write(raw_ostream &OS) {
                         << Counter::EncodingCounterTagAndExpansionRegionTagBits,
                     OS);
       break;
+    case CounterMappingRegion::BranchRegion:
+      encodeULEB128(unsigned(I->Kind)
+                        << Counter::EncodingCounterTagAndExpansionRegionTagBits,
+                    OS);
+      writeCounter(MinExpressions, Count, OS);
+      writeCounter(MinExpressions, FalseCount, OS);
+      break;
+    case CounterMappingRegion::MCDCBranchRegion:
+      encodeULEB128(unsigned(I->Kind)
+                        << Counter::EncodingCounterTagAndExpansionRegionTagBits,
+                    OS);
+      writeCounter(MinExpressions, Count, OS);
+      writeCounter(MinExpressions, FalseCount, OS);
+      encodeULEB128(unsigned(I->MCDCParams.ID), OS);
+      encodeULEB128(unsigned(I->MCDCParams.TrueID), OS);
+      encodeULEB128(unsigned(I->MCDCParams.FalseID), OS);
+      break;
+    case CounterMappingRegion::MCDCDecisionRegion:
+      encodeULEB128(unsigned(I->Kind)
+                        << Counter::EncodingCounterTagAndExpansionRegionTagBits,
+                    OS);
+      encodeULEB128(unsigned(I->MCDCParams.BitmapIdx), OS);
+      encodeULEB128(unsigned(I->MCDCParams.NumConditions), OS);
+      break;
     }
     assert(I->LineStart >= PrevLineStart);
     encodeULEB128(I->LineStart - PrevLineStart, OS);
@@ -237,4 +273,38 @@ void CoverageMappingWriter::write(raw_ostream &OS) {
   }
   // Ensure that all file ids have at least one mapping region.
   assert(CurrentFileID == (VirtualFileMapping.size() - 1));
+}
+
+void TestingFormatWriter::write(raw_ostream &OS, TestingFormatVersion Version) {
+  auto ByteSwap = [](uint64_t N) {
+    return support::endian::byte_swap<uint64_t, llvm::endianness::little>(N);
+  };
+
+  // Output a 64bit magic number.
+  auto Magic = ByteSwap(TestingFormatMagic);
+  OS.write(reinterpret_cast<char *>(&Magic), sizeof(Magic));
+
+  // Output a 64bit version field.
+  auto VersionLittle = ByteSwap(uint64_t(Version));
+  OS.write(reinterpret_cast<char *>(&VersionLittle), sizeof(VersionLittle));
+
+  // Output the ProfileNames data.
+  encodeULEB128(ProfileNamesData.size(), OS);
+  encodeULEB128(ProfileNamesAddr, OS);
+  OS << ProfileNamesData;
+
+  // Version2 adds an extra field to indicate the size of the
+  // CoverageMappingData.
+  if (Version == TestingFormatVersion::Version2)
+    encodeULEB128(CoverageMappingData.size(), OS);
+
+  // Coverage mapping data is expected to have an alignment of 8.
+  for (unsigned Pad = offsetToAlignment(OS.tell(), Align(8)); Pad; --Pad)
+    OS.write(uint8_t(0));
+  OS << CoverageMappingData;
+
+  // Coverage records data is expected to have an alignment of 8.
+  for (unsigned Pad = offsetToAlignment(OS.tell(), Align(8)); Pad; --Pad)
+    OS.write(uint8_t(0));
+  OS << CoverageRecordsData;
 }

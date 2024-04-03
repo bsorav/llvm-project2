@@ -70,11 +70,9 @@ static CCMangling getCallingConvMangling(const ASTContext &Context,
 
   // On wasm, the argc/argv form of "main" is renamed so that the startup code
   // can call it with the correct function signature.
-  // On Emscripten, users may be exporting "main" and expecting to call it
-  // themselves, so we can't mangle it.
-  if (Triple.isWasm() && !Triple.isOSEmscripten())
+  if (Triple.isWasm())
     if (const FunctionDecl *FD = dyn_cast<FunctionDecl>(ND))
-      if (FD->isMain() && FD->hasPrototype() && FD->param_size() == 2)
+      if (FD->isMain() && FD->getNumParams() == 2)
         return CCM_WasmMainArgcArgv;
 
   if (!Triple.isOSWindows() || !Triple.isX86())
@@ -116,6 +114,12 @@ bool MangleContext::shouldMangleDeclName(const NamedDecl *D) {
   if (!D->hasExternalFormalLinkage() && D->getOwningModuleForLinkage())
     return true;
 
+  // C functions with internal linkage have to be mangled with option
+  // -funique-internal-linkage-names.
+  if (!getASTContext().getLangOpts().CPlusPlus &&
+      isUniqueInternalLinkageDecl(D))
+    return true;
+
   // In C, functions with no attributes never need to be mangled. Fastpath them.
   if (!getASTContext().getLangOpts().CPlusPlus && !D->hasAttrs())
     return false;
@@ -133,7 +137,9 @@ bool MangleContext::shouldMangleDeclName(const NamedDecl *D) {
 }
 
 void MangleContext::mangleName(GlobalDecl GD, raw_ostream &Out) {
+  const ASTContext &ASTContext = getASTContext();
   const NamedDecl *D = cast<NamedDecl>(GD.getDecl());
+
   // Any decl can be declared with __asm("foo") on it, and this takes precedence
   // over all other naming in the .o file.
   if (const AsmLabelAttr *ALA = D->getAttr<AsmLabelAttr>()) {
@@ -141,7 +147,7 @@ void MangleContext::mangleName(GlobalDecl GD, raw_ostream &Out) {
 
     // If the label isn't literal, or if this is an alias for an LLVM intrinsic,
     // do not add a "\01" prefix.
-    if (!ALA->getIsLiteralLabel() || ALA->getLabel().startswith("llvm.")) {
+    if (!ALA->getIsLiteralLabel() || ALA->getLabel().starts_with("llvm.")) {
       Out << ALA->getLabel();
       return;
     }
@@ -151,9 +157,16 @@ void MangleContext::mangleName(GlobalDecl GD, raw_ostream &Out) {
     // tricks normally used for producing aliases (PR9177). Fortunately the
     // llvm mangler on ELF is a nop, so we can just avoid adding the \01
     // marker.
+    StringRef UserLabelPrefix =
+        getASTContext().getTargetInfo().getUserLabelPrefix();
+#ifndef NDEBUG
     char GlobalPrefix =
-        getASTContext().getTargetInfo().getDataLayout().getGlobalPrefix();
-    if (GlobalPrefix)
+        llvm::DataLayout(getASTContext().getTargetInfo().getDataLayoutString())
+            .getGlobalPrefix();
+    assert((UserLabelPrefix.empty() && !GlobalPrefix) ||
+           (UserLabelPrefix.size() == 1 && UserLabelPrefix[0] == GlobalPrefix));
+#endif
+    if (!UserLabelPrefix.empty())
       Out << '\01'; // LLVM IR Marker for __asm("foo")
 
     Out << ALA->getLabel();
@@ -163,7 +176,6 @@ void MangleContext::mangleName(GlobalDecl GD, raw_ostream &Out) {
   if (auto *GD = dyn_cast<MSGuidDecl>(D))
     return mangleMSGuidDecl(GD, Out);
 
-  const ASTContext &ASTContext = getASTContext();
   CCMangling CC = getCallingConvMangling(ASTContext, D);
 
   if (CC == CCM_WasmMainArgcArgv) {
@@ -175,7 +187,7 @@ void MangleContext::mangleName(GlobalDecl GD, raw_ostream &Out) {
   const TargetInfo &TI = Context.getTargetInfo();
   if (CC == CCM_Other || (MCXX && TI.getCXXABI() == TargetCXXABI::Microsoft)) {
     if (const ObjCMethodDecl *OMD = dyn_cast<ObjCMethodDecl>(D))
-      mangleObjCMethodName(OMD, Out);
+      mangleObjCMethodNameAsSourceName(OMD, Out);
     else
       mangleCXXName(GD, Out);
     return;
@@ -186,13 +198,17 @@ void MangleContext::mangleName(GlobalDecl GD, raw_ostream &Out) {
     Out << '_';
   else if (CC == CCM_Fast)
     Out << '@';
-  else if (CC == CCM_RegCall)
-    Out << "__regcall3__";
+  else if (CC == CCM_RegCall) {
+    if (getASTContext().getLangOpts().RegCall4)
+      Out << "__regcall4__";
+    else
+      Out << "__regcall3__";
+  }
 
   if (!MCXX)
     Out << D->getIdentifier()->getName();
   else if (const ObjCMethodDecl *OMD = dyn_cast<ObjCMethodDecl>(D))
-    mangleObjCMethodName(OMD, Out);
+    mangleObjCMethodNameAsSourceName(OMD, Out);
   else
     mangleCXXName(GD, Out);
 
@@ -209,14 +225,20 @@ void MangleContext::mangleName(GlobalDecl GD, raw_ostream &Out) {
   assert(!Proto->isVariadic());
   unsigned ArgWords = 0;
   if (const CXXMethodDecl *MD = dyn_cast<CXXMethodDecl>(FD))
-    if (!MD->isStatic())
+    if (MD->isImplicitObjectMemberFunction())
       ++ArgWords;
-  for (const auto &AT : Proto->param_types())
+  uint64_t DefaultPtrWidth = TI.getPointerWidth(LangAS::Default);
+  for (const auto &AT : Proto->param_types()) {
+    // If an argument type is incomplete there is no way to get its size to
+    // correctly encode into the mangling scheme.
+    // Follow GCCs behaviour by simply breaking out of the loop.
+    if (AT->isIncompleteType())
+      break;
     // Size should be aligned to pointer size.
-    ArgWords +=
-        llvm::alignTo(ASTContext.getTypeSize(AT), TI.getPointerWidth(0)) /
-        TI.getPointerWidth(0);
-  Out << ((TI.getPointerWidth(0) / 8) * ArgWords);
+    ArgWords += llvm::alignTo(ASTContext.getTypeSize(AT), DefaultPtrWidth) /
+                DefaultPtrWidth;
+  }
+  Out << ((DefaultPtrWidth / 8) * ArgWords);
 }
 
 void MangleContext::mangleMSGuidDecl(const MSGuidDecl *GD, raw_ostream &Out) {
@@ -275,7 +297,7 @@ void MangleContext::mangleBlock(const DeclContext *DC, const BlockDecl *BD,
   SmallString<64> Buffer;
   llvm::raw_svector_ostream Stream(Buffer);
   if (const ObjCMethodDecl *Method = dyn_cast<ObjCMethodDecl>(DC)) {
-    mangleObjCMethodName(Method, Stream);
+    mangleObjCMethodNameAsSourceName(Method, Stream);
   } else {
     assert((isa<NamedDecl>(DC) || isa<BlockDecl>(DC)) &&
            "expected a NamedDecl or BlockDecl");
@@ -304,29 +326,70 @@ void MangleContext::mangleBlock(const DeclContext *DC, const BlockDecl *BD,
   mangleFunctionBlock(*this, Buffer, BD, Out);
 }
 
-void MangleContext::mangleObjCMethodNameWithoutSize(const ObjCMethodDecl *MD,
-                                                    raw_ostream &OS) {
-  const ObjCContainerDecl *CD =
-  dyn_cast<ObjCContainerDecl>(MD->getDeclContext());
-  assert (CD && "Missing container decl in GetNameForMethod");
+void MangleContext::mangleObjCMethodName(const ObjCMethodDecl *MD,
+                                         raw_ostream &OS,
+                                         bool includePrefixByte,
+                                         bool includeCategoryNamespace) {
+  if (getASTContext().getLangOpts().ObjCRuntime.isGNUFamily()) {
+    // This is the mangling we've always used on the GNU runtimes, but it
+    // has obvious collisions in the face of underscores within class
+    // names, category names, and selectors; maybe we should improve it.
+
+    OS << (MD->isClassMethod() ? "_c_" : "_i_")
+       << MD->getClassInterface()->getName() << '_';
+
+    if (includeCategoryNamespace) {
+      if (auto category = MD->getCategory())
+        OS << category->getName();
+    }
+    OS << '_';
+
+    auto selector = MD->getSelector();
+    for (unsigned slotIndex = 0,
+                  numArgs = selector.getNumArgs(),
+                  slotEnd = std::max(numArgs, 1U);
+           slotIndex != slotEnd; ++slotIndex) {
+      if (auto name = selector.getIdentifierInfoForSlot(slotIndex))
+        OS << name->getName();
+
+      // Replace all the positions that would've been ':' with '_'.
+      // That's after each slot except that a unary selector doesn't
+      // end in ':'.
+      if (numArgs)
+        OS << '_';
+    }
+
+    return;
+  }
+
+  // \01+[ContainerName(CategoryName) SelectorName]
+  if (includePrefixByte) {
+    OS << '\01';
+  }
   OS << (MD->isInstanceMethod() ? '-' : '+') << '[';
-  if (const ObjCCategoryImplDecl *CID = dyn_cast<ObjCCategoryImplDecl>(CD)) {
+  if (const auto *CID = MD->getCategory()) {
     OS << CID->getClassInterface()->getName();
-    OS << '(' << *CID << ')';
-  } else {
+    if (includeCategoryNamespace) {
+      OS << '(' << *CID << ')';
+    }
+  } else if (const auto *CD =
+                 dyn_cast<ObjCContainerDecl>(MD->getDeclContext())) {
     OS << CD->getName();
+  } else {
+    llvm_unreachable("Unexpected ObjC method decl context");
   }
   OS << ' ';
   MD->getSelector().print(OS);
   OS << ']';
 }
 
-void MangleContext::mangleObjCMethodName(const ObjCMethodDecl *MD,
-                                         raw_ostream &Out) {
+void MangleContext::mangleObjCMethodNameAsSourceName(const ObjCMethodDecl *MD,
+                                                     raw_ostream &Out) {
   SmallString<64> Name;
   llvm::raw_svector_ostream OS(Name);
 
-  mangleObjCMethodNameWithoutSize(MD, OS);
+  mangleObjCMethodName(MD, OS, /*includePrefixByte=*/false,
+                       /*includeCategoryNamespace=*/true);
   Out << OS.str().size() << OS.str();
 }
 
@@ -336,8 +399,8 @@ class ASTNameGenerator::Implementation {
 
 public:
   explicit Implementation(ASTContext &Ctx)
-      : MC(Ctx.createMangleContext()), DL(Ctx.getTargetInfo().getDataLayout()) {
-  }
+      : MC(Ctx.createMangleContext()),
+        DL(Ctx.getTargetInfo().getDataLayoutString()) {}
 
   bool writeName(const Decl *D, raw_ostream &OS) {
     // First apply frontend mangling.
@@ -352,7 +415,8 @@ public:
       if (writeFuncOrVarName(VD, FrontendBufOS))
         return true;
     } else if (auto *MD = dyn_cast<ObjCMethodDecl>(D)) {
-      MC->mangleObjCMethodNameWithoutSize(MD, OS);
+      MC->mangleObjCMethodName(MD, OS, /*includePrefixByte=*/false,
+                               /*includeCategoryNamespace=*/true);
       return false;
     } else if (auto *ID = dyn_cast<ObjCInterfaceDecl>(D)) {
       writeObjCClassName(ID, FrontendBufOS);
@@ -400,7 +464,7 @@ public:
       SmallString<40> Mangled;
       auto Prefix = getClassSymbolPrefix(Kind, OCD->getASTContext());
       llvm::Mangler::getNameWithPrefix(Mangled, Prefix + ClassName, DL);
-      return std::string(Mangled.str());
+      return std::string(Mangled);
     };
 
     return {

@@ -28,6 +28,7 @@
 namespace Fortran::parser {
 
 class Prescanner;
+class Preprocessor;
 
 // Defines a macro
 class Definition {
@@ -46,7 +47,7 @@ public:
 
   bool set_isDisabled(bool disable);
 
-  TokenSequence Apply(const std::vector<TokenSequence> &args, AllSources &);
+  TokenSequence Apply(const std::vector<TokenSequence> &args, Prescanner &);
 
 private:
   static TokenSequence Tokenize(const std::vector<std::string> &argNames,
@@ -65,26 +66,41 @@ class Preprocessor {
 public:
   explicit Preprocessor(AllSources &);
 
+  const AllSources &allSources() const { return allSources_; }
+  AllSources &allSources() { return allSources_; }
+
+  void DefineStandardMacros();
   void Define(std::string macro, std::string value);
   void Undefine(std::string macro);
+  bool IsNameDefined(const CharBlock &);
+  bool IsFunctionLikeDefinition(const CharBlock &);
 
-  std::optional<TokenSequence> MacroReplacement(
-      const TokenSequence &, const Prescanner &);
+  // When called with partialFunctionLikeMacro not null, MacroReplacement()
+  // and ReplaceMacros() handle an unclosed function-like macro reference
+  // by terminating macro replacement at the name of the FLM and returning
+  // its index in the result.  This allows the recursive call sites in
+  // MacroReplacement to append any remaining tokens in their inputs to
+  // that result and try again.  All other Fortran preprocessors share this
+  // behavior.
+  std::optional<TokenSequence> MacroReplacement(const TokenSequence &,
+      Prescanner &,
+      std::optional<std::size_t> *partialFunctionLikeMacro = nullptr);
 
   // Implements a preprocessor directive.
-  void Directive(const TokenSequence &, Prescanner *);
+  void Directive(const TokenSequence &, Prescanner &);
 
 private:
   enum class IsElseActive { No, Yes };
   enum class CanDeadElseAppear { No, Yes };
 
   CharBlock SaveTokenAsName(const CharBlock &);
-  bool IsNameDefined(const CharBlock &);
-  TokenSequence ReplaceMacros(const TokenSequence &, const Prescanner &);
+  TokenSequence ReplaceMacros(const TokenSequence &, Prescanner &,
+      std::optional<std::size_t> *partialFunctionLikeMacro = nullptr);
   void SkipDisabledConditionalCode(
-      const std::string &, IsElseActive, Prescanner *, ProvenanceRange);
+      const std::string &, IsElseActive, Prescanner &, ProvenanceRange);
   bool IsIfPredicateTrue(const TokenSequence &expr, std::size_t first,
-      std::size_t exprTokens, Prescanner *);
+      std::size_t exprTokens, Prescanner &);
+  void LineDirective(const TokenSequence &, std::size_t, Prescanner &);
 
   AllSources &allSources_;
   std::list<std::string> names_;

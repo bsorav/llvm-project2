@@ -11,17 +11,18 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "llvm/Analysis/AssumeBundleQueries.h"
 #include "llvm/Analysis/AssumptionCache.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/Analysis/AssumeBundleQueries.h"
+#include "llvm/Analysis/TargetTransformInfo.h"
+#include "llvm/Analysis/ValueTracking.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/InstrTypes.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
-#include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/IR/PatternMatch.h"
 #include "llvm/InitializePasses.h"
@@ -30,7 +31,6 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/raw_ostream.h"
-#include <algorithm>
 #include <cassert>
 #include <utility>
 
@@ -56,22 +56,21 @@ AssumptionCache::getOrInsertAffectedValues(Value *V) {
 }
 
 static void
-findAffectedValues(CallInst *CI,
+findAffectedValues(CallBase *CI, TargetTransformInfo *TTI,
                    SmallVectorImpl<AssumptionCache::ResultElem> &Affected) {
   // Note: This code must be kept in-sync with the code in
   // computeKnownBitsFromAssume in ValueTracking.
 
   auto AddAffected = [&Affected](Value *V, unsigned Idx =
                                                AssumptionCache::ExprResultIdx) {
-    if (isa<Argument>(V)) {
+    if (isa<Argument>(V) || isa<GlobalValue>(V)) {
       Affected.push_back({V, Idx});
     } else if (auto *I = dyn_cast<Instruction>(V)) {
       Affected.push_back({I, Idx});
 
       // Peek through unary operators to find the source of the condition.
       Value *Op;
-      if (match(I, m_BitCast(m_Value(Op))) ||
-          match(I, m_PtrToInt(m_Value(Op))) || match(I, m_Not(m_Value(Op)))) {
+      if (match(I, m_PtrToInt(m_Value(Op)))) {
         if (isa<Instruction>(Op) || isa<Argument>(Op))
           Affected.push_back({Op, Idx});
       }
@@ -79,62 +78,87 @@ findAffectedValues(CallInst *CI,
   };
 
   for (unsigned Idx = 0; Idx != CI->getNumOperandBundles(); Idx++) {
-    if (CI->getOperandBundleAt(Idx).Inputs.size() > ABA_WasOn &&
-        CI->getOperandBundleAt(Idx).getTagName() != IgnoreBundleTag)
-      AddAffected(CI->getOperandBundleAt(Idx).Inputs[ABA_WasOn], Idx);
+    OperandBundleUse Bundle = CI->getOperandBundleAt(Idx);
+    if (Bundle.getTagName() == "separate_storage") {
+      assert(Bundle.Inputs.size() == 2 &&
+             "separate_storage must have two args");
+      AddAffected(getUnderlyingObject(Bundle.Inputs[0]), Idx);
+      AddAffected(getUnderlyingObject(Bundle.Inputs[1]), Idx);
+    } else if (Bundle.Inputs.size() > ABA_WasOn &&
+               Bundle.getTagName() != IgnoreBundleTag)
+      AddAffected(Bundle.Inputs[ABA_WasOn], Idx);
   }
 
   Value *Cond = CI->getArgOperand(0), *A, *B;
   AddAffected(Cond);
+  if (match(Cond, m_Not(m_Value(A))))
+    AddAffected(A);
 
   CmpInst::Predicate Pred;
-  if (match(Cond, m_ICmp(Pred, m_Value(A), m_Value(B)))) {
+  if (match(Cond, m_Cmp(Pred, m_Value(A), m_Value(B)))) {
     AddAffected(A);
     AddAffected(B);
 
     if (Pred == ICmpInst::ICMP_EQ) {
-      // For equality comparisons, we handle the case of bit inversion.
-      auto AddAffectedFromEq = [&AddAffected](Value *V) {
-        Value *A;
-        if (match(V, m_Not(m_Value(A)))) {
-          AddAffected(A);
-          V = A;
-        }
-
-        Value *B;
-        ConstantInt *C;
-        // (A & B) or (A | B) or (A ^ B).
-        if (match(V, m_BitwiseLogic(m_Value(A), m_Value(B)))) {
-          AddAffected(A);
-          AddAffected(B);
-        // (A << C) or (A >>_s C) or (A >>_u C) where C is some constant.
-        } else if (match(V, m_Shift(m_Value(A), m_ConstantInt(C)))) {
-          AddAffected(A);
-        }
-      };
-
-      AddAffectedFromEq(A);
-      AddAffectedFromEq(B);
+      if (match(B, m_ConstantInt())) {
+        Value *X;
+        // (X & C) or (X | C) or (X ^ C).
+        // (X << C) or (X >>_s C) or (X >>_u C).
+        if (match(A, m_BitwiseLogic(m_Value(X), m_ConstantInt())) ||
+            match(A, m_Shift(m_Value(X), m_ConstantInt())))
+          AddAffected(X);
+      }
+    } else if (Pred == ICmpInst::ICMP_NE) {
+      Value *X;
+      // Handle (X & pow2 != 0).
+      if (match(A, m_And(m_Value(X), m_Power2())) && match(B, m_Zero()))
+        AddAffected(X);
+    } else if (Pred == ICmpInst::ICMP_ULT) {
+      Value *X;
+      // Handle (A + C1) u< C2, which is the canonical form of A > C3 && A < C4,
+      // and recognized by LVI at least.
+      if (match(A, m_Add(m_Value(X), m_ConstantInt())) &&
+          match(B, m_ConstantInt()))
+        AddAffected(X);
+    } else if (CmpInst::isFPPredicate(Pred)) {
+      // fcmp fneg(x), y
+      // fcmp fabs(x), y
+      // fcmp fneg(fabs(x)), y
+      if (match(A, m_FNeg(m_Value(A))))
+        AddAffected(A);
+      if (match(A, m_FAbs(m_Value(A))))
+        AddAffected(A);
     }
+  } else if (match(Cond, m_Intrinsic<Intrinsic::is_fpclass>(m_Value(A),
+                                                            m_Value(B)))) {
+    AddAffected(A);
+  }
+
+  if (TTI) {
+    const Value *Ptr;
+    unsigned AS;
+    std::tie(Ptr, AS) = TTI->getPredicatedAddrSpace(Cond);
+    if (Ptr)
+      AddAffected(const_cast<Value *>(Ptr->stripInBoundsOffsets()));
   }
 }
 
-void AssumptionCache::updateAffectedValues(CallInst *CI) {
+void AssumptionCache::updateAffectedValues(AssumeInst *CI) {
   SmallVector<AssumptionCache::ResultElem, 16> Affected;
-  findAffectedValues(CI, Affected);
+  findAffectedValues(CI, TTI, Affected);
 
   for (auto &AV : Affected) {
     auto &AVV = getOrInsertAffectedValues(AV.Assume);
-    if (std::find_if(AVV.begin(), AVV.end(), [&](ResultElem &Elem) {
+    if (llvm::none_of(AVV, [&](ResultElem &Elem) {
           return Elem.Assume == CI && Elem.Index == AV.Index;
-        }) == AVV.end())
+        }))
       AVV.push_back({CI, AV.Index});
   }
 }
 
-void AssumptionCache::unregisterAssumption(CallInst *CI) {
+void AssumptionCache::unregisterAssumption(AssumeInst *CI) {
   SmallVector<AssumptionCache::ResultElem, 16> Affected;
-  findAffectedValues(CI, Affected);
+  findAffectedValues(CI, TTI, Affected);
 
   for (auto &AV : Affected) {
     auto AVI = AffectedValues.find_as(AV.Assume);
@@ -156,15 +180,11 @@ void AssumptionCache::unregisterAssumption(CallInst *CI) {
       AffectedValues.erase(AVI);
   }
 
-  AssumeHandles.erase(
-      remove_if(AssumeHandles, [CI](ResultElem &RE) { return CI == RE; }),
-      AssumeHandles.end());
+  llvm::erase(AssumeHandles, CI);
 }
 
 void AssumptionCache::AffectedValueCallbackVH::deleted() {
-  auto AVI = AC->AffectedValues.find(getValPtr());
-  if (AVI != AC->AffectedValues.end())
-    AC->AffectedValues.erase(AVI);
+  AC->AffectedValues.erase(getValPtr());
   // 'this' now dangles!
 }
 
@@ -199,22 +219,19 @@ void AssumptionCache::scanFunction() {
   // Go through all instructions in all blocks, add all calls to @llvm.assume
   // to this cache.
   for (BasicBlock &B : F)
-    for (Instruction &II : B)
-      if (match(&II, m_Intrinsic<Intrinsic::assume>()))
-        AssumeHandles.push_back({&II, ExprResultIdx});
+    for (Instruction &I : B)
+      if (isa<AssumeInst>(&I))
+        AssumeHandles.push_back({&I, ExprResultIdx});
 
   // Mark the scan as complete.
   Scanned = true;
 
   // Update affected values.
   for (auto &A : AssumeHandles)
-    updateAffectedValues(cast<CallInst>(A));
+    updateAffectedValues(cast<AssumeInst>(A));
 }
 
-void AssumptionCache::registerAssumption(CallInst *CI) {
-  assert(match(CI, m_Intrinsic<Intrinsic::assume>()) &&
-         "Registered call does not call @llvm.assume");
-
+void AssumptionCache::registerAssumption(AssumeInst *CI) {
   // If we haven't scanned the function yet, just drop this assumption. It will
   // be found when we scan later.
   if (!Scanned)
@@ -248,6 +265,12 @@ void AssumptionCache::registerAssumption(CallInst *CI) {
   updateAffectedValues(CI);
 }
 
+AssumptionCache AssumptionAnalysis::run(Function &F,
+                                        FunctionAnalysisManager &FAM) {
+  auto &TTI = FAM.getResult<TargetIRAnalysis>(F);
+  return AssumptionCache(F, &TTI);
+}
+
 AnalysisKey AssumptionAnalysis::Key;
 
 PreservedAnalyses AssumptionPrinterPass::run(Function &F,
@@ -278,10 +301,13 @@ AssumptionCache &AssumptionCacheTracker::getAssumptionCache(Function &F) {
   if (I != AssumptionCaches.end())
     return *I->second;
 
+  auto *TTIWP = getAnalysisIfAvailable<TargetTransformInfoWrapperPass>();
+  auto *TTI = TTIWP ? &TTIWP->getTTI(F) : nullptr;
+
   // Ok, build a new cache by scanning the function, insert it and the value
   // handle into our map, and return the newly populated cache.
   auto IP = AssumptionCaches.insert(std::make_pair(
-      FunctionCallbackVH(&F, this), std::make_unique<AssumptionCache>(F)));
+      FunctionCallbackVH(&F, this), std::make_unique<AssumptionCache>(F, TTI)));
   assert(IP.second && "Scanning function already in the map?");
   return *IP.first->second;
 }

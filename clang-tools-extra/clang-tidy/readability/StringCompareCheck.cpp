@@ -14,9 +14,7 @@
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
-namespace readability {
+namespace clang::tidy::readability {
 
 static const StringRef CompareMessage = "do not use 'compare' to test equality "
                                         "of strings; use the string equality "
@@ -32,7 +30,7 @@ void StringCompareCheck::registerMatchers(MatchFinder *Finder) {
 
   // First and second case: cast str.compare(str) to boolean.
   Finder->addMatcher(
-      traverse(ast_type_traits::TK_AsIs,
+      traverse(TK_AsIs,
                implicitCastExpr(hasImplicitDestinationType(booleanType()),
                                 has(StrCompare))
                    .bind("match1")),
@@ -75,6 +73,4 @@ void StringCompareCheck::check(const MatchFinder::MatchResult &Result) {
   // FIXME: Add fixit to fix the code for case one and two (match1).
 }
 
-} // namespace readability
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::readability

@@ -34,7 +34,7 @@ static cl::opt<OverflowTrackingChoice> OTMode(
                           "Track the overflow bit if requested."),
                clEnumValN(OT_ALWAYS, "always",
                           "Always track the overflow bit.")),
-    cl::Hidden, cl::init(OT_REQUEST), cl::ZeroOrMore, cl::cat(PollyCategory));
+    cl::Hidden, cl::init(OT_REQUEST), cl::cat(PollyCategory));
 
 IslExprBuilder::IslExprBuilder(Scop &S, PollyIRBuilder &Builder,
                                IDToValueTy &IDToValue, ValueMapT &GlobalMap,
@@ -231,7 +231,8 @@ Value *IslExprBuilder::createOpNAry(__isl_take isl_ast_expr *Expr) {
   return V;
 }
 
-Value *IslExprBuilder::createAccessAddress(isl_ast_expr *Expr) {
+std::pair<Value *, Type *>
+IslExprBuilder::createAccessAddress(__isl_take isl_ast_expr *Expr) {
   assert(isl_ast_expr_get_type(Expr) == isl_ast_expr_op &&
          "isl ast expression not of type isl_ast_op");
   assert(isl_ast_expr_get_op_type(Expr) == isl_ast_op_access &&
@@ -270,18 +271,11 @@ Value *IslExprBuilder::createAccessAddress(isl_ast_expr *Expr) {
   assert(Base->getType()->isPointerTy() && "Access base should be a pointer");
   StringRef BaseName = Base->getName();
 
-  auto PointerTy = PointerType::get(SAI->getElementType(),
-                                    Base->getType()->getPointerAddressSpace());
-  if (Base->getType() != PointerTy) {
-    Base =
-        Builder.CreateBitCast(Base, PointerTy, "polly.access.cast." + BaseName);
-  }
-
   if (isl_ast_expr_get_op_n_arg(Expr) == 1) {
     isl_ast_expr_free(Expr);
     if (PollyDebugPrinting)
       RuntimeDebugBuilder::createCPUPrinter(Builder, "\n");
-    return Base;
+    return {Base, SAI->getElementType()};
   }
 
   IndexOp = nullptr;
@@ -313,7 +307,9 @@ Value *IslExprBuilder::createAccessAddress(isl_ast_expr *Expr) {
 
     const SCEV *DimSCEV = SAI->getDimensionSize(u);
 
-    llvm::ValueToValueMap Map(GlobalMap.begin(), GlobalMap.end());
+    llvm::ValueToSCEVMapTy Map;
+    for (auto &KV : GlobalMap)
+      Map[KV.first] = SE.getSCEV(KV.second);
     DimSCEV = SCEVParameterRewriter::rewrite(DimSCEV, SE, Map);
     Value *DimSize =
         expandCodeFor(S, SE, DL, "polly", DimSCEV, DimSCEV->getType(),
@@ -331,18 +327,20 @@ Value *IslExprBuilder::createAccessAddress(isl_ast_expr *Expr) {
     IndexOp = createMul(IndexOp, DimSize, "polly.access.mul." + BaseName);
   }
 
-  Access = Builder.CreateGEP(Base, IndexOp, "polly.access." + BaseName);
+  Access = Builder.CreateGEP(SAI->getElementType(), Base, IndexOp,
+                             "polly.access." + BaseName);
 
   if (PollyDebugPrinting)
     RuntimeDebugBuilder::createCPUPrinter(Builder, "\n");
   isl_ast_expr_free(Expr);
-  return Access;
+  return {Access, SAI->getElementType()};
 }
 
-Value *IslExprBuilder::createOpAccess(isl_ast_expr *Expr) {
-  Value *Addr = createAccessAddress(Expr);
-  assert(Addr && "Could not create op access address");
-  return Builder.CreateLoad(Addr, Addr->getName() + ".load");
+Value *IslExprBuilder::createOpAccess(__isl_take isl_ast_expr *Expr) {
+  auto Info = createAccessAddress(Expr);
+  assert(Info.first && "Could not create op access address");
+  return Builder.CreateLoad(Info.second, Info.first,
+                            Info.first->getName() + ".load");
 }
 
 Value *IslExprBuilder::createOpBin(__isl_take isl_ast_expr *Expr) {
@@ -521,8 +519,8 @@ Value *IslExprBuilder::createOpICmp(__isl_take isl_ast_expr *Expr) {
   isl_ast_op_type OpType = isl_ast_expr_get_op_type(Expr);
   assert(OpType >= isl_ast_op_eq && OpType <= isl_ast_op_gt &&
          "Unsupported ICmp isl ast expression");
-  assert(isl_ast_op_eq + 4 == isl_ast_op_gt &&
-         "Isl ast op type interface changed");
+  static_assert(isl_ast_op_eq + 4 == isl_ast_op_gt,
+                "Isl ast op type interface changed");
 
   CmpInst::Predicate Predicates[5][2] = {
       {CmpInst::ICMP_EQ, CmpInst::ICMP_EQ},
@@ -702,7 +700,7 @@ Value *IslExprBuilder::createOpAddressOf(__isl_take isl_ast_expr *Expr) {
   assert(isl_ast_expr_get_op_type(Op) == isl_ast_op_access &&
          "Expected address of operator to be an access expression.");
 
-  Value *V = createAccessAddress(Op);
+  Value *V = createAccessAddress(Op).first;
 
   isl_ast_expr_free(Expr);
 
@@ -760,7 +758,7 @@ Value *IslExprBuilder::createInt(__isl_take isl_ast_expr *Expr) {
   else
     T = Builder.getIntNTy(BitWidth);
 
-  APValue = APValue.sextOrSelf(T->getBitWidth());
+  APValue = APValue.sext(T->getBitWidth());
   V = ConstantInt::get(T, APValue);
 
   isl_ast_expr_free(Expr);

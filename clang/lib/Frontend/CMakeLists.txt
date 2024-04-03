@@ -6,6 +6,7 @@ set(LLVM_LINK_COMPONENTS
   Option
   ProfileData
   Support
+  TargetParser
   )
 
 add_clang_library(clangFrontend
@@ -23,9 +24,7 @@ add_clang_library(clangFrontend
   FrontendAction.cpp
   FrontendActions.cpp
   FrontendOptions.cpp
-  FrontendTiming.cpp
   HeaderIncludeGen.cpp
-  InitHeaderSearch.cpp
   InitPreprocessor.cpp
   LayoutOverrideSource.cpp
   LogDiagnosticPrinter.cpp
@@ -33,6 +32,8 @@ add_clang_library(clangFrontend
   MultiplexConsumer.cpp
   PrecompiledPreamble.cpp
   PrintPreprocessedOutput.cpp
+  SARIFDiagnostic.cpp
+  SARIFDiagnosticPrinter.cpp
   SerializedDiagnosticPrinter.cpp
   SerializedDiagnosticReader.cpp
   TestModuleFileExtension.cpp
@@ -47,6 +48,7 @@ add_clang_library(clangFrontend
   intrinsics_gen
 
   LINK_LIBS
+  clangAPINotes
   clangAST
   clangBasic
   clangDriver

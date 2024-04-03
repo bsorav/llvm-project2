@@ -14,8 +14,8 @@
 #define LLVM_CLANG_LIB_BASIC_TARGETS_SPARC_H
 #include "clang/Basic/TargetInfo.h"
 #include "clang/Basic/TargetOptions.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/Support/Compiler.h"
+#include "llvm/TargetParser/Triple.h"
 namespace clang {
 namespace targets {
 // Shared base class for SPARC v8 (32-bit) and SPARC v9 (64-bit).
@@ -39,10 +39,8 @@ public:
   bool handleTargetFeatures(std::vector<std::string> &Features,
                             DiagnosticsEngine &Diags) override {
     // Check if software floating point is enabled
-    auto Feature = llvm::find(Features, "+soft-float");
-    if (Feature != Features.end()) {
+    if (llvm::is_contained(Features, "+soft-float"))
       SoftFloat = true;
-    }
     return true;
   }
   void getTargetDefines(const LangOptions &Opts,
@@ -50,11 +48,9 @@ public:
 
   bool hasFeature(StringRef Feature) const override;
 
-  bool hasSjLjLowering() const override { return true; }
-
   ArrayRef<Builtin::Info> getTargetBuiltins() const override {
     // FIXME: Implement!
-    return None;
+    return std::nullopt;
   }
   BuiltinVaListKind getBuiltinVaListKind() const override {
     return TargetInfo::VoidPtrBuiltinVaList;
@@ -81,7 +77,7 @@ public:
     }
     return false;
   }
-  const char *getClobbers() const override {
+  std::string_view getClobbers() const override {
     // FIXME: Implement!
     return "";
   }
@@ -166,17 +162,21 @@ public:
       PtrDiffType = SignedLong;
       break;
     }
-    // Up to 32 bits are lock-free atomic, but we're willing to do atomic ops
-    // on up to 64 bits.
+    // Up to 32 bits (V8) or 64 bits (V9) are lock-free atomic, but we're
+    // willing to do atomic ops on up to 64 bits.
     MaxAtomicPromoteWidth = 64;
-    MaxAtomicInlineWidth = 32;
+    if (getCPUGeneration(CPU) == CG_V9)
+      MaxAtomicInlineWidth = 64;
+    else
+      // FIXME: This isn't correct for plain V8 which lacks CAS,
+      // only for LEON 3+ and Myriad.
+      MaxAtomicInlineWidth = 32;
   }
 
   void getTargetDefines(const LangOptions &Opts,
                         MacroBuilder &Builder) const override;
 
-  bool hasSjLjLowering() const override { return true; }
-  bool hasExtIntType() const override { return true; }
+  bool hasBitIntType() const override { return true; }
 };
 
 // SPARCV8el is the 32-bit little-endian mode selected by Triple::sparcel.
@@ -229,7 +229,7 @@ public:
     return getCPUGeneration(CPU) == CG_V9;
   }
 
-  bool hasExtIntType() const override { return true; }
+  bool hasBitIntType() const override { return true; }
 };
 } // namespace targets
 } // namespace clang

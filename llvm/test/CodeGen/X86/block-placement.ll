@@ -1,5 +1,5 @@
 ; RUN: llc -mtriple=i686-linux -pre-RA-sched=source < %s | FileCheck %s
-; RUN: opt -disable-output -debugify < %s
+; RUN: opt -disable-output -passes=debugify < %s
 
 declare void @error(i32 %i, i32 %a, i32 %b)
 
@@ -318,8 +318,7 @@ define void @unnatural_cfg1() {
 ; CHECK-LABEL: unnatural_cfg1
 ; CHECK: %entry
 ; CHECK: %loop.header
-; CHECK: %loop.body2
-; CHECK: %loop.body3
+; CHECK: %loop.body5
 
 entry:
   br label %loop.header
@@ -358,11 +357,11 @@ define void @unnatural_cfg2(i32* %p0, i32 %a0) {
 ; CHECK: %loop.header
 ; CHECK: %loop.body1
 ; CHECK: %loop.body2
-; CHECK: %loop.body3
-; CHECK: %loop.inner1.begin
 ; CHECK: %loop.body4
 ; CHECK: %loop.inner2.begin
 ; CHECK: %loop.inner2.begin
+; CHECK: %loop.body3
+; CHECK: %loop.inner1.begin
 ; CHECK: %bail
 
 entry:

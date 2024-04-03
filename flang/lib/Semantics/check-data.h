@@ -9,6 +9,7 @@
 #ifndef FORTRAN_SEMANTICS_CHECK_DATA_H_
 #define FORTRAN_SEMANTICS_CHECK_DATA_H_
 
+#include "data-to-inits.h"
 #include "flang/Common/interval.h"
 #include "flang/Evaluate/fold-designator.h"
 #include "flang/Evaluate/initial-image.h"
@@ -28,15 +29,6 @@ struct DataStmtSet;
 
 namespace Fortran::semantics {
 
-struct SymbolDataInitialization {
-  using Range = common::Interval<ConstantSubscript>;
-  explicit SymbolDataInitialization(std::size_t bytes) : image{bytes} {}
-  evaluate::InitialImage image;
-  std::list<Range> inits;
-};
-
-using DataInitializations = std::map<SymbolRef, SymbolDataInitialization>;
-
 class DataChecker : public virtual BaseChecker {
 public:
   explicit DataChecker(SemanticsContext &context) : exprAnalyzer_{context} {}
@@ -45,6 +37,9 @@ public:
   void Enter(const parser::DataImpliedDo &);
   void Leave(const parser::DataImpliedDo &);
   void Leave(const parser::DataStmtSet &);
+  // These cases are for legacy DATA-like /initializations/
+  void Leave(const parser::ComponentDecl &);
+  void Leave(const parser::EntityDecl &);
 
   // After all DATA statements have been processed, converts their
   // initializations into per-symbol static initializers.
@@ -55,7 +50,7 @@ private:
   template <typename T> void CheckIfConstantSubscript(const T &);
   void CheckSubscript(const parser::SectionSubscript &);
   bool CheckAllSubscriptsInDataRef(const parser::DataRef &, parser::CharBlock);
-  void ConstructInitializer(const Symbol &, SymbolDataInitialization &);
+  template <typename A> void LegacyDataInit(const A &);
 
   DataInitializations inits_;
   evaluate::ExpressionAnalyzer exprAnalyzer_;

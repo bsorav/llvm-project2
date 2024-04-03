@@ -11,7 +11,6 @@
 //  See http://www.yaml.org/spec/1.2/spec.html for the full standard.
 //
 //  This currently does not implement the following:
-//    * Multi-line literal folding.
 //    * Tag resolution.
 //    * UTF-16.
 //    * BOMs anywhere other than the first Unicode scalar value in the file.
@@ -40,18 +39,19 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Allocator.h"
 #include "llvm/Support/SMLoc.h"
+#include "llvm/Support/SourceMgr.h"
 #include <cassert>
 #include <cstddef>
 #include <iterator>
 #include <map>
 #include <memory>
+#include <optional>
 #include <string>
 #include <system_error>
 
 namespace llvm {
 
 class MemoryBufferRef;
-class SourceMgr;
 class raw_ostream;
 class Twine;
 
@@ -78,6 +78,9 @@ bool scanTokens(StringRef Input);
 /// escaped, but emitted verbatim.
 std::string escape(StringRef Input, bool EscapePrintable = true);
 
+/// Parse \p S as a bool according to https://yaml.org/type/bool.html.
+std::optional<bool> parseBool(StringRef S);
+
 /// This class represents a YAML stream potentially containing multiple
 ///        documents.
 class Stream {
@@ -100,7 +103,10 @@ public:
     return !failed();
   }
 
-  void printError(Node *N, const Twine &Msg);
+  void printError(Node *N, const Twine &Msg,
+                  SourceMgr::DiagKind Kind = SourceMgr::DK_Error);
+  void printError(const SMRange &Range, const Twine &Msg,
+                  SourceMgr::DiagKind Kind = SourceMgr::DK_Error);
 
 private:
   friend class Document;
@@ -222,7 +228,7 @@ public:
 
   /// Gets the value of this node as a StringRef.
   ///
-  /// \param Storage is used to store the content of the returned StringRef iff
+  /// \param Storage is used to store the content of the returned StringRef if
   ///        it requires any modification from how it appeared in the source.
   ///        This happens with escaped characters and multi-line literals.
   StringRef getValue(SmallVectorImpl<char> &Storage) const;
@@ -234,9 +240,14 @@ public:
 private:
   StringRef Value;
 
-  StringRef unescapeDoubleQuoted(StringRef UnquotedValue,
-                                 StringRef::size_type Start,
+  StringRef getDoubleQuotedValue(StringRef UnquotedValue,
                                  SmallVectorImpl<char> &Storage) const;
+
+  static StringRef getSingleQuotedValue(StringRef RawValue,
+                                        SmallVectorImpl<char> &Storage);
+
+  static StringRef getPlainValue(StringRef RawValue,
+                                 SmallVectorImpl<char> &Storage);
 };
 
 /// A block scalar node is an opaque datum that can be presented as a
@@ -319,10 +330,14 @@ private:
 ///
 /// BaseT must have a ValueT* member named CurrentEntry and a member function
 /// increment() which must set CurrentEntry to 0 to create an end iterator.
-template <class BaseT, class ValueT>
-class basic_collection_iterator
-    : public std::iterator<std::input_iterator_tag, ValueT> {
+template <class BaseT, class ValueT> class basic_collection_iterator {
 public:
+  using iterator_category = std::input_iterator_tag;
+  using value_type = ValueT;
+  using difference_type = std::ptrdiff_t;
+  using pointer = value_type *;
+  using reference = value_type &;
+
   basic_collection_iterator() = default;
   basic_collection_iterator(BaseT *B) : Base(B) {}
 
@@ -509,7 +524,6 @@ public:
       : Node(NK_Alias, D, StringRef(), StringRef()), Name(Val) {}
 
   StringRef getName() const { return Name; }
-  Node *getTarget();
 
   static bool classof(const Node *N) { return N->getType() == NK_Alias; }
 
@@ -602,7 +616,7 @@ public:
     return *this;
   }
 
-  Document &operator*() { return *Doc->get(); }
+  Document &operator*() { return **Doc; }
 
   std::unique_ptr<Document> &operator->() { return *Doc; }
 

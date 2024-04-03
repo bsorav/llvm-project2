@@ -56,7 +56,10 @@ SANITIZER("hwaddress", HWAddress)
 SANITIZER("kernel-hwaddress", KernelHWAddress)
 
 // A variant of AddressSanitizer using AArch64 MTE extension.
-SANITIZER("memtag", MemTag)
+SANITIZER("memtag-stack", MemtagStack)
+SANITIZER("memtag-heap", MemtagHeap)
+SANITIZER("memtag-globals", MemtagGlobals)
+SANITIZER_GROUP("memtag", MemTag, MemtagStack | MemtagHeap | MemtagGlobals)
 
 // MemorySanitizer
 SANITIZER("memory", Memory)
@@ -108,6 +111,7 @@ SANITIZER("vptr", Vptr)
 
 // IntegerSanitizer
 SANITIZER("unsigned-integer-overflow", UnsignedIntegerOverflow)
+SANITIZER("unsigned-shift-base", UnsignedShiftBase)
 
 // DataFlowSanitizer
 SANITIZER("dataflow", DataFlow)
@@ -123,6 +127,9 @@ SANITIZER("cfi-vcall", CFIVCall)
 SANITIZER_GROUP("cfi", CFI,
                 CFIDerivedCast | CFIICall | CFIMFCall | CFIUnrelatedCast |
                     CFINVCall | CFIVCall)
+
+// Kernel Control Flow Integrity
+SANITIZER("kcfi", KCFI)
 
 // Safe Stack
 SANITIZER("safe-stack", SafeStack)
@@ -172,7 +179,8 @@ SANITIZER_GROUP("implicit-conversion", ImplicitConversion,
 
 SANITIZER_GROUP("integer", Integer,
                 ImplicitConversion | IntegerDivideByZero | Shift |
-                    SignedIntegerOverflow | UnsignedIntegerOverflow)
+                    SignedIntegerOverflow | UnsignedIntegerOverflow |
+                    UnsignedShiftBase)
 
 SANITIZER("local-bounds", LocalBounds)
 SANITIZER_GROUP("bounds", Bounds, ArrayBounds | LocalBounds)

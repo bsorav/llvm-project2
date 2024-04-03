@@ -1,4 +1,4 @@
-//===--------------------------- cxxabi.h ---------------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -19,8 +19,9 @@
 
 #include <__cxxabi_config.h>
 
-#define _LIBCPPABI_VERSION 1002
+#define _LIBCPPABI_VERSION 15000
 #define _LIBCXXABI_NORETURN  __attribute__((noreturn))
+#define _LIBCXXABI_ALWAYS_COLD __attribute__((cold))
 
 #ifdef __cplusplus
 
@@ -35,6 +36,9 @@ class type_info; // forward declaration
 
 // runtime routines use C calling conventions, but are in __cxxabiv1 namespace
 namespace __cxxabiv1 {
+
+struct __cxa_exception;
+
 extern "C"  {
 
 // 2.4.2 Allocating the Exception Object
@@ -42,11 +46,19 @@ extern _LIBCXXABI_FUNC_VIS void *
 __cxa_allocate_exception(size_t thrown_size) throw();
 extern _LIBCXXABI_FUNC_VIS void
 __cxa_free_exception(void *thrown_exception) throw();
+// This function is an LLVM extension, which mirrors the same extension in libsupc++ and libcxxrt
+extern _LIBCXXABI_FUNC_VIS __cxa_exception*
+__cxa_init_primary_exception(void* object, std::type_info* tinfo, void(_LIBCXXABI_DTOR_FUNC* dest)(void*)) throw();
 
 // 2.4.3 Throwing the Exception Object
 extern _LIBCXXABI_FUNC_VIS _LIBCXXABI_NORETURN void
 __cxa_throw(void *thrown_exception, std::type_info *tinfo,
-            void (*dest)(void *));
+#ifdef __USING_WASM_EXCEPTIONS__
+            // In Wasm, a destructor returns its argument
+            void *(_LIBCXXABI_DTOR_FUNC *dest)(void *));
+#else
+            void (_LIBCXXABI_DTOR_FUNC *dest)(void *));
+#endif
 
 // 2.5.3 Exception Handlers
 extern _LIBCXXABI_FUNC_VIS void *
@@ -78,13 +90,13 @@ extern _LIBCXXABI_FUNC_VIS _LIBCXXABI_NORETURN void __cxa_deleted_virtual(void);
 
 // 3.3.2 One-time Construction API
 #if defined(_LIBCXXABI_GUARD_ABI_ARM)
-extern _LIBCXXABI_FUNC_VIS int __cxa_guard_acquire(uint32_t *);
-extern _LIBCXXABI_FUNC_VIS void __cxa_guard_release(uint32_t *);
-extern _LIBCXXABI_FUNC_VIS void __cxa_guard_abort(uint32_t *);
+extern _LIBCXXABI_FUNC_VIS _LIBCXXABI_ALWAYS_COLD int __cxa_guard_acquire(uint32_t *);
+extern _LIBCXXABI_FUNC_VIS _LIBCXXABI_ALWAYS_COLD void __cxa_guard_release(uint32_t *);
+extern _LIBCXXABI_FUNC_VIS _LIBCXXABI_ALWAYS_COLD void __cxa_guard_abort(uint32_t *);
 #else
-extern _LIBCXXABI_FUNC_VIS int __cxa_guard_acquire(uint64_t *);
-extern _LIBCXXABI_FUNC_VIS void __cxa_guard_release(uint64_t *);
-extern _LIBCXXABI_FUNC_VIS void __cxa_guard_abort(uint64_t *);
+extern _LIBCXXABI_FUNC_VIS _LIBCXXABI_ALWAYS_COLD int __cxa_guard_acquire(uint64_t *);
+extern _LIBCXXABI_FUNC_VIS _LIBCXXABI_ALWAYS_COLD void __cxa_guard_release(uint64_t *);
+extern _LIBCXXABI_FUNC_VIS _LIBCXXABI_ALWAYS_COLD void __cxa_guard_abort(uint64_t *);
 #endif
 
 // 3.3.3 Array Construction and Destruction API
@@ -136,9 +148,9 @@ __cxa_vec_cctor(void *dest_array, void *src_array, size_t element_count,
                 void (*destructor)(void *));
 
 // 3.3.5.3 Runtime API
-extern _LIBCXXABI_FUNC_VIS int __cxa_atexit(void (*f)(void *), void *p,
-                                            void *d);
-extern _LIBCXXABI_FUNC_VIS int __cxa_finalize(void *);
+// These functions are part of the C++ ABI, but they are not defined in libc++abi:
+//    int __cxa_atexit(void (*)(void *), void *, void *);
+//    void __cxa_finalize(void *);
 
 // 3.4 Demangler API
 extern _LIBCXXABI_FUNC_VIS char *__cxa_demangle(const char *mangled_name,

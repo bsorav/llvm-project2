@@ -34,7 +34,6 @@
 namespace clang {
 
 class CXXBaseSpecifier;
-class DeclaratorDecl;
 
 namespace ento {
 
@@ -52,6 +51,8 @@ public:
   iterator begin() const { return L.begin(); }
   iterator end() const { return L.end(); }
 
+  QualType getType() const { return T; }
+
   static void Profile(llvm::FoldingSetNodeID& ID, QualType T,
                       llvm::ImmutableList<SVal> L);
 
@@ -65,10 +66,14 @@ class LazyCompoundValData : public llvm::FoldingSetNode {
 public:
   LazyCompoundValData(const StoreRef &st, const TypedValueRegion *r)
       : store(st), region(r) {
+    assert(r);
     assert(NonLoc::isCompoundType(r->getValueType()));
   }
 
+  /// It might return null.
   const void *getStore() const { return store.getStore(); }
+
+  LLVM_ATTRIBUTE_RETURNS_NONNULL
   const TypedValueRegion *getRegion() const { return region; }
 
   static void Profile(llvm::FoldingSetNodeID& ID,
@@ -79,11 +84,11 @@ public:
 };
 
 class PointerToMemberData : public llvm::FoldingSetNode {
-  const DeclaratorDecl *D;
+  const NamedDecl *D;
   llvm::ImmutableList<const CXXBaseSpecifier *> L;
 
 public:
-  PointerToMemberData(const DeclaratorDecl *D,
+  PointerToMemberData(const NamedDecl *D,
                       llvm::ImmutableList<const CXXBaseSpecifier *> L)
       : D(D), L(L) {}
 
@@ -92,11 +97,13 @@ public:
   iterator begin() const { return L.begin(); }
   iterator end() const { return L.end(); }
 
-  static void Profile(llvm::FoldingSetNodeID& ID, const DeclaratorDecl *D,
+  static void Profile(llvm::FoldingSetNodeID &ID, const NamedDecl *D,
                       llvm::ImmutableList<const CXXBaseSpecifier *> L);
 
-  void Profile(llvm::FoldingSetNodeID& ID) { Profile(ID, D, L); }
-  const DeclaratorDecl *getDeclaratorDecl() const {return D;}
+  void Profile(llvm::FoldingSetNodeID &ID) { Profile(ID, D, L); }
+
+  /// It might return null.
+  const NamedDecl *getDeclaratorDecl() const { return D; }
 
   llvm::ImmutableList<const CXXBaseSpecifier *> getCXXBaseList() const {
     return L;
@@ -139,9 +146,21 @@ public:
 
   /// Returns the type of the APSInt used to store values of the given QualType.
   APSIntType getAPSIntType(QualType T) const {
-    assert(T->isIntegralOrEnumerationType() || Loc::isLocType(T));
-    return APSIntType(Ctx.getIntWidth(T),
-                      !T->isSignedIntegerOrEnumerationType());
+    // For the purposes of the analysis and constraints, we treat atomics
+    // as their underlying types.
+    if (const AtomicType *AT = T->getAs<AtomicType>()) {
+      T = AT->getValueType();
+    }
+
+    if (T->isIntegralOrEnumerationType() || Loc::isLocType(T)) {
+      return APSIntType(Ctx.getIntWidth(T),
+                        !T->isSignedIntegerOrEnumerationType());
+    } else {
+      // implicitly handle case of T->isFixedPointType()
+      return APSIntType(Ctx.getIntWidth(T), T->isUnsignedFixedPointType());
+    }
+
+    llvm_unreachable("Unsupported type in getAPSIntType!");
   }
 
   /// Convert - Create a new persistent APSInt with the same value as 'From'
@@ -213,14 +232,6 @@ public:
     return getValue(0, Ctx.getTypeSize(T), true);
   }
 
-  const llvm::APSInt &getZeroWithPtrWidth(bool isUnsigned = true) {
-    return getValue(0, Ctx.getTypeSize(Ctx.VoidPtrTy), isUnsigned);
-  }
-
-  const llvm::APSInt &getIntWithPtrWidth(uint64_t X, bool isUnsigned) {
-    return getValue(X, Ctx.getTypeSize(Ctx.VoidPtrTy), isUnsigned);
-  }
-
   const llvm::APSInt &getTruthValue(bool b, QualType T) {
     return getValue(b ? 1 : 0, Ctx.getIntWidth(T),
                     T->isUnsignedIntegerOrEnumerationType());
@@ -236,9 +247,9 @@ public:
   const LazyCompoundValData *getLazyCompoundValData(const StoreRef &store,
                                             const TypedValueRegion *region);
 
-  const PointerToMemberData *getPointerToMemberData(
-      const DeclaratorDecl *DD,
-      llvm::ImmutableList<const CXXBaseSpecifier *> L);
+  const PointerToMemberData *
+  getPointerToMemberData(const NamedDecl *ND,
+                         llvm::ImmutableList<const CXXBaseSpecifier *> L);
 
   llvm::ImmutableList<SVal> getEmptySValList() {
     return SValListFactory.getEmptyList();
@@ -258,9 +269,9 @@ public:
     return CXXBaseListFactory.add(CBS, L);
   }
 
-  const PointerToMemberData *accumCXXBase(
-      llvm::iterator_range<CastExpr::path_const_iterator> PathRange,
-      const nonloc::PointerToMember &PTM);
+  const PointerToMemberData *
+  accumCXXBase(llvm::iterator_range<CastExpr::path_const_iterator> PathRange,
+               const nonloc::PointerToMember &PTM, const clang::CastKind &kind);
 
   const llvm::APSInt* evalAPSInt(BinaryOperator::Opcode Op,
                                      const llvm::APSInt& V1,

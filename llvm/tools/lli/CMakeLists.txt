@@ -8,16 +8,20 @@ set(LLVM_LINK_COMPONENTS
   ExecutionEngine
   IRReader
   Interpreter
+  JITLink
   MC
   MCJIT
   Object
-  OrcError
   OrcJIT
+  OrcDebugging
+  OrcShared
+  OrcTargetProcess
   Passes
   RuntimeDyld
   SelectionDAG
   Support
   Target
+  TargetParser
   TransformUtils
   native
   )

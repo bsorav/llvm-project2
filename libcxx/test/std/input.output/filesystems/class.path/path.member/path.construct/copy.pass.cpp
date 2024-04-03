@@ -6,7 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++03
+// UNSUPPORTED: c++03, c++11, c++14
+// UNSUPPORTED: availability-filesystem-missing
 
 // <filesystem>
 
@@ -14,12 +15,13 @@
 
 // path(path const&)
 
-#include "filesystem_include.h"
-#include <type_traits>
+#include <filesystem>
 #include <cassert>
+#include <string>
+#include <type_traits>
 
 #include "test_macros.h"
-
+namespace fs = std::filesystem;
 
 int main(int, char**) {
   using namespace fs;
@@ -28,8 +30,8 @@ int main(int, char**) {
   const std::string s("foo");
   const path p(s);
   path p2(p);
-  assert(p.native() == s);
-  assert(p2.native() == s);
+  assert(p.string() == s);
+  assert(p2.string() == s);
 
   return 0;
 }

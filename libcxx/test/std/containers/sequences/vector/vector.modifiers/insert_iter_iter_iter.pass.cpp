@@ -26,15 +26,15 @@ struct S {};
 void make_move_iterator(S*) {}
 }
 
-int main(int, char**)
+TEST_CONSTEXPR_CXX20 bool tests()
 {
     {
         typedef std::vector<int> V;
         V v(100);
         int a[] = {1, 2, 3, 4, 5};
         const int N = sizeof(a)/sizeof(a[0]);
-        V::iterator i = v.insert(v.cbegin() + 10, input_iterator<const int*>(a),
-                                 input_iterator<const int*>(a+N));
+        V::iterator i = v.insert(v.cbegin() + 10, cpp17_input_iterator<const int*>(a),
+                                 cpp17_input_iterator<const int*>(a+N));
         assert(v.size() == 100 + N);
         assert(is_contiguous_container_asan_correct(v));
         assert(i == v.begin() + 10);
@@ -68,7 +68,7 @@ int main(int, char**)
         typedef std::vector<int> V;
         V v(100);
         while(v.size() < v.capacity()) v.push_back(0); // force reallocation
-        size_t sz = v.size();
+        std::size_t sz = v.size();
         int a[] = {1, 2, 3, 4, 5};
         const unsigned N = sizeof(a)/sizeof(a[0]);
         V::iterator i = v.insert(v.cbegin() + 10, forward_iterator<const int*>(a),
@@ -87,7 +87,7 @@ int main(int, char**)
         typedef std::vector<int> V;
         V v(100);
         v.reserve(128); // force no reallocation
-        size_t sz = v.size();
+        std::size_t sz = v.size();
         int a[] = {1, 2, 3, 4, 5};
         const unsigned N = sizeof(a)/sizeof(a[0]);
         V::iterator i = v.insert(v.cbegin() + 10, forward_iterator<const int*>(a),
@@ -107,8 +107,8 @@ int main(int, char**)
         V v(100);
         int a[] = {1, 2, 3, 4, 5};
         const int N = sizeof(a)/sizeof(a[0]);
-        V::iterator i = v.insert(v.cbegin() + 10, input_iterator<const int*>(a),
-                                 input_iterator<const int*>(a+N));
+        V::iterator i = v.insert(v.cbegin() + 10, cpp17_input_iterator<const int*>(a),
+                                 cpp17_input_iterator<const int*>(a+N));
         assert(v.size() == 100 + N);
         assert(is_contiguous_container_asan_correct(v));
         assert(i == v.begin() + 10);
@@ -144,8 +144,8 @@ int main(int, char**)
         V v(100);
         int a[] = {1, 2, 3, 4, 5};
         const int N = sizeof(a)/sizeof(a[0]);
-        V::iterator i = v.insert(v.cbegin() + 10, input_iterator<const int*>(a),
-                                 input_iterator<const int*>(a+N));
+        V::iterator i = v.insert(v.cbegin() + 10, cpp17_input_iterator<const int*>(a),
+                                 cpp17_input_iterator<const int*>(a+N));
         assert(v.size() == 100 + N);
         assert(is_contiguous_container_asan_correct(v));
         assert(i == v.begin() + 10);
@@ -179,8 +179,17 @@ int main(int, char**)
 
     {
         std::vector<adl::S> s;
-        s.insert(s.end(), input_iterator<adl::S*>(), input_iterator<adl::S*>());
+        s.insert(s.end(), cpp17_input_iterator<adl::S*>(nullptr), cpp17_input_iterator<adl::S*>(nullptr));
     }
 
-  return 0;
+    return true;
+}
+
+int main(int, char**)
+{
+    tests();
+#if TEST_STD_VER > 17
+    static_assert(tests());
+#endif
+    return 0;
 }

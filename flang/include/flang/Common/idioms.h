@@ -23,9 +23,12 @@
 #error g++ >= 7.2 is required
 #endif
 
-#include "llvm/Support/Compiler.h"
+#include "enum-class.h"
+#include "visit.h"
+#include <array>
 #include <functional>
 #include <list>
+#include <memory>
 #include <optional>
 #include <string>
 #include <tuple>
@@ -48,8 +51,8 @@ using namespace std::literals::string_literals;
 namespace Fortran::common {
 
 // Helper templates for combining a list of lambdas into an anonymous
-// struct for use with std::visit() on a std::variant<> sum type.
-// E.g.: std::visit(visitors{
+// struct for use with common::visit() on a std::variant<> sum type.
+// E.g.: common::visit(visitors{
 //         [&](const firstType &x) { ... },
 //         [&](const secondType &x) { ... },
 //         ...
@@ -109,33 +112,18 @@ template <typename... LAMBDAS> visitors(LAMBDAS... x) -> visitors<LAMBDAS...>;
   } \
   template <typename A> constexpr bool T{class_trait_ns_##T::trait_value<A>()};
 
-// Define enum class NAME with the given enumerators, a static
-// function EnumToString() that maps enumerators to std::string,
-// and a constant NAME_enumSize that captures the number of items
-// in the enum class.
-
-std::string EnumIndexToString(int index, const char *names);
-
-template <typename A> struct ListItemCount {
-  constexpr ListItemCount(std::initializer_list<A> list) : value{list.size()} {}
-  const std::size_t value;
-};
-
-#define ENUM_CLASS(NAME, ...) \
-  enum class NAME { __VA_ARGS__ }; \
-  LLVM_ATTRIBUTE_UNUSED static constexpr std::size_t NAME##_enumSize{[] { \
-    enum { __VA_ARGS__ }; \
-    return Fortran::common::ListItemCount{__VA_ARGS__}.value; \
-  }()}; \
-  LLVM_ATTRIBUTE_UNUSED static inline std::string EnumToString(NAME e) { \
-    return Fortran::common::EnumIndexToString( \
-        static_cast<int>(e), #__VA_ARGS__); \
-  }
-
 // Check that a pointer is non-null and dereference it
 #define DEREF(p) Fortran::common::Deref(p, __FILE__, __LINE__)
 
 template <typename T> constexpr T &Deref(T *p, const char *file, int line) {
+  if (!p) {
+    Fortran::common::die("nullptr dereference at %s(%d)", file, line);
+  }
+  return *p;
+}
+
+template <typename T>
+constexpr T &Deref(const std::unique_ptr<T> &p, const char *file, int line) {
   if (!p) {
     Fortran::common::die("nullptr dereference at %s(%d)", file, line);
   }

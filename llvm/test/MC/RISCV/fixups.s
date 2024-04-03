@@ -1,7 +1,7 @@
 # RUN: llvm-mc -triple riscv32 -riscv-no-aliases < %s -show-encoding \
 # RUN:     | FileCheck -check-prefix=CHECK-FIXUP %s
 # RUN: llvm-mc -filetype=obj -triple riscv32 < %s \
-# RUN:     | llvm-objdump -M no-aliases -d - \
+# RUN:     | llvm-objdump --no-print-imm-hex -M no-aliases -d - \
 # RUN:     | FileCheck -check-prefix=CHECK-INSTR %s
 # RUN: llvm-mc -filetype=obj -triple=riscv32 %s \
 # RUN:     | llvm-readobj -r - | FileCheck %s -check-prefix=CHECK-REL
@@ -37,16 +37,16 @@ sw t1, %pcrel_lo(1b)(t1)
 
 jal zero, .LBB0
 # CHECK-FIXUP: fixup A - offset: 0, value: .LBB0, kind: fixup_riscv_jal
-# CHECK-INSTR: jal zero, -28
+# CHECK-INSTR: jal zero, 0x0
 jal zero, .LBB2
 # CHECK-FIXUP: fixup A - offset: 0, value: .LBB2, kind: fixup_riscv_jal
-# CHECK-INSTR: jal zero, 330996
+# CHECK-INSTR: jal zero, 0x50d14
 beq a0, a1, .LBB0
 # CHECK-FIXUP: fixup A - offset: 0, value: .LBB0, kind: fixup_riscv_branch
-# CHECK-INSTR: beq a0, a1, -36
+# CHECK-INSTR: beq a0, a1, 0x0
 blt a0, a1, .LBB1
 # CHECK-FIXUP: fixup A - offset: 0, value: .LBB1, kind: fixup_riscv_branch
-# CHECK-INSTR: blt a0, a1, 1108
+# CHECK-INSTR: blt a0, a1, 0x47c
 
 .fill 1104
 

@@ -10,6 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "CompileCommands.h"
+#include "Compiler.h"
 #include "index/IndexAction.h"
 #include "index/Merge.h"
 #include "index/Ref.h"
@@ -18,11 +20,11 @@
 #include "index/SymbolCollector.h"
 #include "support/Logger.h"
 #include "clang/Tooling/ArgumentsAdjusters.h"
-#include "clang/Tooling/CommonOptionsParser.h"
 #include "clang/Tooling/Execution.h"
 #include "clang/Tooling/Tooling.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Signals.h"
+#include <utility>
 
 namespace clang {
 namespace clangd {
@@ -36,6 +38,16 @@ static llvm::cl::opt<IndexFileFormat>
                                        "binary RIFF format")),
            llvm::cl::init(IndexFileFormat::RIFF));
 
+static llvm::cl::list<std::string> QueryDriverGlobs{
+    "query-driver",
+    llvm::cl::desc(
+        "Comma separated list of globs for white-listing gcc-compatible "
+        "drivers that are safe to execute. Drivers matching any of these globs "
+        "will be used to extract system includes. e.g. "
+        "/usr/bin/**/clang-*,/path/to/repo/**/g++-*"),
+    llvm::cl::CommaSeparated,
+};
+
 class IndexActionFactory : public tooling::FrontendActionFactory {
 public:
   IndexActionFactory(IndexFileIn &Result) : Result(Result) {}
@@ -43,6 +55,16 @@ public:
   std::unique_ptr<FrontendAction> create() override {
     SymbolCollector::Options Opts;
     Opts.CountReferences = true;
+    Opts.FileFilter = [&](const SourceManager &SM, FileID FID) {
+      const auto F = SM.getFileEntryRefForID(FID);
+      if (!F)
+        return false; // Skip invalid files.
+      auto AbsPath = getCanonicalPath(*F, SM.getFileManager());
+      if (!AbsPath)
+        return false; // Skip files without absolute path.
+      std::lock_guard<std::mutex> Lock(FilesMu);
+      return Files.insert(*AbsPath).second; // Skip already processed files.
+    };
     return createStaticIndexingAction(
         Opts,
         [&](SymbolSlab S) {
@@ -56,7 +78,7 @@ public:
           }
         },
         [&](RefSlab S) {
-          std::lock_guard<std::mutex> Lock(SymbolsMu);
+          std::lock_guard<std::mutex> Lock(RefsMu);
           for (const auto &Sym : S) {
             // Deduplication happens during insertion.
             for (const auto &Ref : Sym.second)
@@ -64,12 +86,21 @@ public:
           }
         },
         [&](RelationSlab S) {
-          std::lock_guard<std::mutex> Lock(SymbolsMu);
+          std::lock_guard<std::mutex> Lock(RelsMu);
           for (const auto &R : S) {
             Relations.insert(R);
           }
         },
         /*IncludeGraphCallback=*/nullptr);
+  }
+
+  bool runInvocation(std::shared_ptr<CompilerInvocation> Invocation,
+                     FileManager *Files,
+                     std::shared_ptr<PCHContainerOperations> PCHContainerOps,
+                     DiagnosticConsumer *DiagConsumer) override {
+    disableUnsupportedOptions(*Invocation);
+    return tooling::FrontendActionFactory::runInvocation(
+        std::move(Invocation), Files, std::move(PCHContainerOps), DiagConsumer);
   }
 
   // Awkward: we write the result in the destructor, because the executor
@@ -82,9 +113,13 @@ public:
 
 private:
   IndexFileIn &Result;
+  std::mutex FilesMu;
+  llvm::StringSet<> Files;
   std::mutex SymbolsMu;
   SymbolSlab::Builder Symbols;
+  std::mutex RefsMu;
   RefSlab::Builder Refs;
+  std::mutex RelsMu;
   RelationSlab::Builder Relations;
 };
 
@@ -110,7 +145,7 @@ int main(int argc, const char **argv) {
   )";
 
   auto Executor = clang::tooling::createExecutorFromCommandLineArgs(
-      argc, argv, llvm::cl::GeneralCategory, Overview);
+      argc, argv, llvm::cl::getGeneralCategory(), Overview);
 
   if (!Executor) {
     llvm::errs() << llvm::toString(Executor.takeError()) << "\n";
@@ -119,9 +154,21 @@ int main(int argc, const char **argv) {
 
   // Collect symbols found in each translation unit, merging as we go.
   clang::clangd::IndexFileIn Data;
+  auto Mangler = std::make_shared<clang::clangd::CommandMangler>(
+      clang::clangd::CommandMangler::detect());
+  Mangler->SystemIncludeExtractor = clang::clangd::getSystemIncludeExtractor(
+      static_cast<llvm::ArrayRef<std::string>>(
+          clang::clangd::QueryDriverGlobs));
   auto Err = Executor->get()->execute(
       std::make_unique<clang::clangd::IndexActionFactory>(Data),
-      clang::tooling::getStripPluginsAdjuster());
+      clang::tooling::ArgumentsAdjuster(
+          [Mangler = std::move(Mangler)](const std::vector<std::string> &Args,
+                                         llvm::StringRef File) {
+            clang::tooling::CompileCommand Cmd;
+            Cmd.CommandLine = Args;
+            Mangler->operator()(Cmd, File);
+            return Cmd.CommandLine;
+          }));
   if (Err) {
     clang::clangd::elog("{0}", std::move(Err));
   }

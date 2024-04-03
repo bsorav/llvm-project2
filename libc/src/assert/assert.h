@@ -6,19 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_LIBC_SRC_ASSERT_ASSERT_H
-#define LLVM_LIBC_SRC_ASSERT_ASSERT_H
+#include "src/assert/__assert_fail.h"
 
-#include <stddef.h>
-
-namespace __llvm_libc {
-
-[[noreturn]] void __assert_fail(const char *assertion, const char *file, unsigned line,
-                  const char *function);
-
-} // namespace __llvm_libc
-
-#endif // LLVM_LIBC_SRC_ASSERT_ASSERT_H
+// There is no header guard here since assert is intended to be capable of being
+// included multiple times with NDEBUG defined differently, causing different
+// behavior.
 
 #undef assert
 
@@ -26,6 +18,7 @@ namespace __llvm_libc {
 #define assert(e) (void)0
 #else
 #define assert(e)                                                              \
-  ((e) ? (void)0 :                                                             \
-    __llvm_libc::__assert_fail(#e, __FILE__, __LINE__, __PRETTY_FUNCTION__))
+  ((e) ? (void)0                                                               \
+       : LIBC_NAMESPACE::__assert_fail(#e, __FILE__, __LINE__,                 \
+                                       __PRETTY_FUNCTION__))
 #endif

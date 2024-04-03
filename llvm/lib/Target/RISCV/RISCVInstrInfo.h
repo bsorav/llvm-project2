@@ -1,4 +1,4 @@
-//===-- RISCVInstrInfo.h - RISCV Instruction Information --------*- C++ -*-===//
+//===-- RISCVInstrInfo.h - RISC-V Instruction Information -------*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file contains the RISCV implementation of the TargetInstrInfo class.
+// This file contains the RISC-V implementation of the TargetInstrInfo class.
 //
 //===----------------------------------------------------------------------===//
 
@@ -15,24 +15,59 @@
 
 #include "RISCVRegisterInfo.h"
 #include "llvm/CodeGen/TargetInstrInfo.h"
+#include "llvm/IR/DiagnosticInfo.h"
 
 #define GET_INSTRINFO_HEADER
+#define GET_INSTRINFO_OPERAND_ENUM
 #include "RISCVGenInstrInfo.inc"
 
 namespace llvm {
 
 class RISCVSubtarget;
 
+static const MachineMemOperand::Flags MONontemporalBit0 =
+    MachineMemOperand::MOTargetFlag1;
+static const MachineMemOperand::Flags MONontemporalBit1 =
+    MachineMemOperand::MOTargetFlag2;
+
+namespace RISCVCC {
+
+enum CondCode {
+  COND_EQ,
+  COND_NE,
+  COND_LT,
+  COND_GE,
+  COND_LTU,
+  COND_GEU,
+  COND_INVALID
+};
+
+CondCode getOppositeBranchCondition(CondCode);
+unsigned getBrCond(CondCode CC);
+
+} // end of namespace RISCVCC
+
 class RISCVInstrInfo : public RISCVGenInstrInfo {
 
 public:
   explicit RISCVInstrInfo(RISCVSubtarget &STI);
 
+  MCInst getNop() const override;
+  const MCInstrDesc &getBrCond(RISCVCC::CondCode CC) const;
+
   unsigned isLoadFromStackSlot(const MachineInstr &MI,
                                int &FrameIndex) const override;
+  unsigned isLoadFromStackSlot(const MachineInstr &MI, int &FrameIndex,
+                               unsigned &MemBytes) const override;
   unsigned isStoreToStackSlot(const MachineInstr &MI,
                               int &FrameIndex) const override;
+  unsigned isStoreToStackSlot(const MachineInstr &MI, int &FrameIndex,
+                              unsigned &MemBytes) const override;
 
+  void copyPhysRegVector(MachineBasicBlock &MBB,
+                         MachineBasicBlock::iterator MBBI, const DebugLoc &DL,
+                         MCRegister DstReg, MCRegister SrcReg, bool KillSrc,
+                         unsigned Opc, unsigned NF = 1) const;
   void copyPhysReg(MachineBasicBlock &MBB, MachineBasicBlock::iterator MBBI,
                    const DebugLoc &DL, MCRegister DstReg, MCRegister SrcReg,
                    bool KillSrc) const override;
@@ -41,17 +76,28 @@ public:
                            MachineBasicBlock::iterator MBBI, Register SrcReg,
                            bool IsKill, int FrameIndex,
                            const TargetRegisterClass *RC,
-                           const TargetRegisterInfo *TRI) const override;
+                           const TargetRegisterInfo *TRI,
+                           Register VReg) const override;
 
   void loadRegFromStackSlot(MachineBasicBlock &MBB,
                             MachineBasicBlock::iterator MBBI, Register DstReg,
                             int FrameIndex, const TargetRegisterClass *RC,
-                            const TargetRegisterInfo *TRI) const override;
+                            const TargetRegisterInfo *TRI,
+                            Register VReg) const override;
+
+  using TargetInstrInfo::foldMemoryOperandImpl;
+  MachineInstr *foldMemoryOperandImpl(MachineFunction &MF, MachineInstr &MI,
+                                      ArrayRef<unsigned> Ops,
+                                      MachineBasicBlock::iterator InsertPt,
+                                      int FrameIndex,
+                                      LiveIntervals *LIS = nullptr,
+                                      VirtRegMap *VRM = nullptr) const override;
 
   // Materializes the given integer Val into DstReg.
   void movImm(MachineBasicBlock &MBB, MachineBasicBlock::iterator MBBI,
               const DebugLoc &DL, Register DstReg, uint64_t Val,
-              MachineInstr::MIFlag Flag = MachineInstr::NoFlags) const;
+              MachineInstr::MIFlag Flag = MachineInstr::NoFlags,
+              bool DstRenamable = false, bool DstIsDead = false) const;
 
   unsigned getInstSizeInBytes(const MachineInstr &MI) const override;
 
@@ -65,10 +111,10 @@ public:
                         const DebugLoc &dl,
                         int *BytesAdded = nullptr) const override;
 
-  unsigned insertIndirectBranch(MachineBasicBlock &MBB,
-                                MachineBasicBlock &NewDestBB,
-                                const DebugLoc &DL, int64_t BrOffset,
-                                RegScavenger *RS = nullptr) const override;
+  void insertIndirectBranch(MachineBasicBlock &MBB,
+                            MachineBasicBlock &NewDestBB,
+                            MachineBasicBlock &RestoreBB, const DebugLoc &DL,
+                            int64_t BrOffset, RegScavenger *RS) const override;
 
   unsigned removeBranch(MachineBasicBlock &MBB,
                         int *BytesRemoved = nullptr) const override;
@@ -76,15 +122,47 @@ public:
   bool
   reverseBranchCondition(SmallVectorImpl<MachineOperand> &Cond) const override;
 
+  bool optimizeCondBranch(MachineInstr &MI) const override;
+
   MachineBasicBlock *getBranchDestBlock(const MachineInstr &MI) const override;
 
   bool isBranchOffsetInRange(unsigned BranchOpc,
                              int64_t BrOffset) const override;
 
+  bool analyzeSelect(const MachineInstr &MI,
+                     SmallVectorImpl<MachineOperand> &Cond, unsigned &TrueOp,
+                     unsigned &FalseOp, bool &Optimizable) const override;
+
+  MachineInstr *optimizeSelect(MachineInstr &MI,
+                               SmallPtrSetImpl<MachineInstr *> &SeenMIs,
+                               bool) const override;
+
   bool isAsCheapAsAMove(const MachineInstr &MI) const override;
+
+  std::optional<DestSourcePair>
+  isCopyInstrImpl(const MachineInstr &MI) const override;
 
   bool verifyInstruction(const MachineInstr &MI,
                          StringRef &ErrInfo) const override;
+
+  bool canFoldIntoAddrMode(const MachineInstr &MemI, Register Reg,
+                           const MachineInstr &AddrI,
+                           ExtAddrMode &AM) const override;
+
+  MachineInstr *emitLdStWithAddr(MachineInstr &MemI,
+                                 const ExtAddrMode &AM) const override;
+
+  bool getMemOperandsWithOffsetWidth(
+      const MachineInstr &MI, SmallVectorImpl<const MachineOperand *> &BaseOps,
+      int64_t &Offset, bool &OffsetIsScalable, unsigned &Width,
+      const TargetRegisterInfo *TRI) const override;
+
+  bool shouldClusterMemOps(ArrayRef<const MachineOperand *> BaseOps1,
+                           int64_t Offset1, bool OffsetIsScalable1,
+                           ArrayRef<const MachineOperand *> BaseOps2,
+                           int64_t Offset2, bool OffsetIsScalable2,
+                           unsigned ClusterSize,
+                           unsigned NumBytes) const override;
 
   bool getMemOperandWithOffsetWidth(const MachineInstr &LdSt,
                                     const MachineOperand *&BaseOp,
@@ -102,94 +180,154 @@ public:
   getSerializableDirectMachineOperandTargetFlags() const override;
 
   // Return true if the function can safely be outlined from.
-  virtual bool
-  isFunctionSafeToOutlineFrom(MachineFunction &MF,
-                              bool OutlineFromLinkOnceODRs) const override;
+  bool isFunctionSafeToOutlineFrom(MachineFunction &MF,
+                                   bool OutlineFromLinkOnceODRs) const override;
 
   // Return true if MBB is safe to outline from, and return any target-specific
   // information in Flags.
-  virtual bool isMBBSafeToOutlineFrom(MachineBasicBlock &MBB,
-                                      unsigned &Flags) const override;
+  bool isMBBSafeToOutlineFrom(MachineBasicBlock &MBB,
+                              unsigned &Flags) const override;
+
+  bool shouldOutlineFromFunctionByDefault(MachineFunction &MF) const override;
 
   // Calculate target-specific information for a set of outlining candidates.
-  outliner::OutlinedFunction getOutliningCandidateInfo(
+  std::optional<outliner::OutlinedFunction> getOutliningCandidateInfo(
       std::vector<outliner::Candidate> &RepeatedSequenceLocs) const override;
 
   // Return if/how a given MachineInstr should be outlined.
   virtual outliner::InstrType
-  getOutliningType(MachineBasicBlock::iterator &MBBI,
-                   unsigned Flags) const override;
+  getOutliningTypeImpl(MachineBasicBlock::iterator &MBBI,
+                       unsigned Flags) const override;
 
   // Insert a custom frame for outlined functions.
-  virtual void
-  buildOutlinedFrame(MachineBasicBlock &MBB, MachineFunction &MF,
-                     const outliner::OutlinedFunction &OF) const override;
+  void buildOutlinedFrame(MachineBasicBlock &MBB, MachineFunction &MF,
+                          const outliner::OutlinedFunction &OF) const override;
 
   // Insert a call to an outlined function into a given basic block.
-  virtual MachineBasicBlock::iterator
+  MachineBasicBlock::iterator
   insertOutlinedCall(Module &M, MachineBasicBlock &MBB,
                      MachineBasicBlock::iterator &It, MachineFunction &MF,
-                     const outliner::Candidate &C) const override;
+                     outliner::Candidate &C) const override;
+
+  std::optional<RegImmPair> isAddImmediate(const MachineInstr &MI,
+                                           Register Reg) const override;
+
+  bool findCommutedOpIndices(const MachineInstr &MI, unsigned &SrcOpIdx1,
+                             unsigned &SrcOpIdx2) const override;
+  MachineInstr *commuteInstructionImpl(MachineInstr &MI, bool NewMI,
+                                       unsigned OpIdx1,
+                                       unsigned OpIdx2) const override;
+
+  MachineInstr *convertToThreeAddress(MachineInstr &MI, LiveVariables *LV,
+                                      LiveIntervals *LIS) const override;
+
+  // MIR printer helper function to annotate Operands with a comment.
+  std::string
+  createMIROperandComment(const MachineInstr &MI, const MachineOperand &Op,
+                          unsigned OpIdx,
+                          const TargetRegisterInfo *TRI) const override;
+
+  void getVLENFactoredAmount(
+      MachineFunction &MF, MachineBasicBlock &MBB,
+      MachineBasicBlock::iterator II, const DebugLoc &DL, Register DestReg,
+      int64_t Amount, MachineInstr::MIFlag Flag = MachineInstr::NoFlags) const;
+
+  bool useMachineCombiner() const override { return true; }
+
+  MachineTraceStrategy getMachineCombinerTraceStrategy() const override;
+
+  bool
+  getMachineCombinerPatterns(MachineInstr &Root,
+                             SmallVectorImpl<MachineCombinerPattern> &Patterns,
+                             bool DoRegPressureReduce) const override;
+
+  void
+  finalizeInsInstrs(MachineInstr &Root, MachineCombinerPattern &P,
+                    SmallVectorImpl<MachineInstr *> &InsInstrs) const override;
+
+  void genAlternativeCodeSequence(
+      MachineInstr &Root, MachineCombinerPattern Pattern,
+      SmallVectorImpl<MachineInstr *> &InsInstrs,
+      SmallVectorImpl<MachineInstr *> &DelInstrs,
+      DenseMap<unsigned, unsigned> &InstrIdxForVirtReg) const override;
+
+  bool hasReassociableSibling(const MachineInstr &Inst,
+                              bool &Commuted) const override;
+
+  bool isAssociativeAndCommutative(const MachineInstr &Inst,
+                                   bool Invert) const override;
+
+  std::optional<unsigned> getInverseOpcode(unsigned Opcode) const override;
+
+  ArrayRef<std::pair<MachineMemOperand::Flags, const char *>>
+  getSerializableMachineMemOperandTargetFlags() const override;
+
 protected:
   const RISCVSubtarget &STI;
+
+private:
+  unsigned getInstBundleLength(const MachineInstr &MI) const;
 };
 
 namespace RISCV {
-// Match with the definitions in RISCVInstrFormatsV.td
-enum RVVConstraintType {
-  NoConstraint = 0,
-  VS2Constraint = 0b0001,
-  VS1Constraint = 0b0010,
-  VMConstraint = 0b0100,
-  OneInput = 0b1000,
 
-  // Illegal instructions:
-  //
-  // * The destination vector register group for a masked vector instruction
-  // cannot overlap the source mask register (v0), unless the destination vector
-  // register is being written with a mask value (e.g., comparisons) or the
-  // scalar result of a reduction.
-  //
-  // * Widening: The destination vector register group cannot overlap a source
-  // vector register group of a different EEW
-  //
-  // * Narrowing: The destination vector register group cannot overlap the
-  // first source vector register group
-  //
-  // * For vadc and vsbc, an illegal instruction exception is raised if the
-  // destination vector register is v0.
-  //
-  // * For vmadc and vmsbc, an illegal instruction exception is raised if the
-  // destination vector register overlaps a source vector register group.
-  //
-  // * viota: An illegal instruction exception is raised if the destination
-  // vector register group overlaps the source vector mask register. If the
-  // instruction is masked, an illegal instruction exception is issued if the
-  // destination vector register group overlaps v0.
-  //
-  // * v[f]slide[1]up: The destination vector register group for vslideup cannot
-  // overlap the source vector register group.
-  //
-  // * vrgather: The destination vector register group cannot overlap with the
-  // source vector register groups.
-  //
-  // * vcompress: The destination vector register group cannot overlap the
-  // source vector register group or the source mask register
-  WidenV = VS2Constraint | VS1Constraint | VMConstraint,
-  WidenW = VS1Constraint | VMConstraint,
-  WidenCvt = VS2Constraint | VMConstraint | OneInput,
-  Narrow = VS2Constraint | VMConstraint,
-  NarrowCvt = VS2Constraint | VMConstraint | OneInput,
-  Vmadc = VS2Constraint | VS1Constraint,
-  Iota = VS2Constraint | VMConstraint | OneInput,
-  SlideUp = VS2Constraint | VMConstraint,
-  Vrgather = VS2Constraint | VS1Constraint | VMConstraint,
-  Vcompress = VS2Constraint | VS1Constraint,
+// Returns true if this is the sext.w pattern, addiw rd, rs1, 0.
+bool isSEXT_W(const MachineInstr &MI);
+bool isZEXT_W(const MachineInstr &MI);
+bool isZEXT_B(const MachineInstr &MI);
 
-  ConstraintOffset = 5,
-  ConstraintMask = 0b1111
+// Returns true if the given MI is an RVV instruction opcode for which we may
+// expect to see a FrameIndex operand.
+bool isRVVSpill(const MachineInstr &MI);
+
+std::optional<std::pair<unsigned, unsigned>>
+isRVVSpillForZvlsseg(unsigned Opcode);
+
+bool isFaultFirstLoad(const MachineInstr &MI);
+
+// Implemented in RISCVGenInstrInfo.inc
+int16_t getNamedOperandIdx(uint16_t Opcode, uint16_t NamedIndex);
+
+// Return true if both input instructions have equal rounding mode. If at least
+// one of the instructions does not have rounding mode, false will be returned.
+bool hasEqualFRM(const MachineInstr &MI1, const MachineInstr &MI2);
+
+// If \p Opcode is a .vx vector instruction, returns the lower number of bits
+// that are used from the scalar .x operand for a given \p Log2SEW. Otherwise
+// returns null.
+std::optional<unsigned> getVectorLowDemandedScalarBits(uint16_t Opcode,
+                                                       unsigned Log2SEW);
+
+// Returns the MC opcode of RVV pseudo instruction.
+unsigned getRVVMCOpcode(unsigned RVVPseudoOpcode);
+
+// Special immediate for AVL operand of V pseudo instructions to indicate VLMax.
+static constexpr int64_t VLMaxSentinel = -1LL;
+
+// Mask assignments for floating-point
+static constexpr unsigned FPMASK_Negative_Infinity = 0x001;
+static constexpr unsigned FPMASK_Negative_Normal = 0x002;
+static constexpr unsigned FPMASK_Negative_Subnormal = 0x004;
+static constexpr unsigned FPMASK_Negative_Zero = 0x008;
+static constexpr unsigned FPMASK_Positive_Zero = 0x010;
+static constexpr unsigned FPMASK_Positive_Subnormal = 0x020;
+static constexpr unsigned FPMASK_Positive_Normal = 0x040;
+static constexpr unsigned FPMASK_Positive_Infinity = 0x080;
+static constexpr unsigned FPMASK_Signaling_NaN = 0x100;
+static constexpr unsigned FPMASK_Quiet_NaN = 0x200;
+} // namespace RISCV
+
+namespace RISCVVPseudosTable {
+
+struct PseudoInfo {
+  uint16_t Pseudo;
+  uint16_t BaseInstr;
 };
-} // end namespace RISCV
+
+#define GET_RISCVVPseudosTable_DECL
+#include "RISCVGenSearchableTables.inc"
+
+} // end namespace RISCVVPseudosTable
 
 } // end namespace llvm
 #endif

@@ -15,6 +15,7 @@
 #define LLVM_CODEGEN_RUNTIMELIBCALLS_H
 
 #include "llvm/CodeGen/ValueTypes.h"
+#include "llvm/Support/AtomicOrdering.h"
 
 namespace llvm {
 namespace RTLIB {
@@ -31,6 +32,15 @@ namespace RTLIB {
     #include "llvm/IR/RuntimeLibcalls.def"
 #undef HANDLE_LIBCALL
   };
+
+  /// GetFPLibCall - Helper to return the right libcall for the given floating
+  /// point type, or UNKNOWN_LIBCALL if there is none.
+  Libcall getFPLibCall(EVT VT,
+                       Libcall Call_F32,
+                       Libcall Call_F64,
+                       Libcall Call_F80,
+                       Libcall Call_F128,
+                       Libcall Call_PPCF128);
 
   /// getFPEXT - Return the FPEXT_*_* value for the given types, or
   /// UNKNOWN_LIBCALL if there is none.
@@ -56,9 +66,31 @@ namespace RTLIB {
   /// UNKNOWN_LIBCALL if there is none.
   Libcall getUINTTOFP(EVT OpVT, EVT RetVT);
 
+  /// getPOWI - Return the POWI_* value for the given types, or
+  /// UNKNOWN_LIBCALL if there is none.
+  Libcall getPOWI(EVT RetVT);
+
+  /// getLDEXP - Return the LDEXP_* value for the given types, or
+  /// UNKNOWN_LIBCALL if there is none.
+  Libcall getLDEXP(EVT RetVT);
+
+  /// getFREXP - Return the FREXP_* value for the given types, or
+  /// UNKNOWN_LIBCALL if there is none.
+  Libcall getFREXP(EVT RetVT);
+
   /// Return the SYNC_FETCH_AND_* value for the given opcode and type, or
   /// UNKNOWN_LIBCALL if there is none.
   Libcall getSYNC(unsigned Opc, MVT VT);
+
+  /// Return the outline atomics value for the given atomic ordering, access
+  /// size and set of libcalls for a given atomic, or UNKNOWN_LIBCALL if there
+  /// is none.
+  Libcall getOutlineAtomicHelper(const Libcall (&LC)[5][4],
+                                 AtomicOrdering Order, uint64_t MemSize);
+
+  /// Return the outline atomics value for the given opcode, atomic ordering
+  /// and type, or UNKNOWN_LIBCALL if there is none.
+  Libcall getOUTLINE_ATOMIC(unsigned Opc, AtomicOrdering Order, MVT VT);
 
   /// getMEMCPY_ELEMENT_UNORDERED_ATOMIC - Return
   /// MEMCPY_ELEMENT_UNORDERED_ATOMIC_* value for the given element size or

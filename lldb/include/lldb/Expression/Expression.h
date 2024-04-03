@@ -20,8 +20,6 @@
 
 namespace lldb_private {
 
-class RecordingMemoryManager;
-
 /// \class Expression Expression.h "lldb/Expression/Expression.h" Encapsulates
 /// a single expression for use in lldb
 ///
@@ -39,7 +37,7 @@ public:
   Expression(ExecutionContextScope &exe_scope);
 
   /// Destructor
-  virtual ~Expression() {}
+  virtual ~Expression() = default;
 
   /// Return the string that the parser should parse.  Must be a full
   /// translation unit.

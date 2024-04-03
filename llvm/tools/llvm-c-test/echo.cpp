@@ -16,8 +16,11 @@
 
 #include "llvm-c-test.h"
 #include "llvm-c/DebugInfo.h"
+#include "llvm-c/ErrorHandling.h"
 #include "llvm-c/Target.h"
 #include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/Hashing.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/ErrorHandling.h"
 
 #include <stdio.h>
@@ -30,7 +33,7 @@ template<typename T>
 struct CAPIDenseMap {};
 
 // The default DenseMapInfo require to know about pointer alignment.
-// Because the C API uses opaques pointer types, their alignment is unknown.
+// Because the C API uses opaque pointer types, their alignment is unknown.
 // As a result, we need to roll out our own implementation.
 template<typename T>
 struct CAPIDenseMap<T*> {
@@ -110,7 +113,7 @@ struct TypeCloner {
         LLVMTypeRef S = nullptr;
         const char *Name = LLVMGetStructName(Src);
         if (Name) {
-          S = LLVMGetTypeByName(M, Name);
+          S = LLVMGetTypeByName2(Ctx, Name);
           if (S)
             return S;
           S = LLVMStructCreateNamed(Ctx, Name);
@@ -130,29 +133,32 @@ struct TypeCloner {
         return S;
       }
       case LLVMArrayTypeKind:
-        return LLVMArrayType(
-          Clone(LLVMGetElementType(Src)),
-          LLVMGetArrayLength(Src)
-        );
+        return LLVMArrayType2(Clone(LLVMGetElementType(Src)),
+                              LLVMGetArrayLength2(Src));
       case LLVMPointerTypeKind:
-        return LLVMPointerType(
-          Clone(LLVMGetElementType(Src)),
-          LLVMGetPointerAddressSpace(Src)
-        );
-      case LLVMScalableVectorTypeKind:
-        // FIXME: scalable vectors unsupported
-        break;
+        if (LLVMPointerTypeIsOpaque(Src))
+          return LLVMPointerTypeInContext(Ctx, LLVMGetPointerAddressSpace(Src));
+        else
+          return LLVMPointerType(Clone(LLVMGetElementType(Src)),
+                                 LLVMGetPointerAddressSpace(Src));
       case LLVMVectorTypeKind:
         return LLVMVectorType(
           Clone(LLVMGetElementType(Src)),
           LLVMGetVectorSize(Src)
         );
+      case LLVMScalableVectorTypeKind:
+        return LLVMScalableVectorType(Clone(LLVMGetElementType(Src)),
+                                      LLVMGetVectorSize(Src));
       case LLVMMetadataTypeKind:
         return LLVMMetadataTypeInContext(Ctx);
+      case LLVMX86_AMXTypeKind:
+        return LLVMX86AMXTypeInContext(Ctx);
       case LLVMX86_MMXTypeKind:
         return LLVMX86MMXTypeInContext(Ctx);
       case LLVMTokenTypeKind:
         return LLVMTokenTypeInContext(Ctx);
+      case LLVMTargetExtTypeKind:
+        assert(false && "Implement me");
     }
 
     fprintf(stderr, "%d is not a supported typekind\n", Kind);
@@ -295,25 +301,16 @@ static LLVMValueRef clone_constant_impl(LLVMValueRef Cst, LLVMModuleRef M) {
     return LLVMConstNull(TypeCloner(M).Clone(Cst));
   }
 
-  // Try constant array
-  if (LLVMIsAConstantArray(Cst)) {
-    check_value_kind(Cst, LLVMConstantArrayValueKind);
+  // Try constant array or constant data array
+  if (LLVMIsAConstantArray(Cst) || LLVMIsAConstantDataArray(Cst)) {
+    check_value_kind(Cst, LLVMIsAConstantArray(Cst)
+                              ? LLVMConstantArrayValueKind
+                              : LLVMConstantDataArrayValueKind);
     LLVMTypeRef Ty = TypeCloner(M).Clone(Cst);
-    unsigned EltCount = LLVMGetArrayLength(Ty);
+    uint64_t EltCount = LLVMGetArrayLength2(Ty);
     SmallVector<LLVMValueRef, 8> Elts;
-    for (unsigned i = 0; i < EltCount; i++)
-      Elts.push_back(clone_constant(LLVMGetOperand(Cst, i), M));
-    return LLVMConstArray(LLVMGetElementType(Ty), Elts.data(), EltCount);
-  }
-
-  // Try contant data array
-  if (LLVMIsAConstantDataArray(Cst)) {
-    check_value_kind(Cst, LLVMConstantDataArrayValueKind);
-    LLVMTypeRef Ty = TypeCloner(M).Clone(Cst);
-    unsigned EltCount = LLVMGetArrayLength(Ty);
-    SmallVector<LLVMValueRef, 8> Elts;
-    for (unsigned i = 0; i < EltCount; i++)
-      Elts.push_back(clone_constant(LLVMGetElementAsConstant(Cst, i), M));
+    for (uint64_t i = 0; i < EltCount; i++)
+      Elts.push_back(clone_constant(LLVMGetAggregateElement(Cst, i), M));
     return LLVMConstArray(LLVMGetElementType(Ty), Elts.data(), EltCount);
   }
 
@@ -344,6 +341,12 @@ static LLVMValueRef clone_constant_impl(LLVMValueRef Cst, LLVMModuleRef M) {
     return LLVMGetUndef(TypeCloner(M).Clone(Cst));
   }
 
+  // Try poison
+  if (LLVMIsPoison(Cst)) {
+    check_value_kind(Cst, LLVMPoisonValueValueKind);
+    return LLVMGetPoison(TypeCloner(M).Clone(Cst));
+  }
+
   // Try null
   if (LLVMIsNull(Cst)) {
     check_value_kind(Cst, LLVMConstantTokenNoneValueKind);
@@ -357,9 +360,23 @@ static LLVMValueRef clone_constant_impl(LLVMValueRef Cst, LLVMModuleRef M) {
     report_fatal_error("ConstantFP is not supported");
   }
 
-  // This kind of constant is not supported
+  // Try ConstantVector or ConstantDataVector
+  if (LLVMIsAConstantVector(Cst) || LLVMIsAConstantDataVector(Cst)) {
+    check_value_kind(Cst, LLVMIsAConstantVector(Cst)
+                              ? LLVMConstantVectorValueKind
+                              : LLVMConstantDataVectorValueKind);
+    LLVMTypeRef Ty = TypeCloner(M).Clone(Cst);
+    unsigned EltCount = LLVMGetVectorSize(Ty);
+    SmallVector<LLVMValueRef, 8> Elts;
+    for (unsigned i = 0; i < EltCount; i++)
+      Elts.push_back(clone_constant(LLVMGetAggregateElement(Cst, i), M));
+    return LLVMConstVector(Elts.data(), EltCount);
+  }
+
+  // At this point, if it's not a constant expression, it's a kind of constant
+  // which is not supported
   if (!LLVMIsAConstantExpr(Cst))
-    report_fatal_error("Expected a constant expression");
+    report_fatal_error("Unsupported constant kind");
 
   // At this point, it must be a constant expression
   check_value_kind(Cst, LLVMConstantExprValueKind);
@@ -369,10 +386,50 @@ static LLVMValueRef clone_constant_impl(LLVMValueRef Cst, LLVMModuleRef M) {
     case LLVMBitCast:
       return LLVMConstBitCast(clone_constant(LLVMGetOperand(Cst, 0), M),
                               TypeCloner(M).Clone(Cst));
+    case LLVMGetElementPtr: {
+      LLVMTypeRef ElemTy =
+          TypeCloner(M).Clone(LLVMGetGEPSourceElementType(Cst));
+      LLVMValueRef Ptr = clone_constant(LLVMGetOperand(Cst, 0), M);
+      int NumIdx = LLVMGetNumIndices(Cst);
+      SmallVector<LLVMValueRef, 8> Idx;
+      for (int i = 1; i <= NumIdx; i++)
+        Idx.push_back(clone_constant(LLVMGetOperand(Cst, i), M));
+      if (LLVMIsInBounds(Cst))
+        return LLVMConstInBoundsGEP2(ElemTy, Ptr, Idx.data(), NumIdx);
+      else
+        return LLVMConstGEP2(ElemTy, Ptr, Idx.data(), NumIdx);
+    }
     default:
-      fprintf(stderr, "%d is not a supported opcode\n", Op);
+      fprintf(stderr, "%d is not a supported opcode for constant expressions\n",
+              Op);
       exit(-1);
   }
+}
+
+static LLVMValueRef clone_inline_asm(LLVMValueRef Asm, LLVMModuleRef M) {
+
+  if (!LLVMIsAInlineAsm(Asm))
+      report_fatal_error("Expected inline assembly");
+
+  size_t AsmStringSize = 0;
+  const char *AsmString = LLVMGetInlineAsmAsmString(Asm, &AsmStringSize);
+
+  size_t ConstraintStringSize = 0;
+  const char *ConstraintString =
+      LLVMGetInlineAsmConstraintString(Asm, &ConstraintStringSize);
+
+  LLVMInlineAsmDialect AsmDialect = LLVMGetInlineAsmDialect(Asm);
+
+  LLVMTypeRef AsmFunctionType = LLVMGetInlineAsmFunctionType(Asm);
+
+  LLVMBool HasSideEffects = LLVMGetInlineAsmHasSideEffects(Asm);
+  LLVMBool NeedsAlignStack = LLVMGetInlineAsmNeedsAlignedStack(Asm);
+  LLVMBool CanUnwind = LLVMGetInlineAsmCanUnwind(Asm);
+
+  return LLVMGetInlineAsm(AsmFunctionType, AsmString, AsmStringSize,
+                          ConstraintString, ConstraintStringSize,
+                          HasSideEffects, NeedsAlignStack, AsmDialect,
+                          CanUnwind);
 }
 
 struct FunCloner {
@@ -403,6 +460,10 @@ struct FunCloner {
     auto i = VMap.find(Src);
     if (i != VMap.end())
       return i->second;
+
+    // Inline assembly is a Value, but not an Instruction
+    if (LLVMIsAInlineAsm(Src))
+      return clone_inline_asm(Src, M);
 
     if (!LLVMIsAInstruction(Src))
       report_fatal_error("Expected an instruction");
@@ -443,7 +504,7 @@ struct FunCloner {
       auto i = VMap.find(Src);
       if (i != VMap.end()) {
         // If we have a hit, it means we already generated the instruction
-        // as a dependancy to somethign else. We need to make sure
+        // as a dependency to something else. We need to make sure
         // it is ordered properly.
         auto I = i->second;
         LLVMInstructionRemoveFromParent(I);
@@ -487,15 +548,26 @@ struct FunCloner {
         break;
       case LLVMInvoke: {
         SmallVector<LLVMValueRef, 8> Args;
-        int ArgCount = LLVMGetNumArgOperands(Src);
-        for (int i = 0; i < ArgCount; i++)
+        SmallVector<LLVMOperandBundleRef, 8> Bundles;
+        unsigned ArgCount = LLVMGetNumArgOperands(Src);
+        for (unsigned i = 0; i < ArgCount; ++i)
           Args.push_back(CloneValue(LLVMGetOperand(Src, i)));
+        unsigned BundleCount = LLVMGetNumOperandBundles(Src);
+        for (unsigned i = 0; i < BundleCount; ++i) {
+          auto Bundle = LLVMGetOperandBundleAtIndex(Src, i);
+          Bundles.push_back(CloneOB(Bundle));
+          LLVMDisposeOperandBundle(Bundle);
+        }
+        LLVMTypeRef FnTy = CloneType(LLVMGetCalledFunctionType(Src));
         LLVMValueRef Fn = CloneValue(LLVMGetCalledValue(Src));
         LLVMBasicBlockRef Then = DeclareBB(LLVMGetNormalDest(Src));
         LLVMBasicBlockRef Unwind = DeclareBB(LLVMGetUnwindDest(Src));
-        Dst = LLVMBuildInvoke(Builder, Fn, Args.data(), ArgCount,
-                              Then, Unwind, Name);
+        Dst = LLVMBuildInvokeWithOperandBundles(
+            Builder, FnTy, Fn, Args.data(), ArgCount, Then, Unwind,
+            Bundles.data(), Bundles.size(), Name);
         CloneAttrs(Src, Dst);
+        for (auto Bundle : Bundles)
+          LLVMDisposeOperandBundle(Bundle);
         break;
       }
       case LLVMUnreachable:
@@ -504,31 +576,47 @@ struct FunCloner {
       case LLVMAdd: {
         LLVMValueRef LHS = CloneValue(LLVMGetOperand(Src, 0));
         LLVMValueRef RHS = CloneValue(LLVMGetOperand(Src, 1));
+        LLVMBool NUW = LLVMGetNUW(Src);
+        LLVMBool NSW = LLVMGetNSW(Src);
         Dst = LLVMBuildAdd(Builder, LHS, RHS, Name);
+        LLVMSetNUW(Dst, NUW);
+        LLVMSetNSW(Dst, NSW);
         break;
       }
       case LLVMSub: {
         LLVMValueRef LHS = CloneValue(LLVMGetOperand(Src, 0));
         LLVMValueRef RHS = CloneValue(LLVMGetOperand(Src, 1));
+        LLVMBool NUW = LLVMGetNUW(Src);
+        LLVMBool NSW = LLVMGetNSW(Src);
         Dst = LLVMBuildSub(Builder, LHS, RHS, Name);
+        LLVMSetNUW(Dst, NUW);
+        LLVMSetNSW(Dst, NSW);
         break;
       }
       case LLVMMul: {
         LLVMValueRef LHS = CloneValue(LLVMGetOperand(Src, 0));
         LLVMValueRef RHS = CloneValue(LLVMGetOperand(Src, 1));
+        LLVMBool NUW = LLVMGetNUW(Src);
+        LLVMBool NSW = LLVMGetNSW(Src);
         Dst = LLVMBuildMul(Builder, LHS, RHS, Name);
+        LLVMSetNUW(Dst, NUW);
+        LLVMSetNSW(Dst, NSW);
         break;
       }
       case LLVMUDiv: {
         LLVMValueRef LHS = CloneValue(LLVMGetOperand(Src, 0));
         LLVMValueRef RHS = CloneValue(LLVMGetOperand(Src, 1));
+        LLVMBool IsExact = LLVMGetExact(Src);
         Dst = LLVMBuildUDiv(Builder, LHS, RHS, Name);
+        LLVMSetExact(Dst, IsExact);
         break;
       }
       case LLVMSDiv: {
         LLVMValueRef LHS = CloneValue(LLVMGetOperand(Src, 0));
         LLVMValueRef RHS = CloneValue(LLVMGetOperand(Src, 1));
+        LLVMBool IsExact = LLVMGetExact(Src);
         Dst = LLVMBuildSDiv(Builder, LHS, RHS, Name);
+        LLVMSetExact(Dst, IsExact);
         break;
       }
       case LLVMURem: {
@@ -546,19 +634,27 @@ struct FunCloner {
       case LLVMShl: {
         LLVMValueRef LHS = CloneValue(LLVMGetOperand(Src, 0));
         LLVMValueRef RHS = CloneValue(LLVMGetOperand(Src, 1));
+        LLVMBool NUW = LLVMGetNUW(Src);
+        LLVMBool NSW = LLVMGetNSW(Src);
         Dst = LLVMBuildShl(Builder, LHS, RHS, Name);
+        LLVMSetNUW(Dst, NUW);
+        LLVMSetNSW(Dst, NSW);
         break;
       }
       case LLVMLShr: {
         LLVMValueRef LHS = CloneValue(LLVMGetOperand(Src, 0));
         LLVMValueRef RHS = CloneValue(LLVMGetOperand(Src, 1));
+        LLVMBool IsExact = LLVMGetExact(Src);
         Dst = LLVMBuildLShr(Builder, LHS, RHS, Name);
+        LLVMSetExact(Dst, IsExact);
         break;
       }
       case LLVMAShr: {
         LLVMValueRef LHS = CloneValue(LLVMGetOperand(Src, 0));
         LLVMValueRef RHS = CloneValue(LLVMGetOperand(Src, 1));
+        LLVMBool IsExact = LLVMGetExact(Src);
         Dst = LLVMBuildAShr(Builder, LHS, RHS, Name);
+        LLVMSetExact(Dst, IsExact);
         break;
       }
       case LLVMAnd: {
@@ -570,7 +666,9 @@ struct FunCloner {
       case LLVMOr: {
         LLVMValueRef LHS = CloneValue(LLVMGetOperand(Src, 0));
         LLVMValueRef RHS = CloneValue(LLVMGetOperand(Src, 1));
+        LLVMBool IsDisjoint = LLVMGetIsDisjoint(Src);
         Dst = LLVMBuildOr(Builder, LHS, RHS, Name);
+        LLVMSetIsDisjoint(Dst, IsDisjoint);
         break;
       }
       case LLVMXor: {
@@ -587,10 +685,11 @@ struct FunCloner {
       }
       case LLVMLoad: {
         LLVMValueRef Ptr = CloneValue(LLVMGetOperand(Src, 0));
-        Dst = LLVMBuildLoad(Builder, Ptr, Name);
+        Dst = LLVMBuildLoad2(Builder, CloneType(Src), Ptr, Name);
         LLVMSetAlignment(Dst, LLVMGetAlignment(Src));
         LLVMSetOrdering(Dst, LLVMGetOrdering(Src));
         LLVMSetVolatile(Dst, LLVMGetVolatile(Src));
+        LLVMSetAtomicSingleThread(Dst, LLVMIsAtomicSingleThread(Src));
         break;
       }
       case LLVMStore: {
@@ -600,18 +699,21 @@ struct FunCloner {
         LLVMSetAlignment(Dst, LLVMGetAlignment(Src));
         LLVMSetOrdering(Dst, LLVMGetOrdering(Src));
         LLVMSetVolatile(Dst, LLVMGetVolatile(Src));
+        LLVMSetAtomicSingleThread(Dst, LLVMIsAtomicSingleThread(Src));
         break;
       }
       case LLVMGetElementPtr: {
+        LLVMTypeRef ElemTy = CloneType(LLVMGetGEPSourceElementType(Src));
         LLVMValueRef Ptr = CloneValue(LLVMGetOperand(Src, 0));
         SmallVector<LLVMValueRef, 8> Idx;
         int NumIdx = LLVMGetNumIndices(Src);
         for (int i = 1; i <= NumIdx; i++)
           Idx.push_back(CloneValue(LLVMGetOperand(Src, i)));
         if (LLVMIsInBounds(Src))
-          Dst = LLVMBuildInBoundsGEP(Builder, Ptr, Idx.data(), NumIdx, Name);
+          Dst = LLVMBuildInBoundsGEP2(Builder, ElemTy, Ptr, Idx.data(), NumIdx,
+                                      Name);
         else
-          Dst = LLVMBuildGEP(Builder, Ptr, Idx.data(), NumIdx, Name);
+          Dst = LLVMBuildGEP2(Builder, ElemTy, Ptr, Idx.data(), NumIdx, Name);
         break;
       }
       case LLVMAtomicRMW: {
@@ -621,6 +723,7 @@ struct FunCloner {
         LLVMAtomicOrdering Ord = LLVMGetOrdering(Src);
         LLVMBool SingleThread = LLVMIsAtomicSingleThread(Src);
         Dst = LLVMBuildAtomicRMW(Builder, BinOp, Ptr, Val, Ord, SingleThread);
+        LLVMSetAlignment(Dst, LLVMGetAlignment(Src));
         LLVMSetVolatile(Dst, LLVMGetVolatile(Src));
         LLVMSetValueName2(Dst, Name, NameLen);
         break;
@@ -635,6 +738,7 @@ struct FunCloner {
 
         Dst = LLVMBuildAtomicCmpXchg(Builder, Ptr, Cmp, New, Succ, Fail,
                                      SingleThread);
+        LLVMSetAlignment(Dst, LLVMGetAlignment(Src));
         LLVMSetVolatile(Dst, LLVMGetVolatile(Src));
         LLVMSetWeak(Dst, LLVMGetWeak(Src));
         LLVMSetValueName2(Dst, Name, NameLen);
@@ -666,17 +770,39 @@ struct FunCloner {
         }
 
         LLVMAddIncoming(Dst, Values.data(), Blocks.data(), IncomingCount);
+        // Copy fast math flags here since we return early
+        if (LLVMCanValueUseFastMathFlags(Src))
+          LLVMSetFastMathFlags(Dst, LLVMGetFastMathFlags(Src));
         return Dst;
+      }
+      case LLVMSelect: {
+        LLVMValueRef If = CloneValue(LLVMGetOperand(Src, 0));
+        LLVMValueRef Then = CloneValue(LLVMGetOperand(Src, 1));
+        LLVMValueRef Else = CloneValue(LLVMGetOperand(Src, 2));
+        Dst = LLVMBuildSelect(Builder, If, Then, Else, Name);
+        break;
       }
       case LLVMCall: {
         SmallVector<LLVMValueRef, 8> Args;
-        int ArgCount = LLVMGetNumArgOperands(Src);
-        for (int i = 0; i < ArgCount; i++)
+        SmallVector<LLVMOperandBundleRef, 8> Bundles;
+        unsigned ArgCount = LLVMGetNumArgOperands(Src);
+        for (unsigned i = 0; i < ArgCount; ++i)
           Args.push_back(CloneValue(LLVMGetOperand(Src, i)));
+        unsigned BundleCount = LLVMGetNumOperandBundles(Src);
+        for (unsigned i = 0; i < BundleCount; ++i) {
+          auto Bundle = LLVMGetOperandBundleAtIndex(Src, i);
+          Bundles.push_back(CloneOB(Bundle));
+          LLVMDisposeOperandBundle(Bundle);
+        }
+        LLVMTypeRef FnTy = CloneType(LLVMGetCalledFunctionType(Src));
         LLVMValueRef Fn = CloneValue(LLVMGetCalledValue(Src));
-        Dst = LLVMBuildCall(Builder, Fn, Args.data(), ArgCount, Name);
-        LLVMSetTailCall(Dst, LLVMIsTailCall(Src));
+        Dst = LLVMBuildCallWithOperandBundles(Builder, FnTy, Fn, Args.data(),
+                                              ArgCount, Bundles.data(),
+                                              Bundles.size(), Name);
+        LLVMSetTailCallKind(Dst, LLVMGetTailCallKind(Src));
         CloneAttrs(Src, Dst);
+        for (auto Bundle : Bundles)
+          LLVMDisposeOperandBundle(Bundle);
         break;
       }
       case LLVMResume: {
@@ -746,8 +872,10 @@ struct FunCloner {
       }
       case LLVMExtractValue: {
         LLVMValueRef Agg = CloneValue(LLVMGetOperand(Src, 0));
-        if (LLVMGetNumIndices(Src) != 1)
-          report_fatal_error("Expected only one indice");
+        if (LLVMGetNumIndices(Src) > 1)
+          report_fatal_error("ExtractValue: Expected only one index");
+        else if (LLVMGetNumIndices(Src) < 1)
+          report_fatal_error("ExtractValue: Expected an index");
         auto I = LLVMGetIndices(Src)[0];
         Dst = LLVMBuildExtractValue(Builder, Agg, I, Name);
         break;
@@ -755,15 +883,103 @@ struct FunCloner {
       case LLVMInsertValue: {
         LLVMValueRef Agg = CloneValue(LLVMGetOperand(Src, 0));
         LLVMValueRef V = CloneValue(LLVMGetOperand(Src, 1));
-        if (LLVMGetNumIndices(Src) != 1)
-          report_fatal_error("Expected only one indice");
+        if (LLVMGetNumIndices(Src) > 1)
+          report_fatal_error("InsertValue: Expected only one index");
+        else if (LLVMGetNumIndices(Src) < 1)
+          report_fatal_error("InsertValue: Expected an index");
         auto I = LLVMGetIndices(Src)[0];
         Dst = LLVMBuildInsertValue(Builder, Agg, V, I, Name);
+        break;
+      }
+      case LLVMExtractElement: {
+        LLVMValueRef Agg = CloneValue(LLVMGetOperand(Src, 0));
+        LLVMValueRef Index = CloneValue(LLVMGetOperand(Src, 1));
+        Dst = LLVMBuildExtractElement(Builder, Agg, Index, Name);
+        break;
+      }
+      case LLVMInsertElement: {
+        LLVMValueRef Agg = CloneValue(LLVMGetOperand(Src, 0));
+        LLVMValueRef V = CloneValue(LLVMGetOperand(Src, 1));
+        LLVMValueRef Index = CloneValue(LLVMGetOperand(Src, 2));
+        Dst = LLVMBuildInsertElement(Builder, Agg, V, Index, Name);
+        break;
+      }
+      case LLVMShuffleVector: {
+        LLVMValueRef Agg0 = CloneValue(LLVMGetOperand(Src, 0));
+        LLVMValueRef Agg1 = CloneValue(LLVMGetOperand(Src, 1));
+        SmallVector<LLVMValueRef, 8> MaskElts;
+        unsigned NumMaskElts = LLVMGetNumMaskElements(Src);
+        for (unsigned i = 0; i < NumMaskElts; i++) {
+          int Val = LLVMGetMaskValue(Src, i);
+          if (Val == LLVMGetUndefMaskElem()) {
+            MaskElts.push_back(LLVMGetUndef(LLVMInt64Type()));
+          } else {
+            MaskElts.push_back(LLVMConstInt(LLVMInt64Type(), Val, true));
+          }
+        }
+        LLVMValueRef Mask = LLVMConstVector(MaskElts.data(), NumMaskElts);
+        Dst = LLVMBuildShuffleVector(Builder, Agg0, Agg1, Mask, Name);
         break;
       }
       case LLVMFreeze: {
         LLVMValueRef Arg = CloneValue(LLVMGetOperand(Src, 0));
         Dst = LLVMBuildFreeze(Builder, Arg, Name);
+        break;
+      }
+      case LLVMFence: {
+        LLVMAtomicOrdering Ordering = LLVMGetOrdering(Src);
+        LLVMBool IsSingleThreaded = LLVMIsAtomicSingleThread(Src);
+        Dst = LLVMBuildFence(Builder, Ordering, IsSingleThreaded, Name);
+        break;
+      }
+      case LLVMZExt: {
+        LLVMValueRef Val = CloneValue(LLVMGetOperand(Src, 0));
+        LLVMTypeRef DestTy = CloneType(LLVMTypeOf(Src));
+        LLVMBool NNeg = LLVMGetNNeg(Src);
+        Dst = LLVMBuildZExt(Builder, Val, DestTy, Name);
+        LLVMSetNNeg(Dst, NNeg);
+        break;
+      }
+      case LLVMFAdd: {
+        LLVMValueRef LHS = CloneValue(LLVMGetOperand(Src, 0));
+        LLVMValueRef RHS = CloneValue(LLVMGetOperand(Src, 1));
+        Dst = LLVMBuildFAdd(Builder, LHS, RHS, Name);
+        break;
+      }
+      case LLVMFSub: {
+        LLVMValueRef LHS = CloneValue(LLVMGetOperand(Src, 0));
+        LLVMValueRef RHS = CloneValue(LLVMGetOperand(Src, 1));
+        Dst = LLVMBuildFSub(Builder, LHS, RHS, Name);
+        break;
+      }
+      case LLVMFMul: {
+        LLVMValueRef LHS = CloneValue(LLVMGetOperand(Src, 0));
+        LLVMValueRef RHS = CloneValue(LLVMGetOperand(Src, 1));
+        Dst = LLVMBuildFMul(Builder, LHS, RHS, Name);
+        break;
+      }
+      case LLVMFDiv: {
+        LLVMValueRef LHS = CloneValue(LLVMGetOperand(Src, 0));
+        LLVMValueRef RHS = CloneValue(LLVMGetOperand(Src, 1));
+        Dst = LLVMBuildFDiv(Builder, LHS, RHS, Name);
+        break;
+      }
+      case LLVMFRem: {
+        LLVMValueRef LHS = CloneValue(LLVMGetOperand(Src, 0));
+        LLVMValueRef RHS = CloneValue(LLVMGetOperand(Src, 1));
+        Dst = LLVMBuildFRem(Builder, LHS, RHS, Name);
+        break;
+      }
+      case LLVMFNeg: {
+        LLVMValueRef Val = CloneValue(LLVMGetOperand(Src, 0));
+        Dst = LLVMBuildFNeg(Builder, Val, Name);
+        break;
+      }
+      case LLVMFCmp: {
+        LLVMRealPredicate Pred = LLVMGetFCmpPredicate(Src);
+        LLVMValueRef LHS = CloneValue(LLVMGetOperand(Src, 0));
+        LLVMValueRef RHS = CloneValue(LLVMGetOperand(Src, 1));
+        Dst = LLVMBuildFCmp(Builder, Pred, LHS, RHS, Name);
         break;
       }
       default:
@@ -774,6 +990,10 @@ struct FunCloner {
       fprintf(stderr, "%d is not a supported opcode\n", Op);
       exit(-1);
     }
+
+    // Copy fast-math flags on instructions that support them
+    if (LLVMCanValueUseFastMathFlags(Src))
+      LLVMSetFastMathFlags(Dst, LLVMGetFastMathFlags(Src));
 
     auto Ctx = LLVMGetModuleContext(M);
     size_t NumMetadataEntries;
@@ -786,10 +1006,21 @@ struct FunCloner {
       LLVMSetMetadata(Dst, Kind, LLVMMetadataAsValue(Ctx, MD));
     }
     LLVMDisposeValueMetadataEntries(AllMetadata);
-    LLVMSetInstDebugLocation(Builder, Dst);
+    LLVMAddMetadataToInst(Builder, Dst);
 
     check_value_kind(Dst, LLVMInstructionValueKind);
     return VMap[Src] = Dst;
+  }
+
+  LLVMOperandBundleRef CloneOB(LLVMOperandBundleRef Src) {
+    size_t TagLen;
+    const char *Tag = LLVMGetOperandBundleTag(Src, &TagLen);
+
+    SmallVector<LLVMValueRef, 8> Args;
+    for (unsigned i = 0, n = LLVMGetNumOperandBundleArgs(Src); i != n; ++i)
+      Args.push_back(CloneValue(LLVMGetOperandBundleArgAtIndex(Src, i)));
+
+    return LLVMCreateOperandBundle(Tag, TagLen, Args.data(), Args.size());
   }
 
   LLVMBasicBlockRef DeclareBB(LLVMBasicBlockRef Src) {
@@ -909,7 +1140,7 @@ static void declare_symbols(LLVMModuleRef Src, LLVMModuleRef M) {
     const char *Name = LLVMGetValueName2(Cur, &NameLen);
     if (LLVMGetNamedGlobal(M, Name))
       report_fatal_error("GlobalVariable already cloned");
-    LLVMAddGlobal(M, LLVMGetElementType(TypeCloner(M).Clone(Cur)), Name);
+    LLVMAddGlobal(M, TypeCloner(M).Clone(LLVMGlobalGetValueType(Cur)), Name);
 
     Next = LLVMGetNextGlobal(Cur);
     if (Next == nullptr) {
@@ -941,7 +1172,8 @@ FunDecl:
     const char *Name = LLVMGetValueName2(Cur, &NameLen);
     if (LLVMGetNamedFunction(M, Name))
       report_fatal_error("Function already cloned");
-    auto Ty = LLVMGetElementType(TypeCloner(M).Clone(Cur));
+    LLVMTypeRef Ty = TypeCloner(M).Clone(LLVMGlobalGetValueType(Cur));
+
     auto F = LLVMAddFunction(M, Name, Ty);
 
     // Copy attributes
@@ -986,9 +1218,11 @@ AliasDecl:
     const char *Name = LLVMGetValueName2(Cur, &NameLen);
     if (LLVMGetNamedGlobalAlias(M, Name, NameLen))
       report_fatal_error("Global alias already cloned");
-    LLVMTypeRef CurType = TypeCloner(M).Clone(Cur);
+    LLVMTypeRef PtrType = TypeCloner(M).Clone(Cur);
+    LLVMTypeRef ValType = TypeCloner(M).Clone(LLVMGlobalGetValueType(Cur));
+    unsigned AddrSpace = LLVMGetPointerAddressSpace(PtrType);
     // FIXME: Allow NULL aliasee.
-    LLVMAddAlias(M, CurType, LLVMGetUndef(CurType), Name);
+    LLVMAddAlias2(M, ValType, AddrSpace, LLVMGetUndef(PtrType), Name);
 
     Next = LLVMGetNextGlobalAlias(Cur);
     if (Next == nullptr) {
@@ -1102,7 +1336,7 @@ static void clone_symbols(LLVMModuleRef Src, LLVMModuleRef M) {
       LLVMGlobalSetMetadata(G, Kind, MD);
     }
     LLVMDisposeValueMetadataEntries(AllMetadata);
-    
+
     LLVMSetGlobalConstant(G, LLVMIsGlobalConstant(Cur));
     LLVMSetThreadLocal(G, LLVMIsThreadLocal(Cur));
     LLVMSetExternallyInitialized(G, LLVMIsExternallyInitialized(Cur));

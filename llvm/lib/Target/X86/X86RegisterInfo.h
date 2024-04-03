@@ -51,6 +51,9 @@ private:
 public:
   explicit X86RegisterInfo(const Triple &TT);
 
+  /// Return the number of registers for the function.
+  unsigned getNumSupportedRegs(const MachineFunction &MF) const override;
+
   // FIXME: This should be tablegen'd like getDwarfRegNum is
   int getSEHRegNum(unsigned i) const;
 
@@ -115,18 +118,45 @@ public:
   /// register scavenger to determine what registers are free.
   BitVector getReservedRegs(const MachineFunction &MF) const override;
 
+  /// isArgumentReg - Returns true if Reg can be used as an argument to a
+  /// function.
+  bool isArgumentRegister(const MachineFunction &MF,
+                          MCRegister Reg) const override;
+
+  /// Return true if it is tile register class.
+  bool isTileRegisterClass(const TargetRegisterClass *RC) const;
+
+  /// Returns true if PhysReg is a fixed register.
+  bool isFixedRegister(const MachineFunction &MF,
+                       MCRegister PhysReg) const override;
+
   void adjustStackMapLiveOutMask(uint32_t *Mask) const override;
 
   bool hasBasePointer(const MachineFunction &MF) const;
 
   bool canRealignStack(const MachineFunction &MF) const override;
 
-  bool hasReservedSpillSlot(const MachineFunction &MF, Register Reg,
-                            int &FrameIdx) const override;
+  bool shouldRealignStack(const MachineFunction &MF) const override;
 
-  void eliminateFrameIndex(MachineBasicBlock::iterator MI,
+  void eliminateFrameIndex(MachineBasicBlock::iterator II,
+                           unsigned FIOperandNum, Register BaseReg,
+                           int FIOffset) const;
+
+  bool eliminateFrameIndex(MachineBasicBlock::iterator MI,
                            int SPAdj, unsigned FIOperandNum,
                            RegScavenger *RS = nullptr) const override;
+
+  /// Process frame indices in forwards block order because
+  /// X86InstrInfo::getSPAdjust relies on it when searching for the
+  /// ADJCALLSTACKUP pseudo following a call.
+  /// TODO: Fix this and return true like all other targets.
+  bool eliminateFrameIndicesBackwards() const override { return false; }
+
+  /// findDeadCallerSavedReg - Return a caller-saved register that isn't live
+  /// when it reaches the "return" instruction. We can then pop a stack object
+  /// to this register without worry about clobbering it.
+  unsigned findDeadCallerSavedReg(MachineBasicBlock &MBB,
+                                  MachineBasicBlock::iterator &MBBI) const;
 
   // Debug information queries.
   Register getFrameRegister(const MachineFunction &MF) const override;
@@ -141,6 +171,11 @@ public:
   Register getFramePtr() const { return FramePtr; }
   // FIXME: Move to FrameInfok
   unsigned getSlotSize() const { return SlotSize; }
+
+  bool getRegAllocationHints(Register VirtReg, ArrayRef<MCPhysReg> Order,
+                             SmallVectorImpl<MCPhysReg> &Hints,
+                             const MachineFunction &MF, const VirtRegMap *VRM,
+                             const LiveRegMatrix *Matrix) const override;
 };
 
 } // End llvm namespace

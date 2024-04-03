@@ -10,11 +10,14 @@
 ///
 //===----------------------------------------------------------------------===//
 
-#include "CoverageReport.h"
 #include "SourceCoverageViewText.h"
-#include "llvm/ADT/Optional.h"
+#include "CoverageReport.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringExtras.h"
+#include "llvm/Support/FileSystem.h"
+#include "llvm/Support/Format.h"
+#include "llvm/Support/Path.h"
+#include <optional>
 
 using namespace llvm;
 
@@ -43,6 +46,69 @@ Error CoveragePrinterText::createIndexFile(
                                                  << Opts.getLLVMVersionString();
 
   return Error::success();
+}
+
+struct CoveragePrinterTextDirectory::Reporter : public DirectoryCoverageReport {
+  CoveragePrinterTextDirectory &Printer;
+
+  Reporter(CoveragePrinterTextDirectory &Printer,
+           const coverage::CoverageMapping &Coverage,
+           const CoverageFiltersMatchAll &Filters)
+      : DirectoryCoverageReport(Printer.Opts, Coverage, Filters),
+        Printer(Printer) {}
+
+  Error generateSubDirectoryReport(SubFileReports &&SubFiles,
+                                   SubDirReports &&SubDirs,
+                                   FileCoverageSummary &&SubTotals) override {
+    auto &LCPath = SubTotals.Name;
+    assert(Options.hasOutputDirectory() &&
+           "No output directory for index file");
+
+    SmallString<128> OSPath = LCPath;
+    sys::path::append(OSPath, "index");
+    auto OSOrErr = Printer.createOutputStream(OSPath, "txt",
+                                              /*InToplevel=*/false);
+    if (auto E = OSOrErr.takeError())
+      return E;
+    auto OS = std::move(OSOrErr.get());
+    raw_ostream &OSRef = *OS.get();
+
+    std::vector<FileCoverageSummary> Reports;
+    for (auto &&SubDir : SubDirs)
+      Reports.push_back(std::move(SubDir.second.first));
+    for (auto &&SubFile : SubFiles)
+      Reports.push_back(std::move(SubFile.second));
+
+    CoverageReport Report(Options, Coverage);
+    Report.renderFileReports(OSRef, Reports, SubTotals, Filters.empty());
+
+    Options.colored_ostream(OSRef, raw_ostream::CYAN)
+        << "\n"
+        << Options.getLLVMVersionString();
+
+    return Error::success();
+  }
+};
+
+Error CoveragePrinterTextDirectory::createIndexFile(
+    ArrayRef<std::string> SourceFiles, const CoverageMapping &Coverage,
+    const CoverageFiltersMatchAll &Filters) {
+  if (SourceFiles.size() <= 1)
+    return CoveragePrinterText::createIndexFile(SourceFiles, Coverage, Filters);
+
+  Reporter Report(*this, Coverage, Filters);
+  auto TotalsOrErr = Report.prepareDirectoryReports(SourceFiles);
+  if (auto E = TotalsOrErr.takeError())
+    return E;
+  auto &LCPath = TotalsOrErr->Name;
+
+  auto TopIndexFilePath =
+      getOutputPath("index", "txt", /*InToplevel=*/true, /*Relative=*/false);
+  auto LCPIndexFilePath =
+      getOutputPath((LCPath + "index").str(), "txt", /*InToplevel=*/false,
+                    /*Relative=*/false);
+  return errorCodeToError(
+      sys::fs::copy_file(LCPIndexFilePath, TopIndexFilePath));
 }
 
 namespace {
@@ -101,7 +167,7 @@ void SourceCoverageViewText::renderLine(raw_ostream &OS, LineRef L,
   auto *WrappedSegment = LCS.getWrappedSegment();
   CoverageSegmentArray Segments = LCS.getLineSegments();
 
-  Optional<raw_ostream::Colors> Highlight;
+  std::optional<raw_ostream::Colors> Highlight;
   SmallVector<std::pair<unsigned, unsigned>, 2> HighlightedRanges;
 
   // The first segment overlaps from a previous line, so we treat it specially.
@@ -126,7 +192,7 @@ void SourceCoverageViewText::renderLine(raw_ostream &OS, LineRef L,
     else if (Col == ExpansionCol)
       Highlight = raw_ostream::CYAN;
     else
-      Highlight = None;
+      Highlight = std::nullopt;
   }
 
   // Show the rest of the line.
@@ -220,6 +286,107 @@ void SourceCoverageViewText::renderExpansionView(raw_ostream &OS,
            << " -> " << ESV.getEndCol() << '\n';
   ESV.View->print(OS, /*WholeFile=*/false, /*ShowSourceName=*/false,
                   /*ShowTitle=*/false, ViewDepth + 1);
+}
+
+void SourceCoverageViewText::renderBranchView(raw_ostream &OS, BranchView &BRV,
+                                              unsigned ViewDepth) {
+  // Render the child subview.
+  if (getOptions().Debug)
+    errs() << "Branch at line " << BRV.getLine() << '\n';
+
+  for (const auto &R : BRV.Regions) {
+    double TruePercent = 0.0;
+    double FalsePercent = 0.0;
+    // FIXME: It may overflow when the data is too large, but I have not
+    // encountered it in actual use, and not sure whether to use __uint128_t.
+    uint64_t Total = R.ExecutionCount + R.FalseExecutionCount;
+
+    if (!getOptions().ShowBranchCounts && Total != 0) {
+      TruePercent = ((double)(R.ExecutionCount) / (double)Total) * 100.0;
+      FalsePercent = ((double)(R.FalseExecutionCount) / (double)Total) * 100.0;
+    }
+
+    renderLinePrefix(OS, ViewDepth);
+    OS << "  Branch (" << R.LineStart << ":" << R.ColumnStart << "): [";
+
+    if (R.Folded) {
+      OS << "Folded - Ignored]\n";
+      continue;
+    }
+
+    colored_ostream(OS, raw_ostream::RED,
+                    getOptions().Colors && !R.ExecutionCount,
+                    /*Bold=*/false, /*BG=*/true)
+        << "True";
+
+    if (getOptions().ShowBranchCounts)
+      OS << ": " << formatCount(R.ExecutionCount) << ", ";
+    else
+      OS << ": " << format("%0.2f", TruePercent) << "%, ";
+
+    colored_ostream(OS, raw_ostream::RED,
+                    getOptions().Colors && !R.FalseExecutionCount,
+                    /*Bold=*/false, /*BG=*/true)
+        << "False";
+
+    if (getOptions().ShowBranchCounts)
+      OS << ": " << formatCount(R.FalseExecutionCount);
+    else
+      OS << ": " << format("%0.2f", FalsePercent) << "%";
+    OS << "]\n";
+  }
+}
+
+void SourceCoverageViewText::renderMCDCView(raw_ostream &OS, MCDCView &MRV,
+                                            unsigned ViewDepth) {
+  for (auto &Record : MRV.Records) {
+    renderLinePrefix(OS, ViewDepth);
+    OS << "---> MC/DC Decision Region (";
+    // Display Line + Column information.
+    const CounterMappingRegion &DecisionRegion = Record.getDecisionRegion();
+    OS << DecisionRegion.LineStart << ":";
+    OS << DecisionRegion.ColumnStart << ") to (";
+    OS << DecisionRegion.LineEnd << ":";
+    OS << DecisionRegion.ColumnEnd << ")\n";
+    renderLinePrefix(OS, ViewDepth);
+    OS << "\n";
+
+    // Display MC/DC Information.
+    renderLinePrefix(OS, ViewDepth);
+    OS << "  Number of Conditions: " << Record.getNumConditions() << "\n";
+    for (unsigned i = 0; i < Record.getNumConditions(); i++) {
+      renderLinePrefix(OS, ViewDepth);
+      OS << "     " << Record.getConditionHeaderString(i);
+    }
+    renderLinePrefix(OS, ViewDepth);
+    OS << "\n";
+    renderLinePrefix(OS, ViewDepth);
+    OS << "  Executed MC/DC Test Vectors:\n";
+    renderLinePrefix(OS, ViewDepth);
+    OS << "\n";
+    renderLinePrefix(OS, ViewDepth);
+    OS << "     ";
+    OS << Record.getTestVectorHeaderString();
+    for (unsigned i = 0; i < Record.getNumTestVectors(); i++) {
+      renderLinePrefix(OS, ViewDepth);
+      OS << Record.getTestVectorString(i);
+    }
+    renderLinePrefix(OS, ViewDepth);
+    OS << "\n";
+    for (unsigned i = 0; i < Record.getNumConditions(); i++) {
+      renderLinePrefix(OS, ViewDepth);
+      OS << Record.getConditionCoverageString(i);
+    }
+    renderLinePrefix(OS, ViewDepth);
+    OS << "  MC/DC Coverage for Decision: ";
+    colored_ostream(OS, raw_ostream::RED,
+                    getOptions().Colors && Record.getPercentCovered() < 100.0,
+                    /*Bold=*/false, /*BG=*/true)
+        << format("%0.2f", Record.getPercentCovered()) << "%";
+    OS << "\n";
+    renderLinePrefix(OS, ViewDepth);
+    OS << "\n";
+  }
 }
 
 void SourceCoverageViewText::renderInstantiationView(raw_ostream &OS,

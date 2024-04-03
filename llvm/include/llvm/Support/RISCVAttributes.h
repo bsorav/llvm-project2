@@ -22,7 +22,7 @@
 namespace llvm {
 namespace RISCVAttrs {
 
-extern const TagNameMap RISCVAttributeTags;
+const TagNameMap &getRISCVAttributeTags();
 
 enum AttrType : unsigned {
   // Attribute types in ELF/.riscv.attributes.
@@ -34,7 +34,7 @@ enum AttrType : unsigned {
   PRIV_SPEC_REVISION = 12,
 };
 
-enum StackAlign { ALIGN_4 = 4, ALIGN_16 = 16 };
+enum StackAlign { ALIGN_4 = 4, ALIGN_8 = 8, ALIGN_16 = 16 };
 
 enum { NOT_ALLOWED = 0, ALLOWED = 1 };
 

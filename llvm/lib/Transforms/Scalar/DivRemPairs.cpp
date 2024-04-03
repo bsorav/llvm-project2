@@ -21,11 +21,9 @@
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/PatternMatch.h"
-#include "llvm/InitializePasses.h"
-#include "llvm/Pass.h"
 #include "llvm/Support/DebugCounter.h"
-#include "llvm/Transforms/Scalar.h"
 #include "llvm/Transforms/Utils/BypassSlowDivision.h"
+#include <optional>
 
 using namespace llvm;
 using namespace llvm::PatternMatch;
@@ -49,10 +47,10 @@ struct ExpandedMatch {
 ///   X - ((X ?/ Y) * Y)
 /// which is equivalent to:
 ///   X ?% Y
-static llvm::Optional<ExpandedMatch> matchExpandedRem(Instruction &I) {
+static std::optional<ExpandedMatch> matchExpandedRem(Instruction &I) {
   Value *Dividend, *XroundedDownToMultipleOfY;
   if (!match(&I, m_Sub(m_Value(Dividend), m_Value(XroundedDownToMultipleOfY))))
-    return llvm::None;
+    return std::nullopt;
 
   Value *Divisor;
   Instruction *Div;
@@ -62,7 +60,7 @@ static llvm::Optional<ExpandedMatch> matchExpandedRem(Instruction &I) {
           m_c_Mul(m_CombineAnd(m_IDiv(m_Specific(Dividend), m_Value(Divisor)),
                                m_Instruction(Div)),
                   m_Deferred(Divisor))))
-    return llvm::None;
+    return std::nullopt;
 
   ExpandedMatch M;
   M.Key.SignedOp = Div->getOpcode() == Instruction::SDiv;
@@ -151,8 +149,8 @@ static DivRemWorklistTy getWorklist(Function &F) {
   // rare than division.
   for (auto &RemPair : RemMap) {
     // Find the matching division instruction from the division map.
-    Instruction *DivInst = DivMap[RemPair.first];
-    if (!DivInst)
+    auto It = DivMap.find(RemPair.first);
+    if (It == DivMap.end())
       continue;
 
     // We have a matching pair of div/rem instructions.
@@ -160,7 +158,7 @@ static DivRemWorklistTy getWorklist(Function &F) {
     Instruction *RemInst = RemPair.second;
 
     // Place it in the worklist.
-    Worklist.emplace_back(DivInst, RemInst);
+    Worklist.emplace_back(It->second, RemInst);
   }
 
   return Worklist;
@@ -238,8 +236,73 @@ static bool optimizeDivRem(Function &F, const TargetTransformInfo &TTI,
     if (!DivDominates && !DT.dominates(RemInst, DivInst)) {
       // We have matching div-rem pair, but they are in two different blocks,
       // neither of which dominates one another.
-      // FIXME: We could hoist both ops to the common predecessor block?
-      continue;
+
+      BasicBlock *PredBB = nullptr;
+      BasicBlock *DivBB = DivInst->getParent();
+      BasicBlock *RemBB = RemInst->getParent();
+
+      // It's only safe to hoist if every instruction before the Div/Rem in the
+      // basic block is guaranteed to transfer execution.
+      auto IsSafeToHoist = [](Instruction *DivOrRem, BasicBlock *ParentBB) {
+        for (auto I = ParentBB->begin(), E = DivOrRem->getIterator(); I != E;
+             ++I)
+          if (!isGuaranteedToTransferExecutionToSuccessor(&*I))
+            return false;
+
+        return true;
+      };
+
+      // Look for something like this
+      // PredBB
+      //   |  \
+      //   |  Rem
+      //   |  /
+      //  Div
+      //
+      // If the Rem block has a single predecessor and successor, and all paths
+      // from PredBB go to either RemBB or DivBB, and execution of RemBB and
+      // DivBB will always reach the Div/Rem, we can hoist Div to PredBB. If
+      // we have a DivRem operation we can also hoist Rem. Otherwise we'll leave
+      // Rem where it is and rewrite it to mul/sub.
+      if (RemBB->getSingleSuccessor() == DivBB) {
+        PredBB = RemBB->getUniquePredecessor();
+
+        // Look for something like this
+        //     PredBB
+        //     /    \
+        //   Div   Rem
+        //
+        // If the Rem and Din blocks share a unique predecessor, and all
+        // paths from PredBB go to either RemBB or DivBB, and execution of RemBB
+        // and DivBB will always reach the Div/Rem, we can hoist Div to PredBB.
+        // If we have a DivRem operation we can also hoist Rem. By hoisting both
+        // ops to the same block, we reduce code size and allow the DivRem to
+        // issue sooner. Without a DivRem op, this transformation is
+        // unprofitable because we would end up performing an extra Mul+Sub on
+        // the Rem path.
+      } else if (BasicBlock *RemPredBB = RemBB->getUniquePredecessor()) {
+        // This hoist is only profitable when the target has a DivRem op.
+        if (HasDivRemOp && RemPredBB == DivBB->getUniquePredecessor())
+          PredBB = RemPredBB;
+      }
+      // FIXME: We could handle more hoisting cases.
+
+      if (PredBB && !isa<CatchSwitchInst>(PredBB->getTerminator()) &&
+          isGuaranteedToTransferExecutionToSuccessor(PredBB->getTerminator()) &&
+          IsSafeToHoist(RemInst, RemBB) && IsSafeToHoist(DivInst, DivBB) &&
+          all_of(successors(PredBB),
+                 [&](BasicBlock *BB) { return BB == DivBB || BB == RemBB; }) &&
+          all_of(predecessors(DivBB),
+                 [&](BasicBlock *BB) { return BB == RemBB || BB == PredBB; })) {
+        DivDominates = true;
+        DivInst->moveBefore(PredBB->getTerminator());
+        Changed = true;
+        if (HasDivRemOp) {
+          RemInst->moveBefore(PredBB->getTerminator());
+          continue;
+        }
+      } else
+        continue;
     }
 
     // The target does not have a single div/rem operation,
@@ -305,6 +368,10 @@ static bool optimizeDivRem(Function &F, const TargetTransformInfo &TTI,
       Mul->insertAfter(RemInst);
       Sub->insertAfter(Mul);
 
+      // If DivInst has the exact flag, remove it. Otherwise this optimization
+      // may replace a well-defined value 'X % Y' with poison.
+      DivInst->dropPoisonGeneratingFlags();
+
       // If X can be undef, X should be frozen first.
       // For example, let's assume that Y = 1 & X = undef:
       //   %div = sdiv undef, 1 // %div = undef
@@ -315,14 +382,14 @@ static bool optimizeDivRem(Function &F, const TargetTransformInfo &TTI,
       //   %rem = sub %x, %mul  // %rem = undef - undef = undef
       // If X is not frozen, %rem becomes undef after transformation.
       // TODO: We need a undef-specific checking function in ValueTracking
-      if (!isGuaranteedNotToBeUndefOrPoison(X, DivInst, &DT)) {
+      if (!isGuaranteedNotToBeUndefOrPoison(X, nullptr, DivInst, &DT)) {
         auto *FrX = new FreezeInst(X, X->getName() + ".frozen", DivInst);
         DivInst->setOperand(0, FrX);
         Sub->setOperand(0, FrX);
       }
       // Same for Y. If X = 1 and Y = (undef | 1), %rem in src is either 1 or 0,
       // but %rem in tgt can be one of many integer values.
-      if (!isGuaranteedNotToBeUndefOrPoison(Y, DivInst, &DT)) {
+      if (!isGuaranteedNotToBeUndefOrPoison(Y, nullptr, DivInst, &DT)) {
         auto *FrY = new FreezeInst(Y, Y->getName() + ".frozen", DivInst);
         DivInst->setOperand(1, FrY);
         Mul->setOperand(1, FrY);
@@ -347,44 +414,6 @@ static bool optimizeDivRem(Function &F, const TargetTransformInfo &TTI,
 
 // Pass manager boilerplate below here.
 
-namespace {
-struct DivRemPairsLegacyPass : public FunctionPass {
-  static char ID;
-  DivRemPairsLegacyPass() : FunctionPass(ID) {
-    initializeDivRemPairsLegacyPassPass(*PassRegistry::getPassRegistry());
-  }
-
-  void getAnalysisUsage(AnalysisUsage &AU) const override {
-    AU.addRequired<DominatorTreeWrapperPass>();
-    AU.addRequired<TargetTransformInfoWrapperPass>();
-    AU.setPreservesCFG();
-    AU.addPreserved<DominatorTreeWrapperPass>();
-    AU.addPreserved<GlobalsAAWrapperPass>();
-    FunctionPass::getAnalysisUsage(AU);
-  }
-
-  bool runOnFunction(Function &F) override {
-    if (skipFunction(F))
-      return false;
-    auto &TTI = getAnalysis<TargetTransformInfoWrapperPass>().getTTI(F);
-    auto &DT = getAnalysis<DominatorTreeWrapperPass>().getDomTree();
-    return optimizeDivRem(F, TTI, DT);
-  }
-};
-} // namespace
-
-char DivRemPairsLegacyPass::ID = 0;
-INITIALIZE_PASS_BEGIN(DivRemPairsLegacyPass, "div-rem-pairs",
-                      "Hoist/decompose integer division and remainder", false,
-                      false)
-INITIALIZE_PASS_DEPENDENCY(DominatorTreeWrapperPass)
-INITIALIZE_PASS_END(DivRemPairsLegacyPass, "div-rem-pairs",
-                    "Hoist/decompose integer division and remainder", false,
-                    false)
-FunctionPass *llvm::createDivRemPairsPass() {
-  return new DivRemPairsLegacyPass();
-}
-
 PreservedAnalyses DivRemPairsPass::run(Function &F,
                                        FunctionAnalysisManager &FAM) {
   TargetTransformInfo &TTI = FAM.getResult<TargetIRAnalysis>(F);
@@ -394,6 +423,5 @@ PreservedAnalyses DivRemPairsPass::run(Function &F,
   // TODO: This pass just hoists/replaces math ops - all analyses are preserved?
   PreservedAnalyses PA;
   PA.preserveSet<CFGAnalyses>();
-  PA.preserve<GlobalsAA>();
   return PA;
 }

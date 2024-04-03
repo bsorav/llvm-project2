@@ -101,6 +101,88 @@ public:
   }
 };
 
+/// Provides information about branches coverage for a function/file.
+class BranchCoverageInfo {
+  /// The number of branches that were executed at least once.
+  size_t Covered;
+
+  /// The total number of branches in a function/file.
+  size_t NumBranches;
+
+public:
+  BranchCoverageInfo() : Covered(0), NumBranches(0) {}
+
+  BranchCoverageInfo(size_t Covered, size_t NumBranches)
+      : Covered(Covered), NumBranches(NumBranches) {
+    assert(Covered <= NumBranches && "Covered branches over-counted");
+  }
+
+  BranchCoverageInfo &operator+=(const BranchCoverageInfo &RHS) {
+    Covered += RHS.Covered;
+    NumBranches += RHS.NumBranches;
+    return *this;
+  }
+
+  void merge(const BranchCoverageInfo &RHS) {
+    Covered = std::max(Covered, RHS.Covered);
+    NumBranches = std::max(NumBranches, RHS.NumBranches);
+  }
+
+  size_t getCovered() const { return Covered; }
+
+  size_t getNumBranches() const { return NumBranches; }
+
+  bool isFullyCovered() const { return Covered == NumBranches; }
+
+  double getPercentCovered() const {
+    assert(Covered <= NumBranches && "Covered branches over-counted");
+    if (NumBranches == 0)
+      return 0.0;
+    return double(Covered) / double(NumBranches) * 100.0;
+  }
+};
+
+/// Provides information about MC/DC coverage for a function/file.
+class MCDCCoverageInfo {
+  /// The number of Independence Pairs that were covered.
+  size_t CoveredPairs;
+
+  /// The total number of Independence Pairs in a function/file.
+  size_t NumPairs;
+
+public:
+  MCDCCoverageInfo() : CoveredPairs(0), NumPairs(0) {}
+
+  MCDCCoverageInfo(size_t CoveredPairs, size_t NumPairs)
+      : CoveredPairs(CoveredPairs), NumPairs(NumPairs) {
+    assert(CoveredPairs <= NumPairs && "Covered pairs over-counted");
+  }
+
+  MCDCCoverageInfo &operator+=(const MCDCCoverageInfo &RHS) {
+    CoveredPairs += RHS.CoveredPairs;
+    NumPairs += RHS.NumPairs;
+    return *this;
+  }
+
+  void merge(const MCDCCoverageInfo &RHS) {
+    CoveredPairs = std::max(CoveredPairs, RHS.CoveredPairs);
+    NumPairs = std::max(NumPairs, RHS.NumPairs);
+  }
+
+  size_t getCoveredPairs() const { return CoveredPairs; }
+
+  size_t getNumPairs() const { return NumPairs; }
+
+  bool isFullyCovered() const { return CoveredPairs == NumPairs; }
+
+  double getPercentCovered() const {
+    assert(CoveredPairs <= NumPairs && "Covered pairs over-counted");
+    if (NumPairs == 0)
+      return 0.0;
+    return double(CoveredPairs) / double(NumPairs) * 100.0;
+  }
+};
+
 /// Provides information about function coverage for a file.
 class FunctionCoverageInfo {
   /// The number of functions that were executed.
@@ -147,15 +229,20 @@ struct FunctionCoverageSummary {
   uint64_t ExecutionCount;
   RegionCoverageInfo RegionCoverage;
   LineCoverageInfo LineCoverage;
+  BranchCoverageInfo BranchCoverage;
+  MCDCCoverageInfo MCDCCoverage;
 
   FunctionCoverageSummary(const std::string &Name)
-      : Name(Name), ExecutionCount(0), RegionCoverage(), LineCoverage() {}
+      : Name(Name), ExecutionCount(0) {}
 
   FunctionCoverageSummary(const std::string &Name, uint64_t ExecutionCount,
                           const RegionCoverageInfo &RegionCoverage,
-                          const LineCoverageInfo &LineCoverage)
+                          const LineCoverageInfo &LineCoverage,
+                          const BranchCoverageInfo &BranchCoverage,
+                          const MCDCCoverageInfo &MCDCCoverage)
       : Name(Name), ExecutionCount(ExecutionCount),
-        RegionCoverage(RegionCoverage), LineCoverage(LineCoverage) {}
+        RegionCoverage(RegionCoverage), LineCoverage(LineCoverage),
+        BranchCoverage(BranchCoverage), MCDCCoverage(MCDCCoverage) {}
 
   /// Compute the code coverage summary for the given function coverage
   /// mapping record.
@@ -174,17 +261,20 @@ struct FileCoverageSummary {
   StringRef Name;
   RegionCoverageInfo RegionCoverage;
   LineCoverageInfo LineCoverage;
+  BranchCoverageInfo BranchCoverage;
+  MCDCCoverageInfo MCDCCoverage;
   FunctionCoverageInfo FunctionCoverage;
   FunctionCoverageInfo InstantiationCoverage;
 
-  FileCoverageSummary(StringRef Name)
-      : Name(Name), RegionCoverage(), LineCoverage(), FunctionCoverage(),
-        InstantiationCoverage() {}
+  FileCoverageSummary() = default;
+  FileCoverageSummary(StringRef Name) : Name(Name) {}
 
   FileCoverageSummary &operator+=(const FileCoverageSummary &RHS) {
     RegionCoverage += RHS.RegionCoverage;
     LineCoverage += RHS.LineCoverage;
     FunctionCoverage += RHS.FunctionCoverage;
+    BranchCoverage += RHS.BranchCoverage;
+    MCDCCoverage += RHS.MCDCCoverage;
     InstantiationCoverage += RHS.InstantiationCoverage;
     return *this;
   }
@@ -192,6 +282,8 @@ struct FileCoverageSummary {
   void addFunction(const FunctionCoverageSummary &Function) {
     RegionCoverage += Function.RegionCoverage;
     LineCoverage += Function.LineCoverage;
+    BranchCoverage += Function.BranchCoverage;
+    MCDCCoverage += Function.MCDCCoverage;
     FunctionCoverage.addFunction(/*Covered=*/Function.ExecutionCount > 0);
   }
 

@@ -8,13 +8,13 @@
 // SIMD128:#define __wasm_simd128__ 1{{$}}
 
 // RUN: %clang -E -dM %s -o - 2>&1 \
-// RUN:     -target wasm32-unknown-unknown -munimplemented-simd128 \
-// RUN:   | FileCheck %s -check-prefix=SIMD128-UNIMPLEMENTED
+// RUN:     -target wasm32-unknown-unknown -mrelaxed-simd \
+// RUN:   | FileCheck %s -check-prefix=RELAXED-SIMD
 // RUN: %clang -E -dM %s -o - 2>&1 \
-// RUN:     -target wasm64-unknown-unknown -munimplemented-simd128 \
-// RUN:   | FileCheck %s -check-prefix=SIMD128-UNIMPLEMENTED
+// RUN:     -target wasm64-unknown-unknown -mrelaxed-simd \
+// RUN:   | FileCheck %s -check-prefix=RELAXED-SIMD
 //
-// SIMD128-UNIMPLEMENTED:#define __wasm_unimplemented_simd128__ 1{{$}}
+// RELAXED-SIMD:#define __wasm_relaxed_simd__ 1{{$}}
 
 // RUN: %clang -E -dM %s -o - 2>&1 \
 // RUN:     -target wasm32-unknown-unknown -mnontrapping-fptoint \
@@ -105,6 +105,25 @@
 // RUN:   | FileCheck %s -check-prefix=REFERENCE-TYPES
 //
 // REFERENCE-TYPES:#define __wasm_reference_types__ 1{{$}}
+//
+// RUN: %clang -E -dM %s -o - 2>&1 \
+// RUN:     -target wasm32-unknown-unknown -mextended-const \
+// RUN:   | FileCheck %s -check-prefix=EXTENDED-CONST
+// RUN: %clang -E -dM %s -o - 2>&1 \
+// RUN:     -target wasm64-unknown-unknown -mextended-const \
+// RUN:   | FileCheck %s -check-prefix=EXTENDED-CONST
+//
+// EXTENDED-CONST:#define __wasm_extended_const__ 1{{$}}
+//
+// RUN: %clang -E -dM %s -o - 2>&1 \
+// RUN:     -target wasm32-unknown-unknown -mmultimemory \
+// RUN:   | FileCheck %s -check-prefix=MULTIMEMORY
+// RUN: %clang -E -dM %s -o - 2>&1 \
+// RUN:     -target wasm64-unknown-unknown -mmultimemory \
+// RUN:   | FileCheck %s -check-prefix=MULTIMEMORY
+//
+// MULTIMEMORY:#define __wasm_multimemory__ 1{{$}}
+//
 
 // RUN: %clang -E -dM %s -o - 2>&1 \
 // RUN:     -target wasm32-unknown-unknown -mcpu=mvp \
@@ -114,7 +133,6 @@
 // RUN:   | FileCheck %s -check-prefix=MVP
 //
 // MVP-NOT:#define __wasm_simd128__
-// MVP-NOT:#define __wasm_unimplemented_simd128__
 // MVP-NOT:#define __wasm_nontrapping_fptoint__
 // MVP-NOT:#define __wasm_sign_ext__
 // MVP-NOT:#define __wasm_exception_handling__
@@ -124,6 +142,8 @@
 // MVP-NOT:#define __wasm_multivalue__
 // MVP-NOT:#define __wasm_tail_call__
 // MVP-NOT:#define __wasm_reference_types__
+// MVP-NOT:#define __wasm_extended_const__
+// MVP-NOT:#define __wasm_multimemory__
 
 // RUN: %clang -E -dM %s -o - 2>&1 \
 // RUN:     -target wasm32-unknown-unknown -mcpu=bleeding-edge \
@@ -139,10 +159,12 @@
 // BLEEDING-EDGE-DAG:#define __wasm_atomics__ 1{{$}}
 // BLEEDING-EDGE-DAG:#define __wasm_mutable_globals__ 1{{$}}
 // BLEEDING-EDGE-DAG:#define __wasm_tail_call__ 1{{$}}
+// BLEEDING-EDGE-DAG:#define __wasm_multimemory__ 1{{$}}
 // BLEEDING-EDGE-NOT:#define __wasm_unimplemented_simd128__ 1{{$}}
 // BLEEDING-EDGE-NOT:#define __wasm_exception_handling__ 1{{$}}
 // BLEEDING-EDGE-NOT:#define __wasm_multivalue__ 1{{$}}
 // BLEEDING-EDGE-NOT:#define __wasm_reference_types__ 1{{$}}
+// BLEEDING-EDGE-NOT:#define __wasm_extended_const__ 1{{$}}
 
 // RUN: %clang -E -dM %s -o - 2>&1 \
 // RUN:     -target wasm32-unknown-unknown -mcpu=bleeding-edge -mno-simd128 \

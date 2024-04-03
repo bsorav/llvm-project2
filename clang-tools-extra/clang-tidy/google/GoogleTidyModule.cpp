@@ -23,7 +23,6 @@
 #include "GlobalNamesInHeadersCheck.h"
 #include "GlobalVariableDeclarationCheck.h"
 #include "IntegerTypesCheck.h"
-#include "NonConstReferences.h"
 #include "OverloadedUnaryAndCheck.h"
 #include "TodoCommentCheck.h"
 #include "UnnamedNamespaceInHeaderCheck.h"
@@ -32,8 +31,7 @@
 
 using namespace clang::ast_matchers;
 
-namespace clang {
-namespace tidy {
+namespace clang::tidy {
 namespace google {
 
 class GoogleModule : public ClangTidyModule {
@@ -63,8 +61,6 @@ class GoogleModule : public ClangTidyModule {
         "google-runtime-int");
     CheckFactories.registerCheck<runtime::OverloadedUnaryAndCheck>(
         "google-runtime-operator");
-    CheckFactories.registerCheck<runtime::NonConstReferences>(
-        "google-runtime-references");
     CheckFactories
         .registerCheck<readability::AvoidUnderscoreInGoogletestNameCheck>(
             "google-readability-avoid-underscore-in-googletest-name");
@@ -106,5 +102,4 @@ static ClangTidyModuleRegistry::Add<GoogleModule> X("google-module",
 // and thus register the GoogleModule.
 volatile int GoogleModuleAnchorSource = 0;
 
-}  // namespace tidy
-}  // namespace clang
+} // namespace clang::tidy

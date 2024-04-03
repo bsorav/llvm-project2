@@ -13,18 +13,25 @@
 #ifndef LLVM_MC_MCCODEVIEW_H
 #define LLVM_MC_MCCODEVIEW_H
 
+#include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/MC/MCFragment.h"
-#include "llvm/MC/MCObjectStreamer.h"
 #include <map>
 #include <vector>
 
 namespace llvm {
+class MCAsmLayout;
+class MCCVDefRangeFragment;
+class MCCVInlineLineTableFragment;
+class MCDataFragment;
+class MCFragment;
+class MCSection;
+class MCSymbol;
 class MCContext;
 class MCObjectStreamer;
 class MCStreamer;
-class CodeViewContext;
 
 /// Instances of this class represent the information from a
 /// .cv_loc directive.
@@ -139,6 +146,9 @@ public:
   CodeViewContext();
   ~CodeViewContext();
 
+  CodeViewContext &operator=(const CodeViewContext &other) = delete;
+  CodeViewContext(const CodeViewContext &other) = delete;
+
   bool isValidFileNumber(unsigned FileNumber) const;
   bool addFile(MCStreamer &OS, unsigned FileNumber, StringRef Filename,
                ArrayRef<uint8_t> ChecksumBytes, uint8_t ChecksumKind);
@@ -166,14 +176,13 @@ public:
                    unsigned FileNo, unsigned Line, unsigned Column,
                    bool PrologueEnd, bool IsStmt);
 
-  bool isValidCVFileNumber(unsigned FileNumber);
-
   /// Add a line entry.
   void addLineEntry(const MCCVLoc &LineEntry);
 
   std::vector<MCCVLoc> getFunctionLineEntries(unsigned FuncId);
 
   std::pair<size_t, size_t> getLineExtent(unsigned FuncId);
+  std::pair<size_t, size_t> getLineExtentIncludingInlinees(unsigned FuncId);
 
   ArrayRef<MCCVLoc> getLinesForExtent(size_t L, size_t R);
 

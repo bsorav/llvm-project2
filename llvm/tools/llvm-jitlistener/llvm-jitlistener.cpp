@@ -13,7 +13,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "../../lib/ExecutionEngine/IntelJITEvents/IntelJITEventsWrapper.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/ExecutionEngine/JITEventListener.h"
 #include "llvm/ExecutionEngine/MCJIT.h"
 #include "llvm/ExecutionEngine/SectionMemoryManager.h"
@@ -22,12 +21,13 @@
 #include "llvm/IRReader/IRReader.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
-#include "llvm/Support/Host.h"
 #include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/TargetParser/Host.h"
+#include "llvm/TargetParser/Triple.h"
 #include <string>
 
 using namespace llvm;
@@ -84,6 +84,46 @@ int NotifyEvent(iJIT_JVM_EVENT EventType, void *EventSpecificData) {
     break;
     default:
       break;
+  }
+  return 0;
+}
+
+int ittNotifyInfo(IttEventType EventType, const char *Name, unsigned int Size) {
+  switch (EventType) {
+  case LoadBinaryModule: {
+    if (!Name) {
+      errs() << "Error: The IttNotify event listener did not provide a module "
+                "name.";
+      return -1;
+    }
+    outs() << "Module loaded : Name = " << Name << ", Size = " << Size << "\n";
+  } break;
+  case LoadBinarySection: {
+    if (!Name) {
+      errs() << "Error: The IttNotify event listener did not provide a section "
+                "name.";
+      return -1;
+    }
+    outs() << "Loaded section : Name = " << Name << ", Size = " << Size << "\n";
+  } break;
+  case UnloadBinaryModule: {
+    if (!Name) {
+      errs() << "Error: The IttNotify event listener did not provide a module "
+                "name.";
+      return -1;
+    }
+    outs() << "Module unloaded : Name = " << Name << ", Size = " << Size
+           << "\n";
+  } break;
+  case UnloadBinarySection: {
+    if (!Name) {
+      errs() << "Error: The IttNotify event listener did not provide a section "
+                "name.";
+      return -1;
+    }
+    outs() << "Unloaded section : Name = " << Name << ", Size = " << Size
+           << "\n";
+  } break;
   }
   return 0;
 }
@@ -155,7 +195,8 @@ public:
 
     std::unique_ptr<llvm::JITEventListener> Listener(
         JITEventListener::createIntelJITEventListener(new IntelJITEventsWrapper(
-            NotifyEvent, 0, IsProfilingActive, 0, 0, GetNewMethodID)));
+            NotifyEvent, ittNotifyInfo, 0, IsProfilingActive, 0, 0,
+            GetNewMethodID)));
 
     TheJIT->RegisterJITEventListener(Listener.get());
 

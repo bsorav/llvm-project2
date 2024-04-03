@@ -50,6 +50,7 @@ set(LIBOMP_EXPORTS_LIB_DIR "${LIBOMP_EXPORTS_DIR}/${libomp_platform}${libomp_suf
 add_custom_command(TARGET omp POST_BUILD
   COMMAND ${CMAKE_COMMAND} -E make_directory ${LIBOMP_EXPORTS_CMN_DIR}
   COMMAND ${CMAKE_COMMAND} -E copy omp.h ${LIBOMP_EXPORTS_CMN_DIR}
+  COMMAND ${CMAKE_COMMAND} -E copy ompx.h ${LIBOMP_EXPORTS_CMN_DIR}
 )
 if(${LIBOMP_OMPT_SUPPORT})
   add_custom_command(TARGET omp POST_BUILD
@@ -83,11 +84,11 @@ add_custom_command(TARGET omp POST_BUILD
 
 # Copy Windows import library into exports/ directory post build
 if(WIN32)
-  get_target_property(LIBOMPIMP_OUTPUT_DIRECTORY ompimp ARCHIVE_OUTPUT_DIRECTORY)
+  get_target_property(LIBOMPIMP_OUTPUT_DIRECTORY ${LIBOMP_IMP_LIB_TARGET} ARCHIVE_OUTPUT_DIRECTORY)
   if(NOT LIBOMPIMP_OUTPUT_DIRECTORY)
     set(LIBOMPIMP_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
   endif()
-  add_custom_command(TARGET ompimp POST_BUILD
+  add_custom_command(TARGET ${LIBOMP_IMP_LIB_TARGET} POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E make_directory ${LIBOMP_EXPORTS_LIB_DIR}
     COMMAND ${CMAKE_COMMAND} -E copy ${LIBOMPIMP_OUTPUT_DIRECTORY}/${LIBOMP_IMP_LIB_FILE} ${LIBOMP_EXPORTS_LIB_DIR}
   )

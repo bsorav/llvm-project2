@@ -17,6 +17,9 @@ include "mlir/IR/OpBase.td"
 
 def Quantization_Dialect : Dialect {
   let name = "quant";
+  let cppNamespace = "::mlir::quant";
+
+  let useDefaultTypePrinterParser = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -27,11 +30,11 @@ class quant_TypedPrimitiveOrContainer<Type etype> :
     Type<Or<[etype.predicate,
                 TensorOf<[etype]>.predicate,
                 VectorOf<[etype]>.predicate]>,
-         "primitive/tensor/vector of " # etype.description>;
+         "primitive/tensor/vector of " # etype.summary>;
 
 // An implementation of QuantizedType.
 def quant_QuantizedType :
-    Type<CPred<"$_self.isa<mlir::quant::QuantizedType>()">, "QuantizedType">;
+    Type<CPred<"::llvm::isa<mlir::quant::QuantizedType>($_self)">, "QuantizedType">;
 
 // A primitive type that can represent a real value. This is either a
 // floating point value or a quantized type.
@@ -55,13 +58,13 @@ def quant_StorageValueType :
 
 // Either a real valued or storage primitive or container type.
 def quant_RealOrStorageValueType :
-    Type<Or<[quant_RealValueType.predicate,
-                quant_StorageValueType.predicate]>>;
+    Type<Or<[quant_RealValueType.predicate, quant_StorageValueType.predicate]>,
+    "real valued or storage primitive or container type">;
 
 // An implementation of UniformQuantizedType.
 def quant_UniformQuantizedType :
     DialectType<Quantization_Dialect,
-                CPred<"$_self.isa<UniformQuantizedType>()">,
+                CPred<"::llvm::isa<UniformQuantizedType>($_self)">,
                 "UniformQuantizedType">;
 
 // Predicate for detecting a container or primitive of UniformQuantizedType.

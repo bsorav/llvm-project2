@@ -10,8 +10,9 @@
 #include "clang/Basic/FileManager.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Lex/Lexer.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/Support/FormatVariadic.h"
+#include "llvm/Support/Path.h"
+#include <optional>
 
 namespace clang {
 namespace tooling {
@@ -42,8 +43,9 @@ unsigned getOffsetAfterTokenSequence(
         GetOffsetAfterSequence) {
   SourceManagerForFile VirtualSM(FileName, Code);
   SourceManager &SM = VirtualSM.get();
-  Lexer Lex(SM.getMainFileID(), SM.getBuffer(SM.getMainFileID()), SM,
-            createLangOpts());
+  LangOptions LangOpts = createLangOpts();
+  Lexer Lex(SM.getMainFileID(), SM.getBufferOrFake(SM.getMainFileID()), SM,
+            LangOpts);
   Token Tok;
   // Get the first token.
   Lex.LexFromRawLexer(Tok);
@@ -56,7 +58,7 @@ unsigned getOffsetAfterTokenSequence(
 // (second) raw_identifier name is checked.
 bool checkAndConsumeDirectiveWithName(
     Lexer &Lex, StringRef Name, Token &Tok,
-    llvm::Optional<StringRef> RawIDName = llvm::None) {
+    std::optional<StringRef> RawIDName = std::nullopt) {
   bool Matched = Tok.is(tok::hash) && !Lex.LexFromRawLexer(Tok) &&
                  Tok.is(tok::raw_identifier) &&
                  Tok.getRawIdentifier() == Name && !Lex.LexFromRawLexer(Tok) &&
@@ -100,7 +102,8 @@ unsigned getOffsetAfterHeaderGuardsAndComments(StringRef FileName,
           [](const SourceManager &SM, Lexer &Lex, Token Tok) -> unsigned {
             if (checkAndConsumeDirectiveWithName(Lex, "ifndef", Tok)) {
               skipComments(Lex, Tok);
-              if (checkAndConsumeDirectiveWithName(Lex, "define", Tok))
+              if (checkAndConsumeDirectiveWithName(Lex, "define", Tok) &&
+                  Tok.isAtStartOfLine())
                 return SM.getFileOffset(Tok.getLocation());
             }
             return 0;
@@ -173,18 +176,30 @@ inline StringRef trimInclude(StringRef IncludeName) {
 const char IncludeRegexPattern[] =
     R"(^[\t\ ]*#[\t\ ]*(import|include)[^"<]*(["<][^">]*[">]))";
 
+// The filename of Path excluding extension.
+// Used to match implementation with headers, this differs from sys::path::stem:
+//  - in names with multiple dots (foo.cu.cc) it terminates at the *first*
+//  - an empty stem is never returned: /foo/.bar.x => .bar
+//  - we don't bother to handle . and .. specially
+StringRef matchingStem(llvm::StringRef Path) {
+  StringRef Name = llvm::sys::path::filename(Path);
+  return Name.substr(0, Name.find('.', 1));
+}
+
 } // anonymous namespace
 
 IncludeCategoryManager::IncludeCategoryManager(const IncludeStyle &Style,
                                                StringRef FileName)
     : Style(Style), FileName(FileName) {
-  FileStem = llvm::sys::path::stem(FileName);
-  for (const auto &Category : Style.IncludeCategories)
-    CategoryRegexs.emplace_back(Category.Regex, llvm::Regex::IgnoreCase);
-  IsMainFile = FileName.endswith(".c") || FileName.endswith(".cc") ||
-               FileName.endswith(".cpp") || FileName.endswith(".c++") ||
-               FileName.endswith(".cxx") || FileName.endswith(".m") ||
-               FileName.endswith(".mm");
+  for (const auto &Category : Style.IncludeCategories) {
+    CategoryRegexs.emplace_back(Category.Regex, Category.RegexIsCaseSensitive
+                                                    ? llvm::Regex::NoFlags
+                                                    : llvm::Regex::IgnoreCase);
+  }
+  IsMainFile = FileName.ends_with(".c") || FileName.ends_with(".cc") ||
+               FileName.ends_with(".cpp") || FileName.ends_with(".c++") ||
+               FileName.ends_with(".cxx") || FileName.ends_with(".m") ||
+               FileName.ends_with(".mm");
   if (!Style.IncludeIsMainSourceRegex.empty()) {
     llvm::Regex MainFileRegex(Style.IncludeIsMainSourceRegex);
     IsMainFile |= MainFileRegex.match(FileName);
@@ -219,19 +234,39 @@ int IncludeCategoryManager::getSortIncludePriority(StringRef IncludeName,
   return Ret;
 }
 bool IncludeCategoryManager::isMainHeader(StringRef IncludeName) const {
-  if (!IncludeName.startswith("\""))
+  if (!IncludeName.starts_with("\""))
     return false;
-  StringRef HeaderStem =
-      llvm::sys::path::stem(IncludeName.drop_front(1).drop_back(1));
-  if (FileStem.startswith(HeaderStem) ||
-      FileStem.startswith_lower(HeaderStem)) {
+
+  IncludeName =
+      IncludeName.drop_front(1).drop_back(1); // remove the surrounding "" or <>
+  // Not matchingStem: implementation files may have compound extensions but
+  // headers may not.
+  StringRef HeaderStem = llvm::sys::path::stem(IncludeName);
+  StringRef FileStem = llvm::sys::path::stem(FileName); // foo.cu for foo.cu.cc
+  StringRef MatchingFileStem = matchingStem(FileName);  // foo for foo.cu.cc
+  // main-header examples:
+  //  1) foo.h => foo.cc
+  //  2) foo.h => foo.cu.cc
+  //  3) foo.proto.h => foo.proto.cc
+  //
+  // non-main-header examples:
+  //  1) foo.h => bar.cc
+  //  2) foo.proto.h => foo.cc
+  StringRef Matching;
+  if (MatchingFileStem.starts_with_insensitive(HeaderStem))
+    Matching = MatchingFileStem; // example 1), 2)
+  else if (FileStem.equals_insensitive(HeaderStem))
+    Matching = FileStem; // example 3)
+  if (!Matching.empty()) {
     llvm::Regex MainIncludeRegex(HeaderStem.str() + Style.IncludeIsMainRegex,
                                  llvm::Regex::IgnoreCase);
-    if (MainIncludeRegex.match(FileStem))
+    if (MainIncludeRegex.match(Matching))
       return true;
   }
   return false;
 }
+
+const llvm::Regex HeaderIncludes::IncludeRegex(IncludeRegexPattern);
 
 HeaderIncludes::HeaderIncludes(StringRef FileName, StringRef Code,
                                const IncludeStyle &Style)
@@ -241,8 +276,8 @@ HeaderIncludes::HeaderIncludes(StringRef FileName, StringRef Code,
       MaxInsertOffset(MinInsertOffset +
                       getMaxHeaderInsertionOffset(
                           FileName, Code.drop_front(MinInsertOffset), Style)),
-      Categories(Style, FileName),
-      IncludeRegex(llvm::Regex(IncludeRegexPattern)) {
+      MainIncludeFound(false),
+      Categories(Style, FileName) {
   // Add 0 for main header and INT_MAX for headers that are not in any
   // category.
   Priorities = {0, INT_MAX};
@@ -262,7 +297,9 @@ HeaderIncludes::HeaderIncludes(StringRef FileName, StringRef Code,
       addExistingInclude(
           Include(Matches[2],
                   tooling::Range(
-                      Offset, std::min(Line.size() + 1, Code.size() - Offset))),
+                      Offset, std::min(Line.size() + 1, Code.size() - Offset)),
+                  Matches[1] == "import" ? tooling::IncludeDirective::Import
+                                         : tooling::IncludeDirective::Include),
           NextLineOffset);
     }
     Offset = NextLineOffset;
@@ -299,7 +336,9 @@ void HeaderIncludes::addExistingInclude(Include IncludeToAdd,
   // Only record the offset of current #include if we can insert after it.
   if (CurInclude.R.getOffset() <= MaxInsertOffset) {
     int Priority = Categories.getIncludePriority(
-        CurInclude.Name, /*CheckMainHeader=*/FirstIncludeOffset < 0);
+        CurInclude.Name, /*CheckMainHeader=*/!MainIncludeFound);
+    if (Priority == 0)
+      MainIncludeFound = true;
     CategoryEndOffsets[Priority] = NextLineOffset;
     IncludesByPriority[Priority].push_back(&CurInclude);
     if (FirstIncludeOffset < 0)
@@ -307,23 +346,26 @@ void HeaderIncludes::addExistingInclude(Include IncludeToAdd,
   }
 }
 
-llvm::Optional<tooling::Replacement>
-HeaderIncludes::insert(llvm::StringRef IncludeName, bool IsAngled) const {
+std::optional<tooling::Replacement>
+HeaderIncludes::insert(llvm::StringRef IncludeName, bool IsAngled,
+                       IncludeDirective Directive) const {
   assert(IncludeName == trimInclude(IncludeName));
   // If a <header> ("header") already exists in code, "header" (<header>) with
-  // different quotation will still be inserted.
+  // different quotation and/or directive will still be inserted.
   // FIXME: figure out if this is the best behavior.
   auto It = ExistingIncludes.find(IncludeName);
-  if (It != ExistingIncludes.end())
+  if (It != ExistingIncludes.end()) {
     for (const auto &Inc : It->second)
-      if ((IsAngled && StringRef(Inc.Name).startswith("<")) ||
-          (!IsAngled && StringRef(Inc.Name).startswith("\"")))
-        return llvm::None;
+      if (Inc.Directive == Directive &&
+          ((IsAngled && StringRef(Inc.Name).starts_with("<")) ||
+           (!IsAngled && StringRef(Inc.Name).starts_with("\""))))
+        return std::nullopt;
+  }
   std::string Quoted =
       std::string(llvm::formatv(IsAngled ? "<{0}>" : "\"{0}\"", IncludeName));
   StringRef QuotedName = Quoted;
   int Priority = Categories.getIncludePriority(
-      QuotedName, /*CheckMainHeader=*/FirstIncludeOffset < 0);
+      QuotedName, /*CheckMainHeader=*/!MainIncludeFound);
   auto CatOffset = CategoryEndOffsets.find(Priority);
   assert(CatOffset != CategoryEndOffsets.end());
   unsigned InsertOffset = CatOffset->second; // Fall back offset
@@ -337,8 +379,10 @@ HeaderIncludes::insert(llvm::StringRef IncludeName, bool IsAngled) const {
     }
   }
   assert(InsertOffset <= Code.size());
+  llvm::StringRef DirectiveSpelling =
+      Directive == IncludeDirective::Include ? "include" : "import";
   std::string NewInclude =
-      std::string(llvm::formatv("#include {0}\n", QuotedName));
+      llvm::formatv("#{0} {1}\n", DirectiveSpelling, QuotedName);
   // When inserting headers at end of the code, also append '\n' to the code
   // if it does not end with '\n'.
   // FIXME: when inserting multiple #includes at the end of code, only one
@@ -356,8 +400,8 @@ tooling::Replacements HeaderIncludes::remove(llvm::StringRef IncludeName,
   if (Iter == ExistingIncludes.end())
     return Result;
   for (const auto &Inc : Iter->second) {
-    if ((IsAngled && StringRef(Inc.Name).startswith("\"")) ||
-        (!IsAngled && StringRef(Inc.Name).startswith("<")))
+    if ((IsAngled && StringRef(Inc.Name).starts_with("\"")) ||
+        (!IsAngled && StringRef(Inc.Name).starts_with("<")))
       continue;
     llvm::Error Err = Result.add(tooling::Replacement(
         FileName, Inc.R.getOffset(), Inc.R.getLength(), ""));

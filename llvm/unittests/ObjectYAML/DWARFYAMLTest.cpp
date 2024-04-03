@@ -68,8 +68,7 @@ Blah:    unexpected
 TEST(DebugPubSection, TestDebugPubSection) {
   StringRef Yaml = R"(
 debug_pubnames:
-  Length:
-    TotalLength: 0x1234
+  Length:        0x1234
   Version:       2
   UnitOffset:    0x4321
   UnitSize:      0x00
@@ -79,8 +78,7 @@ debug_pubnames:
     - DieOffset:  0x4321
       Name:       def
 debug_pubtypes:
-  Length:
-    TotalLength: 0x1234
+  Length:        0x1234
   Version:       2
   UnitOffset:    0x4321
   UnitSize:      0x00
@@ -93,8 +91,8 @@ debug_pubtypes:
   DWARFYAML::Data Data;
   ASSERT_THAT_ERROR(parseDWARFYAML(Yaml, Data), Succeeded());
 
-  ASSERT_TRUE(Data.PubNames.hasValue());
-  DWARFYAML::PubSection PubNames = Data.PubNames.getValue();
+  ASSERT_TRUE(Data.PubNames.has_value());
+  DWARFYAML::PubSection PubNames = *Data.PubNames;
 
   ASSERT_EQ(PubNames.Entries.size(), 2u);
   EXPECT_EQ((uint32_t)PubNames.Entries[0].DieOffset, 0x1234u);
@@ -102,8 +100,8 @@ debug_pubtypes:
   EXPECT_EQ((uint32_t)PubNames.Entries[1].DieOffset, 0x4321u);
   EXPECT_EQ(PubNames.Entries[1].Name, "def");
 
-  ASSERT_TRUE(Data.PubTypes.hasValue());
-  DWARFYAML::PubSection PubTypes = Data.PubTypes.getValue();
+  ASSERT_TRUE(Data.PubTypes.has_value());
+  DWARFYAML::PubSection PubTypes = *Data.PubTypes;
 
   ASSERT_EQ(PubTypes.Entries.size(), 2u);
   EXPECT_EQ((uint32_t)PubTypes.Entries[0].DieOffset, 0x1234u);
@@ -115,8 +113,7 @@ debug_pubtypes:
 TEST(DebugPubSection, TestUnexpectedDescriptor) {
   StringRef Yaml = R"(
 debug_pubnames:
-  Length:
-    TotalLength: 0x1234
+  Length:        0x1234
   Version:       2
   UnitOffset:    0x4321
   UnitSize:      0x00
@@ -133,8 +130,7 @@ debug_pubnames:
 TEST(DebugGNUPubSection, TestDebugGNUPubSections) {
   StringRef Yaml = R"(
 debug_gnu_pubnames:
-  Length:
-    TotalLength: 0x1234
+  Length:        0x1234
   Version:       2
   UnitOffset:    0x4321
   UnitSize:      0x00
@@ -146,8 +142,7 @@ debug_gnu_pubnames:
       Descriptor: 0x34
       Name:       def
 debug_gnu_pubtypes:
-  Length:
-    TotalLength: 0x1234
+  Length:        0x1234
   Version:       2
   UnitOffset:    0x4321
   UnitSize:      0x00
@@ -162,8 +157,8 @@ debug_gnu_pubtypes:
   DWARFYAML::Data Data;
   ASSERT_THAT_ERROR(parseDWARFYAML(Yaml, Data), Succeeded());
 
-  ASSERT_TRUE(Data.GNUPubNames.hasValue());
-  DWARFYAML::PubSection GNUPubNames = Data.GNUPubNames.getValue();
+  ASSERT_TRUE(Data.GNUPubNames.has_value());
+  DWARFYAML::PubSection GNUPubNames = *Data.GNUPubNames;
 
   ASSERT_EQ(GNUPubNames.Entries.size(), 2u);
   EXPECT_EQ((uint32_t)GNUPubNames.Entries[0].DieOffset, 0x1234u);
@@ -173,8 +168,8 @@ debug_gnu_pubtypes:
   EXPECT_EQ((uint8_t)GNUPubNames.Entries[1].Descriptor, 0x34);
   EXPECT_EQ(GNUPubNames.Entries[1].Name, "def");
 
-  ASSERT_TRUE(Data.GNUPubTypes.hasValue());
-  DWARFYAML::PubSection GNUPubTypes = Data.GNUPubTypes.getValue();
+  ASSERT_TRUE(Data.GNUPubTypes.has_value());
+  DWARFYAML::PubSection GNUPubTypes = *Data.GNUPubTypes;
 
   ASSERT_EQ(GNUPubTypes.Entries.size(), 2u);
   EXPECT_EQ((uint32_t)GNUPubTypes.Entries[0].DieOffset, 0x1234u);
@@ -188,8 +183,7 @@ debug_gnu_pubtypes:
 TEST(DebugGNUPubSection, TestMissingDescriptor) {
   StringRef Yaml = R"(
 debug_gnu_pubnames:
-  Length:
-    TotalLength: 0x1234
+  Length:        0x1234
   Version:       2
   UnitOffset:    0x4321
   UnitSize:      0x00

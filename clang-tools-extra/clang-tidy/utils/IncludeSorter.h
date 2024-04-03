@@ -10,10 +10,10 @@
 #define LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_INCLUDESORTER_H
 
 #include "../ClangTidyCheck.h"
+#include <optional>
 #include <string>
 
-namespace clang {
-namespace tidy {
+namespace clang::tidy {
 namespace utils {
 
 /// Class used by ``IncludeInserterCallback`` to record the names of the
@@ -23,7 +23,7 @@ namespace utils {
 class IncludeSorter {
 public:
   /// Supported include styles.
-  enum IncludeStyle { IS_LLVM = 0, IS_Google = 1 };
+  enum IncludeStyle { IS_LLVM = 0, IS_Google = 1, IS_Google_ObjC };
 
   /// The classifications of inclusions, in the order they should be sorted.
   enum IncludeKinds {
@@ -31,7 +31,8 @@ public:
     IK_CSystemInclude = 1,   ///< e.g. ``#include <stdio.h>``
     IK_CXXSystemInclude = 2, ///< e.g. ``#include <vector>``
     IK_NonSystemInclude = 3, ///< e.g. ``#include "bar.h"``
-    IK_InvalidInclude = 4    ///< total number of valid ``IncludeKind``s
+    IK_GeneratedInclude = 4, ///< e.g. ``#include "bar.proto.h"``
+    IK_InvalidInclude = 5    ///< total number of valid ``IncludeKind``s
   };
 
   /// ``IncludeSorter`` constructor; takes the FileID and name of the file to be
@@ -40,15 +41,17 @@ public:
                 StringRef FileName, IncludeStyle Style);
 
   /// Adds the given include directive to the sorter.
-  void AddInclude(StringRef FileName, bool IsAngled,
+  void addInclude(StringRef FileName, bool IsAngled,
                   SourceLocation HashLocation, SourceLocation EndLocation);
 
-  /// Creates a quoted inclusion directive in the right sort order. Returns None
-  /// on error or if header inclusion directive for header already exists.
-  Optional<FixItHint> CreateIncludeInsertion(StringRef FileName, bool IsAngled);
+  /// Creates a quoted inclusion directive in the right sort order. Returns
+  /// std::nullopt on error or if header inclusion directive for header already
+  /// exists.
+  std::optional<FixItHint> createIncludeInsertion(StringRef FileName,
+                                                  bool IsAngled);
 
 private:
-  typedef SmallVector<SourceRange, 1> SourceRangeVector;
+  using SourceRangeVector = SmallVector<SourceRange, 1>;
 
   const SourceManager *SourceMgr;
   const IncludeStyle Style;
@@ -69,6 +72,5 @@ template <> struct OptionEnumMapping<utils::IncludeSorter::IncludeStyle> {
   static ArrayRef<std::pair<utils::IncludeSorter::IncludeStyle, StringRef>>
   getEnumMapping();
 };
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy
 #endif // LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_INCLUDESORTER_H

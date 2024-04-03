@@ -12,7 +12,7 @@
 ; RUN: llc %s -o - -mtriple=thumbebv8.1m.main -mattr=+mve.fp -float-abi=hard | \
 ; RUN:   FileCheck %s --check-prefix=CHECK-81M --check-prefix=CHECK-MVE --check-prefix=CHECK-81M-BE
 
-define float @f1(float (float)* nocapture %fptr) #0 {
+define float @f1(ptr nocapture %fptr) #0 {
 ; CHECK-8M-LABEL: f1:
 ; CHECK-8M:       @ %bb.0: @ %entry
 ; CHECK-8M-NEXT:    push {r7, lr}
@@ -65,7 +65,7 @@ entry:
 attributes #0 = { "cmse_nonsecure_entry" nounwind }
 attributes #1 = { nounwind }
 
-define double @d1(double (double)* nocapture %fptr) #0 {
+define double @d1(ptr nocapture %fptr) #0 {
 ; CHECK-8M-LE-LABEL: d1:
 ; CHECK-8M-LE:       @ %bb.0: @ %entry
 ; CHECK-8M-LE-NEXT:    push {r7, lr}
@@ -178,7 +178,7 @@ entry:
   ret double %call
 }
 
-define float @f2(float (float)* nocapture %fptr) #2 {
+define float @f2(ptr nocapture %fptr) #2 {
 ; CHECK-8M-LABEL: f2:
 ; CHECK-8M:       @ %bb.0: @ %entry
 ; CHECK-8M-NEXT:    push {r7, lr}
@@ -236,7 +236,7 @@ entry:
 attributes #2 = { nounwind }
 attributes #3 = { "cmse_nonsecure_call" nounwind }
 
-define double @d2(double (double)* nocapture %fptr) #2 {
+define double @d2(ptr nocapture %fptr) #2 {
 ; CHECK-8M-LE-LABEL: d2:
 ; CHECK-8M-LE:       @ %bb.0: @ %entry
 ; CHECK-8M-LE-NEXT:    push {r7, lr}
@@ -359,7 +359,7 @@ entry:
   ret double %call
 }
 
-define float @f3(float (float)* nocapture %fptr) #4 {
+define float @f3(ptr nocapture %fptr) #4 {
 ; CHECK-8M-LABEL: f3:
 ; CHECK-8M:       @ %bb.0: @ %entry
 ; CHECK-8M-NEXT:    push {r7, lr}
@@ -417,7 +417,7 @@ entry:
 attributes #4 = { nounwind }
 attributes #5 = { "cmse_nonsecure_call" nounwind }
 
-define double @d3(double (double)* nocapture %fptr) #4 {
+define double @d3(ptr nocapture %fptr) #4 {
 ; CHECK-8M-LE-LABEL: d3:
 ; CHECK-8M-LE:       @ %bb.0: @ %entry
 ; CHECK-8M-LE-NEXT:    push {r7, lr}
@@ -540,7 +540,7 @@ entry:
   ret double %call
 }
 
-define float @f4(float ()* nocapture %fptr) #6 {
+define float @f4(ptr nocapture %fptr) #6 {
 ; CHECK-8M-LABEL: f4:
 ; CHECK-8M:       @ %bb.0: @ %entry
 ; CHECK-8M-NEXT:    push {r7, lr}
@@ -591,7 +591,7 @@ entry:
 attributes #6 = { nounwind }
 attributes #7 = { "cmse_nonsecure_call" nounwind }
 
-define double @d4(double ()* nocapture %fptr) #6 {
+define double @d4(ptr nocapture %fptr) #6 {
 ; CHECK-8M-LABEL: d4:
 ; CHECK-8M:       @ %bb.0: @ %entry
 ; CHECK-8M-NEXT:    push {r7, lr}
@@ -639,7 +639,7 @@ entry:
   ret double %call
 }
 
-define void @fd(void (float, double)* %f, float %a, double %b) #8 {
+define void @fd(ptr %f, float %a, double %b) #8 {
 ; CHECK-8M-LABEL: fd:
 ; CHECK-8M:       @ %bb.0: @ %entry
 ; CHECK-8M-NEXT:    push {r7, lr}
@@ -694,7 +694,7 @@ entry:
 attributes #8 = { nounwind }
 attributes #9 = { "cmse_nonsecure_call" nounwind }
 
-define void @fdff(void (float, double, float, float)* %f, float %a, double %b, float %c, float %d) #8 {
+define void @fdff(ptr %f, float %a, double %b, float %c, float %d) #8 {
 ; CHECK-8M-LABEL: fdff:
 ; CHECK-8M:       @ %bb.0: @ %entry
 ; CHECK-8M-NEXT:    push {r7, lr}
@@ -747,7 +747,7 @@ entry:
   ret void
 }
 
-define void @fidififid(void (float, i32, double, i32, float, i32, float, i32, double)* %fu, float %a, i32 %b, double %c, i32 %d, float %e, i32 %f, float %g, i32 %h, double %i) #8 {
+define void @fidififid(ptr %fu, float %a, i32 %b, double %c, i32 %d, float %e, i32 %f, float %g, i32 %h, double %i) #8 {
 ; CHECK-8M-LABEL: fidififid:
 ; CHECK-8M:       @ %bb.0: @ %entry
 ; CHECK-8M-NEXT:    push {r7, lr}
@@ -809,7 +809,7 @@ entry:
   ret void
 }
 
-define half @h1(half (half)* nocapture %hptr) "cmse_nonsecure_entry" nounwind {
+define half @h1(ptr nocapture %hptr) "cmse_nonsecure_entry" nounwind {
 ; CHECK-8M-LABEL: h1:
 ; CHECK-8M:       @ %bb.0:
 ; CHECK-8M-NEXT:    push {r7, lr}
@@ -875,8 +875,6 @@ define half @h1(half (half)* nocapture %hptr) "cmse_nonsecure_entry" nounwind {
 ; CHECK-MVE-NEXT:    push {r7, lr}
 ; CHECK-MVE-NEXT:    sub sp, #4
 ; CHECK-MVE-NEXT:    vmov.f16 s0, #1.000000e+01
-; CHECK-MVE-NEXT:    vmov.f16 r1, s0
-; CHECK-MVE-NEXT:    vmov s0, r1
 ; CHECK-MVE-NEXT:    blx r0
 ; CHECK-MVE-NEXT:    vmov.f16 r0, s0
 ; CHECK-MVE-NEXT:    vmov s0, r0
@@ -890,7 +888,7 @@ define half @h1(half (half)* nocapture %hptr) "cmse_nonsecure_entry" nounwind {
   ret half %call
 }
 
-define half @h2(half (half)* nocapture %hptr) nounwind {
+define half @h2(ptr nocapture %hptr) nounwind {
 ; CHECK-8M-LABEL: h2:
 ; CHECK-8M:       @ %bb.0: @ %entry
 ; CHECK-8M-NEXT:    push {r7, lr}
@@ -953,8 +951,6 @@ define half @h2(half (half)* nocapture %hptr) nounwind {
 ; CHECK-MVE:       @ %bb.0: @ %entry
 ; CHECK-MVE-NEXT:    push {r7, lr}
 ; CHECK-MVE-NEXT:    vmov.f16 s0, #1.000000e+01
-; CHECK-MVE-NEXT:    vmov.f16 r1, s0
-; CHECK-MVE-NEXT:    vmov s0, r1
 ; CHECK-MVE-NEXT:    push.w {r4, r5, r6, r7, r8, r9, r10, r11}
 ; CHECK-MVE-NEXT:    bic r0, r0, #1
 ; CHECK-MVE-NEXT:    vpush {s16, s17, s18, s19, s20, s21, s22, s23, s24, s25, s26, s27, s28, s29, s30, s31}
@@ -971,7 +967,7 @@ entry:
   ret half %call
 }
 
-define half @h3(half (half)* nocapture %hptr) nounwind {
+define half @h3(ptr nocapture %hptr) nounwind {
 ; CHECK-8M-LABEL: h3:
 ; CHECK-8M:       @ %bb.0: @ %entry
 ; CHECK-8M-NEXT:    push {r7, lr}
@@ -1034,8 +1030,6 @@ define half @h3(half (half)* nocapture %hptr) nounwind {
 ; CHECK-MVE:       @ %bb.0: @ %entry
 ; CHECK-MVE-NEXT:    push {r7, lr}
 ; CHECK-MVE-NEXT:    vmov.f16 s0, #1.000000e+01
-; CHECK-MVE-NEXT:    vmov.f16 r1, s0
-; CHECK-MVE-NEXT:    vmov s0, r1
 ; CHECK-MVE-NEXT:    push.w {r4, r5, r6, r7, r8, r9, r10, r11}
 ; CHECK-MVE-NEXT:    bic r0, r0, #1
 ; CHECK-MVE-NEXT:    vpush {s16, s17, s18, s19, s20, s21, s22, s23, s24, s25, s26, s27, s28, s29, s30, s31}
@@ -1052,7 +1046,7 @@ entry:
   ret half %call
 }
 
-define half @h4(half ()* nocapture %hptr) nounwind {
+define half @h4(ptr nocapture %hptr) nounwind {
 ; CHECK-8M-LABEL: h4:
 ; CHECK-8M:       @ %bb.0: @ %entry
 ; CHECK-8M-NEXT:    push {r7, lr}
@@ -1100,7 +1094,7 @@ entry:
   ret half %call
 }
 
-define half @h1_minsize(half (half)* nocapture %hptr) "cmse_nonsecure_entry" minsize nounwind {
+define half @h1_minsize(ptr nocapture %hptr) "cmse_nonsecure_entry" minsize nounwind {
 ; CHECK-8M-LABEL: h1_minsize:
 ; CHECK-8M:       @ %bb.0: @ %entry
 ; CHECK-8M-NEXT:    push {r7, lr}
@@ -1158,8 +1152,6 @@ define half @h1_minsize(half (half)* nocapture %hptr) "cmse_nonsecure_entry" min
 ; CHECK-MVE-NEXT:    vstr fpcxtns, [sp, #-4]!
 ; CHECK-MVE-NEXT:    push {r6, r7, lr}
 ; CHECK-MVE-NEXT:    vmov.f16 s0, #1.000000e+01
-; CHECK-MVE-NEXT:    vmov.f16 r1, s0
-; CHECK-MVE-NEXT:    vmov s0, r1
 ; CHECK-MVE-NEXT:    blx r0
 ; CHECK-MVE-NEXT:    vmov.f16 r0, s0
 ; CHECK-MVE-NEXT:    vmov s0, r0
@@ -1173,7 +1165,7 @@ entry:
   ret half %call
 }
 
-define half @h1_arg(half (half)* nocapture %hptr, half %harg) nounwind {
+define half @h1_arg(ptr nocapture %hptr, half %harg) nounwind {
 ; CHECK-8M-LABEL: h1_arg:
 ; CHECK-8M:       @ %bb.0: @ %entry
 ; CHECK-8M-NEXT:    push {r7, lr}

@@ -405,7 +405,7 @@ template<typename T = Cls,
 // CHECK: [[@LINE-1]]:23 | class/C++ | Cls | c:@S@Cls | <no-cgname> | Ref,RelCont | rel: 1
 // CHECK-NEXT: RelCont | TemplateDefaultValues | c:@ST>3#T#NI#t>1#T@TemplateDefaultValues
          int x = Record::C,
-// CHECK: [[@LINE-1]]:26 | static-property/C++ | C | c:@S@Record@C | __ZN6Record1CE | Ref,Read,RelCont | rel: 1
+// CHECK: [[@LINE-1]]:26 | static-property/C++ | C | c:@S@Record@C | __ZN6Record1CE | Ref,RelCont | rel: 1
 // CHECK-NEXT: RelCont | TemplateDefaultValues | c:@ST>3#T#NI#t>1#T@TemplateDefaultValues
 // CHECK: [[@LINE-3]]:18 | struct/C++ | Record | c:@S@Record | <no-cgname> | Ref,RelCont | rel: 1
          template <typename> class Collection = ns2::ACollectionDecl>
@@ -560,3 +560,11 @@ class SubclassOffsetof : public Struct {
 };
 
 }
+
+namespace clangd_issue_504 {
+class A {};
+template <typename> class B {};
+class C : B<A> {};
+// CHECK: [[@LINE-1]]:13 | class/C++ | A | c:@N@clangd_issue_504@S@A | <no-cgname> | Ref,RelCont | rel: 1
+// CHECK-NEXT: RelCont | C | c:@N@clangd_issue_504@S@C
+} // namespace clangd_issue_504

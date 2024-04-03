@@ -109,6 +109,14 @@ struct CGRecordLowering {
            D->isMsStruct(Context);
   }
 
+  /// Helper function to check if we are targeting AAPCS.
+  bool isAAPCS() const {
+    return Context.getTargetInfo().getABI().starts_with("aapcs");
+  }
+
+  /// Helper function to check if the target machine is BigEndian.
+  bool isBE() const { return Context.getTargetInfo().isBigEndian(); }
+
   /// The Itanium base layout rule allows virtual bases to overlap
   /// other bases, which complicates layout in specific ways.
   ///
@@ -119,15 +127,20 @@ struct CGRecordLowering {
 
   /// Wraps llvm::Type::getIntNTy with some implicit arguments.
   llvm::Type *getIntNType(uint64_t NumBits) {
-    return llvm::Type::getIntNTy(Types.getLLVMContext(),
-                                 (unsigned)llvm::alignTo(NumBits, 8));
+    unsigned AlignedBits = llvm::alignTo(NumBits, Context.getCharWidth());
+    return llvm::Type::getIntNTy(Types.getLLVMContext(), AlignedBits);
   }
-  /// Gets an llvm type of size NumBytes and alignment 1.
-  llvm::Type *getByteArrayType(CharUnits NumBytes) {
-    assert(!NumBytes.isZero() && "Empty byte arrays aren't allowed.");
-    llvm::Type *Type = llvm::Type::getInt8Ty(Types.getLLVMContext());
-    return NumBytes == CharUnits::One() ? Type :
-        (llvm::Type *)llvm::ArrayType::get(Type, NumBytes.getQuantity());
+  /// Get the LLVM type sized as one character unit.
+  llvm::Type *getCharType() {
+    return llvm::Type::getIntNTy(Types.getLLVMContext(),
+                                 Context.getCharWidth());
+  }
+  /// Gets an llvm type of size NumChars and alignment 1.
+  llvm::Type *getByteArrayType(CharUnits NumChars) {
+    assert(!NumChars.isZero() && "Empty byte arrays aren't allowed.");
+    llvm::Type *Type = getCharType();
+    return NumChars == CharUnits::One() ? Type :
+        (llvm::Type *)llvm::ArrayType::get(Type, NumChars.getQuantity());
   }
   /// Gets the storage type for a field decl and handles storage
   /// for itanium bitfields that are smaller than their declared type.
@@ -149,7 +162,7 @@ struct CGRecordLowering {
     return CharUnits::fromQuantity(DataLayout.getTypeAllocSize(Type));
   }
   CharUnits getAlignment(llvm::Type *Type) {
-    return CharUnits::fromQuantity(DataLayout.getABITypeAlignment(Type));
+    return CharUnits::fromQuantity(DataLayout.getABITypeAlign(Type));
   }
   bool isZeroInitializable(const FieldDecl *FD) {
     return Types.isZeroInitializable(FD->getType());
@@ -169,10 +182,11 @@ struct CGRecordLowering {
                        llvm::Type *StorageType);
   /// Lowers an ASTRecordLayout to a llvm type.
   void lower(bool NonVirtualBaseType);
-  void lowerUnion();
+  void lowerUnion(bool isNoUniqueAddress);
   void accumulateFields();
   void accumulateBitFields(RecordDecl::field_iterator Field,
-                        RecordDecl::field_iterator FieldEnd);
+                           RecordDecl::field_iterator FieldEnd);
+  void computeVolatileBitfields();
   void accumulateBases();
   void accumulateVPtrs();
   void accumulateVBases();
@@ -237,6 +251,10 @@ void CGRecordLowering::setBitFieldInfo(
   // least-significant-bit.
   if (DataLayout.isBigEndian())
     Info.Offset = Info.StorageSize - (Info.Offset + Info.Size);
+
+  Info.VolatileStorageSize = 0;
+  Info.VolatileOffset = 0;
+  Info.VolatileStorageOffset = CharUnits::Zero();
 }
 
 void CGRecordLowering::lower(bool NVBaseType) {
@@ -261,15 +279,21 @@ void CGRecordLowering::lower(bool NVBaseType) {
   // 8) Format the complete list of members in a way that can be consumed by
   //    CodeGenTypes::ComputeRecordLayout.
   CharUnits Size = NVBaseType ? Layout.getNonVirtualSize() : Layout.getSize();
-  if (D->isUnion())
-    return lowerUnion();
+  if (D->isUnion()) {
+    lowerUnion(NVBaseType);
+    computeVolatileBitfields();
+    return;
+  }
   accumulateFields();
   // RD implies C++.
   if (RD) {
     accumulateVPtrs();
     accumulateBases();
-    if (Members.empty())
-      return appendPaddingBytes(Size);
+    if (Members.empty()) {
+      appendPaddingBytes(Size);
+      computeVolatileBitfields();
+      return;
+    }
     if (!NVBaseType)
       accumulateVBases();
   }
@@ -281,10 +305,12 @@ void CGRecordLowering::lower(bool NVBaseType) {
   Members.pop_back();
   calculateZeroInit();
   fillOutputFields();
+  computeVolatileBitfields();
 }
 
-void CGRecordLowering::lowerUnion() {
-  CharUnits LayoutSize = Layout.getSize();
+void CGRecordLowering::lowerUnion(bool isNoUniqueAddress) {
+  CharUnits LayoutSize =
+      isNoUniqueAddress ? Layout.getDataSize() : Layout.getSize();
   llvm::Type *StorageType = nullptr;
   bool SeenNamedMember = false;
   // Iterate through the fields setting bitFieldInfo and the Fields array. Also
@@ -340,7 +366,12 @@ void CGRecordLowering::lowerUnion() {
   FieldTypes.push_back(StorageType);
   appendPaddingBytes(LayoutSize - getSize(StorageType));
   // Set packed if we need it.
-  if (LayoutSize % getAlignment(StorageType))
+  const auto StorageAlignment = getAlignment(StorageType);
+  assert((Layout.getSize() % StorageAlignment == 0 ||
+          Layout.getDataSize() % StorageAlignment) &&
+         "Union's standard layout and no_unique_address layout must agree on "
+         "packedness");
+  if (Layout.getDataSize() % StorageAlignment)
     Packed = true;
 }
 
@@ -354,9 +385,14 @@ void CGRecordLowering::accumulateFields() {
       for (++Field; Field != FieldEnd && Field->isBitField(); ++Field);
       accumulateBitFields(Start, Field);
     } else if (!Field->isZeroSize(Context)) {
+      // Use base subobject layout for the potentially-overlapping field,
+      // as it is done in RecordLayoutBuilder
       Members.push_back(MemberInfo(
           bitsToCharUnits(getFieldBitOffset(*Field)), MemberInfo::Field,
-          getStorageType(*Field), *Field));
+          Field->isPotentiallyOverlapping()
+              ? getStorageType(Field->getType()->getAsCXXRecordDecl())
+              : getStorageType(*Field),
+          *Field));
       ++Field;
     } else {
       ++Field;
@@ -386,7 +422,7 @@ CGRecordLowering::accumulateBitFields(RecordDecl::field_iterator Field,
         continue;
       }
       llvm::Type *Type =
-          Types.ConvertTypeForMem(Field->getType(), /*ForBitFields=*/true);
+          Types.ConvertTypeForMem(Field->getType(), /*ForBitField=*/true);
       // If we don't have a run yet, or don't live within the previous run's
       // allocated storage then we allocate some storage and start a new run.
       if (Run == FieldEnd || BitOffset >= Tail) {
@@ -418,9 +454,9 @@ CGRecordLowering::accumulateBitFields(RecordDecl::field_iterator Field,
     if (OffsetInRecord < 8 || !llvm::isPowerOf2_64(OffsetInRecord) ||
         !DataLayout.fitsInLegalInteger(OffsetInRecord))
       return false;
-    // Make sure StartBitOffset is natually aligned if it is treated as an
+    // Make sure StartBitOffset is naturally aligned if it is treated as an
     // IType integer.
-     if (StartBitOffset %
+    if (StartBitOffset %
             Context.toBits(getAlignment(getIntNType(OffsetInRecord))) !=
         0)
       return false;
@@ -503,14 +539,132 @@ void CGRecordLowering::accumulateBases() {
   }
 }
 
+/// The AAPCS that defines that, when possible, bit-fields should
+/// be accessed using containers of the declared type width:
+/// When a volatile bit-field is read, and its container does not overlap with
+/// any non-bit-field member or any zero length bit-field member, its container
+/// must be read exactly once using the access width appropriate to the type of
+/// the container. When a volatile bit-field is written, and its container does
+/// not overlap with any non-bit-field member or any zero-length bit-field
+/// member, its container must be read exactly once and written exactly once
+/// using the access width appropriate to the type of the container. The two
+/// accesses are not atomic.
+///
+/// Enforcing the width restriction can be disabled using
+/// -fno-aapcs-bitfield-width.
+void CGRecordLowering::computeVolatileBitfields() {
+  if (!isAAPCS() || !Types.getCodeGenOpts().AAPCSBitfieldWidth)
+    return;
+
+  for (auto &I : BitFields) {
+    const FieldDecl *Field = I.first;
+    CGBitFieldInfo &Info = I.second;
+    llvm::Type *ResLTy = Types.ConvertTypeForMem(Field->getType());
+    // If the record alignment is less than the type width, we can't enforce a
+    // aligned load, bail out.
+    if ((uint64_t)(Context.toBits(Layout.getAlignment())) <
+        ResLTy->getPrimitiveSizeInBits())
+      continue;
+    // CGRecordLowering::setBitFieldInfo() pre-adjusts the bit-field offsets
+    // for big-endian targets, but it assumes a container of width
+    // Info.StorageSize. Since AAPCS uses a different container size (width
+    // of the type), we first undo that calculation here and redo it once
+    // the bit-field offset within the new container is calculated.
+    const unsigned OldOffset =
+        isBE() ? Info.StorageSize - (Info.Offset + Info.Size) : Info.Offset;
+    // Offset to the bit-field from the beginning of the struct.
+    const unsigned AbsoluteOffset =
+        Context.toBits(Info.StorageOffset) + OldOffset;
+
+    // Container size is the width of the bit-field type.
+    const unsigned StorageSize = ResLTy->getPrimitiveSizeInBits();
+    // Nothing to do if the access uses the desired
+    // container width and is naturally aligned.
+    if (Info.StorageSize == StorageSize && (OldOffset % StorageSize == 0))
+      continue;
+
+    // Offset within the container.
+    unsigned Offset = AbsoluteOffset & (StorageSize - 1);
+    // Bail out if an aligned load of the container cannot cover the entire
+    // bit-field. This can happen for example, if the bit-field is part of a
+    // packed struct. AAPCS does not define access rules for such cases, we let
+    // clang to follow its own rules.
+    if (Offset + Info.Size > StorageSize)
+      continue;
+
+    // Re-adjust offsets for big-endian targets.
+    if (isBE())
+      Offset = StorageSize - (Offset + Info.Size);
+
+    const CharUnits StorageOffset =
+        Context.toCharUnitsFromBits(AbsoluteOffset & ~(StorageSize - 1));
+    const CharUnits End = StorageOffset +
+                          Context.toCharUnitsFromBits(StorageSize) -
+                          CharUnits::One();
+
+    const ASTRecordLayout &Layout =
+        Context.getASTRecordLayout(Field->getParent());
+    // If we access outside memory outside the record, than bail out.
+    const CharUnits RecordSize = Layout.getSize();
+    if (End >= RecordSize)
+      continue;
+
+    // Bail out if performing this load would access non-bit-fields members.
+    bool Conflict = false;
+    for (const auto *F : D->fields()) {
+      // Allow sized bit-fields overlaps.
+      if (F->isBitField() && !F->isZeroLengthBitField(Context))
+        continue;
+
+      const CharUnits FOffset = Context.toCharUnitsFromBits(
+          Layout.getFieldOffset(F->getFieldIndex()));
+
+      // As C11 defines, a zero sized bit-field defines a barrier, so
+      // fields after and before it should be race condition free.
+      // The AAPCS acknowledges it and imposes no restritions when the
+      // natural container overlaps a zero-length bit-field.
+      if (F->isZeroLengthBitField(Context)) {
+        if (End > FOffset && StorageOffset < FOffset) {
+          Conflict = true;
+          break;
+        }
+      }
+
+      const CharUnits FEnd =
+          FOffset +
+          Context.toCharUnitsFromBits(
+              Types.ConvertTypeForMem(F->getType())->getPrimitiveSizeInBits()) -
+          CharUnits::One();
+      // If no overlap, continue.
+      if (End < FOffset || FEnd < StorageOffset)
+        continue;
+
+      // The desired load overlaps a non-bit-field member, bail out.
+      Conflict = true;
+      break;
+    }
+
+    if (Conflict)
+      continue;
+    // Write the new bit-field access parameters.
+    // As the storage offset now is defined as the number of elements from the
+    // start of the structure, we should divide the Offset by the element size.
+    Info.VolatileStorageOffset =
+        StorageOffset / Context.toCharUnitsFromBits(StorageSize).getQuantity();
+    Info.VolatileStorageSize = StorageSize;
+    Info.VolatileOffset = Offset;
+  }
+}
+
 void CGRecordLowering::accumulateVPtrs() {
   if (Layout.hasOwnVFPtr())
-    Members.push_back(MemberInfo(CharUnits::Zero(), MemberInfo::VFPtr,
-        llvm::FunctionType::get(getIntNType(32), /*isVarArg=*/true)->
-            getPointerTo()->getPointerTo()));
+    Members.push_back(
+        MemberInfo(CharUnits::Zero(), MemberInfo::VFPtr,
+                   llvm::PointerType::getUnqual(Types.getLLVMContext())));
   if (Layout.hasOwnVBPtr())
-    Members.push_back(MemberInfo(Layout.getVBPtrOffset(), MemberInfo::VBPtr,
-        llvm::Type::getInt32PtrTy(Types.getLLVMContext())));
+    Members.push_back(
+        MemberInfo(Layout.getVBPtrOffset(), MemberInfo::VBPtr,
+                   llvm::PointerType::getUnqual(Types.getLLVMContext())));
 }
 
 void CGRecordLowering::accumulateVBases() {
@@ -605,7 +759,7 @@ void CGRecordLowering::clipTailPadding() {
         assert(Prior->FD->hasAttr<NoUniqueAddressAttr>() &&
                "should not have reused this field's tail padding");
         Prior->Data = getByteArrayType(
-            Context.getTypeInfoDataSizeInChars(Prior->FD->getType()).first);
+            Context.getTypeInfoDataSizeInChars(Prior->FD->getType()).Width);
       }
     }
     if (Member->Data)
@@ -740,7 +894,7 @@ CodeGenTypes::ComputeRecordLayout(const RecordDecl *D, llvm::StructType *Ty) {
 
   // If we're in C++, compute the base subobject type.
   llvm::StructType *BaseTy = nullptr;
-  if (isa<CXXRecordDecl>(D) && !D->isUnion() && !D->hasAttr<FinalAttr>()) {
+  if (isa<CXXRecordDecl>(D)) {
     BaseTy = Ty;
     if (Builder.Layout.getNonVirtualSize() != Builder.Layout.getSize()) {
       CGRecordLowering BaseBuilder(*this, D, /*Packed=*/Builder.Packed);
@@ -848,8 +1002,10 @@ CodeGenTypes::ComputeRecordLayout(const RecordDecl *D, llvm::StructType *Ty) {
       assert(Info.StorageSize <= SL->getSizeInBits() &&
              "Union not large enough for bitfield storage");
     } else {
-      assert(Info.StorageSize ==
-             getDataLayout().getTypeAllocSizeInBits(ElementTy) &&
+      assert((Info.StorageSize ==
+                  getDataLayout().getTypeAllocSizeInBits(ElementTy) ||
+              Info.VolatileStorageSize ==
+                  getDataLayout().getTypeAllocSizeInBits(ElementTy)) &&
              "Storage size does not match the element type size");
     }
     assert(Info.Size > 0 && "Empty bitfield!");
@@ -897,11 +1053,12 @@ LLVM_DUMP_METHOD void CGRecordLayout::dump() const {
 
 void CGBitFieldInfo::print(raw_ostream &OS) const {
   OS << "<CGBitFieldInfo"
-     << " Offset:" << Offset
-     << " Size:" << Size
-     << " IsSigned:" << IsSigned
+     << " Offset:" << Offset << " Size:" << Size << " IsSigned:" << IsSigned
      << " StorageSize:" << StorageSize
-     << " StorageOffset:" << StorageOffset.getQuantity() << ">";
+     << " StorageOffset:" << StorageOffset.getQuantity()
+     << " VolatileOffset:" << VolatileOffset
+     << " VolatileStorageSize:" << VolatileStorageSize
+     << " VolatileStorageOffset:" << VolatileStorageOffset.getQuantity() << ">";
 }
 
 LLVM_DUMP_METHOD void CGBitFieldInfo::dump() const {

@@ -25,13 +25,8 @@ class XRayArgs {
   std::vector<std::string> ExtraDeps;
   std::vector<std::string> Modes;
   XRayInstrSet InstrumentationBundle;
-  bool XRayInstrument = false;
-  int InstructionThreshold = 200;
-  bool XRayAlwaysEmitCustomEvents = false;
-  bool XRayAlwaysEmitTypedEvents = false;
+  llvm::opt::Arg *XRayInstrument = nullptr;
   bool XRayRT = true;
-  bool XRayIgnoreLoops = false;
-  bool XRayFunctionIndex;
 
 public:
   /// Parses the XRay arguments from an argument list.

@@ -11,10 +11,7 @@
 
 #include "../ClangTidyCheck.h"
 
-namespace clang {
-namespace tidy {
-namespace google {
-namespace build {
+namespace clang::tidy::google::build {
 
 /// Check that `make_pair`'s template arguments are deduced.
 ///
@@ -22,6 +19,9 @@ namespace build {
 /// specified explicitly, and such use isn't intended in any case.
 ///
 /// Corresponding cpplint.py check name: 'build/explicit_make_pair'.
+///
+/// For the user-facing documentation see:
+/// http://clang.llvm.org/extra/clang-tidy/checks/google/build-explicit-make-pair.html
 class ExplicitMakePairCheck : public ClangTidyCheck {
 public:
   ExplicitMakePairCheck(StringRef Name, ClangTidyContext *Context)
@@ -33,9 +33,6 @@ public:
   void check(const ast_matchers::MatchFinder::MatchResult &Result) override;
 };
 
-} // namespace build
-} // namespace google
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy::google::build
 
 #endif // LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_GOOGLE_EXPLICITMAKEPAIRCHECK_H

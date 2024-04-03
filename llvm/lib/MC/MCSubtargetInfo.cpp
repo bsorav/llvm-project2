@@ -11,12 +11,13 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/MC/MCInstrItineraries.h"
 #include "llvm/MC/MCSchedule.h"
-#include "llvm/MC/SubtargetFeature.h"
 #include "llvm/Support/Format.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/TargetParser/SubtargetFeature.h"
 #include <algorithm>
 #include <cassert>
 #include <cstring>
+#include <optional>
 
 using namespace llvm;
 
@@ -141,13 +142,13 @@ static void cpuHelp(ArrayRef<SubtargetSubTypeKV> CPUTable) {
   errs() << '\n';
 
   errs() << "Use -mcpu or -mtune to specify the target's processor.\n"
-            "For example, clang --target=aarch64-unknown-linux-gui "
+            "For example, clang --target=aarch64-unknown-linux-gnu "
             "-mcpu=cortex-a35\n";
 
   PrintOnce = true;
 }
 
-static FeatureBitset getFeatures(StringRef CPU, StringRef FS,
+static FeatureBitset getFeatures(StringRef CPU, StringRef TuneCPU, StringRef FS,
                                  ArrayRef<SubtargetSubTypeKV> ProcDesc,
                                  ArrayRef<SubtargetFeatureKV> ProcFeatures) {
   SubtargetFeatures Features(FS);
@@ -178,6 +179,19 @@ static FeatureBitset getFeatures(StringRef CPU, StringRef FS,
     }
   }
 
+  if (!TuneCPU.empty()) {
+    const SubtargetSubTypeKV *CPUEntry = Find(TuneCPU, ProcDesc);
+
+    // If there is a match
+    if (CPUEntry) {
+      // Set the features implied by this CPU feature, if any.
+      SetImpliedBits(Bits, CPUEntry->TuneImplies.getAsBitset(), ProcFeatures);
+    } else if (TuneCPU != CPU) {
+      errs() << "'" << TuneCPU << "' is not a recognized processor for this "
+             << "target (ignoring processor)\n";
+    }
+  }
+
   // Iterate through each feature
   for (const std::string &Feature : Features.getFeatures()) {
     // Check for help
@@ -192,30 +206,36 @@ static FeatureBitset getFeatures(StringRef CPU, StringRef FS,
   return Bits;
 }
 
-void MCSubtargetInfo::InitMCProcessorInfo(StringRef CPU, StringRef FS) {
-  FeatureBits = getFeatures(CPU, FS, ProcDesc, ProcFeatures);
-  if (!CPU.empty())
-    CPUSchedModel = &getSchedModelForCPU(CPU);
+void MCSubtargetInfo::InitMCProcessorInfo(StringRef CPU, StringRef TuneCPU,
+                                          StringRef FS) {
+  FeatureBits = getFeatures(CPU, TuneCPU, FS, ProcDesc, ProcFeatures);
+  FeatureString = std::string(FS);
+
+  if (!TuneCPU.empty())
+    CPUSchedModel = &getSchedModelForCPU(TuneCPU);
   else
-    CPUSchedModel = &MCSchedModel::GetDefaultSchedModel();
+    CPUSchedModel = &MCSchedModel::Default;
 }
 
-void MCSubtargetInfo::setDefaultFeatures(StringRef CPU, StringRef FS) {
-  FeatureBits = getFeatures(CPU, FS, ProcDesc, ProcFeatures);
+void MCSubtargetInfo::setDefaultFeatures(StringRef CPU, StringRef TuneCPU,
+                                         StringRef FS) {
+  FeatureBits = getFeatures(CPU, TuneCPU, FS, ProcDesc, ProcFeatures);
+  FeatureString = std::string(FS);
 }
 
-MCSubtargetInfo::MCSubtargetInfo(const Triple &TT, StringRef C, StringRef FS,
-                                 ArrayRef<SubtargetFeatureKV> PF,
+MCSubtargetInfo::MCSubtargetInfo(const Triple &TT, StringRef C, StringRef TC,
+                                 StringRef FS, ArrayRef<SubtargetFeatureKV> PF,
                                  ArrayRef<SubtargetSubTypeKV> PD,
                                  const MCWriteProcResEntry *WPR,
                                  const MCWriteLatencyEntry *WL,
                                  const MCReadAdvanceEntry *RA,
                                  const InstrStage *IS, const unsigned *OC,
                                  const unsigned *FP)
-    : TargetTriple(TT), CPU(std::string(C)), ProcFeatures(PF), ProcDesc(PD),
-      WriteProcResTable(WPR), WriteLatencyTable(WL), ReadAdvanceTable(RA),
-      Stages(IS), OperandCycles(OC), ForwardingPaths(FP) {
-  InitMCProcessorInfo(CPU, FS);
+    : TargetTriple(TT), CPU(std::string(C)), TuneCPU(std::string(TC)),
+      ProcFeatures(PF), ProcDesc(PD), WriteProcResTable(WPR),
+      WriteLatencyTable(WL), ReadAdvanceTable(RA), Stages(IS),
+      OperandCycles(OC), ForwardingPaths(FP) {
+  InitMCProcessorInfo(CPU, TuneCPU, FS);
 }
 
 FeatureBitset MCSubtargetInfo::ToggleFeature(uint64_t FB) {
@@ -299,7 +319,7 @@ const MCSchedModel &MCSubtargetInfo::getSchedModelForCPU(StringRef CPU) const {
       errs() << "'" << CPU
              << "' is not a recognized processor for this target"
              << " (ignoring processor)\n";
-    return MCSchedModel::GetDefaultSchedModel();
+    return MCSchedModel::Default;
   }
   assert(CPUEntry->SchedModel && "Missing processor SchedModel value");
   return *CPUEntry->SchedModel;
@@ -316,17 +336,18 @@ void MCSubtargetInfo::initInstrItins(InstrItineraryData &InstrItins) const {
                                   ForwardingPaths);
 }
 
-Optional<unsigned> MCSubtargetInfo::getCacheSize(unsigned Level) const {
-  return Optional<unsigned>();
+std::optional<unsigned> MCSubtargetInfo::getCacheSize(unsigned Level) const {
+  return std::nullopt;
 }
 
-Optional<unsigned>
+std::optional<unsigned>
 MCSubtargetInfo::getCacheAssociativity(unsigned Level) const {
-  return Optional<unsigned>();
+  return std::nullopt;
 }
 
-Optional<unsigned> MCSubtargetInfo::getCacheLineSize(unsigned Level) const {
-  return Optional<unsigned>();
+std::optional<unsigned>
+MCSubtargetInfo::getCacheLineSize(unsigned Level) const {
+  return std::nullopt;
 }
 
 unsigned MCSubtargetInfo::getPrefetchDistance() const {
@@ -346,4 +367,8 @@ unsigned MCSubtargetInfo::getMinPrefetchStride(unsigned NumMemAccesses,
                                                unsigned NumPrefetches,
                                                bool HasCall) const {
   return 1;
+}
+
+bool MCSubtargetInfo::shouldPrefetchAddressSpace(unsigned AS) const {
+  return !AS;
 }

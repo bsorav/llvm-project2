@@ -267,7 +267,6 @@ void IntrinsicLowering::LowerIntrinsicCall(CallInst *CI) {
     break;
   }
 
-  case Intrinsic::unseq_noalias:
   case Intrinsic::break_statement_marker:
     break;
 
@@ -334,6 +333,7 @@ void IntrinsicLowering::LowerIntrinsicCall(CallInst *CI) {
     break;
 
   case Intrinsic::assume:
+  case Intrinsic::experimental_noalias_scope_decl:
   case Intrinsic::var_annotation:
     break;   // Strip out these intrinsics
 
@@ -434,7 +434,7 @@ void IntrinsicLowering::LowerIntrinsicCall(CallInst *CI) {
     ReplaceFPIntrinsicWithCall(CI, "copysignf", "copysign", "copysignl");
     break;
   }
-  case Intrinsic::flt_rounds:
+  case Intrinsic::get_rounding:
      // Lower to "round to the nearest"
      if (!CI->getType()->isVoidTy())
        CI->replaceAllUsesWith(ConstantInt::get(CI->getType(), 1));
@@ -457,8 +457,7 @@ void IntrinsicLowering::LowerIntrinsicCall(CallInst *CI) {
 
 bool IntrinsicLowering::LowerToByteSwap(CallInst *CI) {
   // Verify this is a simple bswap.
-  if (CI->getNumArgOperands() != 1 ||
-      CI->getType() != CI->getArgOperand(0)->getType() ||
+  if (CI->arg_size() != 1 || CI->getType() != CI->getArgOperand(0)->getType() ||
       !CI->getType()->isIntegerTy())
     return false;
 

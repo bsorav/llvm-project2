@@ -15,6 +15,7 @@ add_lldb_library(lldbPluginSymbolFileNativePDB
     lldbSymbol
     lldbUtility
     lldbPluginTypeSystemClang
+    lldbPluginObjectFilePDB
   CLANG_LIBS
     clangAST
     clangLex
@@ -22,4 +23,5 @@ add_lldb_library(lldbPluginSymbolFileNativePDB
     DebugInfoCodeView
     DebugInfoPDB
     Support
+    TargetParser
   )

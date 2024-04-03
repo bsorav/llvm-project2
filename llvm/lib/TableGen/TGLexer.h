@@ -29,46 +29,160 @@ class SourceMgr;
 class Twine;
 
 namespace tgtok {
-  enum TokKind {
-    // Markers
-    Eof, Error,
+enum TokKind {
+  // Markers
+  Eof,
+  Error,
 
-    // Tokens with no info.
-    minus, plus,        // - +
-    l_square, r_square, // [ ]
-    l_brace, r_brace,   // { }
-    l_paren, r_paren,   // ( )
-    less, greater,      // < >
-    colon, semi,        // : ;
-    comma, period,      // , .
-    equal, question,    // = ?
-    paste,              // #
+  // Tokens with no info.
+  minus,     // -
+  plus,      // +
+  l_square,  // [
+  r_square,  // ]
+  l_brace,   // {
+  r_brace,   // }
+  l_paren,   // (
+  r_paren,   // )
+  less,      // <
+  greater,   // >
+  colon,     // :
+  semi,      // ;
+  comma,     // ,
+  dot,       // .
+  equal,     // =
+  question,  // ?
+  paste,     // #
+  dotdotdot, // ...
 
-    // Keywords. ('ElseKW' is named to distinguish it from the existing 'Else'
-    // that means the preprocessor #else.)
-    Bit, Bits, Class, Code, Dag, Def, Foreach, Defm, Field, In, Int, Let, List,
-    MultiClass, String, Defset, Defvar, If, Then, ElseKW,
+  // Boolean literals.
+  TrueVal,
+  FalseVal,
 
-    // !keywords.
-    XConcat, XADD, XMUL, XAND, XOR, XSRA, XSRL, XSHL, XListConcat, XListSplat,
-    XStrConcat, XCast, XSubst, XForEach, XFoldl, XHead, XTail, XSize, XEmpty,
-    XIf, XCond, XEq, XIsA, XDag, XNe, XLe, XLt, XGe, XGt, XSetOp, XGetOp,
+  // Integer value.
+  IntVal,
 
-    // Integer value.
-    IntVal,
+  // Binary constant.  Note that these are sized according to the number of
+  // bits given.
+  BinaryIntVal,
 
-    // Binary constant.  Note that these are sized according to the number of
-    // bits given.
-    BinaryIntVal,
+  // Preprocessing tokens for internal usage by the lexer.
+  // They are never returned as a result of Lex().
+  Ifdef,
+  Ifndef,
+  Else,
+  Endif,
+  Define,
 
-    // String valued tokens.
-    Id, StrVal, VarName, CodeFragment,
+  // Reserved keywords. ('ElseKW' is named to distinguish it from the
+  // existing 'Else' that means the preprocessor #else.)
+  Bit,
+  Bits,
+  Code,
+  Dag,
+  ElseKW,
+  FalseKW,
+  Field,
+  In,
+  Include,
+  Int,
+  List,
+  String,
+  Then,
+  TrueKW,
 
-    // Preprocessing tokens for internal usage by the lexer.
-    // They are never returned as a result of Lex().
-    Ifdef, Ifndef, Else, Endif, Define
-  };
+  // Object start tokens.
+  OBJECT_START_FIRST,
+  Assert = OBJECT_START_FIRST,
+  Class,
+  Def,
+  Defm,
+  Defset,
+  Defvar,
+  Dump,
+  Foreach,
+  If,
+  Let,
+  MultiClass,
+  OBJECT_START_LAST = MultiClass,
+
+  // Bang operators.
+  BANG_OPERATOR_FIRST,
+  XConcat = BANG_OPERATOR_FIRST,
+  XADD,
+  XSUB,
+  XMUL,
+  XDIV,
+  XNOT,
+  XLOG2,
+  XAND,
+  XOR,
+  XXOR,
+  XSRA,
+  XSRL,
+  XSHL,
+  XListConcat,
+  XListSplat,
+  XStrConcat,
+  XInterleave,
+  XSubstr,
+  XFind,
+  XCast,
+  XSubst,
+  XForEach,
+  XFilter,
+  XFoldl,
+  XHead,
+  XTail,
+  XSize,
+  XEmpty,
+  XIf,
+  XCond,
+  XEq,
+  XIsA,
+  XDag,
+  XNe,
+  XLe,
+  XLt,
+  XGe,
+  XGt,
+  XSetDagOp,
+  XGetDagOp,
+  XExists,
+  XListRemove,
+  XToLower,
+  XToUpper,
+  XRange,
+  XGetDagArg,
+  XGetDagName,
+  XSetDagArg,
+  XSetDagName,
+  XRepr,
+  BANG_OPERATOR_LAST = XRepr,
+
+  // String valued tokens.
+  STRING_VALUE_FIRST,
+  Id = STRING_VALUE_FIRST,
+  StrVal,
+  VarName,
+  CodeFragment,
+  STRING_VALUE_LAST = CodeFragment,
+};
+
+/// isBangOperator - Return true if this is a bang operator.
+static inline bool isBangOperator(tgtok::TokKind Kind) {
+  return tgtok::BANG_OPERATOR_FIRST <= Kind && Kind <= BANG_OPERATOR_LAST;
 }
+
+/// isObjectStart - Return true if this is a valid first token for a statement.
+static inline bool isObjectStart(tgtok::TokKind Kind) {
+  return tgtok::OBJECT_START_FIRST <= Kind && Kind <= OBJECT_START_LAST;
+}
+
+/// isStringValue - Return true if this is a string value.
+static inline bool isStringValue(tgtok::TokKind Kind) {
+  return tgtok::STRING_VALUE_FIRST <= Kind && Kind <= STRING_VALUE_LAST;
+}
+} // namespace tgtok
 
 /// TGLexer - TableGen Lexer class.
 class TGLexer {
@@ -80,8 +194,8 @@ class TGLexer {
   // Information about the current token.
   const char *TokStart = nullptr;
   tgtok::TokKind CurCode = tgtok::TokKind::Eof;
-  std::string CurStrVal;  // This is valid for ID, STRVAL, VARNAME, CODEFRAGMENT
-  int64_t CurIntVal = 0;  // This is valid for INTVAL.
+  std::string CurStrVal; // This is valid for Id, StrVal, VarName, CodeFragment
+  int64_t CurIntVal = 0; // This is valid for IntVal.
 
   /// CurBuffer - This is the current buffer index we're lexing from as managed
   /// by the SourceMgr object.
@@ -108,8 +222,7 @@ public:
   tgtok::TokKind getCode() const { return CurCode; }
 
   const std::string &getCurStrVal() const {
-    assert((CurCode == tgtok::Id || CurCode == tgtok::StrVal ||
-            CurCode == tgtok::VarName || CurCode == tgtok::CodeFragment) &&
+    assert(tgtok::isStringValue(CurCode) &&
            "This token doesn't have a string value");
     return CurStrVal;
   }
@@ -124,6 +237,7 @@ public:
   }
 
   SMLoc getLoc() const;
+  SMRange getLocRange() const;
 
 private:
   /// LexToken - Read the next token and return its code.
@@ -331,7 +445,7 @@ private:
   //
   // The method returns true upon reaching the first non-whitespace symbol
   // or EOF, CurPtr is set to point to this symbol.  The method returns false,
-  // if an error occured during skipping of a C-style comment.
+  // if an error occurred during skipping of a C-style comment.
   bool prepSkipLineBegin();
 
   // Skip any whitespaces or comments after a preprocessing directive.
@@ -339,7 +453,7 @@ private:
   // or end of the file.  If there is a multiline C-style comment
   // after the preprocessing directive, the method skips
   // the comment, so the final CurPtr may point to one of the next lines.
-  // The method returns false, if an error occured during skipping
+  // The method returns false, if an error occurred during skipping
   // C- or C++-style comment, or a non-whitespace symbol appears
   // after the preprocessing directive.
   //

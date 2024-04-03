@@ -5,6 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+
 #ifndef MAP_ALLOCATOR_REQUIREMENT_TEST_TEMPLATES_H
 #define MAP_ALLOCATOR_REQUIREMENT_TEST_TEMPLATES_H
 
@@ -21,11 +22,11 @@
 // UNSUPPORTED: c++03
 
 #include <cassert>
+#include <iterator>
 
 #include "test_macros.h"
 #include "count_new.h"
 #include "container_test_types.h"
-#include "assert_checkpoint.h"
 
 
 template <class Container>
@@ -35,7 +36,7 @@ void testMapInsert()
   ConstructController* cc = getConstructController();
   cc->reset();
   {
-    CHECKPOINT("Testing C::insert(const value_type&)");
+    // Testing C::insert(const value_type&)
     Container c;
     const ValueTp v(42, 1);
     cc->expect<const ValueTp&>();
@@ -48,7 +49,7 @@ void testMapInsert()
     }
   }
   {
-    CHECKPOINT("Testing C::insert(value_type&)");
+    // Testing C::insert(value_type&)
     Container c;
     ValueTp v(42, 1);
     cc->expect<const ValueTp&>();
@@ -61,7 +62,7 @@ void testMapInsert()
     }
   }
   {
-    CHECKPOINT("Testing C::insert(value_type&&)");
+    // Testing C::insert(value_type&&)
     Container c;
     ValueTp v(42, 1);
     cc->expect<ValueTp&&>();
@@ -74,7 +75,7 @@ void testMapInsert()
     }
   }
   {
-    CHECKPOINT("Testing C::insert(const value_type&&)");
+    // Testing C::insert(const value_type&&)
     Container c;
     const ValueTp v(42, 1);
     cc->expect<const ValueTp&>();
@@ -87,7 +88,7 @@ void testMapInsert()
     }
   }
   {
-    CHECKPOINT("Testing C::insert({key, value})");
+    // Testing C::insert({key, value})
     Container c;
     cc->expect<ValueTp&&>();
     assert(c.insert({42, 1}).second);
@@ -99,7 +100,7 @@ void testMapInsert()
     }
   }
   {
-    CHECKPOINT("Testing C::insert(std::initializer_list<ValueTp>)");
+    // Testing C::insert(std::initializer_list<ValueTp>)
     Container c;
     std::initializer_list<ValueTp> il = { ValueTp(1, 1), ValueTp(2, 1) };
     cc->expect<ValueTp const&>(2);
@@ -111,7 +112,7 @@ void testMapInsert()
     }
   }
   {
-    CHECKPOINT("Testing C::insert(Iter, Iter) for *Iter = value_type const&");
+    // Testing C::insert(Iter, Iter) for *Iter = value_type const&
     Container c;
     const ValueTp ValueList[] = { ValueTp(1, 1), ValueTp(2, 1), ValueTp(3, 1) };
     cc->expect<ValueTp const&>(3);
@@ -123,7 +124,7 @@ void testMapInsert()
     }
   }
   {
-    CHECKPOINT("Testing C::insert(Iter, Iter) for *Iter = value_type&&");
+    // Testing C::insert(Iter, Iter) for *Iter = value_type&&
     Container c;
     ValueTp ValueList[] = { ValueTp(1, 1), ValueTp(2, 1) , ValueTp(3, 1) };
     cc->expect<ValueTp&&>(3);
@@ -138,7 +139,7 @@ void testMapInsert()
     }
   }
   {
-    CHECKPOINT("Testing C::insert(Iter, Iter) for *Iter = value_type&");
+    // Testing C::insert(Iter, Iter) for *Iter = value_type&
     Container c;
     ValueTp ValueList[] = { ValueTp(1, 1), ValueTp(2, 1) , ValueTp(3, 1) };
     cc->expect<ValueTp const&>(3);
@@ -164,7 +165,7 @@ void testMapInsertHint()
   ConstructController* cc = getConstructController();
   cc->reset();
   {
-    CHECKPOINT("Testing C::insert(p, const value_type&)");
+    // Testing C::insert(p, const value_type&)
     Container c;
     const ValueTp v(42, 1);
     cc->expect<const ValueTp&>();
@@ -181,7 +182,7 @@ void testMapInsertHint()
     }
   }
   {
-    CHECKPOINT("Testing C::insert(p, value_type&)");
+    // Testing C::insert(p, value_type&)
     Container c;
     ValueTp v(42, 1);
     cc->expect<ValueTp const&>();
@@ -198,7 +199,7 @@ void testMapInsertHint()
     }
   }
   {
-    CHECKPOINT("Testing C::insert(p, value_type&&)");
+    // Testing C::insert(p, value_type&&)
     Container c;
     ValueTp v(42, 1);
     cc->expect<ValueTp&&>();
@@ -215,7 +216,7 @@ void testMapInsertHint()
     }
   }
   {
-    CHECKPOINT("Testing C::insert(p, {key, value})");
+    // Testing C::insert(p, {key, value})
     Container c;
     cc->expect<ValueTp&&>();
     It ret = c.insert(c.end(), {42, 1});
@@ -230,7 +231,7 @@ void testMapInsertHint()
     }
   }
   {
-    CHECKPOINT("Testing C::insert(p, const value_type&&)");
+    // Testing C::insert(p, const value_type&&)
     Container c;
     const ValueTp v(42, 1);
     cc->expect<const ValueTp&>();
@@ -247,7 +248,7 @@ void testMapInsertHint()
     }
   }
   {
-    CHECKPOINT("Testing C::insert(p, pair<Key, Mapped> const&)");
+    // Testing C::insert(p, pair<Key, Mapped> const&)
     Container c;
     const NonConstKeyPair v(42, 1);
     cc->expect<const NonConstKeyPair&>();
@@ -264,7 +265,7 @@ void testMapInsertHint()
     }
   }
   {
-    CHECKPOINT("Testing C::insert(p, pair<Key, Mapped>&&)");
+    // Testing C::insert(p, pair<Key, Mapped>&&)
     Container c;
     NonConstKeyPair v(42, 1);
     cc->expect<NonConstKeyPair&&>();
@@ -295,7 +296,7 @@ void testMapEmplace()
   ConstructController* cc = getConstructController();
   cc->reset();
   {
-    CHECKPOINT("Testing C::emplace(const value_type&)");
+    // Testing C::emplace(const value_type&)
     Container c;
     const ValueTp v(42, 1);
     cc->expect<const ValueTp&>();
@@ -308,7 +309,7 @@ void testMapEmplace()
     }
   }
   {
-    CHECKPOINT("Testing C::emplace(value_type&)");
+    // Testing C::emplace(value_type&)
     Container c;
     ValueTp v(42, 1);
     cc->expect<ValueTp&>();
@@ -321,7 +322,7 @@ void testMapEmplace()
     }
   }
   {
-    CHECKPOINT("Testing C::emplace(value_type&&)");
+    // Testing C::emplace(value_type&&)
     Container c;
     ValueTp v(42, 1);
     cc->expect<ValueTp&&>();
@@ -334,7 +335,7 @@ void testMapEmplace()
     }
   }
   {
-    CHECKPOINT("Testing C::emplace(const value_type&&)");
+    // Testing C::emplace(const value_type&&)
     Container c;
     const ValueTp v(42, 1);
     cc->expect<const ValueTp&&>();
@@ -347,7 +348,7 @@ void testMapEmplace()
     }
   }
   {
-    CHECKPOINT("Testing C::emplace(pair<Key, Mapped> const&)");
+    // Testing C::emplace(pair<Key, Mapped> const&)
     Container c;
     const NonConstKeyPair v(42, 1);
     cc->expect<const NonConstKeyPair&>();
@@ -360,7 +361,7 @@ void testMapEmplace()
     }
   }
   {
-    CHECKPOINT("Testing C::emplace(pair<Key, Mapped> &&)");
+    // Testing C::emplace(pair<Key, Mapped> &&)
     Container c;
     NonConstKeyPair v(42, 1);
     cc->expect<NonConstKeyPair&&>();
@@ -373,7 +374,7 @@ void testMapEmplace()
     }
   }
   {
-    CHECKPOINT("Testing C::emplace(const Key&, ConvertibleToMapped&&)");
+    // Testing C::emplace(const Key&, ConvertibleToMapped&&)
     Container c;
     const Key k(42);
     cc->expect<Key const&, int&&>();
@@ -386,7 +387,7 @@ void testMapEmplace()
     }
   }
   {
-    CHECKPOINT("Testing C::emplace(Key&, Mapped&)");
+    // Testing C::emplace(Key&, Mapped&)
     Container c;
     Key k(42);
     Mapped m(1);
@@ -400,7 +401,7 @@ void testMapEmplace()
     }
   }
   {
-    CHECKPOINT("Testing C::emplace(Key&&, Mapped&&)");
+    // Testing C::emplace(Key&&, Mapped&&)
     Container c;
     Key k(42);
     Mapped m(1);
@@ -415,7 +416,7 @@ void testMapEmplace()
     }
   }
   {
-    CHECKPOINT("Testing C::emplace(ConvertibleToKey&&, ConvertibleToMapped&&)");
+    // Testing C::emplace(ConvertibleToKey&&, ConvertibleToMapped&&)
     Container c;
     cc->expect<int&&, int&&>();
     assert(c.emplace(42, 1).second);
@@ -443,7 +444,7 @@ void testMapEmplaceHint()
   ConstructController* cc = getConstructController();
   cc->reset();
   {
-    CHECKPOINT("Testing C::emplace_hint(p, const value_type&)");
+    // Testing C::emplace_hint(p, const value_type&)
     Container c;
     const ValueTp v(42, 1);
     cc->expect<const ValueTp&>();
@@ -460,7 +461,7 @@ void testMapEmplaceHint()
     }
   }
   {
-    CHECKPOINT("Testing C::emplace_hint(p, value_type&)");
+    // Testing C::emplace_hint(p, value_type&)
     Container c;
     ValueTp v(42, 1);
     cc->expect<ValueTp&>();
@@ -477,7 +478,7 @@ void testMapEmplaceHint()
     }
   }
   {
-    CHECKPOINT("Testing C::emplace_hint(p, value_type&&)");
+    // Testing C::emplace_hint(p, value_type&&)
     Container c;
     ValueTp v(42, 1);
     cc->expect<ValueTp&&>();
@@ -494,7 +495,7 @@ void testMapEmplaceHint()
     }
   }
   {
-    CHECKPOINT("Testing C::emplace_hint(p, const value_type&&)");
+    // Testing C::emplace_hint(p, const value_type&&)
     Container c;
     const ValueTp v(42, 1);
     cc->expect<const ValueTp&&>();
@@ -511,7 +512,7 @@ void testMapEmplaceHint()
     }
   }
   {
-    CHECKPOINT("Testing C::emplace_hint(p, pair<Key, Mapped> const&)");
+    // Testing C::emplace_hint(p, pair<Key, Mapped> const&)
     Container c;
     const NonConstKeyPair v(42, 1);
     cc->expect<const NonConstKeyPair&>();
@@ -528,7 +529,7 @@ void testMapEmplaceHint()
     }
   }
   {
-    CHECKPOINT("Testing C::emplace_hint(p, pair<Key, Mapped>&&)");
+    // Testing C::emplace_hint(p, pair<Key, Mapped>&&)
     Container c;
     NonConstKeyPair v(42, 1);
     cc->expect<NonConstKeyPair&&>();
@@ -545,7 +546,7 @@ void testMapEmplaceHint()
     }
   }
   {
-    CHECKPOINT("Testing C::emplace_hint(p, const Key&, ConvertibleToMapped&&)");
+    // Testing C::emplace_hint(p, const Key&, ConvertibleToMapped&&)
     Container c;
     const Key k(42);
     cc->expect<Key const&, int&&>();
@@ -562,7 +563,7 @@ void testMapEmplaceHint()
     }
   }
   {
-    CHECKPOINT("Testing C::emplace_hint(p, Key&, Mapped&)");
+    // Testing C::emplace_hint(p, Key&, Mapped&)
     Container c;
     Key k(42);
     Mapped m(1);
@@ -581,7 +582,7 @@ void testMapEmplaceHint()
     }
   }
   {
-    CHECKPOINT("Testing C::emplace_hint(p, Key&&, Mapped&&)");
+    // Testing C::emplace_hint(p, Key&&, Mapped&&)
     Container c;
     Key k(42);
     Mapped m(1);
@@ -600,7 +601,7 @@ void testMapEmplaceHint()
     }
   }
   {
-    CHECKPOINT("Testing C::emplace_hint(p, ConvertibleToKey&&, ConvertibleToMapped&&)");
+    // Testing C::emplace_hint(p, ConvertibleToKey&&, ConvertibleToMapped&&)
     Container c;
     cc->expect<int&&, int&&>();
     It ret = c.emplace_hint(c.end(), 42, 1);
@@ -626,7 +627,7 @@ void testMultimapInsert()
   ConstructController* cc = getConstructController();
   cc->reset();
   {
-    CHECKPOINT("Testing C::insert(const value_type&)");
+    // Testing C::insert(const value_type&)
     Container c;
     const ValueTp v(42, 1);
     cc->expect<const ValueTp&>();
@@ -634,7 +635,7 @@ void testMultimapInsert()
     assert(!cc->unchecked());
   }
   {
-    CHECKPOINT("Testing C::insert(value_type&)");
+    // Testing C::insert(value_type&)
     Container c;
     ValueTp v(42, 1);
     cc->expect<ValueTp&>();
@@ -642,7 +643,7 @@ void testMultimapInsert()
     assert(!cc->unchecked());
   }
   {
-    CHECKPOINT("Testing C::insert(value_type&&)");
+    // Testing C::insert(value_type&&)
     Container c;
     ValueTp v(42, 1);
     cc->expect<ValueTp&&>();
@@ -650,14 +651,14 @@ void testMultimapInsert()
     assert(!cc->unchecked());
   }
   {
-    CHECKPOINT("Testing C::insert({key, value})");
+    // Testing C::insert({key, value})
     Container c;
     cc->expect<ValueTp&&>();
     c.insert({42, 1});
     assert(!cc->unchecked());
   }
   {
-    CHECKPOINT("Testing C::insert(std::initializer_list<ValueTp>)");
+    // Testing C::insert(std::initializer_list<ValueTp>)
     Container c;
     std::initializer_list<ValueTp> il = { ValueTp(1, 1), ValueTp(2, 1) };
     cc->expect<ValueTp const&>(2);
@@ -665,7 +666,7 @@ void testMultimapInsert()
     assert(!cc->unchecked());
   }
   {
-    CHECKPOINT("Testing C::insert(Iter, Iter) for *Iter = value_type const&");
+    // Testing C::insert(Iter, Iter) for *Iter = value_type const&
     Container c;
     const ValueTp ValueList[] = { ValueTp(1, 1), ValueTp(2, 1), ValueTp(3, 1) };
     cc->expect<ValueTp const&>(3);
@@ -673,7 +674,7 @@ void testMultimapInsert()
     assert(!cc->unchecked());
   }
   {
-    CHECKPOINT("Testing C::insert(Iter, Iter) for *Iter = value_type&&");
+    // Testing C::insert(Iter, Iter) for *Iter = value_type&&
     Container c;
     ValueTp ValueList[] = { ValueTp(1, 1), ValueTp(2, 1) , ValueTp(3, 1) };
     cc->expect<ValueTp&&>(3);
@@ -682,7 +683,7 @@ void testMultimapInsert()
     assert(!cc->unchecked());
   }
   {
-    CHECKPOINT("Testing C::insert(Iter, Iter) for *Iter = value_type&");
+    // Testing C::insert(Iter, Iter) for *Iter = value_type&
     Container c;
     ValueTp ValueList[] = { ValueTp(1, 1), ValueTp(2, 1) , ValueTp(3, 1) };
     cc->expect<ValueTp&>(3);
@@ -699,7 +700,7 @@ void testMultimapInsertHint()
   ConstructController* cc = getConstructController();
   cc->reset();
   {
-    CHECKPOINT("Testing C::insert(p, const value_type&)");
+    // Testing C::insert(p, const value_type&)
     Container c;
     const ValueTp v(42, 1);
     cc->expect<const ValueTp&>();
@@ -707,7 +708,7 @@ void testMultimapInsertHint()
     assert(!cc->unchecked());
   }
   {
-    CHECKPOINT("Testing C::insert(p, value_type&)");
+    // Testing C::insert(p, value_type&)
     Container c;
     ValueTp v(42, 1);
     cc->expect<ValueTp&>();
@@ -715,7 +716,7 @@ void testMultimapInsertHint()
     assert(!cc->unchecked());
   }
   {
-    CHECKPOINT("Testing C::insert(p, value_type&&)");
+    // Testing C::insert(p, value_type&&)
     Container c;
     ValueTp v(42, 1);
     cc->expect<ValueTp&&>();
@@ -723,7 +724,7 @@ void testMultimapInsertHint()
     assert(!cc->unchecked());
   }
   {
-    CHECKPOINT("Testing C::insert(p, {key, value})");
+    // Testing C::insert(p, {key, value})
     Container c;
     cc->expect<ValueTp&&>();
     c.insert(c.begin(), {42, 1});

@@ -13,7 +13,8 @@
 #ifndef LLVM_LIB_TARGET_AARCH64_AARCH64REGISTERBANKINFO_H
 #define LLVM_LIB_TARGET_AARCH64_AARCH64REGISTERBANKINFO_H
 
-#include "llvm/CodeGen/GlobalISel/RegisterBankInfo.h"
+#include "llvm/CodeGen/GlobalISel/GenericMachineInstrs.h"
+#include "llvm/CodeGen/RegisterBankInfo.h"
 
 #define GET_REGBANK_DECLARATIONS
 #include "AArch64GenRegisterBank.inc"
@@ -34,30 +35,31 @@ protected:
     PMI_FPR512,
     PMI_GPR32,
     PMI_GPR64,
+    PMI_GPR128,
     PMI_FirstGPR = PMI_GPR32,
-    PMI_LastGPR = PMI_GPR64,
+    PMI_LastGPR = PMI_GPR128,
     PMI_FirstFPR = PMI_FPR16,
     PMI_LastFPR = PMI_FPR512,
     PMI_Min = PMI_FirstFPR,
   };
 
-  static RegisterBankInfo::PartialMapping PartMappings[];
-  static RegisterBankInfo::ValueMapping ValMappings[];
-  static PartialMappingIdx BankIDToCopyMapIdx[];
+  static const RegisterBankInfo::PartialMapping PartMappings[];
+  static const RegisterBankInfo::ValueMapping ValMappings[];
+  static const PartialMappingIdx BankIDToCopyMapIdx[];
 
   enum ValueMappingIdx {
     InvalidIdx = 0,
     First3OpsIdx = 1,
-    Last3OpsIdx = 22,
+    Last3OpsIdx = 25,
     DistanceBetweenRegBanks = 3,
-    FirstCrossRegCpyIdx = 25,
-    LastCrossRegCpyIdx = 39,
+    FirstCrossRegCpyIdx = 28,
+    LastCrossRegCpyIdx = 42,
     DistanceBetweenCrossRegCpy = 2,
-    FPExt16To32Idx = 41,
-    FPExt16To64Idx = 43,
-    FPExt32To64Idx = 45,
-    FPExt64To128Idx = 47,
-    Shift64Imm = 49
+    FPExt16To32Idx = 44,
+    FPExt16To64Idx = 46,
+    FPExt32To64Idx = 48,
+    FPExt64To128Idx = 50,
+    Shift64Imm = 52,
   };
 
   static bool checkPartialMap(unsigned Idx, unsigned ValStartIdx,
@@ -102,7 +104,8 @@ protected:
 /// This class provides the information for the target register banks.
 class AArch64RegisterBankInfo final : public AArch64GenRegisterBankInfo {
   /// See RegisterBankInfo::applyMapping.
-  void applyMappingImpl(const OperandsMapper &OpdMapper) const override;
+  void applyMappingImpl(MachineIRBuilder &Builder,
+                        const OperandsMapper &OpdMapper) const override;
 
   /// Get an instruction mapping where all the operands map to
   /// the same register bank and have similar size.
@@ -114,23 +117,30 @@ class AArch64RegisterBankInfo final : public AArch64GenRegisterBankInfo {
   const InstructionMapping &
   getSameKindOfOperandsMapping(const MachineInstr &MI) const;
 
-  /// Returns true if the output of \p MI must be stored on a FPR register.
+  /// Maximum recursion depth for hasFPConstraints.
+  const unsigned MaxFPRSearchDepth = 2;
+
+  /// \returns true if \p MI only uses and defines FPRs.
   bool hasFPConstraints(const MachineInstr &MI, const MachineRegisterInfo &MRI,
-                     const TargetRegisterInfo &TRI) const;
+                     const TargetRegisterInfo &TRI, unsigned Depth = 0) const;
 
-  /// Returns true if the source registers of \p MI must all be FPRs.
+  /// \returns true if \p MI only uses FPRs.
   bool onlyUsesFP(const MachineInstr &MI, const MachineRegisterInfo &MRI,
-                  const TargetRegisterInfo &TRI) const;
+                  const TargetRegisterInfo &TRI, unsigned Depth = 0) const;
 
-  /// Returns true if the destination register of \p MI must be a FPR.
+  /// \returns true if \p MI only defines FPRs.
   bool onlyDefinesFP(const MachineInstr &MI, const MachineRegisterInfo &MRI,
-                     const TargetRegisterInfo &TRI) const;
+                     const TargetRegisterInfo &TRI, unsigned Depth = 0) const;
+
+  /// \returns true if the load \p MI is likely loading from a floating-point
+  /// type.
+  bool isLoadFromFPType(const MachineInstr &MI) const;
 
 public:
   AArch64RegisterBankInfo(const TargetRegisterInfo &TRI);
 
   unsigned copyCost(const RegisterBank &A, const RegisterBank &B,
-                    unsigned Size) const override;
+                    TypeSize Size) const override;
 
   const RegisterBank &getRegBankFromRegClass(const TargetRegisterClass &RC,
                                              LLT) const override;

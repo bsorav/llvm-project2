@@ -25,36 +25,49 @@
 #define LLVM_TRANSFORMS_VECTORIZE_LOOPVECTORIZATIONPLANNER_H
 
 #include "VPlan.h"
-#include "llvm/Analysis/LoopInfo.h"
-#include "llvm/Analysis/TargetLibraryInfo.h"
-#include "llvm/Analysis/TargetTransformInfo.h"
+#include "llvm/ADT/SmallSet.h"
+#include "llvm/Support/InstructionCost.h"
 
 namespace llvm {
 
+class LoopInfo;
+class DominatorTree;
 class LoopVectorizationLegality;
 class LoopVectorizationCostModel;
 class PredicatedScalarEvolution;
+class LoopVectorizeHints;
+class OptimizationRemarkEmitter;
+class TargetTransformInfo;
+class TargetLibraryInfo;
+class VPRecipeBuilder;
 
 /// VPlan-based builder utility analogous to IRBuilder.
 class VPBuilder {
   VPBasicBlock *BB = nullptr;
   VPBasicBlock::iterator InsertPt = VPBasicBlock::iterator();
 
-  VPInstruction *createInstruction(unsigned Opcode,
-                                   ArrayRef<VPValue *> Operands) {
-    VPInstruction *Instr = new VPInstruction(Opcode, Operands);
+  /// Insert \p VPI in BB at InsertPt if BB is set.
+  VPInstruction *tryInsertInstruction(VPInstruction *VPI) {
     if (BB)
-      BB->insert(Instr, InsertPt);
-    return Instr;
+      BB->insert(VPI, InsertPt);
+    return VPI;
   }
 
   VPInstruction *createInstruction(unsigned Opcode,
-                                   std::initializer_list<VPValue *> Operands) {
-    return createInstruction(Opcode, ArrayRef<VPValue *>(Operands));
+                                   ArrayRef<VPValue *> Operands, DebugLoc DL,
+                                   const Twine &Name = "") {
+    return tryInsertInstruction(new VPInstruction(Opcode, Operands, DL, Name));
+  }
+
+  VPInstruction *createInstruction(unsigned Opcode,
+                                   std::initializer_list<VPValue *> Operands,
+                                   DebugLoc DL, const Twine &Name = "") {
+    return createInstruction(Opcode, ArrayRef<VPValue *>(Operands), DL, Name);
   }
 
 public:
-  VPBuilder() {}
+  VPBuilder() = default;
+  VPBuilder(VPBasicBlock *InsertBB) { setInsertPoint(InsertBB); }
 
   /// Clear the insertion point: created instructions will not be inserted into
   /// a block.
@@ -109,37 +122,67 @@ public:
     InsertPt = IP;
   }
 
-  /// Insert and return the specified instruction.
-  VPInstruction *insert(VPInstruction *I) const {
-    BB->insert(I, InsertPt);
-    return I;
+  /// This specifies that created instructions should be inserted at the
+  /// specified point.
+  void setInsertPoint(VPRecipeBase *IP) {
+    BB = IP->getParent();
+    InsertPt = IP->getIterator();
   }
 
   /// Create an N-ary operation with \p Opcode, \p Operands and set \p Inst as
   /// its underlying Instruction.
   VPValue *createNaryOp(unsigned Opcode, ArrayRef<VPValue *> Operands,
-                        Instruction *Inst = nullptr) {
-    VPInstruction *NewVPInst = createInstruction(Opcode, Operands);
+                        Instruction *Inst = nullptr, const Twine &Name = "") {
+    DebugLoc DL;
+    if (Inst)
+      DL = Inst->getDebugLoc();
+    VPInstruction *NewVPInst = createInstruction(Opcode, Operands, DL, Name);
     NewVPInst->setUnderlyingValue(Inst);
     return NewVPInst;
   }
-  VPValue *createNaryOp(unsigned Opcode,
-                        std::initializer_list<VPValue *> Operands,
-                        Instruction *Inst = nullptr) {
-    return createNaryOp(Opcode, ArrayRef<VPValue *>(Operands), Inst);
+  VPValue *createNaryOp(unsigned Opcode, ArrayRef<VPValue *> Operands,
+                        DebugLoc DL, const Twine &Name = "") {
+    return createInstruction(Opcode, Operands, DL, Name);
   }
 
-  VPValue *createNot(VPValue *Operand) {
-    return createInstruction(VPInstruction::Not, {Operand});
+  VPInstruction *createOverflowingOp(unsigned Opcode,
+                                     std::initializer_list<VPValue *> Operands,
+                                     VPRecipeWithIRFlags::WrapFlagsTy WrapFlags,
+                                     DebugLoc DL = {}, const Twine &Name = "") {
+    return tryInsertInstruction(
+        new VPInstruction(Opcode, Operands, WrapFlags, DL, Name));
+  }
+  VPValue *createNot(VPValue *Operand, DebugLoc DL = {},
+                     const Twine &Name = "") {
+    return createInstruction(VPInstruction::Not, {Operand}, DL, Name);
   }
 
-  VPValue *createAnd(VPValue *LHS, VPValue *RHS) {
-    return createInstruction(Instruction::BinaryOps::And, {LHS, RHS});
+  VPValue *createAnd(VPValue *LHS, VPValue *RHS, DebugLoc DL = {},
+                     const Twine &Name = "") {
+    return createInstruction(Instruction::BinaryOps::And, {LHS, RHS}, DL, Name);
   }
 
-  VPValue *createOr(VPValue *LHS, VPValue *RHS) {
-    return createInstruction(Instruction::BinaryOps::Or, {LHS, RHS});
+  VPValue *createOr(VPValue *LHS, VPValue *RHS, DebugLoc DL = {},
+                    const Twine &Name = "") {
+    return createInstruction(Instruction::BinaryOps::Or, {LHS, RHS}, DL, Name);
   }
+
+  VPValue *createSelect(VPValue *Cond, VPValue *TrueVal, VPValue *FalseVal,
+                        DebugLoc DL = {}, const Twine &Name = "",
+                        std::optional<FastMathFlags> FMFs = std::nullopt) {
+    auto *Select =
+        FMFs ? new VPInstruction(Instruction::Select, {Cond, TrueVal, FalseVal},
+                                 *FMFs, DL, Name)
+             : new VPInstruction(Instruction::Select, {Cond, TrueVal, FalseVal},
+                                 DL, Name);
+    return tryInsertInstruction(Select);
+  }
+
+  /// Create a new ICmp VPInstruction with predicate \p Pred and operands \p A
+  /// and \p B.
+  /// TODO: add createFCmp when needed.
+  VPValue *createICmp(CmpInst::Predicate Pred, VPValue *A, VPValue *B,
+                      DebugLoc DL = {}, const Twine &Name = "");
 
   //===--------------------------------------------------------------------===//
   // RAII helpers.
@@ -168,19 +211,78 @@ public:
 /// VectorizerParams::VectorizationFactor and VectorizationCostTy.
 /// We need to streamline them.
 
-/// Information about vectorization costs
+/// Information about vectorization costs.
 struct VectorizationFactor {
-  // Vector width with best cost
-  unsigned Width;
-  // Cost of the loop with that width
-  unsigned Cost;
+  /// Vector width with best cost.
+  ElementCount Width;
 
-  // Width 1 means no vectorization, cost 0 means uncomputed cost.
-  static VectorizationFactor Disabled() { return {1, 0}; }
+  /// Cost of the loop with that width.
+  InstructionCost Cost;
+
+  /// Cost of the scalar loop.
+  InstructionCost ScalarCost;
+
+  /// The minimum trip count required to make vectorization profitable, e.g. due
+  /// to runtime checks.
+  ElementCount MinProfitableTripCount;
+
+  VectorizationFactor(ElementCount Width, InstructionCost Cost,
+                      InstructionCost ScalarCost)
+      : Width(Width), Cost(Cost), ScalarCost(ScalarCost) {}
+
+  /// Width 1 means no vectorization, cost 0 means uncomputed cost.
+  static VectorizationFactor Disabled() {
+    return {ElementCount::getFixed(1), 0, 0};
+  }
 
   bool operator==(const VectorizationFactor &rhs) const {
     return Width == rhs.Width && Cost == rhs.Cost;
   }
+
+  bool operator!=(const VectorizationFactor &rhs) const {
+    return !(*this == rhs);
+  }
+};
+
+/// ElementCountComparator creates a total ordering for ElementCount
+/// for the purposes of using it in a set structure.
+struct ElementCountComparator {
+  bool operator()(const ElementCount &LHS, const ElementCount &RHS) const {
+    return std::make_tuple(LHS.isScalable(), LHS.getKnownMinValue()) <
+           std::make_tuple(RHS.isScalable(), RHS.getKnownMinValue());
+  }
+};
+using ElementCountSet = SmallSet<ElementCount, 16, ElementCountComparator>;
+
+/// A class that represents two vectorization factors (initialized with 0 by
+/// default). One for fixed-width vectorization and one for scalable
+/// vectorization. This can be used by the vectorizer to choose from a range of
+/// fixed and/or scalable VFs in order to find the most cost-effective VF to
+/// vectorize with.
+struct FixedScalableVFPair {
+  ElementCount FixedVF;
+  ElementCount ScalableVF;
+
+  FixedScalableVFPair()
+      : FixedVF(ElementCount::getFixed(0)),
+        ScalableVF(ElementCount::getScalable(0)) {}
+  FixedScalableVFPair(const ElementCount &Max) : FixedScalableVFPair() {
+    *(Max.isScalable() ? &ScalableVF : &FixedVF) = Max;
+  }
+  FixedScalableVFPair(const ElementCount &FixedVF,
+                      const ElementCount &ScalableVF)
+      : FixedVF(FixedVF), ScalableVF(ScalableVF) {
+    assert(!FixedVF.isScalable() && ScalableVF.isScalable() &&
+           "Invalid scalable properties");
+  }
+
+  static FixedScalableVFPair getNone() { return FixedScalableVFPair(); }
+
+  /// \return true if either fixed- or scalable VF is non-zero.
+  explicit operator bool() const { return FixedVF || ScalableVF; }
+
+  /// \return true if either fixed- or scalable VF is a valid vector VF.
+  bool hasVector() const { return FixedVF.isVector() || ScalableVF.isVector(); }
 };
 
 /// Planner drives the vectorization process after having passed
@@ -192,11 +294,14 @@ class LoopVectorizationPlanner {
   /// Loop Info analysis.
   LoopInfo *LI;
 
+  /// The dominator tree.
+  DominatorTree *DT;
+
   /// Target Library Info.
   const TargetLibraryInfo *TLI;
 
   /// Target Transform Info.
-  const TargetTransformInfo *TTI;
+  const TargetTransformInfo &TTI;
 
   /// The legality analysis.
   LoopVectorizationLegality *Legal;
@@ -209,73 +314,87 @@ class LoopVectorizationPlanner {
 
   PredicatedScalarEvolution &PSE;
 
+  const LoopVectorizeHints &Hints;
+
+  OptimizationRemarkEmitter *ORE;
+
   SmallVector<VPlanPtr, 4> VPlans;
 
-  /// This class is used to enable the VPlan to invoke a method of ILV. This is
-  /// needed until the method is refactored out of ILV and becomes reusable.
-  struct VPCallbackILV : public VPCallback {
-    InnerLoopVectorizer &ILV;
-
-    VPCallbackILV(InnerLoopVectorizer &ILV) : ILV(ILV) {}
-
-    Value *getOrCreateVectorValues(Value *V, unsigned Part) override;
-    Value *getOrCreateScalarValue(Value *V,
-                                  const VPIteration &Instance) override;
-  };
+  /// Profitable vector factors.
+  SmallVector<VectorizationFactor, 8> ProfitableVFs;
 
   /// A builder used to construct the current plan.
   VPBuilder Builder;
 
-  unsigned BestVF = 0;
-  unsigned BestUF = 0;
-
 public:
-  LoopVectorizationPlanner(Loop *L, LoopInfo *LI, const TargetLibraryInfo *TLI,
-                           const TargetTransformInfo *TTI,
-                           LoopVectorizationLegality *Legal,
-                           LoopVectorizationCostModel &CM,
-                           InterleavedAccessInfo &IAI,
-                           PredicatedScalarEvolution &PSE)
-      : OrigLoop(L), LI(LI), TLI(TLI), TTI(TTI), Legal(Legal), CM(CM), IAI(IAI),
-        PSE(PSE) {}
+  LoopVectorizationPlanner(
+      Loop *L, LoopInfo *LI, DominatorTree *DT, const TargetLibraryInfo *TLI,
+      const TargetTransformInfo &TTI, LoopVectorizationLegality *Legal,
+      LoopVectorizationCostModel &CM, InterleavedAccessInfo &IAI,
+      PredicatedScalarEvolution &PSE, const LoopVectorizeHints &Hints,
+      OptimizationRemarkEmitter *ORE)
+      : OrigLoop(L), LI(LI), DT(DT), TLI(TLI), TTI(TTI), Legal(Legal), CM(CM),
+        IAI(IAI), PSE(PSE), Hints(Hints), ORE(ORE) {}
 
-  /// Plan how to best vectorize, return the best VF and its cost, or None if
-  /// vectorization and interleaving should be avoided up front.
-  Optional<VectorizationFactor> plan(unsigned UserVF, unsigned UserIC);
+  /// Plan how to best vectorize, return the best VF and its cost, or
+  /// std::nullopt if vectorization and interleaving should be avoided up front.
+  std::optional<VectorizationFactor> plan(ElementCount UserVF, unsigned UserIC);
 
   /// Use the VPlan-native path to plan how to best vectorize, return the best
   /// VF and its cost.
-  VectorizationFactor planInVPlanNativePath(unsigned UserVF);
+  VectorizationFactor planInVPlanNativePath(ElementCount UserVF);
 
-  /// Finalize the best decision and dispose of all other VPlans.
-  void setBestPlan(unsigned VF, unsigned UF);
+  /// Return the best VPlan for \p VF.
+  VPlan &getBestPlanFor(ElementCount VF) const;
 
-  /// Generate the IR code for the body of the vectorized loop according to the
-  /// best selected VPlan.
-  void executePlan(InnerLoopVectorizer &LB, DominatorTree *DT);
+  /// Generate the IR code for the vectorized loop captured in VPlan \p BestPlan
+  /// according to the best selected \p VF and  \p UF.
+  ///
+  /// TODO: \p IsEpilogueVectorization is needed to avoid issues due to epilogue
+  /// vectorization re-using plans for both the main and epilogue vector loops.
+  /// It should be removed once the re-use issue has been fixed.
+  /// \p ExpandedSCEVs is passed during execution of the plan for epilogue loop
+  /// to re-use expansion results generated during main plan execution.
+  ///
+  /// Returns a mapping of SCEVs to their expanded IR values and a mapping for
+  /// the reduction resume values. Note that this is a temporary workaround
+  /// needed due to the current epilogue handling.
+  std::pair<DenseMap<const SCEV *, Value *>,
+            DenseMap<const RecurrenceDescriptor *, Value *>>
+  executePlan(ElementCount VF, unsigned UF, VPlan &BestPlan,
+              InnerLoopVectorizer &LB, DominatorTree *DT,
+              bool IsEpilogueVectorization,
+              const DenseMap<const SCEV *, Value *> *ExpandedSCEVs = nullptr);
 
-  void printPlans(raw_ostream &O) {
-    for (const auto &Plan : VPlans)
-      O << *Plan;
+#if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
+  void printPlans(raw_ostream &O);
+#endif
+
+  /// Look through the existing plans and return true if we have one with
+  /// vectorization factor \p VF.
+  bool hasPlanWithVF(ElementCount VF) const {
+    return any_of(VPlans,
+                  [&](const VPlanPtr &Plan) { return Plan->hasVF(VF); });
   }
 
   /// Test a \p Predicate on a \p Range of VF's. Return the value of applying
   /// \p Predicate on Range.Start, possibly decreasing Range.End such that the
   /// returned value holds for the entire \p Range.
   static bool
-  getDecisionAndClampRange(const std::function<bool(unsigned)> &Predicate,
+  getDecisionAndClampRange(const std::function<bool(ElementCount)> &Predicate,
                            VFRange &Range);
 
-protected:
-  /// Collect the instructions from the original loop that would be trivially
-  /// dead in the vectorized loop if generated.
-  void collectTriviallyDeadInstructions(
-      SmallPtrSetImpl<Instruction *> &DeadInstructions);
+  /// \return The most profitable vectorization factor and the cost of that VF
+  /// for vectorizing the epilogue. Returns VectorizationFactor::Disabled if
+  /// epilogue vectorization is not supported for the loop.
+  VectorizationFactor
+  selectEpilogueVectorizationFactor(const ElementCount MaxVF, unsigned IC);
 
+protected:
   /// Build VPlans for power-of-2 VF's between \p MinVF and \p MaxVF inclusive,
   /// according to the information gathered by Legal when it checked if it is
   /// legal to vectorize the loop.
-  void buildVPlans(unsigned MinVF, unsigned MaxVF);
+  void buildVPlans(ElementCount MinVF, ElementCount MaxVF);
 
 private:
   /// Build a VPlan according to the information gathered by Legal. \return a
@@ -285,15 +404,39 @@ private:
 
   /// Build a VPlan using VPRecipes according to the information gather by
   /// Legal. This method is only used for the legacy inner loop vectorizer.
-  VPlanPtr buildVPlanWithVPRecipes(
-      VFRange &Range, SmallPtrSetImpl<Value *> &NeedDef,
-      SmallPtrSetImpl<Instruction *> &DeadInstructions,
-      const DenseMap<Instruction *, Instruction *> &SinkAfter);
+  /// \p Range's largest included VF is restricted to the maximum VF the
+  /// returned VPlan is valid for. If no VPlan can be built for the input range,
+  /// set the largest included VF to the maximum VF for which no plan could be
+  /// built.
+  VPlanPtr tryToBuildVPlanWithVPRecipes(VFRange &Range);
 
   /// Build VPlans for power-of-2 VF's between \p MinVF and \p MaxVF inclusive,
   /// according to the information gathered by Legal when it checked if it is
   /// legal to vectorize the loop. This method creates VPlans using VPRecipes.
-  void buildVPlansWithVPRecipes(unsigned MinVF, unsigned MaxVF);
+  void buildVPlansWithVPRecipes(ElementCount MinVF, ElementCount MaxVF);
+
+  // Adjust the recipes for reductions. For in-loop reductions the chain of
+  // instructions leading from the loop exit instr to the phi need to be
+  // converted to reductions, with one operand being vector and the other being
+  // the scalar reduction chain. For other reductions, a select is introduced
+  // between the phi and live-out recipes when folding the tail.
+  void adjustRecipesForReductions(VPBasicBlock *LatchVPBB, VPlanPtr &Plan,
+                                  VPRecipeBuilder &RecipeBuilder,
+                                  ElementCount MinVF);
+
+  /// \return The most profitable vectorization factor and the cost of that VF.
+  /// This method checks every VF in \p CandidateVFs.
+  VectorizationFactor
+  selectVectorizationFactor(const ElementCountSet &CandidateVFs);
+
+  /// Returns true if the per-lane cost of VectorizationFactor A is lower than
+  /// that of B.
+  bool isMoreProfitable(const VectorizationFactor &A,
+                        const VectorizationFactor &B) const;
+
+  /// Determines if we have the infrastructure to vectorize the loop and its
+  /// epilogue, assuming the main loop is vectorized by \p VF.
+  bool isCandidateForEpilogueVectorization(const ElementCount VF) const;
 };
 
 } // namespace llvm

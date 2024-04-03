@@ -6,13 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// UNSUPPORTED: libcpp-has-no-threads
+// UNSUPPORTED: no-threads
 // UNSUPPORTED: c++03, c++11
-
-// dylib support for shared_mutex was added in macosx10.12
-// XFAIL: with_system_cxx_lib=macosx10.11
-// XFAIL: with_system_cxx_lib=macosx10.10
-// XFAIL: with_system_cxx_lib=macosx10.9
 
 // <shared_mutex>
 
@@ -21,12 +16,16 @@
 // template <class Rep, class Period>
 //   shared_lock(mutex_type& m, const chrono::duration<Rep, Period>& rel_time);
 
-#include <shared_mutex>
 #include <thread>
-#include <vector>
-#include <cstdlib>
-#include <cassert>
 
+#include <atomic>
+#include <cassert>
+#include <chrono>
+#include <cstdlib>
+#include <shared_mutex>
+#include <vector>
+
+#include "make_test_thread.h"
 #include "test_macros.h"
 
 std::shared_timed_mutex m;
@@ -47,9 +46,9 @@ std::atomic<unsigned> CountDown(Threads);
 void f1()
 {
   // Preemptive scheduling means that one cannot make assumptions about when
-  // code executes and therefore we cannot assume anthing about when the mutex
+  // code executes and therefore we cannot assume anything about when the mutex
   // starts waiting relative to code in the main thread. We can however prove
-  // that a timeout occured and that implies that this code is waiting.
+  // that a timeout occurred and that implies that this code is waiting.
   // See f2() below.
   //
   // Nevertheless, we should at least try to ensure that the mutex waits and
@@ -75,7 +74,7 @@ int main(int, char**)
     m.lock();
     std::vector<std::thread> v;
     for (unsigned i = 0; i < Threads; ++i)
-      v.push_back(std::thread(f1));
+      v.push_back(support::make_test_thread(f1));
     while (CountDown > 0)
       std::this_thread::yield();
     // Give one more chance for threads to block and wait for the mutex.
@@ -89,7 +88,7 @@ int main(int, char**)
     m.lock();
     std::vector<std::thread> v;
     for (unsigned i = 0; i < Threads; ++i)
-      v.push_back(std::thread(f2));
+      v.push_back(support::make_test_thread(f2));
     for (auto& t : v)
       t.join();
     m.unlock();

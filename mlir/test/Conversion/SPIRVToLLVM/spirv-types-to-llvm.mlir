@@ -4,35 +4,41 @@
 // Array type
 //===----------------------------------------------------------------------===//
 
-// CHECK-LABEL: @array(!llvm<"[16 x float]">, !llvm<"[32 x <4 x float>]">)
-func @array(!spv.array<16xf32>, !spv.array< 32 x vector<4xf32> >) -> ()
+// CHECK-LABEL: @array(!llvm.array<16 x f32>, !llvm.array<32 x vector<4xf32>>)
+spirv.func @array(!spirv.array<16 x f32>, !spirv.array< 32 x vector<4xf32> >) "None"
+
+// CHECK-LABEL: @array_with_natural_stride(!llvm.array<16 x f32>)
+spirv.func @array_with_natural_stride(!spirv.array<16 x f32, stride=4>) "None"
 
 //===----------------------------------------------------------------------===//
 // Pointer type
 //===----------------------------------------------------------------------===//
 
-// CHECK-LABEL: @pointer_scalar(!llvm<"i1*">, !llvm<"float*">)
-func @pointer_scalar(!spv.ptr<i1, Uniform>, !spv.ptr<f32, Private>) -> ()
+// CHECK-LABEL: @pointer_scalar(!llvm.ptr, !llvm.ptr)
+spirv.func @pointer_scalar(!spirv.ptr<i1, Uniform>, !spirv.ptr<f32, Private>) "None"
 
-// CHECK-LABEL: @pointer_vector(!llvm<"<4 x i32>*">)
-func @pointer_vector(!spv.ptr<vector<4xi32>, Function>) -> ()
+// CHECK-LABEL: @pointer_vector(!llvm.ptr)
+spirv.func @pointer_vector(!spirv.ptr<vector<4xi32>, Function>) "None"
 
 //===----------------------------------------------------------------------===//
 // Runtime array type
 //===----------------------------------------------------------------------===//
 
-// CHECK-LABEL: @runtime_array_vector(!llvm<"[0 x <4 x float>]">)
-func @runtime_array_vector(!spv.rtarray< vector<4xf32> >) -> ()
+// CHECK-LABEL: @runtime_array_vector(!llvm.array<0 x vector<4xf32>>)
+spirv.func @runtime_array_vector(!spirv.rtarray< vector<4xf32> >) "None"
 
-// CHECK-LABEL: @runtime_array_scalar(!llvm<"[0 x float]">)
-func @runtime_array_scalar(!spv.rtarray<f32>) -> ()
+// CHECK-LABEL: @runtime_array_scalar(!llvm.array<0 x f32>)
+spirv.func @runtime_array_scalar(!spirv.rtarray<f32>) "None"
 
 //===----------------------------------------------------------------------===//
 // Struct type
 //===----------------------------------------------------------------------===//
 
-// CHECK-LABEL: @struct(!llvm<"<{ double }>">)
-func @struct(!spv.struct<f64>) -> ()
+// CHECK-LABEL: @struct(!llvm.struct<packed (f64)>)
+spirv.func @struct(!spirv.struct<(f64)>) "None"
 
-// CHECK-LABEL: @struct_nested(!llvm<"<{ i32, <{ i64, i32 }> }>">)
-func @struct_nested(!spv.struct<i32, !spv.struct<i64, i32>>)
+// CHECK-LABEL: @struct_nested(!llvm.struct<packed (i32, struct<packed (i64, i32)>)>)
+spirv.func @struct_nested(!spirv.struct<(i32, !spirv.struct<(i64, i32)>)>) "None"
+
+// CHECK-LABEL: @struct_with_natural_offset(!llvm.struct<(i8, i32)>)
+spirv.func @struct_with_natural_offset(!spirv.struct<(i8[0], i32[4])>) "None"

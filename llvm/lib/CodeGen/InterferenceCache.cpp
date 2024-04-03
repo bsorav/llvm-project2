@@ -12,19 +12,15 @@
 
 #include "InterferenceCache.h"
 #include "llvm/ADT/ArrayRef.h"
-#include "llvm/CodeGen/LiveInterval.h"
-#include "llvm/CodeGen/LiveIntervalUnion.h"
 #include "llvm/CodeGen/LiveIntervals.h"
 #include "llvm/CodeGen/MachineBasicBlock.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineOperand.h"
-#include "llvm/CodeGen/SlotIndexes.h"
 #include "llvm/CodeGen/TargetRegisterInfo.h"
 #include "llvm/MC/MCRegisterInfo.h"
 #include "llvm/Support/ErrorHandling.h"
 #include <cassert>
 #include <cstdint>
-#include <cstdlib>
 #include <tuple>
 
 using namespace llvm;
@@ -60,12 +56,12 @@ void InterferenceCache::init(MachineFunction *mf,
   LIUArray = liuarray;
   TRI = tri;
   reinitPhysRegEntries();
-  for (unsigned i = 0; i != CacheEntries; ++i)
-    Entries[i].clear(mf, indexes, lis);
+  for (Entry &E : Entries)
+    E.clear(mf, indexes, lis);
 }
 
-InterferenceCache::Entry *InterferenceCache::get(unsigned PhysReg) {
-  unsigned E = PhysRegEntries[PhysReg];
+InterferenceCache::Entry *InterferenceCache::get(MCRegister PhysReg) {
+  unsigned char E = PhysRegEntries[PhysReg.id()];
   if (E < CacheEntries && Entries[E].getPhysReg() == PhysReg) {
     if (!Entries[E].valid(LIUArray, TRI))
       Entries[E].revalidate(LIUArray, TRI);
@@ -97,11 +93,11 @@ void InterferenceCache::Entry::revalidate(LiveIntervalUnion *LIUArray,
   // Invalidate all iterators.
   PrevPos = SlotIndex();
   unsigned i = 0;
-  for (MCRegUnitIterator Units(PhysReg, TRI); Units.isValid(); ++Units, ++i)
-    RegUnits[i].VirtTag = LIUArray[*Units].getTag();
+  for (MCRegUnit Unit : TRI->regunits(PhysReg))
+    RegUnits[i++].VirtTag = LIUArray[Unit].getTag();
 }
 
-void InterferenceCache::Entry::reset(unsigned physReg,
+void InterferenceCache::Entry::reset(MCRegister physReg,
                                      LiveIntervalUnion *LIUArray,
                                      const TargetRegisterInfo *TRI,
                                      const MachineFunction *MF) {
@@ -114,20 +110,21 @@ void InterferenceCache::Entry::reset(unsigned physReg,
   // Reset iterators.
   PrevPos = SlotIndex();
   RegUnits.clear();
-  for (MCRegUnitIterator Units(PhysReg, TRI); Units.isValid(); ++Units) {
-    RegUnits.push_back(LIUArray[*Units]);
-    RegUnits.back().Fixed = &LIS->getRegUnit(*Units);
+  for (MCRegUnit Unit : TRI->regunits(PhysReg)) {
+    RegUnits.push_back(LIUArray[Unit]);
+    RegUnits.back().Fixed = &LIS->getRegUnit(Unit);
   }
 }
 
 bool InterferenceCache::Entry::valid(LiveIntervalUnion *LIUArray,
                                      const TargetRegisterInfo *TRI) {
   unsigned i = 0, e = RegUnits.size();
-  for (MCRegUnitIterator Units(PhysReg, TRI); Units.isValid(); ++Units, ++i) {
+  for (MCRegUnit Unit : TRI->regunits(PhysReg)) {
     if (i == e)
       return false;
-    if (LIUArray[*Units].changedSince(RegUnits[i].VirtTag))
+    if (LIUArray[Unit].changedSince(RegUnits[i].VirtTag))
       return false;
+    ++i;
   }
   return i == e;
 }

@@ -3341,14 +3341,6 @@ sym_exec_llvm::add_edges(const llvm::BasicBlock& B, dshared_ptr<tfg_llvm_t const
       continue;
     }
 
-    if (isa<CallInst>(I) && cast<CallInst>(I).getIntrinsicID() == Intrinsic::unseq_noalias) {
-      //NOT_IMPLEMENTED();
-      if (ll_filename_parsed) {
-        ll_filename_parsed->ll_filename_identify_linenum_for_unseq_noalias_instruction(bbindex);
-      }
-      continue;
-    }
-
     if (pc_is_start) {
       pc_is_start = false;
       //errs() << "setting pc_is_start to false\n";

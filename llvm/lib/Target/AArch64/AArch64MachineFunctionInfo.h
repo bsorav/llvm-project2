@@ -14,16 +14,17 @@
 #define LLVM_LIB_TARGET_AARCH64_AARCH64MACHINEFUNCTIONINFO_H
 
 #include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/CodeGen/CallingConvLower.h"
 #include "llvm/CodeGen/MIRYamlMapping.h"
+#include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineFunction.h"
-#include "llvm/CodeGen/TargetFrameLowering.h"
 #include "llvm/IR/Function.h"
 #include "llvm/MC/MCLinkerOptimizationHint.h"
+#include "llvm/MC/MCSymbol.h"
 #include <cassert>
+#include <optional>
 
 namespace llvm {
 
@@ -31,6 +32,7 @@ namespace yaml {
 struct AArch64FunctionInfo;
 } // end namespace yaml
 
+class AArch64Subtarget;
 class MachineInstr;
 
 /// AArch64FunctionInfo - This class is derived from MachineFunctionInfo and
@@ -51,6 +53,12 @@ class AArch64FunctionInfo final : public MachineFunctionInfo {
   /// arguments. Canonically 0 in the C calling convention, but non-zero when
   /// callee is expected to pop the args.
   unsigned ArgumentStackToRestore = 0;
+
+  /// Space just below incoming stack pointer reserved for arguments being
+  /// passed on the stack during a tail call. This will be the difference
+  /// between the largest tail call argument space needed in this function and
+  /// what's already available by reusing space of incoming arguments.
+  unsigned TailCallReservedStack = 0;
 
   /// HasStackFrame - True if this function has a stack frame. Set by
   /// determineCalleeSaves().
@@ -75,6 +83,9 @@ class AArch64FunctionInfo final : public MachineFunctionInfo {
   /// FrameIndex for start of varargs area for arguments passed on the
   /// stack.
   int VarArgsStackIndex = 0;
+
+  /// Offset of start of varargs area for arguments passed on the stack.
+  unsigned VarArgsStackOffset = 0;
 
   /// FrameIndex for start of varargs area for arguments passed in
   /// general purpose registers.
@@ -107,7 +118,8 @@ class AArch64FunctionInfo final : public MachineFunctionInfo {
   /// SRetReturnReg - sret lowering includes returning the value of the
   /// returned struct in a register. This field holds the virtual register into
   /// which the sret argument is passed.
-  unsigned SRetReturnReg = 0;
+  Register SRetReturnReg;
+
   /// SVE stack size (for predicates and data vectors) are maintained here
   /// rather than in FrameInfo, as the placement and Stack IDs are target
   /// specific.
@@ -120,32 +132,103 @@ class AArch64FunctionInfo final : public MachineFunctionInfo {
   /// redzone, and no value otherwise.
   /// Initialized during frame lowering, unless the function has the noredzone
   /// attribute, in which case it is set to false at construction.
-  Optional<bool> HasRedZone;
+  std::optional<bool> HasRedZone;
 
   /// ForwardedMustTailRegParms - A list of virtual and physical registers
   /// that must be forwarded to every musttail call.
   SmallVector<ForwardedRegister, 1> ForwardedMustTailRegParms;
 
-  // Offset from SP-at-entry to the tagged base pointer.
-  // Tagged base pointer is set up to point to the first (lowest address) tagged
-  // stack slot.
-  unsigned TaggedBasePointerOffset = 0;
+  /// FrameIndex for the tagged base pointer.
+  std::optional<int> TaggedBasePointerIndex;
+
+  /// Offset from SP-at-entry to the tagged base pointer.
+  /// Tagged base pointer is set up to point to the first (lowest address)
+  /// tagged stack slot.
+  unsigned TaggedBasePointerOffset;
 
   /// OutliningStyle denotes, if a function was outined, how it was outlined,
   /// e.g. Tail Call, Thunk, or Function if none apply.
-  Optional<std::string> OutliningStyle;
+  std::optional<std::string> OutliningStyle;
+
+  // Offset from SP-after-callee-saved-spills (i.e. SP-at-entry minus
+  // CalleeSavedStackSize) to the address of the frame record.
+  int CalleeSaveBaseToFrameRecordOffset = 0;
+
+  /// SignReturnAddress is true if PAC-RET is enabled for the function with
+  /// defaults being sign non-leaf functions only, with the B key.
+  bool SignReturnAddress = false;
+
+  /// SignReturnAddressAll modifies the default PAC-RET mode to signing leaf
+  /// functions as well.
+  bool SignReturnAddressAll = false;
+
+  /// SignWithBKey modifies the default PAC-RET mode to signing with the B key.
+  bool SignWithBKey = false;
+
+  /// SigningInstrOffset captures the offset of the PAC-RET signing instruction
+  /// within the prologue, so it can be re-used for authentication in the
+  /// epilogue when using PC as a second salt (FEAT_PAuth_LR)
+  MCSymbol *SignInstrLabel = nullptr;
+
+  /// BranchTargetEnforcement enables placing BTI instructions at potential
+  /// indirect branch destinations.
+  bool BranchTargetEnforcement = false;
+
+  /// Indicates that SP signing should be diversified with PC as-per PAuthLR.
+  /// This is set by -mbranch-protection and will emit NOP instructions unless
+  /// the subtarget feature +pauthlr is also used (in which case non-NOP
+  /// instructions are emitted).
+  bool BranchProtectionPAuthLR = false;
+
+  /// Whether this function has an extended frame record [Ctx, FP, LR]. If so,
+  /// bit 60 of the in-memory FP will be 1 to enable other tools to detect the
+  /// extended record.
+  bool HasSwiftAsyncContext = false;
+
+  /// The stack slot where the Swift asynchronous context is stored.
+  int SwiftAsyncContextFrameIdx = std::numeric_limits<int>::max();
+
+  bool IsMTETagged = false;
+
+  /// The function has Scalable Vector or Scalable Predicate register argument
+  /// or return type
+  bool IsSVECC = false;
+
+  /// The frame-index for the TPIDR2 object used for lazy saves.
+  Register LazySaveTPIDR2Obj = 0;
+
+  /// Whether this function changes streaming mode within the function.
+  bool HasStreamingModeChanges = false;
+
+  /// True if the function need unwind information.
+  mutable std::optional<bool> NeedsDwarfUnwindInfo;
+
+  /// True if the function need asynchronous unwind information.
+  mutable std::optional<bool> NeedsAsyncDwarfUnwindInfo;
+
+  int64_t StackProbeSize = 0;
+
+  // Holds a register containing pstate.sm. This is set
+  // on function entry to record the initial pstate of a function.
+  Register PStateSMReg = MCRegister::NoRegister;
 
 public:
-  AArch64FunctionInfo() = default;
+  AArch64FunctionInfo(const Function &F, const AArch64Subtarget *STI);
 
-  explicit AArch64FunctionInfo(MachineFunction &MF) {
-    (void)MF;
+  MachineFunctionInfo *
+  clone(BumpPtrAllocator &Allocator, MachineFunction &DestMF,
+        const DenseMap<MachineBasicBlock *, MachineBasicBlock *> &Src2DstMBB)
+      const override;
 
-    // If we already know that the function doesn't have a redzone, set
-    // HasRedZone here.
-    if (MF.getFunction().hasFnAttribute(Attribute::NoRedZone))
-      HasRedZone = false;
-  }
+  Register getPStateSMReg() const { return PStateSMReg; };
+  void setPStateSMReg(Register Reg) { PStateSMReg = Reg; };
+
+  bool isSVECC() const { return IsSVECC; };
+  void setIsSVECC(bool s) { IsSVECC = s; };
+
+  unsigned getLazySaveTPIDR2Obj() const { return LazySaveTPIDR2Obj; }
+  void setLazySaveTPIDR2Obj(unsigned Reg) { LazySaveTPIDR2Obj = Reg; }
+
   void initializeBaseYamlFields(const yaml::AArch64FunctionInfo &YamlMFI);
 
   unsigned getBytesInStackArgArea() const { return BytesInStackArgArea; }
@@ -154,6 +237,11 @@ public:
   unsigned getArgumentStackToRestore() const { return ArgumentStackToRestore; }
   void setArgumentStackToRestore(unsigned bytes) {
     ArgumentStackToRestore = bytes;
+  }
+
+  unsigned getTailCallReservedStack() const { return TailCallReservedStack; }
+  void setTailCallReservedStack(unsigned bytes) {
+    TailCallReservedStack = bytes;
   }
 
   bool hasCalculatedStackSizeSVE() const { return HasCalculatedStackSizeSVE; }
@@ -184,7 +272,9 @@ public:
   uint64_t getLocalStackSize() const { return LocalStackSize; }
 
   void setOutliningStyle(std::string Style) { OutliningStyle = Style; }
-  Optional<std::string> getOutliningStyle() const { return OutliningStyle; }
+  std::optional<std::string> getOutliningStyle() const {
+    return OutliningStyle;
+  }
 
   void setCalleeSavedStackSize(unsigned Size) {
     CalleeSavedStackSize = Size;
@@ -219,6 +309,13 @@ public:
           continue;
         int64_t Offset = MFI.getObjectOffset(FrameIdx);
         int64_t ObjSize = MFI.getObjectSize(FrameIdx);
+        MinOffset = std::min<int64_t>(Offset, MinOffset);
+        MaxOffset = std::max<int64_t>(Offset + ObjSize, MaxOffset);
+      }
+
+      if (SwiftAsyncContextFrameIdx != std::numeric_limits<int>::max()) {
+        int64_t Offset = MFI.getObjectOffset(getSwiftAsyncContextFrameIdx());
+        int64_t ObjSize = MFI.getObjectSize(getSwiftAsyncContextFrameIdx());
         MinOffset = std::min<int64_t>(Offset, MinOffset);
         MaxOffset = std::max<int64_t>(Offset + ObjSize, MaxOffset);
       }
@@ -259,11 +356,14 @@ public:
     return NumLocalDynamicTLSAccesses;
   }
 
-  Optional<bool> hasRedZone() const { return HasRedZone; }
+  std::optional<bool> hasRedZone() const { return HasRedZone; }
   void setHasRedZone(bool s) { HasRedZone = s; }
 
   int getVarArgsStackIndex() const { return VarArgsStackIndex; }
   void setVarArgsStackIndex(int Index) { VarArgsStackIndex = Index; }
+
+  unsigned getVarArgsStackOffset() const { return VarArgsStackOffset; }
+  void setVarArgsStackOffset(unsigned Offset) { VarArgsStackOffset = Offset; }
 
   int getVarArgsGPRIndex() const { return VarArgsGPRIndex; }
   void setVarArgsGPRIndex(int Index) { VarArgsGPRIndex = Index; }
@@ -281,15 +381,14 @@ public:
   void setSRetReturnReg(unsigned Reg) { SRetReturnReg = Reg; }
 
   unsigned getJumpTableEntrySize(int Idx) const {
-    auto It = JumpTableEntryInfo.find(Idx);
-    if (It != JumpTableEntryInfo.end())
-      return It->second.first;
-    return 4;
+    return JumpTableEntryInfo[Idx].first;
   }
   MCSymbol *getJumpTableEntryPCRelSymbol(int Idx) const {
-    return JumpTableEntryInfo.find(Idx)->second.second;
+    return JumpTableEntryInfo[Idx].second;
   }
   void setJumpTableEntryInfo(int Idx, unsigned Size, MCSymbol *PCRelSym) {
+    if ((unsigned)Idx >= JumpTableEntryInfo.size())
+      JumpTableEntryInfo.resize(Idx+1);
     JumpTableEntryInfo[Idx] = std::make_pair(Size, PCRelSym);
   }
 
@@ -331,6 +430,11 @@ public:
     return ForwardedMustTailRegParms;
   }
 
+  std::optional<int> getTaggedBasePointerIndex() const {
+    return TaggedBasePointerIndex;
+  }
+  void setTaggedBasePointerIndex(int Index) { TaggedBasePointerIndex = Index; }
+
   unsigned getTaggedBasePointerOffset() const {
     return TaggedBasePointerOffset;
   }
@@ -338,17 +442,62 @@ public:
     TaggedBasePointerOffset = Offset;
   }
 
+  int getCalleeSaveBaseToFrameRecordOffset() const {
+    return CalleeSaveBaseToFrameRecordOffset;
+  }
+  void setCalleeSaveBaseToFrameRecordOffset(int Offset) {
+    CalleeSaveBaseToFrameRecordOffset = Offset;
+  }
+
+  bool shouldSignReturnAddress(const MachineFunction &MF) const;
+  bool shouldSignReturnAddress(bool SpillsLR) const;
+
+  bool needsShadowCallStackPrologueEpilogue(MachineFunction &MF) const;
+
+  bool shouldSignWithBKey() const { return SignWithBKey; }
+
+  MCSymbol *getSigningInstrLabel() const { return SignInstrLabel; }
+  void setSigningInstrLabel(MCSymbol *Label) { SignInstrLabel = Label; }
+
+  bool isMTETagged() const { return IsMTETagged; }
+
+  bool branchTargetEnforcement() const { return BranchTargetEnforcement; }
+
+  bool branchProtectionPAuthLR() const { return BranchProtectionPAuthLR; }
+
+  void setHasSwiftAsyncContext(bool HasContext) {
+    HasSwiftAsyncContext = HasContext;
+  }
+  bool hasSwiftAsyncContext() const { return HasSwiftAsyncContext; }
+
+  void setSwiftAsyncContextFrameIdx(int FI) {
+    SwiftAsyncContextFrameIdx = FI;
+  }
+  int getSwiftAsyncContextFrameIdx() const { return SwiftAsyncContextFrameIdx; }
+
+  bool needsDwarfUnwindInfo(const MachineFunction &MF) const;
+  bool needsAsyncDwarfUnwindInfo(const MachineFunction &MF) const;
+
+  bool hasStreamingModeChanges() const { return HasStreamingModeChanges; }
+  void setHasStreamingModeChanges(bool HasChanges) {
+    HasStreamingModeChanges = HasChanges;
+  }
+
+  bool hasStackProbing() const { return StackProbeSize != 0; }
+
+  int64_t getStackProbeSize() const { return StackProbeSize; }
+
 private:
   // Hold the lists of LOHs.
   MILOHContainer LOHContainerSet;
   SetOfInstructions LOHRelated;
 
-  DenseMap<int, std::pair<unsigned, MCSymbol *>> JumpTableEntryInfo;
+  SmallVector<std::pair<unsigned, MCSymbol *>, 2> JumpTableEntryInfo;
 };
 
 namespace yaml {
 struct AArch64FunctionInfo final : public yaml::MachineFunctionInfo {
-  Optional<bool> HasRedZone;
+  std::optional<bool> HasRedZone;
 
   AArch64FunctionInfo() = default;
   AArch64FunctionInfo(const llvm::AArch64FunctionInfo &MFI);

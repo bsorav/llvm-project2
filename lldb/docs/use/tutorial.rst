@@ -5,9 +5,6 @@ Here's a short precis of how to run lldb if you are familiar with the gdb
 command set. We will start with some details on lldb command structure and
 syntax to help orient you.
 
-.. contents::
-   :local:
-
 Command Structure
 -----------------
 
@@ -20,15 +17,28 @@ Unlike gdb's command set, which is rather free-form, we tried to make the lldb c
 The command line parsing is done before command execution, so it is uniform
 across all the commands. The command syntax for basic commands is very simple,
 arguments, options and option values are all white-space separated, and
-double-quotes are used to protect white-spaces in an argument. If you need to
-put a backslash or double-quote character in an argument you back-slash it in
-the argument. That makes the command syntax more regular, but it also means you
-may have to quote some arguments in lldb that you wouldn't in gdb.
+either single or double-quotes (in pairs) are used to protect white-spaces
+in an argument.  If you need to put a backslash or double-quote character in an
+argument you back-slash it in the argument. That makes the command syntax more
+regular, but it also means you may have to quote some arguments in lldb that
+you wouldn't in gdb.
+
+There is one other special quote character in lldb - the backtick.
+If you put backticks around an argument or option value, lldb will run the text
+of the value through the expression parser, and the result of the expression
+will be passed to the command.  So for instance, if "len" is a local
+int variable with the value 5, then the command:
+
+::
+
+   (lldb) memory read -c `len` 0x12345
+
+will receive the value 5 for the count option, rather than the string "len".
 
 
 Options can be placed anywhere on the command line, but if the arguments begin
 with a "-" then you have to tell lldb that you're done with options for the
-current command by adding an option termination: "--" So for instance if you
+current command by adding an option termination: "--". So for instance, if you
 want to launch a process and give the "process launch" command the
 "--stop-at-entry" option, yet you want the process you are about to launch to
 be launched with the arguments "-program_arg value", you would type:
@@ -121,7 +131,7 @@ command:
 
 lldb also supports command completion for source file names, symbol names, file
 names, etc. Completion is initiated by a hitting a TAB. Individual options in a
-command can have different completers, so for instance the "--file <path>"
+command can have different completers, so for instance, the "--file <path>"
 option in "breakpoint" completes to source files, the "--shlib <path>" option
 to currently loaded shared libraries, etc. We can even do things like if you
 specify "--shlib <path>", and are completing on "--file <path>", we will only
@@ -134,7 +144,7 @@ help text for all commands for a particular word and dump a summary help string
 for each matching command.
 
 Finally, there is a mechanism to construct aliases for commonly used commands.
-So for instance if you get annoyed typing:
+For instance, if you get annoyed typing:
 
 ::
 
@@ -162,10 +172,10 @@ set up.
 One alias of note that we do include by popular demand is a weak emulator of
 gdb's "break" command. It doesn't try to do everything that gdb's break command
 does (for instance, it doesn't handle foo.c::bar. But it mostly works, and
-makes the transition easier. Also by popular demand, it is aliased to b. If you
+makes the transition easier. Also, by popular demand, it is aliased to b. If you
 actually want to learn the lldb command set natively, that means it will get in
 the way of the rest of the breakpoint commands. Fortunately, if you don't like
-one of our aliases, you an easily get rid of it by running (for example):
+one of our aliases, you can easily get rid of it by running (for example):
 
 ::
 
@@ -183,7 +193,7 @@ The lldb command parser also supports "raw" commands, where, after command
 options are stripped off, the rest of the command string is passed
 uninterpreted to the command. This is convenient for commands whose arguments
 might be some complex expression that would be painful to backslash protect.
-For instance the "expression" command is a "raw" command for obvious reasons.
+For instance, the "expression" command is a "raw" command for obvious reasons.
 The "help" output for a command will tell you if it is "raw" or not, so you
 know what to expect. The one thing you have to watch out for is that since raw
 commands still can have options, if your command string has dashes in it,
@@ -246,11 +256,11 @@ breakpoint on all the methods that implement that selector in the classes in
 your program. Similarly, a file and line breakpoint might result in multiple
 locations if that file and line were inlined in different places in your code.
 
-The logical breakpoint has an integer id, and it's locations have an id within
+The logical breakpoint has an integer id, and its locations have an id within
 their parent breakpoint (the two are joined by a ".", e.g. 1.1 in the example
-above.)
+above).
 
-Also the logical breakpoints remain live so that if another shared library were
+Also, the logical breakpoints remain live so that if another shared library were
 to be loaded that had another implementation of the "alignLeftEdges:" selector,
 the new location would be added to breakpoint 1 (e.g. a "1.2" breakpoint would
 be set on the newly loaded selector).
@@ -284,7 +294,7 @@ locations were found:
 
 You can delete, disable, set conditions and ignore counts either on all the
 locations generated by your logical breakpoint, or on any one of the particular
-locations your specification resolved to. For instance if we wanted to add a
+locations your specification resolved to. For instance, if we wanted to add a
 command to print a backtrace when we hit this breakpoint we could do:
 
 ::
@@ -299,7 +309,7 @@ commands. You can also specify this explicitly by passing the "--command"
 option. Use "--script" if you want to implement your breakpoint command using
 the Python script instead.
 
-This is an convenient point to bring up another feature of the lldb command
+This is a convenient point to bring up another feature of the lldb command
 help. Do:
 
 ::
@@ -324,7 +334,7 @@ do:
 Breakpoint Names
 ----------------
 
-Breakpoints carry two orthognal sets of information: one specifies where to set the breakpoint, and the other how to react when the breakpoint is hit. The latter set of information (e.g. commands, conditions, hit-count, auto-continue...) we call breakpoint options.
+Breakpoints carry two orthogonal sets of information: one specifies where to set the breakpoint, and the other how to react when the breakpoint is hit. The latter set of information (e.g. commands, conditions, hit-count, auto-continue...) we call breakpoint options.
 
 It is fairly common to want to apply one set of options to a number of breakpoints. For instance, you might want to check that self == nil and if it is, print a backtrace and continue, on a number of methods. One convenient way to do that would be to make all the breakpoints, then configure the options with:
 
@@ -350,7 +360,7 @@ That is better, but suffers from the problem that when new breakpoints get
 added, they don't pick up these modifications, and the options only exist in
 the context of actual breakpoints, so they are hard to store & reuse.
 
-A even better solution is to make a fully configured breakpoint name:
+An even better solution is to make a fully configured breakpoint name:
 
 ::
 
@@ -421,7 +431,7 @@ a variable called 'global' for write operation, but only stop if the condition
    Watchpoint 1: addr = 0x100001018 size = 4 state = enabled type = w
       declare @ '/Volumes/data/lldb/svn/ToT/test/functionalities/watchpoint/watchpoint_commands/condition/main.cpp:12'
       condition = '(global==5)'
-      hw_index = 0  hit_count = 5     ignore_count = 0
+      hit_count = 5     ignore_count = 0
    (lldb)
 
 Starting or Attaching to Your Program
@@ -509,9 +519,9 @@ running anything you type will go to the STDIN of the inferior process. To
 interrupt your inferior program, type CTRL+C.
 
 If you attach to a process, or launch a process with the "--no-stdin" option,
-the command interpreter is always available to enter commands. This might be a
-little disconcerting to gdb users when always have an (lldb) prompt. This
-allows you to set a breakpoint, etc without having to explicitly interrupt the
+the command interpreter is always available to enter commands. It might be a
+little disconcerting to gdb users to always have an (lldb) prompt. This allows
+you to set a breakpoint, etc without having to explicitly interrupt the
 program you are debugging:
 
 ::

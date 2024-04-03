@@ -50,7 +50,7 @@ WebAssemblyRegisterInfo::getReservedRegs(const MachineFunction & /*MF*/) const {
   return Reserved;
 }
 
-void WebAssemblyRegisterInfo::eliminateFrameIndex(
+bool WebAssemblyRegisterInfo::eliminateFrameIndex(
     MachineBasicBlock::iterator II, int SPAdj, unsigned FIOperandNum,
     RegScavenger * /*RS*/) const {
   assert(SPAdj == 0);
@@ -82,7 +82,7 @@ void WebAssemblyRegisterInfo::eliminateFrameIndex(
       MI.getOperand(OffsetOperandNum).setImm(Offset);
       MI.getOperand(FIOperandNum)
           .ChangeToRegister(FrameRegister, /*isDef=*/false);
-      return;
+      return false;
     }
   }
 
@@ -92,7 +92,7 @@ void WebAssemblyRegisterInfo::eliminateFrameIndex(
     MachineOperand &OtherMO = MI.getOperand(3 - FIOperandNum);
     if (OtherMO.isReg()) {
       Register OtherMOReg = OtherMO.getReg();
-      if (Register::isVirtualRegister(OtherMOReg)) {
+      if (OtherMOReg.isVirtual()) {
         MachineInstr *Def = MF.getRegInfo().getUniqueVRegDef(OtherMOReg);
         // TODO: For now we just opportunistically do this in the case where
         // the CONST_I32/64 happens to have exactly one def and one use. We
@@ -101,10 +101,12 @@ void WebAssemblyRegisterInfo::eliminateFrameIndex(
               WebAssemblyFrameLowering::getOpcConst(MF) &&
             MRI.hasOneNonDBGUse(Def->getOperand(0).getReg())) {
           MachineOperand &ImmMO = Def->getOperand(1);
-          ImmMO.setImm(ImmMO.getImm() + uint32_t(FrameOffset));
-          MI.getOperand(FIOperandNum)
-              .ChangeToRegister(FrameRegister, /*isDef=*/false);
-          return;
+          if (ImmMO.isImm()) {
+            ImmMO.setImm(ImmMO.getImm() + uint32_t(FrameOffset));
+            MI.getOperand(FIOperandNum)
+                .ChangeToRegister(FrameRegister, /*isDef=*/false);
+            return false;
+          }
         }
       }
     }
@@ -131,6 +133,7 @@ void WebAssemblyRegisterInfo::eliminateFrameIndex(
         .addReg(OffsetOp);
   }
   MI.getOperand(FIOperandNum).ChangeToRegister(FIRegOperand, /*isDef=*/false);
+  return false;
 }
 
 Register

@@ -10,6 +10,6 @@
 
 // ADDITIONAL_COMPILE_FLAGS: -Wunused-variable
 
-int main() {
+void f() {
     int foo; // expected-warning {{unused variable}}
 }

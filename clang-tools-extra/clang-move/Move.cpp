@@ -92,7 +92,7 @@ std::string MakeAbsolutePath(const SourceManager &SM, StringRef Path) {
                  << '\n';
   // Handle symbolic link path cases.
   // We are trying to get the real file path of the symlink.
-  auto Dir = SM.getFileManager().getDirectory(
+  auto Dir = SM.getFileManager().getOptionalDirectoryRef(
       llvm::sys::path::parent_path(AbsolutePath.str()));
   if (Dir) {
     StringRef DirName = SM.getFileManager().getCanonicalName(*Dir);
@@ -115,8 +115,8 @@ AST_POLYMORPHIC_MATCHER_P(isExpansionInFile,
   auto ExpansionLoc = SourceManager.getExpansionLoc(Node.getBeginLoc());
   if (ExpansionLoc.isInvalid())
     return false;
-  auto *FileEntry =
-      SourceManager.getFileEntryForID(SourceManager.getFileID(ExpansionLoc));
+  auto FileEntry =
+      SourceManager.getFileEntryRefForID(SourceManager.getFileID(ExpansionLoc));
   if (!FileEntry)
     return false;
   return MakeAbsolutePath(SourceManager, FileEntry->getName()) ==
@@ -131,11 +131,11 @@ public:
   void InclusionDirective(SourceLocation HashLoc, const Token & /*IncludeTok*/,
                           StringRef FileName, bool IsAngled,
                           CharSourceRange FilenameRange,
-                          const FileEntry * /*File*/, StringRef SearchPath,
+                          OptionalFileEntryRef /*File*/, StringRef SearchPath,
                           StringRef /*RelativePath*/,
                           const Module * /*Imported*/,
                           SrcMgr::CharacteristicKind /*FileType*/) override {
-    if (const auto *FileEntry = SM.getFileEntryForID(SM.getFileID(HashLoc)))
+    if (auto FileEntry = SM.getFileEntryRefForID(SM.getFileID(HashLoc)))
       MoveTool->addIncludes(FileName, IsAngled, SearchPath,
                             FileEntry->getName(), FilenameRange, SM);
   }
@@ -341,7 +341,7 @@ bool isInHeaderFile(const Decl *D, llvm::StringRef OriginalRunningDirectory,
   if (ExpansionLoc.isInvalid())
     return false;
 
-  if (const auto *FE = SM.getFileEntryForID(SM.getFileID(ExpansionLoc))) {
+  if (auto FE = SM.getFileEntryRefForID(SM.getFileID(ExpansionLoc))) {
     return MakeAbsolutePath(SM, FE->getName()) ==
            MakeAbsolutePath(OriginalRunningDirectory, OldHeader);
   }
@@ -675,8 +675,8 @@ void ClangMoveTool::run(const ast_matchers::MatchFinder::MatchResult &Result) {
                  Result.Nodes.getNodeAs<NamedDecl>("helper_decls")) {
     MovedDecls.push_back(ND);
     HelperDeclarations.push_back(ND);
-    LLVM_DEBUG(llvm::dbgs() << "Add helper : " << ND->getNameAsString() << " ("
-                            << ND << ")\n");
+    LLVM_DEBUG(llvm::dbgs()
+               << "Add helper : " << ND->getDeclName() << " (" << ND << ")\n");
   } else if (const auto *UD = Result.Nodes.getNodeAs<NamedDecl>("using_decl")) {
     MovedDecls.push_back(UD);
   }
@@ -691,11 +691,10 @@ void ClangMoveTool::addIncludes(llvm::StringRef IncludeHeader, bool IsAngled,
                                 llvm::StringRef FileName,
                                 CharSourceRange IncludeFilenameRange,
                                 const SourceManager &SM) {
-  SmallVector<char, 128> HeaderWithSearchPath;
+  SmallString<128> HeaderWithSearchPath;
   llvm::sys::path::append(HeaderWithSearchPath, SearchPath, IncludeHeader);
   std::string AbsoluteIncludeHeader =
-      MakeAbsolutePath(SM, llvm::StringRef(HeaderWithSearchPath.data(),
-                                           HeaderWithSearchPath.size()));
+      MakeAbsolutePath(SM, HeaderWithSearchPath);
   std::string IncludeLine =
       IsAngled ? ("#include <" + IncludeHeader + ">\n").str()
                : ("#include \"" + IncludeHeader + "\"\n").str();
@@ -735,12 +734,12 @@ void ClangMoveTool::removeDeclsInOldFiles() {
     // We remove the helper declarations which are not used in the old.cc after
     // moving the given declarations.
     for (const auto *D : HelperDeclarations) {
-      LLVM_DEBUG(llvm::dbgs() << "Check helper is used: "
-                              << D->getNameAsString() << " (" << D << ")\n");
+      LLVM_DEBUG(llvm::dbgs() << "Check helper is used: " << D->getDeclName()
+                              << " (" << D << ")\n");
       if (!UsedDecls.count(HelperDeclRGBuilder::getOutmostClassOrFunDecl(
               D->getCanonicalDecl()))) {
         LLVM_DEBUG(llvm::dbgs() << "Helper removed in old.cc: "
-                                << D->getNameAsString() << " (" << D << ")\n");
+                                << D->getDeclName() << " (" << D << ")\n");
         RemovedDecls.push_back(D);
       }
     }
@@ -820,7 +819,7 @@ void ClangMoveTool::moveDeclsToNewFiles() {
             D->getCanonicalDecl())))
       continue;
 
-    LLVM_DEBUG(llvm::dbgs() << "Helper used in new.cc: " << D->getNameAsString()
+    LLVM_DEBUG(llvm::dbgs() << "Helper used in new.cc: " << D->getDeclName()
                             << " " << D << "\n");
     ActualNewCCDecls.push_back(D);
   }
@@ -844,7 +843,7 @@ void ClangMoveTool::moveDeclsToNewFiles() {
 // Move all contents from OldFile to NewFile.
 void ClangMoveTool::moveAll(SourceManager &SM, StringRef OldFile,
                             StringRef NewFile) {
-  auto FE = SM.getFileManager().getFile(makeAbsolutePath(OldFile));
+  auto FE = SM.getFileManager().getOptionalFileRef(makeAbsolutePath(OldFile));
   if (!FE) {
     llvm::errs() << "Failed to get file: " << OldFile << "\n";
     return;
@@ -921,8 +920,7 @@ void ClangMoveTool::onEndOfTranslationUnit() {
       return false;
     }
   };
-  if (std::none_of(UnremovedDeclsInOldHeader.begin(),
-                   UnremovedDeclsInOldHeader.end(), IsSupportedKind) &&
+  if (llvm::none_of(UnremovedDeclsInOldHeader, IsSupportedKind) &&
       !Context->Spec.OldHeader.empty()) {
     auto &SM = RemovedDecls[0]->getASTContext().getSourceManager();
     moveAll(SM, Context->Spec.OldHeader, Context->Spec.NewHeader);

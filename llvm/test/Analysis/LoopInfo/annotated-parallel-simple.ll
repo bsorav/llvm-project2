@@ -1,4 +1,4 @@
-; RUN: opt -loops -analyze < %s | FileCheck %s
+; RUN: opt -passes='print<loops>' -disable-output %s 2>&1 | FileCheck %s
 ;
 ; void func(long n, double A[static const restrict n]) {
 ;   for (long i = 0; i < n; i += 1)
@@ -33,5 +33,5 @@ for.end:
 !7 = distinct !{!7, !9} ; LoopID
 !9 = !{!"llvm.loop.parallel_accesses", !6}
 
-
-; CHECK: Parallel Loop
+; CHECK: Loop info for function 'func':
+; CHECK: Parallel Loop at depth 1 containing:

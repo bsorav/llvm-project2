@@ -15,9 +15,7 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Analysis/ScalarEvolution.h"
-#include "llvm/IR/Constants.h"
 #include "llvm/Support/Casting.h"
-#include "llvm/Support/ErrorHandling.h"
 #include <cassert>
 #include <cstdint>
 
@@ -128,6 +126,10 @@ void SCEVDivision::visitConstant(const SCEVConstant *Numerator) {
   }
 }
 
+void SCEVDivision::visitVScale(const SCEVVScale *Numerator) {
+  return cannotDivide(Numerator);
+}
+
 void SCEVDivision::visitAddRecExpr(const SCEVAddRecExpr *Numerator) {
   const SCEV *StartQ, *StartR, *StepQ, *StepR;
   if (!Numerator->isAffine())
@@ -215,16 +217,14 @@ void SCEVDivision::visitMulExpr(const SCEVMulExpr *Numerator) {
     return cannotDivide(Numerator);
 
   // The Remainder is obtained by replacing Denominator by 0 in Numerator.
-  ValueToValueMap RewriteMap;
-  RewriteMap[cast<SCEVUnknown>(Denominator)->getValue()] =
-      cast<SCEVConstant>(Zero)->getValue();
-  Remainder = SCEVParameterRewriter::rewrite(Numerator, SE, RewriteMap, true);
+  ValueToSCEVMapTy RewriteMap;
+  RewriteMap[cast<SCEVUnknown>(Denominator)->getValue()] = Zero;
+  Remainder = SCEVParameterRewriter::rewrite(Numerator, SE, RewriteMap);
 
   if (Remainder->isZero()) {
     // The Quotient is obtained by replacing Denominator by 1 in Numerator.
-    RewriteMap[cast<SCEVUnknown>(Denominator)->getValue()] =
-        cast<SCEVConstant>(One)->getValue();
-    Quotient = SCEVParameterRewriter::rewrite(Numerator, SE, RewriteMap, true);
+    RewriteMap[cast<SCEVUnknown>(Denominator)->getValue()] = One;
+    Quotient = SCEVParameterRewriter::rewrite(Numerator, SE, RewriteMap);
     return;
   }
 

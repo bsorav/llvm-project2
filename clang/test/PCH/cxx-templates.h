@@ -206,7 +206,6 @@ namespace NonTypeTemplateParmContext {
     inline bool equalIgnoringNullity(const Vector<char, inlineCapacity>& a, const String& b) { return false; }
 }
 
-// <rdar://problem/11112464>
 template< typename > class Foo;
 
 template< typename T >
@@ -455,4 +454,20 @@ namespace DependentTemplateName {
 
   template <class T>
   TakesClassTemplate<T::template Member> getWithIdentifier();
+}
+
+namespace ClassTemplateCycle {
+  // Create a cycle: the typedef T refers to A<0, 8>, whose template argument
+  // list refers back to T.
+  template<int, int> struct A;
+  using T = A<0, sizeof(void*)>;
+  template<int N> struct A<N, sizeof(T*)> {};
+  T t;
+
+  // Create a cycle: the variable M refers to A<1, 1>, whose template argument
+  // list list refers back to M.
+  template<int, int> struct A;
+  const decltype(sizeof(A<1, 1>*)) M = 1;
+  template<int N> struct A<N, M> {};
+  A<1, 1> u;
 }

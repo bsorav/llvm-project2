@@ -1,7 +1,6 @@
-; RUN: llc -march=bpfel -filetype=asm -o - %s | FileCheck -check-prefixes=CHECK %s
-; RUN: llc -march=bpfeb -filetype=asm -o - %s | FileCheck -check-prefixes=CHECK %s
-; RUN: llc -march=bpfel -mattr=+alu32 -filetype=asm -o - %s | FileCheck -check-prefixes=CHECK %s
-; RUN: llc -march=bpfeb -mattr=+alu32 -filetype=asm -o - %s | FileCheck -check-prefixes=CHECK %s
+; RUN: opt -O2 %s | llvm-dis > %t1
+; RUN: llc -filetype=asm -o - %t1 | FileCheck -check-prefixes=CHECK %s
+; RUN: llc -mattr=+alu32 -filetype=asm -o - %t1 | FileCheck -check-prefixes=CHECK %s
 ; Source code:
 ;   typedef struct v3 { int a; int b; } __v3;
 ;   #define _(x) (__builtin_preserve_access_index(x))
@@ -11,7 +10,9 @@
 ;     return get_value(_(&g[1][2].b));
 ;   }
 ; Compilation flag:
-;   clang -target bpf -O2 -g -S -emit-llvm test.c
+;   clang -target bpf -O2 -g -S -emit-llvm -Xclang -disable-llvm-passes test.c
+
+target triple = "bpf"
 
 %struct.v3 = type { i32, i32 }
 
@@ -20,10 +21,10 @@
 ; Function Attrs: nounwind
 define dso_local i32 @test() local_unnamed_addr #0 !dbg !23 {
 entry:
-  %0 = tail call [5 x %struct.v3]* @llvm.preserve.array.access.index.p0a5s_struct.v3s.p0a4a5s_struct.v3s([4 x [5 x %struct.v3]]* nonnull @g, i32 1, i32 1), !dbg !26, !llvm.preserve.access.index !6
-  %1 = tail call %struct.v3* @llvm.preserve.array.access.index.p0s_struct.v3s.p0a5s_struct.v3s([5 x %struct.v3]* %0, i32 1, i32 2), !dbg !26, !llvm.preserve.access.index !16
-  %2 = tail call i32* @llvm.preserve.struct.access.index.p0i32.p0s_struct.v3s(%struct.v3* %1, i32 1, i32 1), !dbg !26, !llvm.preserve.access.index !8
-  %call = tail call i32 @get_value(i32* %2) #3, !dbg !27
+  %0 = tail call ptr @llvm.preserve.array.access.index.p0.v3s.p0.v3s(ptr elementtype([4 x [5 x %struct.v3]]) nonnull @g, i32 1, i32 1), !dbg !26, !llvm.preserve.access.index !6
+  %1 = tail call ptr @llvm.preserve.array.access.index.p0.v3s.p0.v3s(ptr elementtype([5 x %struct.v3]) %0, i32 1, i32 2), !dbg !26, !llvm.preserve.access.index !16
+  %2 = tail call ptr @llvm.preserve.struct.access.index.p0.p0.v3s(ptr elementtype(%struct.v3) %1, i32 1, i32 1), !dbg !26, !llvm.preserve.access.index !8
+  %call = tail call i32 @get_value(ptr %2) #3, !dbg !27
   ret i32 %call, !dbg !28
 }
 
@@ -47,16 +48,15 @@ entry:
 ; CHECK-NEXT:         .long   0
 
 
-declare dso_local i32 @get_value(i32*) local_unnamed_addr #1
+declare dso_local i32 @get_value(ptr) local_unnamed_addr #1
 
 ; Function Attrs: nounwind readnone
-declare [5 x %struct.v3]* @llvm.preserve.array.access.index.p0a5s_struct.v3s.p0a4a5s_struct.v3s([4 x [5 x %struct.v3]]*, i32, i32) #2
+declare ptr @llvm.preserve.array.access.index.p0.v3s.p0.v3s(ptr, i32, i32) #2
 
 ; Function Attrs: nounwind readnone
-declare %struct.v3* @llvm.preserve.array.access.index.p0s_struct.v3s.p0a5s_struct.v3s([5 x %struct.v3]*, i32, i32) #2
 
 ; Function Attrs: nounwind readnone
-declare i32* @llvm.preserve.struct.access.index.p0i32.p0s_struct.v3s(%struct.v3*, i32, i32) #2
+declare ptr @llvm.preserve.struct.access.index.p0.p0.v3s(ptr, i32, i32) #2
 
 attributes #0 = { nounwind "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "frame-pointer"="all" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #1 = { "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "frame-pointer"="all" "less-precise-fpmad"="false" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }

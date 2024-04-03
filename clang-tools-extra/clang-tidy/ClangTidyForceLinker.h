@@ -9,16 +9,20 @@
 #ifndef LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_CLANGTIDYFORCELINKER_H
 #define LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_CLANGTIDYFORCELINKER_H
 
-#include "clang/Config/config.h"
+#include "clang-tidy-config.h"
 #include "llvm/Support/Compiler.h"
 
-namespace clang {
-namespace tidy {
+namespace clang::tidy {
 
 // This anchor is used to force the linker to link the AbseilModule.
 extern volatile int AbseilModuleAnchorSource;
 static int LLVM_ATTRIBUTE_UNUSED AbseilModuleAnchorDestination =
     AbseilModuleAnchorSource;
+
+// This anchor is used to force the linker to link the AlteraModule.
+extern volatile int AlteraModuleAnchorSource;
+static int LLVM_ATTRIBUTE_UNUSED AlteraModuleAnchorDestination =
+    AlteraModuleAnchorSource;
 
 // This anchor is used to force the linker to link the AndroidModule.
 extern volatile int AndroidModuleAnchorSource;
@@ -39,6 +43,11 @@ static int LLVM_ATTRIBUTE_UNUSED BugproneModuleAnchorDestination =
 extern volatile int CERTModuleAnchorSource;
 static int LLVM_ATTRIBUTE_UNUSED CERTModuleAnchorDestination =
     CERTModuleAnchorSource;
+
+// This anchor is used to force the linker to link the ConcurrencyModule.
+extern volatile int ConcurrencyModuleAnchorSource;
+static int LLVM_ATTRIBUTE_UNUSED ConcurrencyModuleAnchorDestination =
+    ConcurrencyModuleAnchorSource;
 
 // This anchor is used to force the linker to link the CppCoreGuidelinesModule.
 extern volatile int CppCoreGuidelinesModuleAnchorSource;
@@ -90,7 +99,7 @@ extern volatile int ModernizeModuleAnchorSource;
 static int LLVM_ATTRIBUTE_UNUSED ModernizeModuleAnchorDestination =
     ModernizeModuleAnchorSource;
 
-#if CLANG_ENABLE_STATIC_ANALYZER &&                                            \
+#if CLANG_TIDY_ENABLE_STATIC_ANALYZER &&                                       \
     !defined(CLANG_TIDY_DISABLE_STATIC_ANALYZER_CHECKS)
 // This anchor is used to force the linker to link the MPIModule.
 extern volatile int MPIModuleAnchorSource;
@@ -128,7 +137,6 @@ extern volatile int ZirconModuleAnchorSource;
 static int LLVM_ATTRIBUTE_UNUSED ZirconModuleAnchorDestination =
     ZirconModuleAnchorSource;
 
-} // namespace tidy
-} // namespace clang
+} // namespace clang::tidy
 
 #endif

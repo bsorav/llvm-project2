@@ -67,6 +67,12 @@ public:
     ///      .word L4_5_set_123
     EK_LabelDifference32,
 
+    /// EK_LabelDifference64 - Each entry is the address of the block minus
+    /// the address of the jump table.  This is used for PIC jump tables where
+    /// gprel64 is not supported.  e.g.:
+    ///      .quad LBB123 - LJTI1_2
+    EK_LabelDifference64,
+
     /// EK_Inline - Jump table entries are emitted inline at their point of
     /// use. It is the responsibility of the target to emit the entries.
     EK_Inline,
@@ -75,6 +81,7 @@ public:
     /// TargetLowering::LowerCustomJumpTableEntry hook.
     EK_Custom32
   };
+
 private:
   JTEntryKind EntryKind;
   std::vector<MachineJumpTableEntry> JumpTables;
@@ -105,6 +112,9 @@ public:
   void RemoveJumpTable(unsigned Idx) {
     JumpTables[Idx].MBBs.clear();
   }
+
+  /// RemoveMBBFromJumpTables - If MBB is present in any jump tables, remove it.
+  bool RemoveMBBFromJumpTables(MachineBasicBlock *MBB);
 
   /// ReplaceMBBInJumpTables - If Old is the target of any jump tables, update
   /// the jump tables to branch to New instead.

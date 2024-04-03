@@ -17,6 +17,7 @@
 #include "clang/AST/DependenceFlags.h"
 #include "clang/Basic/Diagnostic.h"
 #include "clang/Basic/SourceLocation.h"
+#include "llvm/ADT/DenseMapInfo.h"
 #include "llvm/ADT/FoldingSet.h"
 #include "llvm/ADT/PointerIntPair.h"
 #include "llvm/Support/Compiler.h"
@@ -161,7 +162,7 @@ public:
   /// Return the prefix of this nested name specifier.
   ///
   /// The prefix contains all of the parts of the nested name
-  /// specifier that preced this current specifier. For example, for a
+  /// specifier that precede this current specifier. For example, for a
   /// nested name specifier that represents "foo::bar::", the current
   /// specifier will contain "bar::" and the prefix will contain
   /// "foo::".
@@ -518,13 +519,42 @@ public:
 
 /// Insertion operator for diagnostics.  This allows sending
 /// NestedNameSpecifiers into a diagnostic with <<.
-inline const DiagnosticBuilder &operator<<(const DiagnosticBuilder &DB,
-                                           NestedNameSpecifier *NNS) {
-  DB.AddTaggedVal(reinterpret_cast<intptr_t>(NNS),
+inline const StreamingDiagnostic &operator<<(const StreamingDiagnostic &DB,
+                                             NestedNameSpecifier *NNS) {
+  DB.AddTaggedVal(reinterpret_cast<uint64_t>(NNS),
                   DiagnosticsEngine::ak_nestednamespec);
   return DB;
 }
 
 } // namespace clang
+
+namespace llvm {
+
+template <> struct DenseMapInfo<clang::NestedNameSpecifierLoc> {
+  using FirstInfo = DenseMapInfo<clang::NestedNameSpecifier *>;
+  using SecondInfo = DenseMapInfo<void *>;
+
+  static clang::NestedNameSpecifierLoc getEmptyKey() {
+    return clang::NestedNameSpecifierLoc(FirstInfo::getEmptyKey(),
+                                         SecondInfo::getEmptyKey());
+  }
+
+  static clang::NestedNameSpecifierLoc getTombstoneKey() {
+    return clang::NestedNameSpecifierLoc(FirstInfo::getTombstoneKey(),
+                                         SecondInfo::getTombstoneKey());
+  }
+
+  static unsigned getHashValue(const clang::NestedNameSpecifierLoc &PairVal) {
+    return hash_combine(
+        FirstInfo::getHashValue(PairVal.getNestedNameSpecifier()),
+        SecondInfo::getHashValue(PairVal.getOpaqueData()));
+  }
+
+  static bool isEqual(const clang::NestedNameSpecifierLoc &LHS,
+                      const clang::NestedNameSpecifierLoc &RHS) {
+    return LHS == RHS;
+  }
+};
+} // namespace llvm
 
 #endif // LLVM_CLANG_AST_NESTEDNAMESPECIFIER_H

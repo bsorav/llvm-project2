@@ -1,5 +1,4 @@
 // RUN: %clang_cc1 -fobjc-runtime-has-weak -fsyntax-only -fobjc-arc -verify -fblocks %s
-// rdar://8843600
 
 void * cvt(id arg) // expected-note{{candidate function not viable: cannot convert argument of incomplete type 'void *' to '__strong id'}}
 {
@@ -20,7 +19,6 @@ void * cvt(id arg) // expected-note{{candidate function not viable: cannot conve
   return arg; // expected-error{{cannot initialize return object of type 'void *' with an lvalue of type '__strong id'}}
 }
 
-// rdar://8898937
 namespace rdar8898937 {
 
 typedef void (^dispatch_block_t)(void);
@@ -216,3 +214,10 @@ void ownership_transfer_in_cast(void *vp, Block *pblk) {
 
 // Make sure we don't crash.
 void writeback_test(NSString & &) {} // expected-error {{type name declared as a reference to a reference}}
+
+void test_strong_opaque() {
+  __strong NSString *sptr;
+  void *vptr;
+
+  (void)(0 ? sptr : vptr); // expected-error{{operands to conditional of types 'NSString *' and 'void *' are incompatible in ARC mode}}
+}

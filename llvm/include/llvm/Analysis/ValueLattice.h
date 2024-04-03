@@ -9,20 +9,23 @@
 #ifndef LLVM_ANALYSIS_VALUELATTICE_H
 #define LLVM_ANALYSIS_VALUELATTICE_H
 
-#include "llvm/IR/ConstantRange.h"
 #include "llvm/IR/Constants.h"
-//
+#include "llvm/IR/ConstantRange.h"
+#include "llvm/IR/Instructions.h"
+
 //===----------------------------------------------------------------------===//
 //                               ValueLatticeElement
 //===----------------------------------------------------------------------===//
+
+namespace llvm {
+
+class Constant;
 
 /// This class represents lattice values for constants.
 ///
 /// FIXME: This is basically just for bringup, this can be made a lot more rich
 /// in the future.
 ///
-
-namespace llvm {
 class ValueLatticeElement {
   enum ValueLatticeElementTy {
     /// This Value has no known value yet.  As a result, this implies the
@@ -199,10 +202,7 @@ public:
 
   static ValueLatticeElement get(Constant *C) {
     ValueLatticeElement Res;
-    if (isa<UndefValue>(C))
-      Res.markUndef();
-    else
-      Res.markConstant(C);
+    Res.markConstant(C);
     return Res;
   }
   static ValueLatticeElement getNot(Constant *C) {
@@ -272,13 +272,13 @@ public:
     return Range;
   }
 
-  Optional<APInt> asConstantInteger() const {
+  std::optional<APInt> asConstantInteger() const {
     if (isConstant() && isa<ConstantInt>(getConstant())) {
       return cast<ConstantInt>(getConstant())->getValue();
     } else if (isConstantRange() && getConstantRange().isSingleElement()) {
       return *getConstantRange().getSingleElement();
     }
-    return None;
+    return std::nullopt;
   }
 
   bool markOverdefined() {
@@ -449,29 +449,8 @@ public:
   /// true, false or undef constants, or nullptr if the comparison cannot be
   /// evaluated.
   Constant *getCompare(CmpInst::Predicate Pred, Type *Ty,
-                       const ValueLatticeElement &Other) const {
-    if (isUnknownOrUndef() || Other.isUnknownOrUndef())
-      return UndefValue::get(Ty);
-
-    if (isConstant() && Other.isConstant())
-      return ConstantExpr::getCompare(Pred, getConstant(), Other.getConstant());
-
-    // Integer constants are represented as ConstantRanges with single
-    // elements.
-    if (!isConstantRange() || !Other.isConstantRange())
-      return nullptr;
-
-    const auto &CR = getConstantRange();
-    const auto &OtherCR = Other.getConstantRange();
-    if (ConstantRange::makeSatisfyingICmpRegion(Pred, OtherCR).contains(CR))
-      return ConstantInt::getTrue(Ty);
-    if (ConstantRange::makeSatisfyingICmpRegion(
-            CmpInst::getInversePredicate(Pred), OtherCR)
-            .contains(CR))
-      return ConstantInt::getFalse(Ty);
-
-    return nullptr;
-  }
+                       const ValueLatticeElement &Other,
+                       const DataLayout &DL) const;
 
   unsigned getNumRangeExtensions() const { return NumRangeExtensions; }
   void setNumRangeExtensions(unsigned N) { NumRangeExtensions = N; }

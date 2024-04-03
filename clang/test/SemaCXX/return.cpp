@@ -61,9 +61,12 @@ _Atomic // expected-warning {{'_Atomic' type qualifier on return type has no eff
     int
     atomic();
 
-auto
-    trailing_return_type() -> // expected-warning {{'const' type qualifier on return type has no effect}}
-    const int;
+auto trailing_return_type() ->
+    const int; // expected-warning {{'const' type qualifier on return type has no effect}}
+
+auto trailing_return_type_lambda = [](const int &x) ->
+    const int // expected-warning {{'const' type qualifier on return type has no effect}}
+    { return x; };
 
 const int ret_array()[4]; // expected-error {{cannot return array}}
 }
@@ -103,7 +106,6 @@ namespace return_has_expr {
   };
 }
 
-// rdar://15366494
 // pr17759
 namespace ctor_returns_void {
   void f() {}

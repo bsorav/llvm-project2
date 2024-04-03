@@ -1,7 +1,7 @@
-; RUN: llc -march=bpfel -filetype=asm -o - %s | FileCheck -check-prefixes=CHECK,CHECK-ALU64 %s
-; RUN: llc -march=bpfeb -filetype=asm -o - %s | FileCheck -check-prefixes=CHECK,CHECK-ALU64 %s
-; RUN: llc -march=bpfel -mattr=+alu32 -filetype=asm -o - %s | FileCheck -check-prefixes=CHECK,CHECK-ALU32 %s
-; RUN: llc -march=bpfeb -mattr=+alu32 -filetype=asm -o - %s | FileCheck -check-prefixes=CHECK,CHECK-ALU32 %s
+; RUN: opt -O2 %s | llvm-dis > %t1
+; RUN: llc -filetype=asm -o - %t1 | FileCheck %s
+; RUN: llc -mattr=+alu32 -filetype=asm -o - %t1 | FileCheck %s
+
 ; Source:
 ;   enum { FIELD_EXISTENCE = 2, };
 ;   struct s1 { int a1; };
@@ -10,16 +10,18 @@
 ;     return __builtin_preserve_field_info(v[0], FIELD_EXISTENCE);
 ;   }
 ; Compilation flag:
-;   clang -target bpf -O2 -g -S -emit-llvm test.c
+;   clang -target bpf -O2 -g -S -emit-llvm -Xclang -disable-llvm-passes test.c
+
+target triple = "bpf"
 
 %struct.s1 = type { i32 }
 
 ; Function Attrs: nounwind readnone
 define dso_local i32 @test() local_unnamed_addr #0 !dbg !17 {
 entry:
-  call void @llvm.dbg.value(metadata %struct.s1* null, metadata !21, metadata !DIExpression()), !dbg !22
-  %0 = tail call %struct.s1* @llvm.preserve.array.access.index.p0s_struct.s1s.p0s_struct.s1s(%struct.s1* null, i32 0, i32 0), !dbg !23, !llvm.preserve.access.index !8
-  %1 = tail call i32 @llvm.bpf.preserve.field.info.p0s_struct.s1s(%struct.s1* %0, i64 2), !dbg !24
+  call void @llvm.dbg.value(metadata ptr null, metadata !21, metadata !DIExpression()), !dbg !22
+  %0 = tail call ptr @llvm.preserve.array.access.index.p0.s1s.p0.s1s(ptr elementtype(%struct.s1) null, i32 0, i32 0), !dbg !23, !llvm.preserve.access.index !8
+  %1 = tail call i32 @llvm.bpf.preserve.field.info.p0.s1s(ptr %0, i64 2), !dbg !24
   ret i32 %1, !dbg !25
 }
 
@@ -38,10 +40,10 @@ entry:
 ; CHECK-NEXT:        .long   2
 
 ; Function Attrs: nounwind readnone
-declare %struct.s1* @llvm.preserve.array.access.index.p0s_struct.s1s.p0s_struct.s1s(%struct.s1*, i32 immarg, i32 immarg) #1
+declare ptr @llvm.preserve.array.access.index.p0.s1s.p0.s1s(ptr, i32 immarg, i32 immarg) #1
 
 ; Function Attrs: nounwind readnone
-declare i32 @llvm.bpf.preserve.field.info.p0s_struct.s1s(%struct.s1*, i64 immarg) #1
+declare i32 @llvm.bpf.preserve.field.info.p0.s1s(ptr, i64 immarg) #1
 
 ; Function Attrs: nounwind readnone speculatable willreturn
 declare void @llvm.dbg.value(metadata, metadata, metadata) #2

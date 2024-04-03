@@ -1,4 +1,4 @@
-; RUN: llc -march=bpfel -filetype=obj < %s | llvm-objdump -r - | FileCheck --check-prefix=CHECK-RELOC %s
+; RUN: llc -mtriple=bpfel -filetype=obj < %s | llvm-objdump -r - | FileCheck --check-prefix=CHECK-RELOC %s
 
 %struct.bpf_context = type { i64, i64, i64, i64, i64, i64, i64 }
 %struct.sk_buff = type { i64, i64, i64, i64, i64, i64, i64 }
@@ -34,7 +34,7 @@ define i32 @bpf_prog1(%struct.bpf_context* nocapture %ctx) #0 section "events/ne
 
 ; CHECK-RELOC: file format elf64-bpf
 ; CHECK-RELOC: RELOCATION RECORDS FOR [.eh_frame]:
-; CHECK-RELOC: R_BPF_64_64 events/net/netif_receive_skb
+; CHECK-RELOC: R_BPF_64_ABS64 events/net/netif_receive_skb
 }
 
 ; Function Attrs: nounwind

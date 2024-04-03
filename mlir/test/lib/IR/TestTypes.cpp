@@ -11,16 +11,23 @@
 #include "mlir/Pass/Pass.h"
 
 using namespace mlir;
+using namespace test;
 
 namespace {
 struct TestRecursiveTypesPass
-    : public PassWrapper<TestRecursiveTypesPass, FunctionPass> {
+    : public PassWrapper<TestRecursiveTypesPass, OperationPass<func::FuncOp>> {
+  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(TestRecursiveTypesPass)
+
   LogicalResult createIRWithTypes();
 
-  void runOnFunction() override {
-    FuncOp func = getFunction();
+  StringRef getArgument() const final { return "test-recursive-types"; }
+  StringRef getDescription() const final {
+    return "Test support for recursive types";
+  }
+  void runOnOperation() override {
+    func::FuncOp func = getOperation();
 
-    // Just make sure recurisve types are printed and parsed.
+    // Just make sure recursive types are printed and parsed.
     if (func.getName() == "roundtrip")
       return;
 
@@ -36,12 +43,12 @@ struct TestRecursiveTypesPass
     signalPassFailure();
   }
 };
-} // end namespace
+} // namespace
 
 LogicalResult TestRecursiveTypesPass::createIRWithTypes() {
   MLIRContext *ctx = &getContext();
-  FuncOp func = getFunction();
-  auto type = TestRecursiveType::create(ctx, "some_long_and_unique_name");
+  func::FuncOp func = getOperation();
+  auto type = TestRecursiveType::get(ctx, "some_long_and_unique_name");
   if (failed(type.setBody(type)))
     return func.emitError("expected to be able to set the type body");
 
@@ -56,7 +63,7 @@ LogicalResult TestRecursiveTypesPass::createIRWithTypes() {
         "not expected to be able to change function body more than once");
 
   // Expecting to get the same type for the same name.
-  auto other = TestRecursiveType::create(ctx, "some_long_and_unique_name");
+  auto other = TestRecursiveType::get(ctx, "some_long_and_unique_name");
   if (type != other)
     return func.emitError("expected type name to be the uniquing key");
 
@@ -69,10 +76,11 @@ LogicalResult TestRecursiveTypesPass::createIRWithTypes() {
 }
 
 namespace mlir {
+namespace test {
 
 void registerTestRecursiveTypesPass() {
-  PassRegistration<TestRecursiveTypesPass> reg(
-      "test-recursive-types", "Test support for recursive types");
+  PassRegistration<TestRecursiveTypesPass>();
 }
 
-} // end namespace mlir
+} // namespace test
+} // namespace mlir

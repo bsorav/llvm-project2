@@ -11,6 +11,7 @@
 
 #include "lldb/Utility/DataExtractor.h"
 #include "lldb/Utility/Log.h"
+#include <optional>
 #include <unordered_map>
 
 class AuxVector {
@@ -50,6 +51,7 @@ public:
     AUXV_AT_SECURE = 23,        ///< Boolean, was exec setuid-like?
     AUXV_AT_BASE_PLATFORM = 24, ///< String identifying real platforms.
     AUXV_AT_RANDOM = 25,        ///< Address of 16 random bytes.
+    AUXV_AT_HWCAP2 = 26,        ///< Extension of AT_HWCAP.
     AUXV_AT_EXECFN = 31,        ///< Filename of executable.
     AUXV_AT_SYSINFO = 32, ///< Pointer to the global system page used for system
                           /// calls and other nice things.
@@ -60,7 +62,7 @@ public:
     AUXV_AT_L3_CACHESHAPE = 37,
   };
 
-  llvm::Optional<uint64_t> GetAuxValue(enum EntryType entry_type) const;
+  std::optional<uint64_t> GetAuxValue(enum EntryType entry_type) const;
   void DumpToLog(lldb_private::Log *log) const;
   const char *GetEntryName(EntryType type) const;
 

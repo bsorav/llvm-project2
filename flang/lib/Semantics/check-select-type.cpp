@@ -39,7 +39,7 @@ private:
     if (std::holds_alternative<parser::Default>(guard.u)) {
       typeCases_.emplace_back(stmt, std::nullopt);
     } else if (std::optional<evaluate::DynamicType> type{GetGuardType(guard)}) {
-      if (PassesChecksOnGuard(guard, *type)) {
+      if (PassesChecksOnGuard(stmt, *type)) {
         typeCases_.emplace_back(stmt, *type);
       } else {
         hasErrors_ = true;
@@ -51,7 +51,7 @@ private:
 
   std::optional<evaluate::DynamicType> GetGuardType(
       const parser::TypeGuardStmt::Guard &guard) {
-    return std::visit(
+    return common::visit(
         common::visitors{
             [](const parser::Default &)
                 -> std::optional<evaluate::DynamicType> {
@@ -71,35 +71,47 @@ private:
         guard.u);
   }
 
-  bool PassesChecksOnGuard(const parser::TypeGuardStmt::Guard &guard,
+  bool PassesChecksOnGuard(const parser::Statement<parser::TypeGuardStmt> &stmt,
       const evaluate::DynamicType &guardDynamicType) {
-    return std::visit(
+    const parser::TypeGuardStmt &typeGuardStmt{stmt.statement};
+    const auto &guard{std::get<parser::TypeGuardStmt::Guard>(typeGuardStmt.t)};
+    return common::visit(
         common::visitors{
             [](const parser::Default &) { return true; },
             [&](const parser::TypeSpec &typeSpec) {
-              if (const DeclTypeSpec * spec{typeSpec.declTypeSpec}) {
+              const DeclTypeSpec *spec{typeSpec.declTypeSpec};
+              CHECK(spec);
+              CHECK(spec->AsIntrinsic() || spec->AsDerived());
+              bool typeSpecRetVal{false};
+              if (spec->AsIntrinsic()) {
+                typeSpecRetVal = true;
+                if (!selectorType_.IsUnlimitedPolymorphic()) { // C1162
+                  context_.Say(stmt.source,
+                      "If selector is not unlimited polymorphic, "
+                      "an intrinsic type specification must not be specified "
+                      "in the type guard statement"_err_en_US);
+                  typeSpecRetVal = false;
+                }
                 if (spec->category() == DeclTypeSpec::Character &&
                     !guardDynamicType.IsAssumedLengthCharacter()) { // C1160
-                  context_.Say(parser::FindSourceLocation(typeSpec),
+                  auto location{parser::FindSourceLocation(typeSpec)};
+                  context_.Say(location.empty() ? stmt.source : location,
                       "The type specification statement must have "
                       "LEN type parameter as assumed"_err_en_US);
-                  return false;
+                  typeSpecRetVal = false;
                 }
-                if (const DerivedTypeSpec * derived{spec->AsDerived()}) {
-                  return PassesDerivedTypeChecks(
-                      *derived, parser::FindSourceLocation(typeSpec));
-                }
-                return false;
+              } else {
+                const DerivedTypeSpec *derived{spec->AsDerived()};
+                typeSpecRetVal = PassesDerivedTypeChecks(
+                    *derived, parser::FindSourceLocation(typeSpec));
               }
-              return false;
+              return typeSpecRetVal;
             },
             [&](const parser::DerivedTypeSpec &x) {
-              if (const semantics::DerivedTypeSpec *
-                  derived{x.derivedTypeSpec}) {
-                return PassesDerivedTypeChecks(
-                    *derived, parser::FindSourceLocation(x));
-              }
-              return false;
+              CHECK(x.derivedTypeSpec);
+              const semantics::DerivedTypeSpec *derived{x.derivedTypeSpec};
+              return PassesDerivedTypeChecks(
+                  *derived, parser::FindSourceLocation(x));
             },
         },
         guard.u);
@@ -125,7 +137,7 @@ private:
       if (const semantics::Scope * guardScope{derived.typeSymbol().scope()}) {
         if (const auto *selDerivedTypeSpec{
                 evaluate::GetDerivedTypeSpec(selectorType_)}) {
-          if (!(derived == *selDerivedTypeSpec) &&
+          if (!derived.Match(*selDerivedTypeSpec) &&
               !guardScope->FindComponent(selDerivedTypeSpec->name())) {
             context_.Say(sourceLoc,
                 "Type specification '%s' must be an extension"
@@ -148,10 +160,10 @@ private:
 
     void SetGuardType(std::optional<evaluate::DynamicType> guardTypeDynamic) {
       const auto &guard{GetGuardFromStmt(stmt)};
-      std::visit(common::visitors{
-                     [&](const parser::Default &) {},
-                     [&](const auto &) { guardType_ = *guardTypeDynamic; },
-                 },
+      common::visit(common::visitors{
+                        [&](const parser::Default &) {},
+                        [&](const auto &) { guardType_ = *guardTypeDynamic; },
+                    },
           guard.u);
     }
 
@@ -242,21 +254,24 @@ void SelectTypeChecker::Enter(const parser::SelectTypeConstruct &construct) {
       std::get<parser::Statement<parser::SelectTypeStmt>>(construct.t)};
   const auto &selectType{selectTypeStmt.statement};
   const auto &unResolvedSel{std::get<parser::Selector>(selectType.t)};
-  const auto *selector{GetExprFromSelector(unResolvedSel)};
-
-  if (!selector) {
-    return; // expression semantics failed on Selector
-  }
-  if (auto exprType{selector->GetType()}) {
-    const auto &typeCaseList{
-        std::get<std::list<parser::SelectTypeConstruct::TypeCase>>(
-            construct.t)};
-    TypeCaseValues{context_, *exprType}.Check(typeCaseList);
+  if (const auto *selector{GetExprFromSelector(unResolvedSel)}) {
+    if (IsProcedure(*selector)) {
+      context_.Say(
+          selectTypeStmt.source, "Selector may not be a procedure"_err_en_US);
+    } else if (evaluate::IsAssumedRank(*selector)) {
+      context_.Say(selectTypeStmt.source,
+          "Assumed-rank variable may only be used as actual argument"_err_en_US);
+    } else if (auto exprType{selector->GetType()}) {
+      const auto &typeCaseList{
+          std::get<std::list<parser::SelectTypeConstruct::TypeCase>>(
+              construct.t)};
+      TypeCaseValues{context_, *exprType}.Check(typeCaseList);
+    }
   }
 }
 
 const SomeExpr *SelectTypeChecker::GetExprFromSelector(
     const parser::Selector &selector) {
-  return std::visit([](const auto &x) { return GetExpr(x); }, selector.u);
+  return common::visit([](const auto &x) { return GetExpr(x); }, selector.u);
 }
 } // namespace Fortran::semantics

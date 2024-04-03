@@ -23,8 +23,6 @@ class PlatformAndroid : public platform_linux::PlatformLinux {
 public:
   PlatformAndroid(bool is_host);
 
-  ~PlatformAndroid() override;
-
   static void Initialize();
 
   static void Terminate();
@@ -32,13 +30,17 @@ public:
   // lldb_private::PluginInterface functions
   static lldb::PlatformSP CreateInstance(bool force, const ArchSpec *arch);
 
-  static ConstString GetPluginNameStatic(bool is_host);
+  static void DebuggerInitialize(lldb_private::Debugger &debugger);
 
-  static const char *GetPluginDescriptionStatic(bool is_host);
+  static llvm::StringRef GetPluginNameStatic(bool is_host) {
+    return is_host ? Platform::GetHostPlatformName() : "remote-android";
+  }
 
-  ConstString GetPluginName() override;
+  static llvm::StringRef GetPluginDescriptionStatic(bool is_host);
 
-  uint32_t GetPluginVersion() override { return 1; }
+  llvm::StringRef GetPluginName() override {
+    return GetPluginNameStatic(IsHost());
+  }
 
   // lldb_private::Platform functions
 
@@ -70,18 +72,22 @@ protected:
   llvm::StringRef
   GetLibdlFunctionDeclarations(lldb_private::Process *process) override;
 
+  typedef std::unique_ptr<AdbClient> AdbClientUP;
+  virtual AdbClientUP GetAdbClient(Status &error);
+
+  virtual llvm::StringRef GetPropertyPackageName();
+
+  std::string GetRunAs();
+
 private:
   AdbClient::SyncService *GetSyncService(Status &error);
 
   std::unique_ptr<AdbClient::SyncService> m_adb_sync_svc;
   std::string m_device_id;
   uint32_t m_sdk_version;
-
-  PlatformAndroid(const PlatformAndroid &) = delete;
-  const PlatformAndroid &operator=(const PlatformAndroid &) = delete;
 };
 
-} // namespace platofor_android
+} // namespace platform_android
 } // namespace lldb_private
 
 #endif // LLDB_SOURCE_PLUGINS_PLATFORM_ANDROID_PLATFORMANDROID_H

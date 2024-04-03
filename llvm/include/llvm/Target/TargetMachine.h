@@ -14,27 +14,39 @@
 #define LLVM_TARGET_TARGETMACHINE_H
 
 #include "llvm/ADT/StringRef.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/IR/DataLayout.h"
-#include "llvm/Pass.h"
+#include "llvm/IR/PassManager.h"
+#include "llvm/Support/Allocator.h"
 #include "llvm/Support/CodeGen.h"
+#include "llvm/Support/Error.h"
+#include "llvm/Support/PGOOptions.h"
+#include "llvm/Target/CGPassBuilderOption.h"
 #include "llvm/Target/TargetOptions.h"
+#include "llvm/TargetParser/Triple.h"
+#include <optional>
 #include <string>
+#include <utility>
 
 namespace llvm {
 
+class AAManager;
+using ModulePassManager = PassManager<Module>;
+
 class Function;
 class GlobalValue;
+class MachineFunctionPassManager;
+class MachineFunctionAnalysisManager;
 class MachineModuleInfoWrapperPass;
 class Mangler;
 class MCAsmInfo;
 class MCContext;
 class MCInstrInfo;
 class MCRegisterInfo;
+class MCStreamer;
 class MCSubtargetInfo;
 class MCSymbol;
 class raw_pwrite_stream;
-class PassManagerBuilder;
+class PassBuilder;
 struct PerFunctionMIParsingState;
 class SMDiagnostic;
 class SMRange;
@@ -52,6 +64,7 @@ class PassManagerBase;
 }
 using legacy::PassManagerBase;
 
+struct MachineFunctionInfo;
 namespace yaml {
 struct MachineFunctionInfo;
 }
@@ -87,7 +100,8 @@ protected: // Can only create subclasses.
 
   Reloc::Model RM = Reloc::Static;
   CodeModel::Model CMModel = CodeModel::Small;
-  CodeGenOpt::Level OptLevel = CodeGenOpt::Default;
+  uint64_t LargeDataThreshold = 0;
+  CodeGenOptLevel OptLevel = CodeGenOptLevel::Default;
 
   /// Contains target specific asm information.
   std::unique_ptr<const MCAsmInfo> AsmInfo;
@@ -98,8 +112,10 @@ protected: // Can only create subclasses.
   unsigned RequireStructuredCFG : 1;
   unsigned O0WantsFastISel : 1;
 
+  // PGO related tunables.
+  std::optional<PGOOptions> PGOOption;
+
 public:
-  const TargetOptions DefaultOptions;
   mutable TargetOptions Options;
 
   TargetMachine(const TargetMachine &) = delete;
@@ -111,6 +127,7 @@ public:
   const Triple &getTargetTriple() const { return TargetTriple; }
   StringRef getTargetCPU() const { return TargetCPU; }
   StringRef getTargetFeatureString() const { return TargetFS; }
+  void setTargetFeatureString(StringRef FS) { TargetFS = std::string(FS); }
 
   /// Virtual method implemented by subclasses that returns a reference to that
   /// target's TargetSubtargetInfo-derived member variable.
@@ -118,6 +135,13 @@ public:
     return nullptr;
   }
   virtual TargetLoweringObjectFile *getObjFileLowering() const {
+    return nullptr;
+  }
+
+  /// Create the target's instance of MachineFunctionInfo
+  virtual MachineFunctionInfo *
+  createMachineFunctionInfo(BumpPtrAllocator &Allocator, const Function &F,
+                            const TargetSubtargetInfo *STI) const {
     return nullptr;
   }
 
@@ -206,7 +230,16 @@ public:
 
   /// Returns the code model. The choices are small, kernel, medium, large, and
   /// target default.
-  CodeModel::Model getCodeModel() const;
+  CodeModel::Model getCodeModel() const { return CMModel; }
+
+  /// Returns the maximum code size possible under the code model.
+  uint64_t getMaxCodeSize() const;
+
+  /// Set the code model.
+  void setCodeModel(CodeModel::Model CM) { CMModel = CM; }
+
+  void setLargeDataThreshold(uint64_t LDT) { LargeDataThreshold = LDT; }
+  bool isLargeGlobalValue(const GlobalValue *GV) const;
 
   bool isPositionIndependent() const;
 
@@ -215,14 +248,17 @@ public:
   /// Returns true if this target uses emulated TLS.
   bool useEmulatedTLS() const;
 
+  /// Returns true if this target uses TLS Descriptors.
+  bool useTLSDESC() const;
+
   /// Returns the TLS model which should be used for the given global variable.
   TLSModel::Model getTLSModel(const GlobalValue *GV) const;
 
   /// Returns the optimization level: None, Less, Default, or Aggressive.
-  CodeGenOpt::Level getOptLevel() const;
+  CodeGenOptLevel getOptLevel() const;
 
   /// Overrides the optimization level.
-  void setOptLevel(CodeGenOpt::Level Level);
+  void setOptLevel(CodeGenOptLevel Level);
 
   void setFastISel(bool Enable) { Options.EnableFastISel = Enable; }
   bool getO0WantsFastISel() { return O0WantsFastISel; }
@@ -239,6 +275,12 @@ public:
   }
   void setSupportsDebugEntryValues(bool Enable) {
     Options.SupportsDebugEntryValues = Enable;
+  }
+
+  void setCFIFixup(bool Enable) { Options.EnableCFIFixup = Enable; }
+
+  bool getAIXExtendedAltivecABI() const {
+    return Options.EnableAIXExtendedAltivecABI;
   }
 
   bool getUniqueSectionNames() const { return Options.UniqueSectionNames; }
@@ -260,6 +302,16 @@ public:
     return Options.FunctionSections;
   }
 
+  /// Return true if visibility attribute should not be emitted in XCOFF,
+  /// corresponding to -mignore-xcoff-visibility.
+  bool getIgnoreXCOFFVisibility() const {
+    return Options.IgnoreXCOFFVisibility;
+  }
+
+  /// Return true if XCOFF traceback table should be emitted,
+  /// corresponding to -xcoff-traceback-table.
+  bool getXCOFFTracebackTable() const { return Options.XCOFFTracebackTable; }
+
   /// If basic blocks should be emitted into their own section,
   /// corresponding to -fbasic-block-sections.
   llvm::BasicBlockSection getBBSectionsType() const {
@@ -276,22 +328,50 @@ public:
     return false;
   }
 
+  void setPGOOption(std::optional<PGOOptions> PGOOpt) { PGOOption = PGOOpt; }
+  const std::optional<PGOOptions> &getPGOOption() const { return PGOOption; }
+
+  /// If the specified generic pointer could be assumed as a pointer to a
+  /// specific address space, return that address space.
+  ///
+  /// Under offloading programming, the offloading target may be passed with
+  /// values only prepared on the host side and could assume certain
+  /// properties.
+  virtual unsigned getAssumedAddrSpace(const Value *V) const { return -1; }
+
+  /// If the specified predicate checks whether a generic pointer falls within
+  /// a specified address space, return that generic pointer and the address
+  /// space being queried.
+  ///
+  /// Such predicates could be specified in @llvm.assume intrinsics for the
+  /// optimizer to assume that the given generic pointer always falls within
+  /// the address space based on that predicate.
+  virtual std::pair<const Value *, unsigned>
+  getPredicatedAddrSpace(const Value *V) const {
+    return std::make_pair(nullptr, -1);
+  }
+
   /// Get a \c TargetIRAnalysis appropriate for the target.
   ///
   /// This is used to construct the new pass manager's target IR analysis pass,
   /// set up appropriately for this target machine. Even the old pass manager
   /// uses this to answer queries about the IR.
-  TargetIRAnalysis getTargetIRAnalysis();
+  TargetIRAnalysis getTargetIRAnalysis() const;
 
   /// Return a TargetTransformInfo for a given function.
   ///
   /// The returned TargetTransformInfo is specialized to the subtarget
   /// corresponding to \p F.
-  virtual TargetTransformInfo getTargetTransformInfo(const Function &F);
+  virtual TargetTransformInfo getTargetTransformInfo(const Function &F) const;
 
-  /// Allow the target to modify the pass manager, e.g. by calling
-  /// PassManagerBuilder::addExtension.
-  virtual void adjustPassManager(PassManagerBuilder &) {}
+  /// Allow the target to modify the pass pipeline.
+  // TODO: Populate all pass names by using <Target>PassRegistry.def.
+  virtual void registerPassBuilderCallbacks(PassBuilder &,
+                                            bool PopulateClassToPassNames) {}
+
+  /// Allow the target to register alias analyses with the AAManager for use
+  /// with the new pass manager. Only affects the "default" AAManager.
+  virtual void registerDefaultAliasAnalyses(AAManager &) {}
 
   /// Add passes to the specified pass manager to get the specified file
   /// emitted.  Typically this will involve several steps of code generation.
@@ -332,6 +412,14 @@ public:
   /// The integer bit size to use for SjLj based exception handling.
   static constexpr unsigned DefaultSjLjDataSize = 32;
   virtual unsigned getSjLjDataSize() const { return DefaultSjLjDataSize; }
+
+  static std::pair<int, int> parseBinutilsVersion(StringRef Version);
+
+  /// getAddressSpaceForPseudoSourceKind - Given the kind of memory
+  /// (e.g. stack) the target returns the corresponding address space.
+  virtual unsigned getAddressSpaceForPseudoSourceKind(unsigned Kind) const {
+    return 0;
+  }
 };
 
 /// This class describes a target machine that is implemented with the LLVM
@@ -342,7 +430,7 @@ protected: // Can only create subclasses.
   LLVMTargetMachine(const Target &T, StringRef DataLayoutString,
                     const Triple &TT, StringRef CPU, StringRef FS,
                     const TargetOptions &Options, Reloc::Model RM,
-                    CodeModel::Model CM, CodeGenOpt::Level OL);
+                    CodeModel::Model CM, CodeGenOptLevel OL);
 
   void initAsmInfo();
 
@@ -351,7 +439,7 @@ public:
   ///
   /// The TTI returned uses the common code generator to answer queries about
   /// the IR.
-  TargetTransformInfo getTargetTransformInfo(const Function &F) override;
+  TargetTransformInfo getTargetTransformInfo(const Function &F) const override;
 
   /// Create a pass configuration object to be used by addPassToEmitX methods
   /// for generating a pipeline of CodeGen passes.
@@ -366,6 +454,21 @@ public:
                       raw_pwrite_stream *DwoOut, CodeGenFileType FileType,
                       bool DisableVerify = true,
                       MachineModuleInfoWrapperPass *MMIWP = nullptr) override;
+
+  virtual Error buildCodeGenPipeline(ModulePassManager &,
+                                     MachineFunctionPassManager &,
+                                     MachineFunctionAnalysisManager &,
+                                     raw_pwrite_stream &, raw_pwrite_stream *,
+                                     CodeGenFileType, CGPassBuilderOption,
+                                     PassInstrumentationCallbacks *) {
+    return make_error<StringError>("buildCodeGenPipeline is not overridden",
+                                   inconvertibleErrorCode());
+  }
+
+  virtual std::pair<StringRef, bool> getPassNameFromLegacyName(StringRef) {
+    llvm_unreachable(
+        "getPassNameFromLegacyName parseMIRPipeline is not overridden");
+  }
 
   /// Add passes to the specified pass manager to get machine code emitted with
   /// the MCJIT. This method returns true if machine code is not supported. It
@@ -387,6 +490,10 @@ public:
                      raw_pwrite_stream *DwoOut, CodeGenFileType FileType,
                      MCContext &Context);
 
+  Expected<std::unique_ptr<MCStreamer>>
+  createMCStreamer(raw_pwrite_stream &Out, raw_pwrite_stream *DwoOut,
+                   CodeGenFileType FileType, MCContext &Ctx);
+
   /// True if the target uses physical regs (as nearly all targets do). False
   /// for stack machines such as WebAssembly and other virtual-register
   /// machines. If true, all vregs must be allocated before PEI. If false, then
@@ -400,14 +507,22 @@ public:
   virtual bool useIPRA() const {
     return false;
   }
+
+  /// The default variant to use in unqualified `asm` instructions.
+  /// If this returns 0, `asm "$(foo$|bar$)"` will evaluate to `asm "foo"`.
+  virtual int unqualifiedInlineAsmVariant() const { return 0; }
+
+  // MachineRegisterInfo callback function
+  virtual void registerMachineRegisterInfoCallback(MachineFunction &MF) const {}
 };
 
 /// Helper method for getting the code model, returning Default if
 /// CM does not have a value. The tiny and kernel models will produce
 /// an error, so targets that support them or require more complex codemodel
 /// selection logic should implement and call their own getEffectiveCodeModel.
-inline CodeModel::Model getEffectiveCodeModel(Optional<CodeModel::Model> CM,
-                                              CodeModel::Model Default) {
+inline CodeModel::Model
+getEffectiveCodeModel(std::optional<CodeModel::Model> CM,
+                      CodeModel::Model Default) {
   if (CM) {
     // By default, targets do not support the tiny and kernel models.
     if (*CM == CodeModel::Tiny)

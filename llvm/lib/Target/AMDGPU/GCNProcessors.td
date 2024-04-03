@@ -9,11 +9,11 @@
 // The code produced for "generic" is only useful for tests and cannot
 // reasonably be expected to execute on any particular target.
 def : ProcessorModel<"generic", NoSchedModel,
-  [FeatureWavefrontSize64]
+  [FeatureWavefrontSize64, FeatureGDS, FeatureGWS]
 >;
 
 def : ProcessorModel<"generic-hsa", NoSchedModel,
-  [FeatureWavefrontSize64, FeatureFlatAddressSpace]
+  [FeatureWavefrontSize64, FeatureGDS, FeatureGWS, FeatureFlatAddressSpace]
 >;
 
 //===------------------------------------------------------------===//
@@ -32,20 +32,24 @@ def : ProcessorModel<"gfx601", SIQuarterSpeedModel,
   FeatureISAVersion6_0_1.Features
 >;
 
-def : ProcessorModel<"hainan", SIQuarterSpeedModel,
-  FeatureISAVersion6_0_1.Features
->;
-
-def : ProcessorModel<"oland", SIQuarterSpeedModel,
-  FeatureISAVersion6_0_1.Features
->;
-
 def : ProcessorModel<"pitcairn", SIQuarterSpeedModel,
   FeatureISAVersion6_0_1.Features
 >;
 
 def : ProcessorModel<"verde", SIQuarterSpeedModel,
   FeatureISAVersion6_0_1.Features
+>;
+
+def : ProcessorModel<"gfx602", SIQuarterSpeedModel,
+  FeatureISAVersion6_0_2.Features
+>;
+
+def : ProcessorModel<"hainan", SIQuarterSpeedModel,
+  FeatureISAVersion6_0_2.Features
+>;
+
+def : ProcessorModel<"oland", SIQuarterSpeedModel,
+  FeatureISAVersion6_0_2.Features
 >;
 
 //===------------------------------------------------------------===//
@@ -92,6 +96,10 @@ def : ProcessorModel<"bonaire", SIQuarterSpeedModel,
   FeatureISAVersion7_0_4.Features
 >;
 
+def : ProcessorModel<"gfx705", SIQuarterSpeedModel,
+  FeatureISAVersion7_0_5.Features
+>;
+
 //===------------------------------------------------------------===//
 // GCN GFX8 (Volcanic Islands (VI)).
 //===------------------------------------------------------------===//
@@ -132,6 +140,14 @@ def : ProcessorModel<"polaris11", SIQuarterSpeedModel,
   FeatureISAVersion8_0_3.Features
 >;
 
+def : ProcessorModel<"gfx805", SIQuarterSpeedModel,
+  FeatureISAVersion8_0_5.Features
+>;
+
+def : ProcessorModel<"tongapro", SIQuarterSpeedModel,
+  FeatureISAVersion8_0_5.Features
+>;
+
 def : ProcessorModel<"gfx810", SIQuarterSpeedModel,
   FeatureISAVersion8_1_0.Features
 >;
@@ -168,6 +184,26 @@ def : ProcessorModel<"gfx909", SIQuarterSpeedModel,
   FeatureISAVersion9_0_9.Features
 >;
 
+def : ProcessorModel<"gfx90a", SIDPFullSpeedModel,
+  FeatureISAVersion9_0_A.Features
+>;
+
+def : ProcessorModel<"gfx90c", SIQuarterSpeedModel,
+  FeatureISAVersion9_0_C.Features
+>;
+
+def : ProcessorModel<"gfx940", SIDPGFX940FullSpeedModel,
+  FeatureISAVersion9_4_0.Features
+>;
+
+def : ProcessorModel<"gfx941", SIDPGFX940FullSpeedModel,
+  FeatureISAVersion9_4_1.Features
+>;
+
+def : ProcessorModel<"gfx942", SIDPGFX940FullSpeedModel,
+  FeatureISAVersion9_4_2.Features
+>;
+
 //===----------------------------------------------------------------------===//
 // GCN GFX10.
 //===----------------------------------------------------------------------===//
@@ -184,6 +220,74 @@ def : ProcessorModel<"gfx1012", GFX10SpeedModel,
   FeatureISAVersion10_1_2.Features
 >;
 
+def : ProcessorModel<"gfx1013", GFX10SpeedModel,
+  FeatureISAVersion10_1_3.Features
+>;
+
 def : ProcessorModel<"gfx1030", GFX10SpeedModel,
   FeatureISAVersion10_3_0.Features
+>;
+
+def : ProcessorModel<"gfx1031", GFX10SpeedModel,
+  FeatureISAVersion10_3_0.Features
+>;
+
+def : ProcessorModel<"gfx1032", GFX10SpeedModel,
+  FeatureISAVersion10_3_0.Features
+>;
+
+def : ProcessorModel<"gfx1033", GFX10SpeedModel,
+  FeatureISAVersion10_3_0.Features
+>;
+
+def : ProcessorModel<"gfx1034", GFX10SpeedModel,
+  FeatureISAVersion10_3_0.Features
+>;
+
+def : ProcessorModel<"gfx1035", GFX10SpeedModel,
+  FeatureISAVersion10_3_0.Features
+>;
+
+def : ProcessorModel<"gfx1036", GFX10SpeedModel,
+  FeatureISAVersion10_3_0.Features
+>;
+
+//===----------------------------------------------------------------------===//
+// GCN GFX11.
+//===----------------------------------------------------------------------===//
+
+def : ProcessorModel<"gfx1100", GFX11SpeedModel,
+  FeatureISAVersion11_0_0.Features
+>;
+
+def : ProcessorModel<"gfx1101", GFX11SpeedModel,
+  FeatureISAVersion11_0_1.Features
+>;
+
+def : ProcessorModel<"gfx1102", GFX11SpeedModel,
+  FeatureISAVersion11_0_2.Features
+>;
+
+def : ProcessorModel<"gfx1103", GFX11SpeedModel,
+  FeatureISAVersion11_0_3.Features
+>;
+
+def : ProcessorModel<"gfx1150", GFX11SpeedModel,
+  FeatureISAVersion11_5_0.Features
+>;
+
+def : ProcessorModel<"gfx1151", GFX11SpeedModel,
+  FeatureISAVersion11_5_1.Features
+>;
+
+//===----------------------------------------------------------------------===//
+// GCN GFX12.
+//===----------------------------------------------------------------------===//
+
+def : ProcessorModel<"gfx1200", GFX12SpeedModel,
+  FeatureISAVersion12.Features
+>;
+
+def : ProcessorModel<"gfx1201", GFX12SpeedModel,
+  FeatureISAVersion12.Features
 >;

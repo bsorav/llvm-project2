@@ -13,6 +13,7 @@
 #include "clang/AST/Expr.h"
 #include "clang/Basic/Diagnostic.h"
 #include "clang/Basic/SourceManager.h"
+#include "clang/Basic/TargetInfo.h"
 #include "clang/Frontend/CompilerInvocation.h"
 #include "clang/Frontend/PCHContainerOperations.h"
 #include "clang/Frontend/Utils.h"
@@ -23,10 +24,12 @@
 #include "llvm/ADT/IntrusiveRefCntPtr.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/BuryPointer.h"
+#include "llvm/Support/FileSystem.h"
 #include <cassert>
 #include <list>
 #include <memory>
 #include <set>
+#include <optional>
 #include <string>
 #include <utility>
 
@@ -39,11 +42,14 @@ class TimerGroup;
 namespace clang {
 class ASTContext;
 class ASTReader;
+
+namespace serialization {
+class ModuleFile;
+}
+
 class CodeCompleteConsumer;
 class DiagnosticsEngine;
 class DiagnosticConsumer;
-class ExternalASTSource;
-class FileEntry;
 class FileManager;
 class FrontendAction;
 class InMemoryModuleCache;
@@ -52,6 +58,7 @@ class Preprocessor;
 class Sema;
 class SourceManager;
 class TargetInfo;
+enum class DisableValidationForModuleKind;
 
 typedef std::vector<clang::Expr*> PREDICATE;
 typedef const clang::Expr* LOCN_TYPE;
@@ -158,7 +165,7 @@ class CompilerInstance : public ModuleLoader {
   bool HaveFullGlobalModuleIndex = false;
 
   /// One or more modules failed to build.
-  bool ModuleBuildFailed = false;
+  bool DisableGeneratingGlobalModuleIndex = false;
 
   /// The stream for verbose output if owned, otherwise nullptr.
   std::unique_ptr<raw_ostream> OwnedVerboseOutputStream;
@@ -173,17 +180,12 @@ class CompilerInstance : public ModuleLoader {
   /// failed.
   struct OutputFile {
     std::string Filename;
-    std::string TempFilename;
+    std::optional<llvm::sys::fs::TempFile> File;
 
-    OutputFile(std::string filename, std::string tempFilename)
-        : Filename(std::move(filename)), TempFilename(std::move(tempFilename)) {
-    }
+    OutputFile(std::string filename,
+               std::optional<llvm::sys::fs::TempFile> file)
+        : Filename(std::move(filename)), File(std::move(file)) {}
   };
-
-  /// If the output doesn't support seeking (terminal, pipe). we switch
-  /// the stream to a buffer_ostream. These are the buffer and the original
-  /// stream.
-  std::unique_ptr<llvm::raw_fd_ostream> NonSeekStream;
 
   /// The list of active output files.
   std::list<OutputFile> OutputFiles;
@@ -201,7 +203,7 @@ public:
   ~CompilerInstance() override;
 
   /// @name High-Level Operations
-  /// {
+  /// @{
 
   /// ExecuteAction - Execute the provided action against the compiler's
   /// CompilerInvocation object.
@@ -232,9 +234,12 @@ public:
   // of the context or else not CompilerInstance specific.
   bool ExecuteAction(FrontendAction &Act);
 
-  /// }
+  /// Load the list of plugins requested in the \c FrontendOptions.
+  void LoadRequestedPlugins();
+
+  /// @}
   /// @name Compiler Invocation and Options
-  /// {
+  /// @{
 
   bool hasInvocation() const { return Invocation != nullptr; }
 
@@ -242,6 +247,8 @@ public:
     assert(Invocation && "Compiler instance has no invocation!");
     return *Invocation;
   }
+
+  std::shared_ptr<CompilerInvocation> getInvocationPtr() { return Invocation; }
 
   /// setInvocation - Replace the current invocation.
   void setInvocation(std::shared_ptr<CompilerInvocation> Value);
@@ -255,13 +262,11 @@ public:
     BuildGlobalModuleIndex = Build;
   }
 
-  /// }
+  /// @}
   /// @name Forwarding Methods
-  /// {
+  /// @{
 
-  AnalyzerOptionsRef getAnalyzerOpts() {
-    return Invocation->getAnalyzerOpts();
-  }
+  AnalyzerOptions &getAnalyzerOpts() { return Invocation->getAnalyzerOpts(); }
 
   CodeGenOptions &getCodeGenOpts() {
     return Invocation->getCodeGenOpts();
@@ -308,12 +313,13 @@ public:
     return Invocation->getHeaderSearchOptsPtr();
   }
 
-  LangOptions &getLangOpts() {
-    return *Invocation->getLangOpts();
+  APINotesOptions &getAPINotesOpts() { return Invocation->getAPINotesOpts(); }
+  const APINotesOptions &getAPINotesOpts() const {
+    return Invocation->getAPINotesOpts();
   }
-  const LangOptions &getLangOpts() const {
-    return *Invocation->getLangOpts();
-  }
+
+  LangOptions &getLangOpts() { return Invocation->getLangOpts(); }
+  const LangOptions &getLangOpts() const { return Invocation->getLangOpts(); }
 
   PreprocessorOptions &getPreprocessorOpts() {
     return Invocation->getPreprocessorOpts();
@@ -336,9 +342,9 @@ public:
     return Invocation->getTargetOpts();
   }
 
-  /// }
+  /// @}
   /// @name Diagnostics Engine
-  /// {
+  /// @{
 
   bool hasDiagnostics() const { return Diagnostics != nullptr; }
 
@@ -346,6 +352,11 @@ public:
   DiagnosticsEngine &getDiagnostics() const {
     assert(Diagnostics && "Compiler instance has no diagnostics!");
     return *Diagnostics;
+  }
+
+  IntrusiveRefCntPtr<DiagnosticsEngine> getDiagnosticsPtr() const {
+    assert(Diagnostics && "Compiler instance has no diagnostics!");
+    return Diagnostics;
   }
 
   /// setDiagnostics - Replace the current diagnostics engine.
@@ -357,9 +368,9 @@ public:
     return *Diagnostics->getClient();
   }
 
-  /// }
+  /// @}
   /// @name VerboseOutputStream
-  /// }
+  /// @{
 
   /// Replace the current stream for verbose output.
   void setVerboseOutputStream(raw_ostream &Value);
@@ -372,23 +383,9 @@ public:
     return *VerboseOutputStream;
   }
 
-  /// }
-  /// @name Predicate Map
-  /// {
-
-  bool hasPredicateMap() const {return PredMap != nullptr; }
-
-  PREDICATE_MAP *getPredicateMap() {
-    return PredMap.get();
-  }
-
-  void createPredicateMap() {
-    PredMap = std::unique_ptr<PREDICATE_MAP>(new PREDICATE_MAP());
-  }
-
-  /// }
+  /// @}
   /// @name Target Info
-  /// {
+  /// @{
 
   bool hasTarget() const { return Target != nullptr; }
 
@@ -397,27 +394,35 @@ public:
     return *Target;
   }
 
+  IntrusiveRefCntPtr<TargetInfo> getTargetPtr() const {
+    assert(Target && "Compiler instance has no target!");
+    return Target;
+  }
+
   /// Replace the current Target.
   void setTarget(TargetInfo *Value);
 
-  /// }
+  /// @}
   /// @name AuxTarget Info
-  /// {
+  /// @{
 
   TargetInfo *getAuxTarget() const { return AuxTarget.get(); }
 
   /// Replace the current AuxTarget.
   void setAuxTarget(TargetInfo *Value);
 
-  /// }
+  // Create Target and AuxTarget based on current options
+  bool createTarget();
+
+  /// @}
   /// @name Virtual File System
-  /// {
+  /// @{
 
   llvm::vfs::FileSystem &getVirtualFileSystem() const;
 
-  /// }
+  /// @}
   /// @name File Manager
-  /// {
+  /// @{
 
   bool hasFileManager() const { return FileMgr != nullptr; }
 
@@ -425,6 +430,11 @@ public:
   FileManager &getFileManager() const {
     assert(FileMgr && "Compiler instance has no file manager!");
     return *FileMgr;
+  }
+
+  IntrusiveRefCntPtr<FileManager> getFileManagerPtr() const {
+    assert(FileMgr && "Compiler instance has no file manager!");
+    return FileMgr;
   }
 
   void resetAndLeakFileManager() {
@@ -435,9 +445,9 @@ public:
   /// Replace the current file manager and virtual file system.
   void setFileManager(FileManager *Value);
 
-  /// }
+  /// @}
   /// @name Source Manager
-  /// {
+  /// @{
 
   bool hasSourceManager() const { return SourceMgr != nullptr; }
 
@@ -445,6 +455,11 @@ public:
   SourceManager &getSourceManager() const {
     assert(SourceMgr && "Compiler instance has no source manager!");
     return *SourceMgr;
+  }
+
+  IntrusiveRefCntPtr<SourceManager> getSourceManagerPtr() const {
+    assert(SourceMgr && "Compiler instance has no source manager!");
+    return SourceMgr;
   }
 
   void resetAndLeakSourceManager() {
@@ -455,9 +470,9 @@ public:
   /// setSourceManager - Replace the current source manager.
   void setSourceManager(SourceManager *Value);
 
-  /// }
+  /// @}
   /// @name Preprocessor
-  /// {
+  /// @{
 
   bool hasPreprocessor() const { return PP != nullptr; }
 
@@ -476,15 +491,20 @@ public:
   /// Replace the current preprocessor.
   void setPreprocessor(std::shared_ptr<Preprocessor> Value);
 
-  /// }
+  /// @}
   /// @name ASTContext
-  /// {
+  /// @{
 
   bool hasASTContext() const { return Context != nullptr; }
 
   ASTContext &getASTContext() const {
     assert(Context && "Compiler instance has no AST context!");
     return *Context;
+  }
+
+  IntrusiveRefCntPtr<ASTContext> getASTContextPtr() const {
+    assert(Context && "Compiler instance has no AST context!");
+    return Context;
   }
 
   void resetAndLeakASTContext() {
@@ -499,9 +519,9 @@ public:
   /// of S.
   void setSema(Sema *S);
 
-  /// }
+  /// @}
   /// @name ASTConsumer
-  /// {
+  /// @{
 
   bool hasASTConsumer() const { return (bool)Consumer; }
 
@@ -518,9 +538,9 @@ public:
   /// takes ownership of \p Value.
   void setASTConsumer(std::unique_ptr<ASTConsumer> Value);
 
-  /// }
+  /// @}
   /// @name Semantic analysis
-  /// {
+  /// @{
   bool hasSema() const { return (bool)TheSema; }
 
   Sema &getSema() const {
@@ -531,9 +551,9 @@ public:
   std::unique_ptr<Sema> takeSema();
   void resetAndLeakSema();
 
-  /// }
+  /// @}
   /// @name Module Management
-  /// {
+  /// @{
 
   IntrusiveRefCntPtr<ASTReader> getASTReader() const;
   void setASTReader(IntrusiveRefCntPtr<ASTReader> Reader);
@@ -574,9 +594,9 @@ public:
     return *Reader;
   }
 
-  /// }
+  /// @}
   /// @name Code Completion
-  /// {
+  /// @{
 
   bool hasCodeCompletionConsumer() const { return (bool)CompletionConsumer; }
 
@@ -590,9 +610,9 @@ public:
   /// the compiler instance takes ownership of \p Value.
   void setCodeCompletionConsumer(CodeCompleteConsumer *Value);
 
-  /// }
+  /// @}
   /// @name Frontend timer
-  /// {
+  /// @{
 
   bool hasFrontendTimer() const { return (bool)FrontendTimer; }
 
@@ -601,14 +621,9 @@ public:
     return *FrontendTimer;
   }
 
-  /// }
+  /// @}
   /// @name Output Files
-  /// {
-
-  /// addOutputFile - Add an output file onto the list of tracked output files.
-  ///
-  /// \param OutFile - The output file info.
-  void addOutputFile(OutputFile &&OutFile);
+  /// @{
 
   /// clearOutputFiles - Clear the output file list. The underlying output
   /// streams must have been closed beforehand.
@@ -616,9 +631,9 @@ public:
   /// \param EraseFiles - If true, attempt to erase the files from disk.
   void clearOutputFiles(bool EraseFiles);
 
-  /// }
+  /// @}
   /// @name Construction Utility Methods
-  /// {
+  /// @{
 
   /// Create the diagnostics engine using the invocation's diagnostic options
   /// and replace any existing one with it.
@@ -672,23 +687,27 @@ public:
   /// and replace any existing one with it.
   void createPreprocessor(TranslationUnitKind TUKind);
 
-  std::string getSpecificModuleCachePath();
+  std::string getSpecificModuleCachePath(StringRef ModuleHash);
+  std::string getSpecificModuleCachePath() {
+    return getSpecificModuleCachePath(getInvocation().getModuleHash());
+  }
 
   /// Create the AST context.
   void createASTContext();
 
   /// Create an external AST source to read a PCH file and attach it to the AST
   /// context.
-  void createPCHExternalASTSource(StringRef Path, bool DisablePCHValidation,
-                                  bool AllowPCHWithCompilerErrors,
-                                  void *DeserializationListener,
-                                  bool OwnDeserializationListener);
+  void createPCHExternalASTSource(
+      StringRef Path, DisableValidationForModuleKind DisableValidation,
+      bool AllowPCHWithCompilerErrors, void *DeserializationListener,
+      bool OwnDeserializationListener);
 
   /// Create an external AST source to read a PCH file.
   ///
   /// \return - The new object on success, or null on failure.
   static IntrusiveRefCntPtr<ASTReader> createPCHExternalASTSource(
-      StringRef Path, StringRef Sysroot, bool DisablePCHValidation,
+      StringRef Path, StringRef Sysroot,
+      DisableValidationForModuleKind DisableValidation,
       bool AllowPCHWithCompilerErrors, Preprocessor &PP,
       InMemoryModuleCache &ModuleCache, ASTContext &Context,
       const PCHContainerReader &PCHContainerRdr,
@@ -718,25 +737,27 @@ public:
   /// Create the default output file (from the invocation's options) and add it
   /// to the list of tracked output files.
   ///
-  /// The files created by this function always use temporary files to write to
-  /// their result (that is, the data is written to a temporary file which will
-  /// atomically replace the target output on success).
+  /// The files created by this are usually removed on signal, and, depending
+  /// on FrontendOptions, may also use a temporary file (that is, the data is
+  /// written to a temporary file which will atomically replace the target
+  /// output on success).
   ///
   /// \return - Null on error.
-  std::unique_ptr<raw_pwrite_stream>
-  createDefaultOutputFile(bool Binary = true, StringRef BaseInput = "",
-                          StringRef Extension = "");
+  std::unique_ptr<raw_pwrite_stream> createDefaultOutputFile(
+      bool Binary = true, StringRef BaseInput = "", StringRef Extension = "",
+      bool RemoveFileOnSignal = true, bool CreateMissingDirectories = false,
+      bool ForceUseTemporary = false);
 
-  /// Create a new output file and add it to the list of tracked output files,
-  /// optionally deriving the output path name.
+  /// Create a new output file, optionally deriving the output path name, and
+  /// add it to the list of tracked output files.
   ///
   /// \return - Null on error.
   std::unique_ptr<raw_pwrite_stream>
   createOutputFile(StringRef OutputPath, bool Binary, bool RemoveFileOnSignal,
-                   StringRef BaseInput, StringRef Extension, bool UseTemporary,
-                   bool CreateMissingDirectories = false);
+                   bool UseTemporary, bool CreateMissingDirectories = false);
 
-  /// Create a new output file, optionally deriving the output path name.
+private:
+  /// Create a new output file and add it to the list of tracked output files.
   ///
   /// If \p OutputPath is empty, then createOutputFile will derive an output
   /// path location as \p BaseInput, with any suffix removed, and \p Extension
@@ -745,10 +766,6 @@ public:
   /// renamed to \p OutputPath in the end.
   ///
   /// \param OutputPath - If given, the path to the output file.
-  /// \param Error [out] - On failure, the error.
-  /// \param BaseInput - If \p OutputPath is empty, the input path name to use
-  /// for deriving the output path.
-  /// \param Extension - The extension to use for derived output names.
   /// \param Binary - The mode to open the file in.
   /// \param RemoveFileOnSignal - Whether the file should be registered with
   /// llvm::sys::RemoveFileOnSignal. Note that this is not safe for
@@ -757,22 +774,17 @@ public:
   /// OutputPath in the end.
   /// \param CreateMissingDirectories - When \p UseTemporary is true, create
   /// missing directories in the output path.
-  /// \param ResultPathName [out] - If given, the result path name will be
-  /// stored here on success.
-  /// \param TempPathName [out] - If given, the temporary file path name
-  /// will be stored here on success.
-  std::unique_ptr<raw_pwrite_stream>
-  createOutputFile(StringRef OutputPath, std::error_code &Error, bool Binary,
-                   bool RemoveFileOnSignal, StringRef BaseInput,
-                   StringRef Extension, bool UseTemporary,
-                   bool CreateMissingDirectories, std::string *ResultPathName,
-                   std::string *TempPathName);
+  Expected<std::unique_ptr<raw_pwrite_stream>>
+  createOutputFileImpl(StringRef OutputPath, bool Binary,
+                       bool RemoveFileOnSignal, bool UseTemporary,
+                       bool CreateMissingDirectories);
 
+public:
   std::unique_ptr<raw_pwrite_stream> createNullOutputFile();
 
-  /// }
+  /// @}
   /// @name Initialization Utility Methods
-  /// {
+  /// @{
 
   /// InitializeSourceManager - Initialize the source manager to set InputFile
   /// as the main file.
@@ -789,7 +801,7 @@ public:
                                       FileManager &FileMgr,
                                       SourceManager &SourceMgr);
 
-  /// }
+  /// @}
 
   void setOutputStream(std::unique_ptr<llvm::raw_pwrite_stream> OutStream) {
     OutputStream = std::move(OutStream);
@@ -801,7 +813,8 @@ public:
 
   void createASTReader();
 
-  bool loadModuleFile(StringRef FileName);
+  bool loadModuleFile(StringRef FileName,
+                      serialization::ModuleFile *&LoadedModuleFile);
 
 private:
   /// Find a module, potentially compiling it, before reading its AST.  This is

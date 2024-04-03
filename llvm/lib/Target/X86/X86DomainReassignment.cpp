@@ -15,8 +15,8 @@
 #include "X86.h"
 #include "X86InstrInfo.h"
 #include "X86Subtarget.h"
+#include "llvm/ADT/BitVector.h"
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/DenseMapInfo.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Statistic.h"
@@ -86,7 +86,7 @@ protected:
 public:
   InstrConverterBase(unsigned SrcOpcode) : SrcOpcode(SrcOpcode) {}
 
-  virtual ~InstrConverterBase() {}
+  virtual ~InstrConverterBase() = default;
 
   /// \returns true if \p MI is legal to convert.
   virtual bool isLegal(const MachineInstr *MI,
@@ -141,7 +141,7 @@ public:
       return false;
     // It's illegal to replace an instruction that implicitly defines a register
     // with an instruction that doesn't, unless that register dead.
-    for (auto &MO : MI->implicit_operands())
+    for (const auto &MO : MI->implicit_operands())
       if (MO.isReg() && MO.isDef() && !MO.isDead() &&
           !TII->get(DstOpcode).hasImplicitDefOfPhysReg(MO.getReg()))
         return false;
@@ -180,14 +180,14 @@ public:
                     MachineRegisterInfo *MRI) const override {
     assert(isLegal(MI, TII) && "Cannot convert instruction");
     MachineBasicBlock *MBB = MI->getParent();
-    auto &DL = MI->getDebugLoc();
+    const DebugLoc &DL = MI->getDebugLoc();
 
     Register Reg = MRI->createVirtualRegister(
         TII->getRegClass(TII->get(DstOpcode), 0, MRI->getTargetRegisterInfo(),
                          *MBB->getParent()));
     MachineInstrBuilder Bld = BuildMI(*MBB, MI, DL, TII->get(DstOpcode), Reg);
-    for (unsigned Idx = 1, End = MI->getNumOperands(); Idx < End; ++Idx)
-      Bld.add(MI->getOperand(Idx));
+    for (const MachineOperand &MO : llvm::drop_begin(MI->operands()))
+      Bld.add(MO);
 
     BuildMI(*MBB, MI, DL, TII->get(TargetOpcode::COPY))
         .add(MI->getOperand(0))
@@ -220,14 +220,12 @@ public:
     // Don't allow copies to/flow GR8/GR16 physical registers.
     // FIXME: Is there some better way to support this?
     Register DstReg = MI->getOperand(0).getReg();
-    if (Register::isPhysicalRegister(DstReg) &&
-        (X86::GR8RegClass.contains(DstReg) ||
-         X86::GR16RegClass.contains(DstReg)))
+    if (DstReg.isPhysical() && (X86::GR8RegClass.contains(DstReg) ||
+                                X86::GR16RegClass.contains(DstReg)))
       return false;
     Register SrcReg = MI->getOperand(1).getReg();
-    if (Register::isPhysicalRegister(SrcReg) &&
-        (X86::GR8RegClass.contains(SrcReg) ||
-         X86::GR16RegClass.contains(SrcReg)))
+    if (SrcReg.isPhysical() && (X86::GR8RegClass.contains(SrcReg) ||
+                                X86::GR16RegClass.contains(SrcReg)))
       return false;
 
     return true;
@@ -237,11 +235,11 @@ public:
                       MachineRegisterInfo *MRI) const override {
     assert(MI->getOpcode() == TargetOpcode::COPY && "Expected a COPY");
 
-    for (auto &MO : MI->operands()) {
+    for (const auto &MO : MI->operands()) {
       // Physical registers will not be converted. Assume that converting the
       // COPY to the destination domain will eventually result in a actual
       // instruction.
-      if (Register::isPhysicalRegister(MO.getReg()))
+      if (MO.getReg().isPhysical())
         return 1;
 
       RegDomain OpDomain = getDomain(MRI->getRegClass(MO.getReg()),
@@ -300,7 +298,7 @@ typedef DenseMap<InstrConverterBaseKeyTy, std::unique_ptr<InstrConverterBase>>
 class Closure {
 private:
   /// Virtual registers in the closure.
-  DenseSet<unsigned> Edges;
+  DenseSet<Register> Edges;
 
   /// Instructions in the closure.
   SmallVector<MachineInstr *, 8> Instrs;
@@ -332,11 +330,9 @@ public:
 
   bool empty() const { return Edges.empty(); }
 
-  bool insertEdge(unsigned Reg) {
-    return Edges.insert(Reg).second;
-  }
+  bool insertEdge(Register Reg) { return Edges.insert(Reg).second; }
 
-  using const_edge_iterator = DenseSet<unsigned>::const_iterator;
+  using const_edge_iterator = DenseSet<Register>::const_iterator;
   iterator_range<const_edge_iterator> edges() const {
     return iterator_range<const_edge_iterator>(Edges.begin(), Edges.end());
   }
@@ -352,7 +348,7 @@ public:
   LLVM_DUMP_METHOD void dump(const MachineRegisterInfo *MRI) const {
     dbgs() << "Registers: ";
     bool First = true;
-    for (unsigned Reg : Edges) {
+    for (Register Reg : Edges) {
       if (!First)
         dbgs() << ", ";
       First = false;
@@ -378,7 +374,7 @@ class X86DomainReassignment : public MachineFunctionPass {
   const X86InstrInfo *TII = nullptr;
 
   /// All edges that are included in some closure
-  DenseSet<unsigned> EnclosedEdges;
+  BitVector EnclosedEdges{8, false};
 
   /// All instructions that are included in some closure.
   DenseMap<MachineInstr *, unsigned> EnclosedInstrs;
@@ -407,10 +403,10 @@ private:
   void initConverters();
 
   /// Starting from \Reg, expand the closure as much as possible.
-  void buildClosure(Closure &, unsigned Reg);
+  void buildClosure(Closure &, Register Reg);
 
   /// Enqueue \p Reg to be considered for addition to the closure.
-  void visitRegister(Closure &, unsigned Reg, RegDomain &Domain,
+  void visitRegister(Closure &, Register Reg, RegDomain &Domain,
                      SmallVectorImpl<unsigned> &Worklist);
 
   /// Reassign the closure to \p Domain.
@@ -430,13 +426,13 @@ char X86DomainReassignment::ID = 0;
 
 } // End anonymous namespace.
 
-void X86DomainReassignment::visitRegister(Closure &C, unsigned Reg,
+void X86DomainReassignment::visitRegister(Closure &C, Register Reg,
                                           RegDomain &Domain,
                                           SmallVectorImpl<unsigned> &Worklist) {
-  if (EnclosedEdges.count(Reg))
+  if (!Reg.isVirtual())
     return;
 
-  if (!Register::isVirtualRegister(Reg))
+  if (EnclosedEdges.test(Register::virtReg2Index(Reg)))
     return;
 
   if (!MRI->hasOneDef(Reg))
@@ -507,7 +503,7 @@ void X86DomainReassignment::reassign(const Closure &C, RegDomain Domain) const {
 
   // Iterate all registers in the closure, replace them with registers in the
   // destination domain.
-  for (unsigned Reg : C.edges()) {
+  for (Register Reg : C.edges()) {
     MRI->setRegClass(Reg, getDstRC(MRI->getRegClass(Reg), Domain));
     for (auto &MO : MRI->use_operands(Reg)) {
       if (MO.isReg())
@@ -517,13 +513,13 @@ void X86DomainReassignment::reassign(const Closure &C, RegDomain Domain) const {
     }
   }
 
-  for (auto MI : ToErase)
+  for (auto *MI : ToErase)
     MI->eraseFromParent();
 }
 
 /// \returns true when \p Reg is used as part of an address calculation in \p
 /// MI.
-static bool usedAsAddr(const MachineInstr &MI, unsigned Reg,
+static bool usedAsAddr(const MachineInstr &MI, Register Reg,
                        const TargetInstrInfo *TII) {
   if (!MI.mayLoadOrStore())
     return false;
@@ -537,14 +533,14 @@ static bool usedAsAddr(const MachineInstr &MI, unsigned Reg,
   for (unsigned MemOpIdx = MemOpStart,
                 MemOpEnd = MemOpStart + X86::AddrNumOperands;
        MemOpIdx < MemOpEnd; ++MemOpIdx) {
-    auto &Op = MI.getOperand(MemOpIdx);
+    const MachineOperand &Op = MI.getOperand(MemOpIdx);
     if (Op.isReg() && Op.getReg() == Reg)
       return true;
   }
   return false;
 }
 
-void X86DomainReassignment::buildClosure(Closure &C, unsigned Reg) {
+void X86DomainReassignment::buildClosure(Closure &C, Register Reg) {
   SmallVector<unsigned, 4> Worklist;
   RegDomain Domain = NoDomain;
   visitRegister(C, Reg, Domain, Worklist);
@@ -554,7 +550,7 @@ void X86DomainReassignment::buildClosure(Closure &C, unsigned Reg) {
     // Register already in this closure.
     if (!C.insertEdge(CurReg))
       continue;
-    EnclosedEdges.insert(Reg);
+    EnclosedEdges.set(Register::virtReg2Index(Reg));
 
     MachineInstr *DefMI = MRI->getVRegDef(CurReg);
     encloseInstr(C, DefMI);
@@ -594,7 +590,7 @@ void X86DomainReassignment::buildClosure(Closure &C, unsigned Reg) {
           continue;
 
         Register DefReg = DefOp.getReg();
-        if (!Register::isVirtualRegister(DefReg)) {
+        if (!DefReg.isVirtual()) {
           C.setAllIllegal();
           continue;
         }
@@ -623,29 +619,30 @@ void X86DomainReassignment::initConverters() {
         std::make_unique<InstrReplacerDstCOPY>(From, To);
   };
 
-  createReplacerDstCOPY(X86::MOVZX32rm16, X86::KMOVWkm);
-  createReplacerDstCOPY(X86::MOVZX64rm16, X86::KMOVWkm);
+#define GET_EGPR_IF_ENABLED(OPC) STI->hasEGPR() ? OPC##_EVEX : OPC
+  createReplacerDstCOPY(X86::MOVZX32rm16, GET_EGPR_IF_ENABLED(X86::KMOVWkm));
+  createReplacerDstCOPY(X86::MOVZX64rm16, GET_EGPR_IF_ENABLED(X86::KMOVWkm));
 
-  createReplacerDstCOPY(X86::MOVZX32rr16, X86::KMOVWkk);
-  createReplacerDstCOPY(X86::MOVZX64rr16, X86::KMOVWkk);
+  createReplacerDstCOPY(X86::MOVZX32rr16, GET_EGPR_IF_ENABLED(X86::KMOVWkk));
+  createReplacerDstCOPY(X86::MOVZX64rr16, GET_EGPR_IF_ENABLED(X86::KMOVWkk));
 
   if (STI->hasDQI()) {
-    createReplacerDstCOPY(X86::MOVZX16rm8, X86::KMOVBkm);
-    createReplacerDstCOPY(X86::MOVZX32rm8, X86::KMOVBkm);
-    createReplacerDstCOPY(X86::MOVZX64rm8, X86::KMOVBkm);
+    createReplacerDstCOPY(X86::MOVZX16rm8, GET_EGPR_IF_ENABLED(X86::KMOVBkm));
+    createReplacerDstCOPY(X86::MOVZX32rm8, GET_EGPR_IF_ENABLED(X86::KMOVBkm));
+    createReplacerDstCOPY(X86::MOVZX64rm8, GET_EGPR_IF_ENABLED(X86::KMOVBkm));
 
-    createReplacerDstCOPY(X86::MOVZX16rr8, X86::KMOVBkk);
-    createReplacerDstCOPY(X86::MOVZX32rr8, X86::KMOVBkk);
-    createReplacerDstCOPY(X86::MOVZX64rr8, X86::KMOVBkk);
+    createReplacerDstCOPY(X86::MOVZX16rr8, GET_EGPR_IF_ENABLED(X86::KMOVBkk));
+    createReplacerDstCOPY(X86::MOVZX32rr8, GET_EGPR_IF_ENABLED(X86::KMOVBkk));
+    createReplacerDstCOPY(X86::MOVZX64rr8, GET_EGPR_IF_ENABLED(X86::KMOVBkk));
   }
 
   auto createReplacer = [&](unsigned From, unsigned To) {
     Converters[{MaskDomain, From}] = std::make_unique<InstrReplacer>(From, To);
   };
 
-  createReplacer(X86::MOV16rm, X86::KMOVWkm);
-  createReplacer(X86::MOV16mr, X86::KMOVWmk);
-  createReplacer(X86::MOV16rr, X86::KMOVWkk);
+  createReplacer(X86::MOV16rm, GET_EGPR_IF_ENABLED(X86::KMOVWkm));
+  createReplacer(X86::MOV16mr, GET_EGPR_IF_ENABLED(X86::KMOVWmk));
+  createReplacer(X86::MOV16rr, GET_EGPR_IF_ENABLED(X86::KMOVWkk));
   createReplacer(X86::SHR16ri, X86::KSHIFTRWri);
   createReplacer(X86::SHL16ri, X86::KSHIFTLWri);
   createReplacer(X86::NOT16r, X86::KNOTWrr);
@@ -654,14 +651,14 @@ void X86DomainReassignment::initConverters() {
   createReplacer(X86::XOR16rr, X86::KXORWrr);
 
   if (STI->hasBWI()) {
-    createReplacer(X86::MOV32rm, X86::KMOVDkm);
-    createReplacer(X86::MOV64rm, X86::KMOVQkm);
+    createReplacer(X86::MOV32rm, GET_EGPR_IF_ENABLED(X86::KMOVDkm));
+    createReplacer(X86::MOV64rm, GET_EGPR_IF_ENABLED(X86::KMOVQkm));
 
-    createReplacer(X86::MOV32mr, X86::KMOVDmk);
-    createReplacer(X86::MOV64mr, X86::KMOVQmk);
+    createReplacer(X86::MOV32mr, GET_EGPR_IF_ENABLED(X86::KMOVDmk));
+    createReplacer(X86::MOV64mr, GET_EGPR_IF_ENABLED(X86::KMOVQmk));
 
-    createReplacer(X86::MOV32rr, X86::KMOVDkk);
-    createReplacer(X86::MOV64rr, X86::KMOVQkk);
+    createReplacer(X86::MOV32rr, GET_EGPR_IF_ENABLED(X86::KMOVDkk));
+    createReplacer(X86::MOV64rr, GET_EGPR_IF_ENABLED(X86::KMOVQkk));
 
     createReplacer(X86::SHR32ri, X86::KSHIFTRDri);
     createReplacer(X86::SHR64ri, X86::KSHIFTRQri);
@@ -689,8 +686,8 @@ void X86DomainReassignment::initConverters() {
 
     // TODO: KTEST is not a replacement for TEST due to flag differences. Need
     // to prove only Z flag is used.
-    //createReplacer(X86::TEST32rr, X86::KTESTDrr);
-    //createReplacer(X86::TEST64rr, X86::KTESTQrr);
+    // createReplacer(X86::TEST32rr, X86::KTESTDrr);
+    // createReplacer(X86::TEST64rr, X86::KTESTQrr);
   }
 
   if (STI->hasDQI()) {
@@ -699,9 +696,9 @@ void X86DomainReassignment::initConverters() {
 
     createReplacer(X86::AND8rr, X86::KANDBrr);
 
-    createReplacer(X86::MOV8rm, X86::KMOVBkm);
-    createReplacer(X86::MOV8mr, X86::KMOVBmk);
-    createReplacer(X86::MOV8rr, X86::KMOVBkk);
+    createReplacer(X86::MOV8rm, GET_EGPR_IF_ENABLED(X86::KMOVBkm));
+    createReplacer(X86::MOV8mr, GET_EGPR_IF_ENABLED(X86::KMOVBmk));
+    createReplacer(X86::MOV8rr, GET_EGPR_IF_ENABLED(X86::KMOVBkk));
 
     createReplacer(X86::NOT8r, X86::KNOTBrr);
 
@@ -712,11 +709,12 @@ void X86DomainReassignment::initConverters() {
 
     // TODO: KTEST is not a replacement for TEST due to flag differences. Need
     // to prove only Z flag is used.
-    //createReplacer(X86::TEST8rr, X86::KTESTBrr);
-    //createReplacer(X86::TEST16rr, X86::KTESTWrr);
+    // createReplacer(X86::TEST8rr, X86::KTESTBrr);
+    // createReplacer(X86::TEST16rr, X86::KTESTWrr);
 
     createReplacer(X86::XOR8rr, X86::KXORBrr);
   }
+#undef GET_EGPR_IF_ENABLED
 }
 
 bool X86DomainReassignment::runOnMachineFunction(MachineFunction &MF) {
@@ -746,6 +744,7 @@ bool X86DomainReassignment::runOnMachineFunction(MachineFunction &MF) {
   bool Changed = false;
 
   EnclosedEdges.clear();
+  EnclosedEdges.resize(MRI->getNumVirtRegs());
   EnclosedInstrs.clear();
 
   std::vector<Closure> Closures;
@@ -753,14 +752,14 @@ bool X86DomainReassignment::runOnMachineFunction(MachineFunction &MF) {
   // Go over all virtual registers and calculate a closure.
   unsigned ClosureID = 0;
   for (unsigned Idx = 0; Idx < MRI->getNumVirtRegs(); ++Idx) {
-    unsigned Reg = Register::index2VirtReg(Idx);
+    Register Reg = Register::index2VirtReg(Idx);
 
     // GPR only current source domain supported.
     if (!isGPR(MRI->getRegClass(Reg)))
       continue;
 
     // Register already in closure.
-    if (EnclosedEdges.count(Reg))
+    if (EnclosedEdges.test(Idx))
       continue;
 
     // Calculate closure starting with Reg.

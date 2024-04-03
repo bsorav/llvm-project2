@@ -14,6 +14,7 @@
 #include "llvm/Support/SourceMgr.h"
 #include "gmock/gmock.h"
 #include <functional>
+#include <optional>
 
 namespace clang {
 namespace clangd {
@@ -24,6 +25,12 @@ namespace config {
 struct CapturedDiags {
   std::function<void(const llvm::SMDiagnostic &)> callback() {
     return [this](const llvm::SMDiagnostic &D) {
+      if (Files.empty() || Files.back() != D.getFilename())
+        Files.push_back(D.getFilename().str());
+
+      if (D.getKind() > llvm::SourceMgr::DK_Warning)
+        return;
+
       Diagnostics.emplace_back();
       Diag &Out = Diagnostics.back();
       Out.Message = D.getMessage().str();
@@ -43,20 +50,26 @@ struct CapturedDiags {
     std::string Message;
     llvm::SourceMgr::DiagKind Kind;
     Position Pos;
-    llvm::Optional<Range> Rng;
+    std::optional<Range> Rng;
 
     friend void PrintTo(const Diag &D, std::ostream *OS) {
       *OS << (D.Kind == llvm::SourceMgr::DK_Error ? "error: " : "warning: ")
           << D.Message << "@" << llvm::to_string(D.Pos);
     }
   };
-  std::vector<Diag> Diagnostics;
+  std::vector<Diag> Diagnostics;  // Warning or higher.
+  std::vector<std::string> Files; // Filename from diagnostics including notes.
+
+  void clear() {
+    Diagnostics.clear();
+    Files.clear();
+  }
 };
 
-MATCHER_P(DiagMessage, M, "") { return arg.Message == M; }
-MATCHER_P(DiagKind, K, "") { return arg.Kind == K; }
-MATCHER_P(DiagPos, P, "") { return arg.Pos == P; }
-MATCHER_P(DiagRange, R, "") { return arg.Rng == R; }
+MATCHER_P(diagMessage, M, "") { return arg.Message == M; }
+MATCHER_P(diagKind, K, "") { return arg.Kind == K; }
+MATCHER_P(diagPos, P, "") { return arg.Pos == P; }
+MATCHER_P(diagRange, R, "") { return arg.Rng == R; }
 
 inline Position toPosition(llvm::SMLoc L, const llvm::SourceMgr &SM) {
   auto LineCol = SM.getLineAndColumn(L);

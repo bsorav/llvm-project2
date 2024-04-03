@@ -64,11 +64,11 @@ namespace PR6031 {
 namespace Ambig {
   template<typename T>
   struct Base1 {
-    typedef int type; // expected-note{{member found by ambiguous name lookup}}
+    typedef int type; // expected-note{{member type 'int' found by ambiguous name lookup}}
   };
 
   struct Base2 {
-    typedef float type; // expected-note{{member found by ambiguous name lookup}}
+    typedef float type; // expected-note{{member type 'float' found by ambiguous name lookup}}
   };
 
   template<typename T>
@@ -129,4 +129,18 @@ namespace PR5812 {
   };
 
   Derived<int> di;
+}
+
+namespace GH13826 {
+template <typename T> struct A {
+  typedef int type;
+  struct B;
+};
+
+template <typename T> struct A<T>::B : A<T> {
+  B::type t;
+};
+
+A<int> a;
+A<int>::B b;
 }

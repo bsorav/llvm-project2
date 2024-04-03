@@ -12,12 +12,12 @@ all: install
 build:
 	mkdir -p build
 	#https://llvm.org/docs/GettingStarted.html
-	cd build && cmake $(DISTCC_OPTS) -G Ninja -DCMAKE_CXX_COMPILER=clang++-11 -DCMAKE_BUILD_TYPE=DEBUG -DCMAKE_CXX_STANDARD="17" -DLLVM_ENABLE_BINDINGS=OFF -DLLVM_ENABLE_FFI=ON -DLLVM_USE_LINKER=lld -DLLVM_PARALLEL_LINK_JOBS=1 -DLLVM_ENABLE_PROJECTS="clang;clang-tools-extra" -DLLVM_TARGETS_TO_BUILD="X86" -DCLANG_BUILD_EXAMPLES=1 -DARCH_SRC="etfg" -DARCH_DST="x64" ../llvm && cd ..
+	cd build && cmake $(DISTCC_OPTS) -G Ninja -DCMAKE_CXX_COMPILER=clang++-11 -DCMAKE_BUILD_TYPE=DEBUG -DCMAKE_CXX_STANDARD="17" -DLLVM_ENABLE_BINDINGS=OFF -DLLVM_ENABLE_FFI=ON -DLLVM_ENABLE_RTTI=ON -DLLVM_ENABLE_EH=ON -DLLVM_USE_LINKER=lld -DLLVM_PARALLEL_LINK_JOBS=1 -DLLVM_ENABLE_PROJECTS="clang;clang-tools-extra" -DLLVM_TARGETS_TO_BUILD="X86" -DCLANG_BUILD_EXAMPLES=1 -DARCH_SRC="etfg" -DARCH_DST="x64" ../llvm && cd ..
 
 .PHONY: install
 install: build
 	# ninja -C build llc opt llvm-config llvm-dis llvm-link llvm-as llvm2tfg harvest-dwarf LLVMSuperopt.so LLVMLockstep.so harvest-dwarf clang scan-build scan-view #UnsequencedAliasVisitor.so 
-	ninja -C build llc opt llvm-config llvm-dis llvm-link llvm-as llvm2tfg harvest-dwarf LLVMSuperopt.so harvest-dwarf clang scan-build scan-view #UnsequencedAliasVisitor.so LLVMLockstep.so 
+	ninja -C build llc opt llvm-config llvm-dis llvm-link llvm-as llvm2tfg harvest-dwarf harvest-dwarf clang scan-build scan-view #UnsequencedAliasVisitor.so LLVMLockstep.so LLVMSuperopt.so
 
 .PHONY: llvm2tfg
 llvm2tfg:

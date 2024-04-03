@@ -16,6 +16,7 @@
 #include "index/Index.h"
 #include "index/Serialization.h"
 #include "support/Context.h"
+#include "support/MemoryTree.h"
 #include "support/Path.h"
 #include "support/Threading.h"
 #include "support/ThreadsafeFS.h"
@@ -26,6 +27,7 @@
 #include <condition_variable>
 #include <deque>
 #include <mutex>
+#include <optional>
 #include <queue>
 #include <string>
 #include <thread>
@@ -60,7 +62,7 @@ public:
   // CDBDirectory is the first directory containing a CDB in parent directories
   // of a file, or user cache directory if none was found, e.g. stdlib headers.
   static Factory createDiskBackedStorageFactory(
-      std::function<llvm::Optional<ProjectInfo>(PathRef)> GetProjectInfo);
+      std::function<std::optional<ProjectInfo>(PathRef)> GetProjectInfo);
 };
 
 // A priority queue of tasks which can be run on (external) worker threads.
@@ -71,9 +73,11 @@ public:
     explicit Task(std::function<void()> Run) : Run(std::move(Run)) {}
 
     std::function<void()> Run;
-    llvm::ThreadPriority ThreadPri = llvm::ThreadPriority::Background;
+    llvm::ThreadPriority ThreadPri = llvm::ThreadPriority::Low;
     unsigned QueuePri = 0; // Higher-priority tasks will run first.
     std::string Tag;       // Allows priority to be boosted later.
+    uint64_t Key = 0;      // If the key matches a previous task, drop this one.
+                           // (in practice this means we never reindex a file).
 
     bool operator<(const Task &O) const { return QueuePri < O.QueuePri; }
   };
@@ -107,11 +111,12 @@ public:
   // Disables thread priority lowering to ensure progress on loaded systems.
   // Only affects tasks that run after the call.
   static void preventThreadStarvationInTests();
-  LLVM_NODISCARD bool
-  blockUntilIdleForTest(llvm::Optional<double> TimeoutSeconds);
+  [[nodiscard]] bool
+  blockUntilIdleForTest(std::optional<double> TimeoutSeconds);
 
 private:
   void notifyProgress() const; // Requires lock Mu
+  bool adjust(Task &T);
 
   std::mutex Mu;
   Stats Stat;
@@ -120,26 +125,33 @@ private:
   std::vector<Task> Queue; // max-heap
   llvm::StringMap<unsigned> Boosts;
   std::function<void(Stats)> OnProgress;
+  llvm::DenseSet<uint64_t> SeenKeys;
 };
 
 // Builds an in-memory index by by running the static indexer action over
 // all commands in a compilation database. Indexing happens in the background.
-// FIXME: it should also persist its state on disk for fast start.
 // FIXME: it should watch for changes to files on disk.
 class BackgroundIndex : public SwapIndex {
 public:
-  /// If BuildIndexPeriodMs is greater than 0, the symbol index will only be
-  /// rebuilt periodically (one per \p BuildIndexPeriodMs); otherwise, index is
-  /// rebuilt for each indexed file.
-  BackgroundIndex(
-      Context BackgroundContext, const ThreadsafeFS &,
-      const GlobalCompilationDatabase &CDB,
-      BackgroundIndexStorage::Factory IndexStorageFactory,
-      // Arbitrary value to ensure some concurrency in tests.
-      // In production an explicit value is passed.
-      size_t ThreadPoolSize = 4,
-      std::function<void(BackgroundQueue::Stats)> OnProgress = nullptr,
-      std::function<Context(PathRef)> ContextProvider = nullptr);
+  struct Options {
+    // Arbitrary value to ensure some concurrency in tests.
+    // In production an explicit value is specified.
+    size_t ThreadPoolSize = 4;
+    // Thread priority when indexing files.
+    llvm::ThreadPriority IndexingPriority = llvm::ThreadPriority::Low;
+    // Callback that provides notifications as indexing makes progress.
+    std::function<void(BackgroundQueue::Stats)> OnProgress = nullptr;
+    // Function called to obtain the Context to use while indexing the specified
+    // file. Called with the empty string for other tasks.
+    // (When called, the context from BackgroundIndex construction is active).
+    std::function<Context(PathRef)> ContextProvider = nullptr;
+  };
+
+  /// Creates a new background index and starts its threads.
+  /// The current Context will be propagated to each worker thread.
+  BackgroundIndex(const ThreadsafeFS &, const GlobalCompilationDatabase &CDB,
+                  BackgroundIndexStorage::Factory IndexStorageFactory,
+                  Options Opts);
   ~BackgroundIndex(); // Blocks while the current task finishes.
 
   // Enqueue translation units for indexing.
@@ -161,10 +173,12 @@ public:
   }
 
   // Wait until the queue is empty, to allow deterministic testing.
-  LLVM_NODISCARD bool
-  blockUntilIdleForTest(llvm::Optional<double> TimeoutSeconds = 10) {
+  [[nodiscard]] bool
+  blockUntilIdleForTest(std::optional<double> TimeoutSeconds = 10) {
     return Queue.blockUntilIdleForTest(TimeoutSeconds);
   }
+
+  void profile(MemoryTree &MT) const;
 
 private:
   /// Represents the state of a single file when indexing was performed.
@@ -183,7 +197,7 @@ private:
   // configuration
   const ThreadsafeFS &TFS;
   const GlobalCompilationDatabase &CDB;
-  Context BackgroundContext;
+  llvm::ThreadPriority IndexingPriority;
   std::function<Context(PathRef)> ContextProvider;
 
   llvm::Error index(tooling::CompileCommand);

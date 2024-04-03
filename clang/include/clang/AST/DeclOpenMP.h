@@ -14,6 +14,7 @@
 #ifndef LLVM_CLANG_AST_DECLOPENMP_H
 #define LLVM_CLANG_AST_DECLOPENMP_H
 
+#include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/ExternalASTSource.h"
@@ -23,6 +24,76 @@
 #include "llvm/Support/TrailingObjects.h"
 
 namespace clang {
+
+/// This is a basic class for representing single OpenMP declarative directive.
+///
+template <typename U> class OMPDeclarativeDirective : public U {
+  friend class ASTDeclReader;
+  friend class ASTDeclWriter;
+
+  /// Get the clauses storage.
+  MutableArrayRef<OMPClause *> getClauses() {
+    if (!Data)
+      return std::nullopt;
+    return Data->getClauses();
+  }
+
+protected:
+  /// Data, associated with the directive.
+  OMPChildren *Data = nullptr;
+
+  /// Build instance of directive.
+  template <typename... Params>
+  OMPDeclarativeDirective(Params &&... P) : U(std::forward<Params>(P)...) {}
+
+  template <typename T, typename... Params>
+  static T *createDirective(const ASTContext &C, DeclContext *DC,
+                            ArrayRef<OMPClause *> Clauses, unsigned NumChildren,
+                            Params &&... P) {
+    auto *Inst = new (C, DC, size(Clauses.size(), NumChildren))
+        T(DC, std::forward<Params>(P)...);
+    Inst->Data = OMPChildren::Create(Inst + 1, Clauses,
+                                     /*AssociatedStmt=*/nullptr, NumChildren);
+    Inst->Data->setClauses(Clauses);
+    return Inst;
+  }
+
+  template <typename T, typename... Params>
+  static T *createEmptyDirective(const ASTContext &C, unsigned ID,
+                                 unsigned NumClauses, unsigned NumChildren,
+                                 Params &&... P) {
+    auto *Inst = new (C, ID, size(NumClauses, NumChildren))
+        T(nullptr, std::forward<Params>(P)...);
+    Inst->Data = OMPChildren::CreateEmpty(
+        Inst + 1, NumClauses, /*HasAssociatedStmt=*/false, NumChildren);
+    return Inst;
+  }
+
+  static size_t size(unsigned NumClauses, unsigned NumChildren) {
+    return OMPChildren::size(NumClauses, /*HasAssociatedStmt=*/false,
+                             NumChildren);
+  }
+
+public:
+  /// Get number of clauses.
+  unsigned getNumClauses() const {
+    if (!Data)
+      return 0;
+    return Data->getNumClauses();
+  }
+
+  /// Returns specified clause.
+  ///
+  /// \param I Number of clause.
+  ///
+  OMPClause *getClause(unsigned I) const { return clauses()[I]; }
+
+  ArrayRef<OMPClause *> clauses() const {
+    if (!Data)
+      return std::nullopt;
+    return Data->getClauses();
+  }
+};
 
 /// This represents '#pragma omp threadprivate ...' directive.
 /// For example, in the following, both 'a' and 'A::b' are threadprivate:
@@ -36,25 +107,23 @@ namespace clang {
 /// };
 /// \endcode
 ///
-class OMPThreadPrivateDecl final
-    : public Decl,
-      private llvm::TrailingObjects<OMPThreadPrivateDecl, Expr *> {
-  friend class ASTDeclReader;
-  friend TrailingObjects;
-
-  unsigned NumVars;
+class OMPThreadPrivateDecl final : public OMPDeclarativeDirective<Decl> {
+  friend class OMPDeclarativeDirective<Decl>;
 
   virtual void anchor();
 
-  OMPThreadPrivateDecl(Kind DK, DeclContext *DC, SourceLocation L) :
-    Decl(DK, DC, L), NumVars(0) { }
+  OMPThreadPrivateDecl(DeclContext *DC = nullptr,
+                       SourceLocation L = SourceLocation())
+      : OMPDeclarativeDirective<Decl>(OMPThreadPrivate, DC, L) {}
 
   ArrayRef<const Expr *> getVars() const {
-    return llvm::makeArrayRef(getTrailingObjects<Expr *>(), NumVars);
+    auto **Storage = reinterpret_cast<Expr **>(Data->getChildren().data());
+    return llvm::ArrayRef(Storage, Data->getNumChildren());
   }
 
   MutableArrayRef<Expr *> getVars() {
-    return MutableArrayRef<Expr *>(getTrailingObjects<Expr *>(), NumVars);
+    auto **Storage = reinterpret_cast<Expr **>(Data->getChildren().data());
+    return llvm::MutableArrayRef(Storage, Data->getNumChildren());
   }
 
   void setVars(ArrayRef<Expr *> VL);
@@ -71,8 +140,8 @@ public:
   typedef llvm::iterator_range<varlist_iterator> varlist_range;
   typedef llvm::iterator_range<varlist_const_iterator> varlist_const_range;
 
-  unsigned varlist_size() const { return NumVars; }
-  bool varlist_empty() const { return NumVars == 0; }
+  unsigned varlist_size() const { return Data->getNumChildren(); }
+  bool varlist_empty() const { return Data->getChildren().empty(); }
 
   varlist_range varlists() {
     return varlist_range(varlist_begin(), varlist_end());
@@ -89,12 +158,18 @@ public:
   static bool classofKind(Kind K) { return K == OMPThreadPrivate; }
 };
 
+enum class OMPDeclareReductionInitKind {
+  Call,   // Initialized by function call.
+  Direct, // omp_priv(<expr>)
+  Copy    // omp_priv = <expr>
+};
+
 /// This represents '#pragma omp declare reduction ...' directive.
 /// For example, in the following, declared reduction 'foo' for types 'int' and
 /// 'float':
 ///
 /// \code
-/// #pragma omp declare reduction (foo : int,float : omp_out += omp_in) \
+/// #pragma omp declare reduction (foo : int,float : omp_out += omp_in)
 ///                     initializer (omp_priv = 0)
 /// \endcode
 ///
@@ -102,14 +177,7 @@ public:
 class OMPDeclareReductionDecl final : public ValueDecl, public DeclContext {
   // This class stores some data in DeclContext::OMPDeclareReductionDeclBits
   // to save some space. Use the provided accessors to access it.
-public:
-  enum InitKind {
-    CallInit,   // Initialized by function call.
-    DirectInit, // omp_priv(<expr>)
-    CopyInit    // omp_priv = <expr>
-  };
 
-private:
   friend class ASTDeclReader;
   /// Combiner for declare reduction construct.
   Expr *Combiner = nullptr;
@@ -170,8 +238,9 @@ public:
   Expr *getInitializer() { return Initializer; }
   const Expr *getInitializer() const { return Initializer; }
   /// Get initializer kind.
-  InitKind getInitializerKind() const {
-    return static_cast<InitKind>(OMPDeclareReductionDeclBits.InitializerKind);
+  OMPDeclareReductionInitKind getInitializerKind() const {
+    return static_cast<OMPDeclareReductionInitKind>(
+        OMPDeclareReductionDeclBits.InitializerKind);
   }
   /// Get Orig variable of the initializer.
   Expr *getInitOrig() { return Orig; }
@@ -180,9 +249,9 @@ public:
   Expr *getInitPriv() { return Priv; }
   const Expr *getInitPriv() const { return Priv; }
   /// Set initializer expression for the declare reduction construct.
-  void setInitializer(Expr *E, InitKind IK) {
+  void setInitializer(Expr *E, OMPDeclareReductionInitKind IK) {
     Initializer = E;
-    OMPDeclareReductionDeclBits.InitializerKind = IK;
+    OMPDeclareReductionDeclBits.InitializerKind = llvm::to_underlying(IK);
   }
   /// Set initializer Orig and Priv vars.
   void setInitializerData(Expr *OrigE, Expr *PrivE) {
@@ -214,11 +283,11 @@ public:
 /// \code
 /// #pragma omp declare mapper(mid: struct vec v) map(v.len, v.data[0:N])
 /// \endcode
-class OMPDeclareMapperDecl final : public ValueDecl, public DeclContext {
+class OMPDeclareMapperDecl final : public OMPDeclarativeDirective<ValueDecl>,
+                                   public DeclContext {
+  friend class OMPDeclarativeDirective<ValueDecl>;
   friend class ASTDeclReader;
-
-  /// Clauses associated with this mapper declaration
-  MutableArrayRef<OMPClause *> Clauses;
+  friend class ASTDeclWriter;
 
   /// Mapper variable, which is 'v' in the example above
   Expr *MapperVarRef = nullptr;
@@ -230,33 +299,27 @@ class OMPDeclareMapperDecl final : public ValueDecl, public DeclContext {
 
   void anchor() override;
 
-  OMPDeclareMapperDecl(Kind DK, DeclContext *DC, SourceLocation L,
-                       DeclarationName Name, QualType Ty,
-                       DeclarationName VarName,
+  OMPDeclareMapperDecl(DeclContext *DC, SourceLocation L, DeclarationName Name,
+                       QualType Ty, DeclarationName VarName,
                        OMPDeclareMapperDecl *PrevDeclInScope)
-      : ValueDecl(DK, DC, L, Name, Ty), DeclContext(DK), VarName(VarName),
+      : OMPDeclarativeDirective<ValueDecl>(OMPDeclareMapper, DC, L, Name, Ty),
+        DeclContext(OMPDeclareMapper), VarName(VarName),
         PrevDeclInScope(PrevDeclInScope) {}
 
   void setPrevDeclInScope(OMPDeclareMapperDecl *Prev) {
     PrevDeclInScope = Prev;
   }
 
-  /// Sets an array of clauses to this mapper declaration
-  void setClauses(ArrayRef<OMPClause *> CL);
-
 public:
   /// Creates declare mapper node.
   static OMPDeclareMapperDecl *Create(ASTContext &C, DeclContext *DC,
                                       SourceLocation L, DeclarationName Name,
                                       QualType T, DeclarationName VarName,
+                                      ArrayRef<OMPClause *> Clauses,
                                       OMPDeclareMapperDecl *PrevDeclInScope);
   /// Creates deserialized declare mapper node.
   static OMPDeclareMapperDecl *CreateDeserialized(ASTContext &C, unsigned ID,
                                                   unsigned N);
-
-  /// Creates an array of clauses to this mapper declaration and intializes
-  /// them.
-  void CreateClauses(ASTContext &C, ArrayRef<OMPClause *> CL);
 
   using clauselist_iterator = MutableArrayRef<OMPClause *>::iterator;
   using clauselist_const_iterator = ArrayRef<const OMPClause *>::iterator;
@@ -264,8 +327,8 @@ public:
   using clauselist_const_range =
       llvm::iterator_range<clauselist_const_iterator>;
 
-  unsigned clauselist_size() const { return Clauses.size(); }
-  bool clauselist_empty() const { return Clauses.empty(); }
+  unsigned clauselist_size() const { return Data->getNumClauses(); }
+  bool clauselist_empty() const { return Data->getClauses().empty(); }
 
   clauselist_range clauselists() {
     return clauselist_range(clauselist_begin(), clauselist_end());
@@ -273,16 +336,24 @@ public:
   clauselist_const_range clauselists() const {
     return clauselist_const_range(clauselist_begin(), clauselist_end());
   }
-  clauselist_iterator clauselist_begin() { return Clauses.begin(); }
-  clauselist_iterator clauselist_end() { return Clauses.end(); }
-  clauselist_const_iterator clauselist_begin() const { return Clauses.begin(); }
-  clauselist_const_iterator clauselist_end() const { return Clauses.end(); }
+  clauselist_iterator clauselist_begin() { return Data->getClauses().begin(); }
+  clauselist_iterator clauselist_end() { return Data->getClauses().end(); }
+  clauselist_const_iterator clauselist_begin() const {
+    return Data->getClauses().begin();
+  }
+  clauselist_const_iterator clauselist_end() const {
+    return Data->getClauses().end();
+  }
 
   /// Get the variable declared in the mapper
-  Expr *getMapperVarRef() { return MapperVarRef; }
-  const Expr *getMapperVarRef() const { return MapperVarRef; }
+  Expr *getMapperVarRef() { return cast_or_null<Expr>(Data->getChildren()[0]); }
+  const Expr *getMapperVarRef() const {
+    return cast_or_null<Expr>(Data->getChildren()[0]);
+  }
   /// Set the variable declared in the mapper
-  void setMapperVarRef(Expr *MapperVarRefE) { MapperVarRef = MapperVarRefE; }
+  void setMapperVarRef(Expr *MapperVarRefE) {
+    Data->getChildren()[0] = MapperVarRefE;
+  }
 
   /// Get the name of the variable declared in the mapper
   DeclarationName getVarName() { return VarName; }
@@ -342,34 +413,14 @@ public:
 /// #pragma omp requires unified_address
 /// \endcode
 ///
-class OMPRequiresDecl final
-    : public Decl,
-      private llvm::TrailingObjects<OMPRequiresDecl, OMPClause *> {
+class OMPRequiresDecl final : public OMPDeclarativeDirective<Decl> {
+  friend class OMPDeclarativeDirective<Decl>;
   friend class ASTDeclReader;
-  friend TrailingObjects;
-
-  // Number of clauses associated with this requires declaration
-  unsigned NumClauses = 0;
 
   virtual void anchor();
 
-  OMPRequiresDecl(Kind DK, DeclContext *DC, SourceLocation L)
-      : Decl(DK, DC, L), NumClauses(0) {}
-
-  /// Returns an array of immutable clauses associated with this requires
-  /// declaration
-  ArrayRef<const OMPClause *> getClauses() const {
-    return llvm::makeArrayRef(getTrailingObjects<OMPClause *>(), NumClauses);
-  }
-
-  /// Returns an array of clauses associated with this requires declaration
-  MutableArrayRef<OMPClause *> getClauses() {
-    return MutableArrayRef<OMPClause *>(getTrailingObjects<OMPClause *>(),
-                                        NumClauses);
-  }
-
-  /// Sets an array of clauses to this requires declaration
-  void setClauses(ArrayRef<OMPClause *> CL);
+  OMPRequiresDecl(DeclContext *DC, SourceLocation L)
+      : OMPDeclarativeDirective<Decl>(OMPRequires, DC, L) {}
 
 public:
   /// Create requires node.
@@ -384,8 +435,8 @@ public:
   using clauselist_range = llvm::iterator_range<clauselist_iterator>;
   using clauselist_const_range = llvm::iterator_range<clauselist_const_iterator>;
 
-  unsigned clauselist_size() const { return NumClauses; }
-  bool clauselist_empty() const { return NumClauses == 0; }
+  unsigned clauselist_size() const { return Data->getNumClauses(); }
+  bool clauselist_empty() const { return Data->getClauses().empty(); }
 
   clauselist_range clauselists() {
     return clauselist_range(clauselist_begin(), clauselist_end());
@@ -393,13 +444,13 @@ public:
   clauselist_const_range clauselists() const {
     return clauselist_const_range(clauselist_begin(), clauselist_end());
   }
-  clauselist_iterator clauselist_begin() { return getClauses().begin(); }
-  clauselist_iterator clauselist_end() { return getClauses().end(); }
+  clauselist_iterator clauselist_begin() { return Data->getClauses().begin(); }
+  clauselist_iterator clauselist_end() { return Data->getClauses().end(); }
   clauselist_const_iterator clauselist_begin() const {
-    return getClauses().begin();
+    return Data->getClauses().begin();
   }
   clauselist_const_iterator clauselist_end() const {
-    return getClauses().end();
+    return Data->getClauses().end();
   }
 
   static bool classof(const Decl *D) { return classofKind(D->getKind()); }
@@ -419,52 +470,26 @@ public:
 /// };
 /// \endcode
 ///
-class OMPAllocateDecl final
-    : public Decl,
-      private llvm::TrailingObjects<OMPAllocateDecl, Expr *, OMPClause *> {
+class OMPAllocateDecl final : public OMPDeclarativeDirective<Decl> {
+  friend class OMPDeclarativeDirective<Decl>;
   friend class ASTDeclReader;
-  friend TrailingObjects;
-
-  /// Number of variable within the allocate directive.
-  unsigned NumVars = 0;
-  /// Number of clauses associated with the allocate directive.
-  unsigned NumClauses = 0;
-
-  size_t numTrailingObjects(OverloadToken<Expr *>) const {
-    return NumVars;
-  }
-  size_t numTrailingObjects(OverloadToken<OMPClause *>) const {
-    return NumClauses;
-  }
 
   virtual void anchor();
 
-  OMPAllocateDecl(Kind DK, DeclContext *DC, SourceLocation L)
-      : Decl(DK, DC, L) {}
+  OMPAllocateDecl(DeclContext *DC, SourceLocation L)
+      : OMPDeclarativeDirective<Decl>(OMPAllocate, DC, L) {}
 
   ArrayRef<const Expr *> getVars() const {
-    return llvm::makeArrayRef(getTrailingObjects<Expr *>(), NumVars);
+    auto **Storage = reinterpret_cast<Expr **>(Data->getChildren().data());
+    return llvm::ArrayRef(Storage, Data->getNumChildren());
   }
 
   MutableArrayRef<Expr *> getVars() {
-    return MutableArrayRef<Expr *>(getTrailingObjects<Expr *>(), NumVars);
+    auto **Storage = reinterpret_cast<Expr **>(Data->getChildren().data());
+    return llvm::MutableArrayRef(Storage, Data->getNumChildren());
   }
 
   void setVars(ArrayRef<Expr *> VL);
-
-  /// Returns an array of immutable clauses associated with this directive.
-  ArrayRef<OMPClause *> getClauses() const {
-    return llvm::makeArrayRef(getTrailingObjects<OMPClause *>(), NumClauses);
-  }
-
-  /// Returns an array of clauses associated with this directive.
-  MutableArrayRef<OMPClause *> getClauses() {
-    return MutableArrayRef<OMPClause *>(getTrailingObjects<OMPClause *>(),
-                                        NumClauses);
-  }
-
-  /// Sets an array of clauses to this requires declaration
-  void setClauses(ArrayRef<OMPClause *> CL);
 
 public:
   static OMPAllocateDecl *Create(ASTContext &C, DeclContext *DC,
@@ -482,11 +507,10 @@ public:
   using clauselist_range = llvm::iterator_range<clauselist_iterator>;
   using clauselist_const_range = llvm::iterator_range<clauselist_const_iterator>;
 
-
-  unsigned varlist_size() const { return NumVars; }
-  bool varlist_empty() const { return NumVars == 0; }
-  unsigned clauselist_size() const { return NumClauses; }
-  bool clauselist_empty() const { return NumClauses == 0; }
+  unsigned varlist_size() const { return Data->getNumChildren(); }
+  bool varlist_empty() const { return Data->getChildren().empty(); }
+  unsigned clauselist_size() const { return Data->getNumClauses(); }
+  bool clauselist_empty() const { return Data->getClauses().empty(); }
 
   varlist_range varlists() {
     return varlist_range(varlist_begin(), varlist_end());
@@ -505,13 +529,13 @@ public:
   clauselist_const_range clauselists() const {
     return clauselist_const_range(clauselist_begin(), clauselist_end());
   }
-  clauselist_iterator clauselist_begin() { return getClauses().begin(); }
-  clauselist_iterator clauselist_end() { return getClauses().end(); }
+  clauselist_iterator clauselist_begin() { return Data->getClauses().begin(); }
+  clauselist_iterator clauselist_end() { return Data->getClauses().end(); }
   clauselist_const_iterator clauselist_begin() const {
-    return getClauses().begin();
+    return Data->getClauses().begin();
   }
   clauselist_const_iterator clauselist_end() const {
-    return getClauses().end();
+    return Data->getClauses().end();
   }
 
   static bool classof(const Decl *D) { return classofKind(D->getKind()); }

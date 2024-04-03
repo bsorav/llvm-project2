@@ -66,7 +66,7 @@ public:
   /// Determine if a declaration should be included in the graph.
   static bool includeInGraph(const Decl *D);
 
-  /// Determine if a declaration should be included in the graph for the 
+  /// Determine if a declaration should be included in the graph for the
   /// purposes of being a callee. This is similar to includeInGraph except
   /// it permits declarations, not just definitions.
   static bool includeCalleeInGraph(const Decl *D);
@@ -91,8 +91,8 @@ public:
   /// Get the number of nodes in the graph.
   unsigned size() const { return FunctionMap.size(); }
 
-  /// \ brief Get the virtual root of the graph, all the functions available
-  /// externally are represented as callees of the node.
+  /// Get the virtual root of the graph, all the functions available externally
+  /// are represented as callees of the node.
   CallGraphNode *getRoot() const { return Root; }
 
   /// Iterators through all the nodes of the graph that have no parent. These

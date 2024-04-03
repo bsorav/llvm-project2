@@ -17,23 +17,33 @@
 #define LLVM_UTILS_TABLEGEN_CODEGENTARGET_H
 
 #include "CodeGenHwModes.h"
-#include "CodeGenInstruction.h"
-#include "CodeGenRegisters.h"
 #include "InfoByHwMode.h"
 #include "SDNodeProperties.h"
-#include "llvm/Support/raw_ostream.h"
-#include "llvm/TableGen/Record.h"
-#include <algorithm>
+#include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/StringRef.h"
+#include "llvm/CodeGen/MachineValueType.h"
+#include <cassert>
+#include <memory>
+#include <optional>
+#include <string>
+#include <vector>
 
 namespace llvm {
 
-struct CodeGenRegister;
+class RecordKeeper;
+class Record;
+class CodeGenInstruction;
+class CodeGenRegBank;
+class CodeGenRegister;
+class CodeGenRegisterClass;
 class CodeGenSchedModels;
-class CodeGenTarget;
+class CodeGenSubRegIndex;
 
 /// getValueType - Return the MVT::SimpleValueType that the specified TableGen
 /// record corresponds to.
-MVT::SimpleValueType getValueType(Record *Rec);
+MVT::SimpleValueType getValueType(const Record *Rec);
 
 StringRef getName(MVT::SimpleValueType T);
 StringRef getEnumName(MVT::SimpleValueType T);
@@ -54,12 +64,15 @@ class CodeGenTarget {
   mutable std::vector<Record*> RegAltNameIndices;
   mutable SmallVector<ValueTypeByHwMode, 8> LegalValueTypes;
   CodeGenHwModes CGH;
+  std::vector<Record *> MacroFusions;
+
   void ReadRegAltNameIndices() const;
   void ReadInstructions() const;
   void ReadLegalValueTypes() const;
 
   mutable std::unique_ptr<CodeGenSchedModels> SchedModels;
 
+  mutable StringRef InstNamespace;
   mutable std::vector<const CodeGenInstruction*> InstrsByEnum;
   mutable unsigned NumPseudoInstructions = 0;
 public:
@@ -67,11 +80,14 @@ public:
   ~CodeGenTarget();
 
   Record *getTargetRecord() const { return TargetRec; }
-  const StringRef getName() const;
+  StringRef getName() const;
 
   /// getInstNamespace - Return the target-specific instruction namespace.
   ///
   StringRef getInstNamespace() const;
+
+  /// getRegNamespace - Return the target-specific register namespace.
+  StringRef getRegNamespace() const;
 
   /// getInstructionSet - Return the InstructionSet object.
   ///
@@ -105,9 +121,10 @@ public:
 
   /// Return the largest register class on \p RegBank which supports \p Ty and
   /// covers \p SubIdx if it exists.
-  Optional<CodeGenRegisterClass *>
+  std::optional<CodeGenRegisterClass *>
   getSuperRegForSubReg(const ValueTypeByHwMode &Ty, CodeGenRegBank &RegBank,
-                       const CodeGenSubRegIndex *SubIdx) const;
+                       const CodeGenSubRegIndex *SubIdx,
+                       bool MustBeAllocatable = false) const;
 
   /// getRegisterByName - If there is a register with the specific AsmName,
   /// return it.
@@ -118,9 +135,7 @@ public:
     return RegAltNameIndices;
   }
 
-  const CodeGenRegisterClass &getRegisterClass(Record *R) const {
-    return *getRegBank().getRegClass(R);
-  }
+  const CodeGenRegisterClass &getRegisterClass(Record *R) const;
 
   /// getRegisterVTs - Find the union of all possible SimpleValueTypes for the
   /// specified physical register.
@@ -135,6 +150,10 @@ public:
   CodeGenSchedModels &getSchedModels() const;
 
   const CodeGenHwModes &getHwModes() const { return CGH; }
+
+  bool hasMacroFusion() const { return !MacroFusions.empty(); }
+
+  const std::vector<Record *> getMacroFusions() const { return MacroFusions; }
 
 private:
   DenseMap<const Record*, std::unique_ptr<CodeGenInstruction>> &
@@ -197,7 +216,7 @@ private:
 /// ComplexPattern - ComplexPattern info, corresponding to the ComplexPattern
 /// tablegen class in TargetSelectionDAG.td
 class ComplexPattern {
-  MVT::SimpleValueType Ty;
+  Record *Ty;
   unsigned NumOperands;
   std::string SelectFunc;
   std::vector<Record*> RootNodes;
@@ -206,7 +225,7 @@ class ComplexPattern {
 public:
   ComplexPattern(Record *R);
 
-  MVT::SimpleValueType getValueType() const { return Ty; }
+  Record *getValueType() const { return Ty; }
   unsigned getNumOperands() const { return NumOperands; }
   const std::string &getSelectFunc() const { return SelectFunc; }
   const std::vector<Record*> &getRootNodes() const {

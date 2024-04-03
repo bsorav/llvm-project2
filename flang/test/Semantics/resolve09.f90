@@ -1,4 +1,4 @@
-! RUN: %S/test_errors.sh %s %t %f18
+! RUN: %python %S/test_errors.py %s %flang_fc1
 integer :: y
 procedure() :: a
 procedure(real) :: b
@@ -69,9 +69,7 @@ subroutine s4
   block
     import, none
     integer :: i
-    !ERROR: Use of 'm' as a procedure conflicts with its declaration
-    i = m()
-    !ERROR: Use of 'm' as a procedure conflicts with its declaration
+    !ERROR: 'm' is not a callable procedure
     call m()
   end block
 end
@@ -111,4 +109,23 @@ subroutine a8()
 end
 function b8()
   b8 = 0.0
+end
+
+subroutine s9
+  type t
+    procedure(), nopass, pointer :: p1, p2
+  end type
+  type(t) x
+  print *, x%p1()
+  call x%p2
+  !ERROR: Cannot call function 'p1' like a subroutine
+  call x%p1
+  !ERROR: Cannot call subroutine 'p2' like a function
+  print *, x%p2()
+end subroutine
+
+subroutine s10
+  call a10
+  !ERROR: Actual argument for 'a=' may not be a procedure
+  print *, abs(a10)
 end

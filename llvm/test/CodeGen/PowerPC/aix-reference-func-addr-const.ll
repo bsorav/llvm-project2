@@ -1,10 +1,12 @@
-; RUN: llc -verify-machineinstrs -mcpu=pwr4 -mtriple powerpc-ibm-aix-xcoff < %s | FileCheck %s
-; RUN: llc -verify-machineinstrs -mcpu=pwr4 -mtriple powerpc64-ibm-aix-xcoff < %s | FileCheck --check-prefix=CHECK64 %s
+; RUN: llc -verify-machineinstrs -mcpu=pwr4 -mattr=-altivec -mtriple powerpc-ibm-aix-xcoff \
+; RUN:     -data-sections=false < %s | FileCheck %s
+; RUN: llc -verify-machineinstrs -mcpu=pwr4 -mattr=-altivec -mtriple powerpc64-ibm-aix-xcoff \
+; RUN:     -data-sections=false < %s | FileCheck --check-prefix=CHECK64 %s
 
-@foo_ptr = global void (...)* @foo
+@foo_ptr = global ptr @foo
 declare void @foo(...)
 
-@bar_ptr1 = global void (...)* bitcast (void ()* @bar to void (...)*)
+@bar_ptr1 = global ptr @bar
 define void @bar() {
 entry:
   ret void
@@ -20,6 +22,7 @@ entry:
 ;CHECK-NEXT:     .align  2
 ;CHECK-NEXT:     bar_ptr1:
 ;CHECK-NEXT:     .vbyte	4, bar[DS]
+;CHECK-NEXT:     .extern .foo[PR]
 ;CHECK-NEXT:     .extern foo[DS]
 
 ;CHECK64:         .csect .data[RW],3
@@ -31,4 +34,5 @@ entry:
 ;CHECK64-NEXT:         .align  3
 ;CHECK64-NEXT:    bar_ptr1:
 ;CHECK64-NEXT:         .vbyte	8, bar[DS]
+;CHECK64-NEXT:         .extern .foo[PR]
 ;CHECK64-NEXT:         .extern foo[DS]

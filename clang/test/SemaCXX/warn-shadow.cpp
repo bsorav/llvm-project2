@@ -1,7 +1,8 @@
-// RUN: %clang_cc1 -verify -fsyntax-only -std=c++11 -Wshadow-all %s
+// RUN: %clang_cc1 -verify -fsyntax-only -std=c++17 -Wshadow-all %s
 
 namespace {
   int i; // expected-note {{previous declaration is here}}
+  static int s; // expected-note {{previous declaration is here}}
 }
 
 namespace one {
@@ -31,6 +32,7 @@ using namespace yy;
 void foo() {
   int i; // expected-warning {{declaration shadows a variable in namespace '(anonymous)'}}
   int j; // expected-warning {{declaration shadows a variable in namespace 'one::two'}}
+  static int s; // expected-warning {{declaration shadows a variable in namespace '(anonymous)'}}
   int m;
   int mm;
   int mmm;
@@ -40,7 +42,7 @@ class A {
   static int data; // expected-note 1 {{previous declaration}}
   // expected-note@+1 1 {{previous declaration}}
   int field;
-  int f1, f2, f3, f4; // expected-note 8 {{previous declaration is here}}
+  int f1, f2, f3, f4; // expected-note 9 {{previous declaration is here}}
 
   typedef int a1; // expected-note 2 {{previous declaration}}
   using a2=int; // expected-note 2 {{previous declaration}}
@@ -66,6 +68,7 @@ class A {
     char *a2; // no warning
     char *jj; // no warning
     char *jjj; // no warning
+    static char *f1; // expected-warning {{declaration shadows a field of 'A'}}
   }
 
   void test2() {
@@ -97,13 +100,12 @@ struct path {
 };
 
 
-// TODO: this should warn, <rdar://problem/5018057>
+// TODO: this should warn
 class B : A {
   int data;
   static int field;
 };
 
-// rdar://8900456
 namespace rdar8900456 {
 struct Foo {
   static void Baz();
@@ -145,7 +147,6 @@ extern int bob; // expected-note 1 {{previous declaration is here}}
 typedef int bob1; // expected-note 2 {{previous declaration is here}}
 using bob2=int; // expected-note 2 {{previous declaration is here}}
 
-// rdar://8883302
 void rdar8883302() {
   extern int bob; // don't warn for shadowing.
 }
@@ -265,3 +266,44 @@ struct PR24718_2 {
     PR24718_1 // Does not shadow a type.
   };
 };
+
+namespace structured_binding_tests {
+int x; // expected-note {{previous declaration is here}}
+int y; // expected-note {{previous declaration is here}}
+struct S {
+  int a, b;
+};
+
+void test1() {
+  const auto [x, y] = S(); // expected-warning 2 {{declaration shadows a variable in namespace 'structured_binding_tests'}}
+}
+
+void test2() {
+  int a; // expected-note {{previous declaration is here}}
+  bool b; // expected-note {{previous declaration is here}}
+  {
+    auto [a, b] = S(); // expected-warning 2 {{declaration shadows a local variable}}
+  }
+}
+
+class A
+{
+  int m_a; // expected-note {{previous declaration is here}}
+  int m_b; // expected-note {{previous declaration is here}}
+
+  void test3() {
+    auto [m_a, m_b] = S(); // expected-warning 2 {{declaration shadows a field of 'structured_binding_tests::A'}}
+  }
+};
+
+void test4() {
+  const auto [a, b] = S(); // expected-note 3 {{previous declaration is here}}
+  {
+    int a = 4; // expected-warning {{declaration shadows a structured binding}}
+  }
+  {
+    const auto [a, b] = S(); // expected-warning 2 {{declaration shadows a structured binding}}
+  }
+}
+
+}; // namespace structured_binding_tests

@@ -8,19 +8,20 @@
 
 #include "src/sys/mman/mmap.h"
 
-#include "config/linux/syscall.h" // For internal syscall function.
-#include "include/sys/syscall.h"  // For syscall numbers.
+#include "src/__support/OSUtil/syscall.h" // For internal syscall function.
 #include "src/__support/common.h"
-#include "src/errno/llvmlibc_errno.h"
 
+#include "src/errno/libc_errno.h"
 #include <linux/param.h> // For EXEC_PAGESIZE.
+#include <sys/syscall.h> // For syscall numbers.
 
-namespace __llvm_libc {
+namespace LIBC_NAMESPACE {
 
 // This function is currently linux only. It has to be refactored suitably if
 // mmap is to be supported on non-linux operating systems also.
-void *LLVM_LIBC_ENTRYPOINT(mmap)(void *addr, size_t size, int prot, int flags,
-                                 int fd, off_t offset) {
+LLVM_LIBC_FUNCTION(void *, mmap,
+                   (void *addr, size_t size, int prot, int flags, int fd,
+                    off_t offset)) {
   // A lot of POSIX standard prescribed validation of the parameters is not
   // done in this function as modern linux versions do it in the syscall.
   // TODO: Perform argument validation not done by the linux syscall.
@@ -32,15 +33,15 @@ void *LLVM_LIBC_ENTRYPOINT(mmap)(void *addr, size_t size, int prot, int flags,
 #ifdef SYS_mmap2
   offset /= EXEC_PAGESIZE;
   long syscall_number = SYS_mmap2;
-#elif SYS_mmap
+#elif defined(SYS_mmap)
   long syscall_number = SYS_mmap;
 #else
-#error "Target platform does not have SYS_mmap or SYS_mmap2 defined"
+#error "mmap or mmap2 syscalls not available."
 #endif
 
-  long ret_val =
-      __llvm_libc::syscall(syscall_number, reinterpret_cast<long>(addr), size,
-                           prot, flags, fd, offset);
+  long ret =
+      LIBC_NAMESPACE::syscall_impl(syscall_number, reinterpret_cast<long>(addr),
+                                   size, prot, flags, fd, offset);
 
   // The mmap/mmap2 syscalls return negative values on error. These negative
   // values are actually the negative values of the error codes. So, fix them
@@ -51,12 +52,12 @@ void *LLVM_LIBC_ENTRYPOINT(mmap)(void *addr, size_t size, int prot, int flags,
   // However, since a valid return address cannot be within the last page, a
   // return value corresponding to a location in the last page is an error
   // value.
-  if (ret_val < 0 && ret_val > -EXEC_PAGESIZE) {
-    llvmlibc_errno = -ret_val;
+  if (ret < 0 && ret > -EXEC_PAGESIZE) {
+    libc_errno = static_cast<int>(-ret);
     return MAP_FAILED;
   }
 
-  return reinterpret_cast<void *>(ret_val);
+  return reinterpret_cast<void *>(ret);
 }
 
-} // namespace __llvm_libc
+} // namespace LIBC_NAMESPACE

@@ -37,8 +37,8 @@ public:
 
   constexpr EnumSet() {}
   constexpr EnumSet(const std::initializer_list<enumerationType> &enums) {
-    for (auto x : enums) {
-      set(x);
+    for (auto it{enums.begin()}; it != enums.end(); ++it) {
+      set(*it);
     }
   }
   constexpr EnumSet(const EnumSet &) = default;
@@ -206,7 +206,8 @@ public:
   }
 
   template <typename STREAM>
-  STREAM &Dump(STREAM &o, std::string EnumToString(enumerationType)) const {
+  STREAM &Dump(
+      STREAM &o, std::string_view EnumToString(enumerationType)) const {
     char sep{'{'};
     IterateOverMembers([&](auto e) {
       o << sep << EnumToString(e);

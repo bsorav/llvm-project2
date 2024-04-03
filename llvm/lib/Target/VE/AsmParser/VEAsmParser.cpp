@@ -17,6 +17,7 @@
 #include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCExpr.h"
 #include "llvm/MC/MCInst.h"
+#include "llvm/MC/MCInstrInfo.h"
 #include "llvm/MC/MCParser/MCAsmLexer.h"
 #include "llvm/MC/MCParser/MCAsmParser.h"
 #include "llvm/MC/MCParser/MCParsedAsmOperand.h"
@@ -25,7 +26,7 @@
 #include "llvm/MC/MCStreamer.h"
 #include "llvm/MC/MCSubtargetInfo.h"
 #include "llvm/MC/MCSymbol.h"
-#include "llvm/Support/TargetRegistry.h"
+#include "llvm/MC/TargetRegistry.h"
 #include "llvm/Support/raw_ostream.h"
 #include <algorithm>
 #include <memory>
@@ -54,25 +55,25 @@ class VEAsmParser : public MCTargetAsmParser {
                                OperandVector &Operands, MCStreamer &Out,
                                uint64_t &ErrorInfo,
                                bool MatchingInlineAsm) override;
-  bool ParseRegister(unsigned &RegNo, SMLoc &StartLoc, SMLoc &EndLoc) override;
+  bool parseRegister(MCRegister &Reg, SMLoc &StartLoc, SMLoc &EndLoc) override;
   int parseRegisterName(unsigned (*matchFn)(StringRef));
-  OperandMatchResultTy tryParseRegister(unsigned &RegNo, SMLoc &StartLoc,
-                                        SMLoc &EndLoc) override;
+  ParseStatus tryParseRegister(MCRegister &Reg, SMLoc &StartLoc,
+                               SMLoc &EndLoc) override;
   bool ParseInstruction(ParseInstructionInfo &Info, StringRef Name,
                         SMLoc NameLoc, OperandVector &Operands) override;
-  bool ParseDirective(AsmToken DirectiveID) override;
+  ParseStatus parseDirective(AsmToken DirectiveID) override;
 
   unsigned validateTargetOperandClass(MCParsedAsmOperand &Op,
                                       unsigned Kind) override;
 
   // Custom parse functions for VE specific operands.
-  OperandMatchResultTy parseMEMOperand(OperandVector &Operands);
-  OperandMatchResultTy parseMEMAsOperand(OperandVector &Operands);
-  OperandMatchResultTy parseCCOpOperand(OperandVector &Operands);
-  OperandMatchResultTy parseRDOpOperand(OperandVector &Operands);
-  OperandMatchResultTy parseMImmOperand(OperandVector &Operands);
-  OperandMatchResultTy parseOperand(OperandVector &Operands, StringRef Name);
-  OperandMatchResultTy parseVEAsmOperand(std::unique_ptr<VEOperand> &Operand);
+  ParseStatus parseMEMOperand(OperandVector &Operands);
+  ParseStatus parseMEMAsOperand(OperandVector &Operands);
+  ParseStatus parseCCOpOperand(OperandVector &Operands);
+  ParseStatus parseRDOpOperand(OperandVector &Operands);
+  ParseStatus parseMImmOperand(OperandVector &Operands);
+  ParseStatus parseOperand(OperandVector &Operands, StringRef Name);
+  ParseStatus parseVEAsmOperand(std::unique_ptr<VEOperand> &Operand);
 
   // Helper function to parse expression with a symbol.
   const MCExpr *extractModifierFromExpr(const MCExpr *E,
@@ -83,6 +84,8 @@ class VEAsmParser : public MCTargetAsmParser {
   // Split the mnemonic stripping conditional code and quantifiers
   StringRef splitMnemonic(StringRef Name, SMLoc NameLoc,
                           OperandVector *Operands);
+
+  bool parseLiteralValues(unsigned Size, SMLoc L);
 
 public:
   VEAsmParser(const MCSubtargetInfo &sti, MCAsmParser &parser,
@@ -124,6 +127,9 @@ static const MCPhysReg F128Regs[32] = {
     VE::Q8,  VE::Q9,  VE::Q10, VE::Q11, VE::Q12, VE::Q13, VE::Q14, VE::Q15,
     VE::Q16, VE::Q17, VE::Q18, VE::Q19, VE::Q20, VE::Q21, VE::Q22, VE::Q23,
     VE::Q24, VE::Q25, VE::Q26, VE::Q27, VE::Q28, VE::Q29, VE::Q30, VE::Q31};
+
+static const MCPhysReg VM512Regs[8] = {VE::VMP0, VE::VMP1, VE::VMP2, VE::VMP3,
+                                       VE::VMP4, VE::VMP5, VE::VMP6, VE::VMP7};
 
 static const MCPhysReg MISCRegs[31] = {
     VE::USRCC,      VE::PSW,        VE::SAR,        VE::NoRegister,
@@ -205,7 +211,7 @@ private:
   };
 
 public:
-  VEOperand(KindTy K) : MCParsedAsmOperand(), Kind(K) {}
+  VEOperand(KindTy K) : Kind(K) {}
 
   bool isToken() const override { return Kind == k_Token; }
   bool isReg() const override { return Kind == k_Register; }
@@ -274,6 +280,17 @@ public:
     if (const auto *ConstExpr = dyn_cast<MCConstantExpr>(Imm.Val)) {
       int64_t Value = ConstExpr->getValue();
       return isUInt<3>(Value);
+    }
+    return false;
+  }
+  bool isUImm4() {
+    if (!isImm())
+      return false;
+
+    // Constant case
+    if (const auto *ConstExpr = dyn_cast<MCConstantExpr>(Imm.Val)) {
+      int64_t Value = ConstExpr->getValue();
+      return isUInt<4>(Value);
     }
     return false;
   }
@@ -476,6 +493,10 @@ public:
     addImmOperands(Inst, N);
   }
 
+  void addUImm4Operands(MCInst &Inst, unsigned N) const {
+    addImmOperands(Inst, N);
+  }
+
   void addUImm6Operands(MCInst &Inst, unsigned N) const {
     addImmOperands(Inst, N);
   }
@@ -648,6 +669,15 @@ public:
     return true;
   }
 
+  static bool MorphToVM512Reg(VEOperand &Op) {
+    unsigned Reg = Op.getReg();
+    unsigned regIdx = Reg - VE::VM0;
+    if (regIdx % 2 || regIdx > 15)
+      return false;
+    Op.Reg.RegNum = VM512Regs[regIdx / 2];
+    return true;
+  }
+
   static bool MorphToMISCReg(VEOperand &Op) {
     const auto *ConstExpr = dyn_cast<MCConstantExpr>(Op.getImm());
     if (!ConstExpr)
@@ -766,9 +796,9 @@ bool VEAsmParser::MatchAndEmitInstruction(SMLoc IDLoc, unsigned &Opcode,
   llvm_unreachable("Implement any new match types added!");
 }
 
-bool VEAsmParser::ParseRegister(unsigned &RegNo, SMLoc &StartLoc,
+bool VEAsmParser::parseRegister(MCRegister &Reg, SMLoc &StartLoc,
                                 SMLoc &EndLoc) {
-  if (tryParseRegister(RegNo, StartLoc, EndLoc) != MatchOperand_Success)
+  if (!tryParseRegister(Reg, StartLoc, EndLoc).isSuccess())
     return Error(StartLoc, "invalid register name");
   return false;
 }
@@ -797,27 +827,27 @@ static unsigned MatchRegisterName(StringRef Name);
 /// \note Generated by TableGen.
 static unsigned MatchRegisterAltName(StringRef Name);
 
-OperandMatchResultTy
-VEAsmParser::tryParseRegister(unsigned &RegNo, SMLoc &StartLoc, SMLoc &EndLoc) {
+ParseStatus VEAsmParser::tryParseRegister(MCRegister &Reg, SMLoc &StartLoc,
+                                          SMLoc &EndLoc) {
   const AsmToken Tok = Parser.getTok();
   StartLoc = Tok.getLoc();
   EndLoc = Tok.getEndLoc();
-  RegNo = 0;
+  Reg = VE::NoRegister;
   if (getLexer().getKind() != AsmToken::Percent)
-    return MatchOperand_NoMatch;
+    return ParseStatus::NoMatch;
   Parser.Lex();
 
-  RegNo = parseRegisterName(&MatchRegisterName);
-  if (RegNo == VE::NoRegister)
-    RegNo = parseRegisterName(&MatchRegisterAltName);
+  Reg = parseRegisterName(&MatchRegisterName);
+  if (Reg == VE::NoRegister)
+    Reg = parseRegisterName(&MatchRegisterAltName);
 
-  if (RegNo != VE::NoRegister) {
+  if (Reg != VE::NoRegister) {
     Parser.Lex();
-    return MatchOperand_Success;
+    return ParseStatus::Success;
   }
 
   getLexer().UnLex(Tok);
-  return MatchOperand_NoMatch;
+  return ParseStatus::NoMatch;
 }
 
 static StringRef parseCC(StringRef Name, unsigned Prefix, unsigned Suffix,
@@ -893,15 +923,37 @@ StringRef VEAsmParser::splitMnemonic(StringRef Name, SMLoc NameLoc,
         (Name[Next + 1] == 'd' || Name[Next + 1] == 's'))
       ICC = false;
     Mnemonic = parseCC(Name, Start, Next, ICC, true, NameLoc, Operands);
-  } else if (Name.startswith("cmov.l.") || Name.startswith("cmov.w.") ||
-             Name.startswith("cmov.d.") || Name.startswith("cmov.s.")) {
+  } else if (Name.starts_with("cmov.l.") || Name.starts_with("cmov.w.") ||
+             Name.starts_with("cmov.d.") || Name.starts_with("cmov.s.")) {
     bool ICC = Name[5] == 'l' || Name[5] == 'w';
     Mnemonic = parseCC(Name, 7, Name.size(), ICC, false, NameLoc, Operands);
-  } else if (Name.startswith("cvt.w.d.sx") || Name.startswith("cvt.w.d.zx") ||
-             Name.startswith("cvt.w.s.sx") || Name.startswith("cvt.w.s.zx")) {
+  } else if (Name.starts_with("cvt.w.d.sx") || Name.starts_with("cvt.w.d.zx") ||
+             Name.starts_with("cvt.w.s.sx") || Name.starts_with("cvt.w.s.zx")) {
     Mnemonic = parseRD(Name, 10, NameLoc, Operands);
-  } else if (Name.startswith("cvt.l.d")) {
+  } else if (Name.starts_with("cvt.l.d")) {
     Mnemonic = parseRD(Name, 7, NameLoc, Operands);
+  } else if (Name.starts_with("vcvt.w.d.sx") ||
+             Name.starts_with("vcvt.w.d.zx") ||
+             Name.starts_with("vcvt.w.s.sx") ||
+             Name.starts_with("vcvt.w.s.zx")) {
+    Mnemonic = parseRD(Name, 11, NameLoc, Operands);
+  } else if (Name.starts_with("vcvt.l.d")) {
+    Mnemonic = parseRD(Name, 8, NameLoc, Operands);
+  } else if (Name.starts_with("pvcvt.w.s.lo") ||
+             Name.starts_with("pvcvt.w.s.up")) {
+    Mnemonic = parseRD(Name, 12, NameLoc, Operands);
+  } else if (Name.starts_with("pvcvt.w.s")) {
+    Mnemonic = parseRD(Name, 9, NameLoc, Operands);
+  } else if (Name.starts_with("vfmk.l.") || Name.starts_with("vfmk.w.") ||
+             Name.starts_with("vfmk.d.") || Name.starts_with("vfmk.s.")) {
+    bool ICC = Name[5] == 'l' || Name[5] == 'w' ? true : false;
+    Mnemonic = parseCC(Name, 7, Name.size(), ICC, true, NameLoc, Operands);
+  } else if (Name.starts_with("pvfmk.w.lo.") ||
+             Name.starts_with("pvfmk.w.up.") ||
+             Name.starts_with("pvfmk.s.lo.") ||
+             Name.starts_with("pvfmk.s.up.")) {
+    bool ICC = Name[6] == 'l' || Name[6] == 'w' ? true : false;
+    Mnemonic = parseCC(Name, 11, Name.size(), ICC, true, NameLoc, Operands);
   } else {
     Operands->push_back(VEOperand::CreateToken(Mnemonic, NameLoc));
   }
@@ -926,7 +978,7 @@ bool VEAsmParser::ParseInstruction(ParseInstructionInfo &Info, StringRef Name,
 
   if (getLexer().isNot(AsmToken::EndOfStatement)) {
     // Read the first operand.
-    if (parseOperand(Operands, Mnemonic) != MatchOperand_Success) {
+    if (!parseOperand(Operands, Mnemonic).isSuccess()) {
       SMLoc Loc = getLexer().getLoc();
       return Error(Loc, "unexpected token");
     }
@@ -934,7 +986,7 @@ bool VEAsmParser::ParseInstruction(ParseInstructionInfo &Info, StringRef Name,
     while (getLexer().is(AsmToken::Comma)) {
       Parser.Lex(); // Eat the comma.
       // Parse and remember the operand.
-      if (parseOperand(Operands, Mnemonic) != MatchOperand_Success) {
+      if (!parseOperand(Operands, Mnemonic).isSuccess()) {
         SMLoc Loc = getLexer().getLoc();
         return Error(Loc, "unexpected token");
       }
@@ -948,9 +1000,42 @@ bool VEAsmParser::ParseInstruction(ParseInstructionInfo &Info, StringRef Name,
   return false;
 }
 
-bool VEAsmParser::ParseDirective(AsmToken DirectiveID) {
+ParseStatus VEAsmParser::parseDirective(AsmToken DirectiveID) {
+  std::string IDVal = DirectiveID.getIdentifier().lower();
+
+  // Defines VE specific directives.  Reference is "Vector Engine Assembly
+  // Language Reference Manual":
+  // https://www.hpc.nec/documents/sdk/pdfs/VectorEngine-as-manual-v1.3.pdf
+
+  // The .word is 4 bytes long on VE.
+  if (IDVal == ".word")
+    return parseLiteralValues(4, DirectiveID.getLoc());
+
+  // The .long is 8 bytes long on VE.
+  if (IDVal == ".long")
+    return parseLiteralValues(8, DirectiveID.getLoc());
+
+  // The .llong is 8 bytes long on VE.
+  if (IDVal == ".llong")
+    return parseLiteralValues(8, DirectiveID.getLoc());
+
   // Let the MC layer to handle other directives.
-  return true;
+  return ParseStatus::NoMatch;
+}
+
+/// parseLiteralValues
+///  ::= .word expression [, expression]*
+///  ::= .long expression [, expression]*
+///  ::= .llong expression [, expression]*
+bool VEAsmParser::parseLiteralValues(unsigned Size, SMLoc L) {
+  auto parseOne = [&]() -> bool {
+    const MCExpr *Value;
+    if (getParser().parseExpression(Value))
+      return true;
+    getParser().getStreamer().emitValue(Value, Size, L);
+    return false;
+  };
+  return (parseMany(parseOne));
 }
 
 /// Extract \code @lo32/@hi32/etc \endcode modifier from expression.
@@ -1112,7 +1197,7 @@ bool VEAsmParser::parseExpression(const MCExpr *&EVal) {
   return false;
 }
 
-OperandMatchResultTy VEAsmParser::parseMEMOperand(OperandVector &Operands) {
+ParseStatus VEAsmParser::parseMEMOperand(OperandVector &Operands) {
   LLVM_DEBUG(dbgs() << "parseMEMOperand\n");
   const AsmToken &Tok = Parser.getTok();
   SMLoc S = Tok.getLoc();
@@ -1129,7 +1214,7 @@ OperandMatchResultTy VEAsmParser::parseMEMOperand(OperandVector &Operands) {
   std::unique_ptr<VEOperand> Offset;
   switch (getLexer().getKind()) {
   default:
-    return MatchOperand_NoMatch;
+    return ParseStatus::NoMatch;
 
   case AsmToken::Minus:
   case AsmToken::Integer:
@@ -1139,7 +1224,7 @@ OperandMatchResultTy VEAsmParser::parseMEMOperand(OperandVector &Operands) {
     if (!parseExpression(EVal))
       Offset = VEOperand::CreateImm(EVal, S, E);
     else
-      return MatchOperand_NoMatch;
+      return ParseStatus::NoMatch;
     break;
   }
 
@@ -1152,12 +1237,12 @@ OperandMatchResultTy VEAsmParser::parseMEMOperand(OperandVector &Operands) {
 
   switch (getLexer().getKind()) {
   default:
-    return MatchOperand_ParseFail;
+    return ParseStatus::Failure;
 
   case AsmToken::EndOfStatement:
     Operands.push_back(VEOperand::MorphToMEMzii(
         MCConstantExpr::create(0, getContext()), std::move(Offset)));
-    return MatchOperand_Success;
+    return ParseStatus::Success;
 
   case AsmToken::LParen:
     Parser.Lex(); // Eat the (
@@ -1165,19 +1250,19 @@ OperandMatchResultTy VEAsmParser::parseMEMOperand(OperandVector &Operands) {
   }
 
   const MCExpr *IndexValue = nullptr;
-  unsigned IndexReg = 0;
+  MCRegister IndexReg;
 
   switch (getLexer().getKind()) {
   default:
-    if (ParseRegister(IndexReg, S, E))
-      return MatchOperand_ParseFail;
+    if (parseRegister(IndexReg, S, E))
+      return ParseStatus::Failure;
     break;
 
   case AsmToken::Minus:
   case AsmToken::Integer:
   case AsmToken::Dot:
     if (getParser().parseExpression(IndexValue, E))
-      return MatchOperand_ParseFail;
+      return ParseStatus::Failure;
     break;
 
   case AsmToken::Comma:
@@ -1188,26 +1273,26 @@ OperandMatchResultTy VEAsmParser::parseMEMOperand(OperandVector &Operands) {
 
   switch (getLexer().getKind()) {
   default:
-    return MatchOperand_ParseFail;
+    return ParseStatus::Failure;
 
   case AsmToken::RParen:
     Parser.Lex(); // Eat the )
     Operands.push_back(
         IndexValue ? VEOperand::MorphToMEMzii(IndexValue, std::move(Offset))
                    : VEOperand::MorphToMEMzri(IndexReg, std::move(Offset)));
-    return MatchOperand_Success;
+    return ParseStatus::Success;
 
   case AsmToken::Comma:
     Parser.Lex(); // Eat the ,
     break;
   }
 
-  unsigned BaseReg = 0;
-  if (ParseRegister(BaseReg, S, E))
-    return MatchOperand_ParseFail;
+  MCRegister BaseReg;
+  if (parseRegister(BaseReg, S, E))
+    return ParseStatus::Failure;
 
   if (!Parser.getTok().is(AsmToken::RParen))
-    return MatchOperand_ParseFail;
+    return ParseStatus::Failure;
 
   Parser.Lex(); // Eat the )
   Operands.push_back(
@@ -1215,10 +1300,10 @@ OperandMatchResultTy VEAsmParser::parseMEMOperand(OperandVector &Operands) {
           ? VEOperand::MorphToMEMrii(BaseReg, IndexValue, std::move(Offset))
           : VEOperand::MorphToMEMrri(BaseReg, IndexReg, std::move(Offset)));
 
-  return MatchOperand_Success;
+  return ParseStatus::Success;
 }
 
-OperandMatchResultTy VEAsmParser::parseMEMAsOperand(OperandVector &Operands) {
+ParseStatus VEAsmParser::parseMEMAsOperand(OperandVector &Operands) {
   LLVM_DEBUG(dbgs() << "parseMEMAsOperand\n");
   const AsmToken &Tok = Parser.getTok();
   SMLoc S = Tok.getLoc();
@@ -1232,11 +1317,11 @@ OperandMatchResultTy VEAsmParser::parseMEMAsOperand(OperandVector &Operands) {
   //   (base)
   //   base
 
-  unsigned BaseReg = VE::NoRegister;
+  MCRegister BaseReg;
   std::unique_ptr<VEOperand> Offset;
   switch (getLexer().getKind()) {
   default:
-    return MatchOperand_NoMatch;
+    return ParseStatus::NoMatch;
 
   case AsmToken::Minus:
   case AsmToken::Integer:
@@ -1246,13 +1331,13 @@ OperandMatchResultTy VEAsmParser::parseMEMAsOperand(OperandVector &Operands) {
     if (!parseExpression(EVal))
       Offset = VEOperand::CreateImm(EVal, S, E);
     else
-      return MatchOperand_NoMatch;
+      return ParseStatus::NoMatch;
     break;
   }
 
   case AsmToken::Percent:
-    if (ParseRegister(BaseReg, S, E))
-      return MatchOperand_NoMatch;
+    if (parseRegister(BaseReg, S, E))
+      return ParseStatus::NoMatch;
     Offset =
         VEOperand::CreateImm(MCConstantExpr::create(0, getContext()), S, E);
     break;
@@ -1266,32 +1351,32 @@ OperandMatchResultTy VEAsmParser::parseMEMAsOperand(OperandVector &Operands) {
 
   switch (getLexer().getKind()) {
   default:
-    return MatchOperand_ParseFail;
+    return ParseStatus::Failure;
 
   case AsmToken::EndOfStatement:
   case AsmToken::Comma:
     Operands.push_back(BaseReg != VE::NoRegister
                            ? VEOperand::MorphToMEMri(BaseReg, std::move(Offset))
                            : VEOperand::MorphToMEMzi(std::move(Offset)));
-    return MatchOperand_Success;
+    return ParseStatus::Success;
 
   case AsmToken::LParen:
     if (BaseReg != VE::NoRegister)
-      return MatchOperand_ParseFail;
+      return ParseStatus::Failure;
     Parser.Lex(); // Eat the (
     break;
   }
 
   switch (getLexer().getKind()) {
   default:
-    if (ParseRegister(BaseReg, S, E))
-      return MatchOperand_ParseFail;
+    if (parseRegister(BaseReg, S, E))
+      return ParseStatus::Failure;
     break;
 
   case AsmToken::Comma:
     Parser.Lex(); // Eat the ,
-    if (ParseRegister(BaseReg, S, E))
-      return MatchOperand_ParseFail;
+    if (parseRegister(BaseReg, S, E))
+      return ParseStatus::Failure;
     break;
 
   case AsmToken::RParen:
@@ -1299,23 +1384,23 @@ OperandMatchResultTy VEAsmParser::parseMEMAsOperand(OperandVector &Operands) {
   }
 
   if (!Parser.getTok().is(AsmToken::RParen))
-    return MatchOperand_ParseFail;
+    return ParseStatus::Failure;
 
   Parser.Lex(); // Eat the )
   Operands.push_back(BaseReg != VE::NoRegister
                          ? VEOperand::MorphToMEMri(BaseReg, std::move(Offset))
                          : VEOperand::MorphToMEMzi(std::move(Offset)));
 
-  return MatchOperand_Success;
+  return ParseStatus::Success;
 }
 
-OperandMatchResultTy VEAsmParser::parseMImmOperand(OperandVector &Operands) {
+ParseStatus VEAsmParser::parseMImmOperand(OperandVector &Operands) {
   LLVM_DEBUG(dbgs() << "parseMImmOperand\n");
 
   // Parsing "(" + number + ")0/1"
   const AsmToken Tok1 = Parser.getTok();
   if (!Tok1.is(AsmToken::LParen))
-    return MatchOperand_NoMatch;
+    return ParseStatus::NoMatch;
 
   Parser.Lex(); // Eat the '('.
 
@@ -1324,14 +1409,14 @@ OperandMatchResultTy VEAsmParser::parseMImmOperand(OperandVector &Operands) {
   const MCExpr *EVal;
   if (!Tok2.is(AsmToken::Integer) || getParser().parseExpression(EVal, E)) {
     getLexer().UnLex(Tok1);
-    return MatchOperand_NoMatch;
+    return ParseStatus::NoMatch;
   }
 
   const AsmToken Tok3 = Parser.getTok();
   if (!Tok3.is(AsmToken::RParen)) {
     getLexer().UnLex(Tok2);
     getLexer().UnLex(Tok1);
-    return MatchOperand_NoMatch;
+    return ParseStatus::NoMatch;
   }
   Parser.Lex(); // Eat the ')'.
 
@@ -1341,35 +1426,64 @@ OperandMatchResultTy VEAsmParser::parseMImmOperand(OperandVector &Operands) {
     getLexer().UnLex(Tok3);
     getLexer().UnLex(Tok2);
     getLexer().UnLex(Tok1);
-    return MatchOperand_NoMatch;
+    return ParseStatus::NoMatch;
   }
   Parser.Lex(); // Eat the value.
   SMLoc EndLoc = SMLoc::getFromPointer(Suffix.end());
   Operands.push_back(
       VEOperand::CreateMImm(EVal, Suffix == "0", Tok1.getLoc(), EndLoc));
-  return MatchOperand_Success;
+  return ParseStatus::Success;
 }
 
-OperandMatchResultTy VEAsmParser::parseOperand(OperandVector &Operands,
-                                               StringRef Mnemonic) {
+ParseStatus VEAsmParser::parseOperand(OperandVector &Operands,
+                                      StringRef Mnemonic) {
   LLVM_DEBUG(dbgs() << "parseOperand\n");
-  OperandMatchResultTy ResTy = MatchOperandParserImpl(Operands, Mnemonic);
+  ParseStatus Res = MatchOperandParserImpl(Operands, Mnemonic);
 
   // If there wasn't a custom match, try the generic matcher below. Otherwise,
   // there was a match, but an error occurred, in which case, just return that
   // the operand parsing failed.
-  if (ResTy == MatchOperand_Success || ResTy == MatchOperand_ParseFail)
-    return ResTy;
+  if (Res.isSuccess() || Res.isFailure())
+    return Res;
 
   switch (getLexer().getKind()) {
-  case AsmToken::LParen:
-    // FIXME: Parsing "(" + %vreg + ", " + %vreg + ")"
-    // FALLTHROUGH
+  case AsmToken::LParen: {
+    // Parsing "(" + %vreg + ", " + %vreg + ")"
+    const AsmToken Tok1 = Parser.getTok();
+    Parser.Lex(); // Eat the '('.
+
+    MCRegister Reg1;
+    SMLoc S1, E1;
+    if (!tryParseRegister(Reg1, S1, E1).isSuccess()) {
+      getLexer().UnLex(Tok1);
+      return ParseStatus::NoMatch;
+    }
+
+    if (!Parser.getTok().is(AsmToken::Comma))
+      return ParseStatus::Failure;
+    Parser.Lex(); // Eat the ','.
+
+    MCRegister Reg2;
+    SMLoc S2, E2;
+    if (!tryParseRegister(Reg2, S2, E2).isSuccess())
+      return ParseStatus::Failure;
+
+    if (!Parser.getTok().is(AsmToken::RParen))
+      return ParseStatus::Failure;
+
+    Operands.push_back(VEOperand::CreateToken(Tok1.getString(), Tok1.getLoc()));
+    Operands.push_back(VEOperand::CreateReg(Reg1, S1, E1));
+    Operands.push_back(VEOperand::CreateReg(Reg2, S2, E2));
+    Operands.push_back(VEOperand::CreateToken(Parser.getTok().getString(),
+                                              Parser.getTok().getLoc()));
+    Parser.Lex(); // Eat the ')'.
+    break;
+  }
   default: {
     std::unique_ptr<VEOperand> Op;
-    ResTy = parseVEAsmOperand(Op);
-    if (ResTy != MatchOperand_Success || !Op)
-      return MatchOperand_ParseFail;
+    Res = parseVEAsmOperand(Op);
+    if (!Res.isSuccess() || !Op)
+      return ParseStatus::Failure;
 
     // Push the parsed operand into the list of operands
     Operands.push_back(std::move(Op));
@@ -1377,16 +1491,32 @@ OperandMatchResultTy VEAsmParser::parseOperand(OperandVector &Operands,
     if (!Parser.getTok().is(AsmToken::LParen))
       break;
 
-    // FIXME: Parsing %vec-reg + "(" + %sclar-reg/number + ")"
+    // Parsing %vec-reg + "(" + %sclar-reg/number + ")"
+    std::unique_ptr<VEOperand> Op1 = VEOperand::CreateToken(
+        Parser.getTok().getString(), Parser.getTok().getLoc());
+    Parser.Lex(); // Eat the '('.
+
+    std::unique_ptr<VEOperand> Op2;
+    Res = parseVEAsmOperand(Op2);
+    if (!Res.isSuccess() || !Op2)
+      return ParseStatus::Failure;
+
+    if (!Parser.getTok().is(AsmToken::RParen))
+      return ParseStatus::Failure;
+
+    Operands.push_back(std::move(Op1));
+    Operands.push_back(std::move(Op2));
+    Operands.push_back(VEOperand::CreateToken(Parser.getTok().getString(),
+                                              Parser.getTok().getLoc()));
+    Parser.Lex(); // Eat the ')'.
     break;
   }
   }
 
-  return MatchOperand_Success;
+  return ParseStatus::Success;
 }
 
-OperandMatchResultTy
-VEAsmParser::parseVEAsmOperand(std::unique_ptr<VEOperand> &Op) {
+ParseStatus VEAsmParser::parseVEAsmOperand(std::unique_ptr<VEOperand> &Op) {
   LLVM_DEBUG(dbgs() << "parseVEAsmOperand\n");
   SMLoc S = Parser.getTok().getLoc();
   SMLoc E = SMLoc::getFromPointer(Parser.getTok().getLoc().getPointer() - 1);
@@ -1397,12 +1527,12 @@ VEAsmParser::parseVEAsmOperand(std::unique_ptr<VEOperand> &Op) {
   default:
     break;
 
-  case AsmToken::Percent:
-    unsigned RegNo;
-    if (tryParseRegister(RegNo, S, E) == MatchOperand_Success)
-      Op = VEOperand::CreateReg(RegNo, S, E);
+  case AsmToken::Percent: {
+    MCRegister Reg;
+    if (tryParseRegister(Reg, S, E).isSuccess())
+      Op = VEOperand::CreateReg(Reg, S, E);
     break;
-
+  }
   case AsmToken::Minus:
   case AsmToken::Integer:
   case AsmToken::Dot:
@@ -1411,7 +1541,7 @@ VEAsmParser::parseVEAsmOperand(std::unique_ptr<VEOperand> &Op) {
       Op = VEOperand::CreateImm(EVal, S, E);
     break;
   }
-  return (Op) ? MatchOperand_Success : MatchOperand_ParseFail;
+  return Op ? ParseStatus::Success : ParseStatus::Failure;
 }
 
 // Force static initialization.
@@ -1443,6 +1573,10 @@ unsigned VEAsmParser::validateTargetOperandClass(MCParsedAsmOperand &GOp,
     break;
   case MCK_F128:
     if (Op.isReg() && VEOperand::MorphToF128Reg(Op))
+      return MCTargetAsmParser::Match_Success;
+    break;
+  case MCK_VM512:
+    if (Op.isReg() && VEOperand::MorphToVM512Reg(Op))
       return MCTargetAsmParser::Match_Success;
     break;
   case MCK_MISC:

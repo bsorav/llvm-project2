@@ -20,10 +20,14 @@
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
+#include "llvm/IR/PatternMatch.h"
 #include "llvm/IR/Verifier.h"
+#include "llvm/Support/SourceMgr.h"
 #include "gtest/gtest.h"
 
 namespace llvm {
+
+using namespace PatternMatch;
 
 // We use this fixture to ensure that we clean up ScalarEvolution before
 // deleting the PassManager.
@@ -69,9 +73,9 @@ TEST_F(ScalarEvolutionExpanderTest, ExpandPtrTypeSCEV) {
   // expansion when the value in ValueOffsetPair is a ptr and the offset
   // is not divisible by the elem type size of value.
   auto *I8Ty = Type::getInt8Ty(Context);
-  auto *I8PtrTy = Type::getInt8PtrTy(Context);
+  auto *I8PtrTy = PointerType::get(Context, 0);
   auto *I32Ty = Type::getInt32Ty(Context);
-  auto *I32PtrTy = Type::getInt32PtrTy(Context);
+  auto *I32PtrTy = PointerType::get(Context, 0);
   FunctionType *FTy =
       FunctionType::get(Type::getVoidTy(Context), std::vector<Type *>(), false);
   Function *F = Function::Create(FTy, Function::ExternalLinkage, "f", M);
@@ -114,20 +118,7 @@ TEST_F(ScalarEvolutionExpanderTest, ExpandPtrTypeSCEV) {
 
   ScalarEvolution SE = buildSE(*F);
   auto *S = SE.getSCEV(CastB);
-  SCEVExpander Exp(SE, M.getDataLayout(), "expander");
-  Value *V =
-      Exp.expandCodeFor(cast<SCEVAddExpr>(S)->getOperand(1), nullptr, Br);
-
-  // Expect the expansion code contains:
-  //   %0 = bitcast i32* %bitcast2 to i8*
-  //   %uglygep = getelementptr i8, i8* %0, i64 -1
-  //   %1 = bitcast i8* %uglygep to i32*
-  EXPECT_TRUE(isa<BitCastInst>(V));
-  Instruction *Gep = cast<Instruction>(V)->getPrevNode();
-  EXPECT_TRUE(isa<GetElementPtrInst>(Gep));
-  EXPECT_TRUE(isa<ConstantInt>(Gep->getOperand(1)));
-  EXPECT_EQ(cast<ConstantInt>(Gep->getOperand(1))->getSExtValue(), -1);
-  EXPECT_TRUE(isa<BitCastInst>(Gep->getPrevNode()));
+  EXPECT_TRUE(isa<SCEVUnknown>(S));
 }
 
 // Make sure that SCEV doesn't introduce illegal ptrtoint/inttoptr instructions
@@ -138,13 +129,13 @@ TEST_F(ScalarEvolutionExpanderTest, SCEVZeroExtendExprNonIntegral) {
    * top:
    *  br label %L.ph
    * L.ph:
+   *  %gepbase = getelementptr i64 addrspace(10)* %arg, i64 1
    *  br label %L
    * L:
    *  %phi = phi i64 [i64 0, %L.ph], [ %add, %L2 ]
    *  %add = add i64 %phi2, 1
    *  br i1 undef, label %post, label %L2
    * post:
-   *  %gepbase = getelementptr i64 addrspace(10)* %arg, i64 1
    *  #= %gep = getelementptr i64 addrspace(10)* %gepbase, i64 %add =#
    *  ret void
    *
@@ -162,7 +153,7 @@ TEST_F(ScalarEvolutionExpanderTest, SCEVZeroExtendExprNonIntegral) {
 
   Type *T_int1 = Type::getInt1Ty(Context);
   Type *T_int64 = Type::getInt64Ty(Context);
-  Type *T_pint64 = T_int64->getPointerTo(10);
+  Type *T_pint64 = PointerType::get(Context, 10);
 
   FunctionType *FTy =
       FunctionType::get(Type::getVoidTy(Context), {T_pint64}, false);
@@ -179,6 +170,8 @@ TEST_F(ScalarEvolutionExpanderTest, SCEVZeroExtendExprNonIntegral) {
   Builder.CreateBr(LPh);
 
   Builder.SetInsertPoint(LPh);
+  Value *GepBase =
+      Builder.CreateGEP(T_int64, Arg, ConstantInt::get(T_int64, 1));
   Builder.CreateBr(L);
 
   Builder.SetInsertPoint(L);
@@ -189,8 +182,6 @@ TEST_F(ScalarEvolutionExpanderTest, SCEVZeroExtendExprNonIntegral) {
   Phi->addIncoming(Add, L);
 
   Builder.SetInsertPoint(Post);
-  Value *GepBase =
-      Builder.CreateGEP(T_int64, Arg, ConstantInt::get(T_int64, 1));
   Instruction *Ret = Builder.CreateRetVoid();
 
   ScalarEvolution SE = buildSE(*F);
@@ -236,7 +227,7 @@ TEST_F(ScalarEvolutionExpanderTest, SCEVExpanderIsSafeToExpandAt) {
   NIM.setDataLayout(DataLayout);
 
   Type *T_int64 = Type::getInt64Ty(Context);
-  Type *T_pint64 = T_int64->getPointerTo(10);
+  Type *T_pint64 = PointerType::get(Context, 10);
 
   FunctionType *FTy =
       FunctionType::get(Type::getVoidTy(Context), {T_pint64}, false);
@@ -268,17 +259,17 @@ TEST_F(ScalarEvolutionExpanderTest, SCEVExpanderIsSafeToExpandAt) {
   Instruction *Ret = Builder.CreateRetVoid();
 
   ScalarEvolution SE = buildSE(*F);
+  SCEVExpander Exp(SE, M.getDataLayout(), "expander");
   const SCEV *S = SE.getSCEV(Phi);
   EXPECT_TRUE(isa<SCEVAddRecExpr>(S));
   const SCEVAddRecExpr *AR = cast<SCEVAddRecExpr>(S);
   EXPECT_TRUE(AR->isAffine());
-  EXPECT_FALSE(isSafeToExpandAt(AR, Top->getTerminator(), SE));
-  EXPECT_FALSE(isSafeToExpandAt(AR, LPh->getTerminator(), SE));
-  EXPECT_TRUE(isSafeToExpandAt(AR, L->getTerminator(), SE));
-  EXPECT_TRUE(isSafeToExpandAt(AR, Post->getTerminator(), SE));
+  EXPECT_FALSE(Exp.isSafeToExpandAt(AR, Top->getTerminator()));
+  EXPECT_FALSE(Exp.isSafeToExpandAt(AR, LPh->getTerminator()));
+  EXPECT_TRUE(Exp.isSafeToExpandAt(AR, L->getTerminator()));
+  EXPECT_TRUE(Exp.isSafeToExpandAt(AR, Post->getTerminator()));
 
   EXPECT_TRUE(LI->getLoopFor(L)->isLCSSAForm(*DT));
-  SCEVExpander Exp(SE, M.getDataLayout(), "expander");
   Exp.expandCodeFor(SE.getSCEV(Add), nullptr, Ret);
   EXPECT_TRUE(LI->getLoopFor(L)->isLCSSAForm(*DT));
 }
@@ -915,6 +906,57 @@ TEST_F(ScalarEvolutionExpanderTest, SCEVExpandNonAffineAddRec) {
   TestNoCanonicalIV(GetAR5);
   TestNarrowCanonicalIV(GetAR5);
   TestMatchingCanonicalIV(GetAR5, ARBitWidth);
+}
+
+TEST_F(ScalarEvolutionExpanderTest, ExpandNonIntegralPtrWithNullBase) {
+  LLVMContext C;
+  SMDiagnostic Err;
+
+  std::unique_ptr<Module> M =
+      parseAssemblyString("target datalayout = "
+                          "\"e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:"
+                          "128-n8:16:32:64-S128-ni:1-p2:32:8:8:32-ni:2\""
+                          "define ptr addrspace(1) @test(i64 %offset) { "
+                          "  %ptr = getelementptr inbounds float, ptr "
+                          "addrspace(1) null, i64 %offset"
+                          "  ret ptr addrspace(1) %ptr"
+                          "}",
+                          Err, C);
+
+  assert(M && "Could not parse module?");
+  assert(!verifyModule(*M) && "Must have been well formed!");
+
+  runWithSE(*M, "test", [&](Function &F, LoopInfo &LI, ScalarEvolution &SE) {
+    auto &I = GetInstByName(F, "ptr");
+    auto PtrPlus1 =
+        SE.getAddExpr(SE.getSCEV(&I), SE.getConstant(I.getType(), 1));
+    SCEVExpander Exp(SE, M->getDataLayout(), "expander");
+
+    Value *V = Exp.expandCodeFor(PtrPlus1, I.getType(), &I);
+    I.replaceAllUsesWith(V);
+
+    // Check that the expander created:
+    // define ptr addrspace(1) @test(i64 %off) {
+    //   %1 = shl i64 %offset, 2
+    //   %2 = add nuw nsw i64 %1, 1
+    //   %uglygep = getelementptr i8, ptr addrspace(1) null, i64 %2
+    //   %ptr = getelementptr inbounds float, ptr addrspace(1) null, i64 %off
+    //   ret ptr addrspace(1) %uglygep
+    // }
+
+    Value *Offset = &*F.arg_begin();
+    auto *GEP = dyn_cast<GetElementPtrInst>(V);
+    EXPECT_TRUE(GEP);
+    EXPECT_TRUE(cast<Constant>(GEP->getPointerOperand())->isNullValue());
+    EXPECT_EQ(GEP->getNumOperands(), 2U);
+    EXPECT_TRUE(match(
+        GEP->getOperand(1),
+        m_Add(m_Shl(m_Specific(Offset), m_SpecificInt(2)), m_SpecificInt(1))));
+    EXPECT_EQ(cast<PointerType>(GEP->getPointerOperand()->getType())
+                  ->getAddressSpace(),
+              cast<PointerType>(I.getType())->getAddressSpace());
+    EXPECT_FALSE(verifyFunction(F, &errs()));
+  });
 }
 
 } // end namespace llvm

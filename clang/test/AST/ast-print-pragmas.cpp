@@ -13,6 +13,36 @@ void test(int *List, int Length) {
     List[i] = i * 2;
     i++;
   }
+  i = 0;
+
+// CHECK: #pragma clang loop vectorize_width(4, scalable)
+
+#pragma clang loop vectorize_width(4, scalable)
+// CHECK-NEXT: while (i < Length)
+  while (i < Length) {
+    List[i] = i * 2;
+    i++;
+  }
+  i = 0;
+
+// CHECK: #pragma clang loop vectorize_width(fixed)
+
+#pragma clang loop vectorize_width(fixed)
+// CHECK-NEXT: while (i < Length)
+  while (i < Length) {
+    List[i] = i * 2;
+    i++;
+  }
+  i = 0;
+
+// CHECK: #pragma clang loop vectorize_width(scalable)
+
+#pragma clang loop vectorize_width(scalable)
+// CHECK-NEXT: while (i < Length)
+  while (i < Length) {
+    List[i] = i * 2;
+    i++;
+  }
 
 // CHECK: #pragma clang loop distribute(disable)
 // CHECK-NEXT: #pragma clang loop vectorize(enable)
@@ -63,7 +93,7 @@ void test_templates(int *List, int Length) {
 #ifdef MS_EXT
 #pragma init_seg(compiler)
 // MS-EXT: #pragma init_seg (.CRT$XCC){{$}}
-// MS-EXT-NEXT: int x = 3 __declspec(thread);
-int __declspec(thread) x = 3;
+// MS-EXT-NEXT: __declspec(thread) int x = 3;
+__declspec(thread) int x = 3;
 #endif //MS_EXT
 

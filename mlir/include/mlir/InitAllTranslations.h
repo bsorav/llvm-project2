@@ -18,27 +18,23 @@ namespace mlir {
 
 void registerFromLLVMIRTranslation();
 void registerFromSPIRVTranslation();
+void registerToCppTranslation();
 void registerToLLVMIRTranslation();
 void registerToSPIRVTranslation();
-void registerToNVVMIRTranslation();
-void registerToROCDLIRTranslation();
-void registerAVX512ToLLVMIRTranslation();
 
 // This function should be called before creating any MLIRContext if one
 // expects all the possible translations to be made available to the context
 // automatically.
 inline void registerAllTranslations() {
-  static bool init_once = []() {
+  static bool initOnce = []() {
     registerFromLLVMIRTranslation();
     registerFromSPIRVTranslation();
+    registerToCppTranslation();
     registerToLLVMIRTranslation();
     registerToSPIRVTranslation();
-    registerToNVVMIRTranslation();
-    registerToROCDLIRTranslation();
-    registerAVX512ToLLVMIRTranslation();
     return true;
   }();
-  (void)init_once;
+  (void)initOnce;
 }
 } // namespace mlir
 

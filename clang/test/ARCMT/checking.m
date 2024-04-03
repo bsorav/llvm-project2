@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -arcmt-check -verify -triple x86_64-apple-darwin10 -fblocks -Werror %s
+// RUN: %clang_cc1 -arcmt-action=check -verify -triple x86_64-apple-darwin10 -fblocks -Werror %s
 
 #if __has_feature(objc_arc)
 #define NS_AUTOMATED_REFCOUNT_UNAVAILABLE __attribute__((unavailable("not available in automatic reference counting mode")))
@@ -124,7 +124,7 @@ struct S {
 - (id)initWithInt: (int) i;
 @end
 
-void rdar8861761() {
+void rdar8861761(void) {
   B *o1 = [[B alloc] initWithInt:0];
   B *o2 = [B alloc];
   [o2 initWithInt:0];
@@ -288,7 +288,6 @@ id test9(Test9 *v) {
   return [v init1];
 }
 
-// rdar://9491791
 void rdar9491791(int p) {
   switch (p) {
   case 3:;
@@ -302,12 +301,10 @@ void rdar9491791(int p) {
 
 #define RELEASE_MACRO(x) do { [x release]; } while(1)
 
-// rdar://9504750
 void rdar9504750(id p) {
   RELEASE_MACRO(p); // expected-error {{ARC forbids explicit message send of 'release'}} 
 }
 
-// rdar://8939557
 @interface TestReadonlyProperty : NSObject
 @property(assign,readonly) NSObject *value;
 @end
@@ -319,7 +316,6 @@ void rdar9504750(id p) {
 }
 @end
 
-// rdar://9601437
 @interface I9601437 {
   __unsafe_unretained id x;
 }

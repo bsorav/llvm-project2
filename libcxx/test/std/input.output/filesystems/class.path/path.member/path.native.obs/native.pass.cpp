@@ -6,7 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++03
+// UNSUPPORTED: c++03, c++11, c++14
+// UNSUPPORTED: availability-filesystem-missing
 
 // <filesystem>
 
@@ -14,18 +15,20 @@
 
 // const string_type& native() const noexcept;
 
-#include "filesystem_include.h"
-#include <type_traits>
+#include <filesystem>
 #include <cassert>
+#include <string>
+#include <type_traits>
 
+#include "assert_macros.h"
 #include "test_macros.h"
-#include "filesystem_test_helper.h"
+namespace fs = std::filesystem;
 
-
-int main(int, char**)
-{
+int main(int, char**) {
   using namespace fs;
   const char* const value = "hello world";
+  std::string value_str(value);
+  fs::path::string_type pathstr_value(value_str.begin(), value_str.end());
   { // Check signature
     path p(value);
     ASSERT_SAME_TYPE(path::string_type const&, decltype(p.native()));
@@ -33,7 +36,7 @@ int main(int, char**)
   }
   { // native() is tested elsewhere
     path p(value);
-    assert(p.native() == value);
+    assert(p.native() == pathstr_value);
   }
 
   return 0;

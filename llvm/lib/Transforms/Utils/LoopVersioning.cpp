@@ -14,11 +14,15 @@
 
 #include "llvm/Transforms/Utils/LoopVersioning.h"
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/Analysis/AliasAnalysis.h"
+#include "llvm/Analysis/InstSimplifyFolder.h"
 #include "llvm/Analysis/LoopAccessAnalysis.h"
 #include "llvm/Analysis/LoopInfo.h"
+#include "llvm/Analysis/ScalarEvolution.h"
+#include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/MDBuilder.h"
-#include "llvm/InitializePasses.h"
+#include "llvm/IR/PassManager.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/Cloning.h"
@@ -26,63 +30,55 @@
 
 using namespace llvm;
 
+#define DEBUG_TYPE "loop-versioning"
+
 static cl::opt<bool>
     AnnotateNoAlias("loop-version-annotate-no-alias", cl::init(true),
                     cl::Hidden,
                     cl::desc("Add no-alias annotation for instructions that "
                              "are disambiguated by memchecks"));
 
-LoopVersioning::LoopVersioning(const LoopAccessInfo &LAI, Loop *L, LoopInfo *LI,
-                               DominatorTree *DT, ScalarEvolution *SE,
-                               bool UseLAIChecks)
-    : VersionedLoop(L), NonVersionedLoop(nullptr), LAI(LAI), LI(LI), DT(DT),
+LoopVersioning::LoopVersioning(const LoopAccessInfo &LAI,
+                               ArrayRef<RuntimePointerCheck> Checks, Loop *L,
+                               LoopInfo *LI, DominatorTree *DT,
+                               ScalarEvolution *SE)
+    : VersionedLoop(L), AliasChecks(Checks.begin(), Checks.end()),
+      Preds(LAI.getPSE().getPredicate()), LAI(LAI), LI(LI), DT(DT),
       SE(SE) {
-  assert(L->getExitBlock() && "No single exit block");
-  assert(L->isLoopSimplifyForm() && "Loop is not in loop-simplify form");
-  if (UseLAIChecks) {
-    setAliasChecks(LAI.getRuntimePointerChecking()->getChecks());
-    setSCEVChecks(LAI.getPSE().getUnionPredicate());
-  }
-}
-
-void LoopVersioning::setAliasChecks(ArrayRef<RuntimePointerCheck> Checks) {
-  AliasChecks = {Checks.begin(), Checks.end()};
-}
-
-void LoopVersioning::setSCEVChecks(SCEVUnionPredicate Check) {
-  Preds = std::move(Check);
 }
 
 void LoopVersioning::versionLoop(
     const SmallVectorImpl<Instruction *> &DefsUsedOutside) {
-  Instruction *FirstCheckInst;
-  Instruction *MemRuntimeCheck;
+  assert(VersionedLoop->getUniqueExitBlock() && "No single exit block");
+  assert(VersionedLoop->isLoopSimplifyForm() &&
+         "Loop is not in loop-simplify form");
+
+  Value *MemRuntimeCheck;
   Value *SCEVRuntimeCheck;
   Value *RuntimeCheck = nullptr;
 
   // Add the memcheck in the original preheader (this is empty initially).
   BasicBlock *RuntimeCheckBB = VersionedLoop->getLoopPreheader();
   const auto &RtPtrChecking = *LAI.getRuntimePointerChecking();
-  std::tie(FirstCheckInst, MemRuntimeCheck) =
-      addRuntimeChecks(RuntimeCheckBB->getTerminator(), VersionedLoop,
-                       AliasChecks, RtPtrChecking.getSE());
 
-  const SCEVUnionPredicate &Pred = LAI.getPSE().getUnionPredicate();
+  SCEVExpander Exp2(*RtPtrChecking.getSE(),
+                    VersionedLoop->getHeader()->getModule()->getDataLayout(),
+                    "induction");
+  MemRuntimeCheck = addRuntimeChecks(RuntimeCheckBB->getTerminator(),
+                                     VersionedLoop, AliasChecks, Exp2);
+
   SCEVExpander Exp(*SE, RuntimeCheckBB->getModule()->getDataLayout(),
                    "scev.check");
   SCEVRuntimeCheck =
-      Exp.expandCodeForPredicate(&Pred, RuntimeCheckBB->getTerminator());
-  auto *CI = dyn_cast<ConstantInt>(SCEVRuntimeCheck);
+      Exp.expandCodeForPredicate(&Preds, RuntimeCheckBB->getTerminator());
 
-  // Discard the SCEV runtime check if it is always true.
-  if (CI && CI->isZero())
-    SCEVRuntimeCheck = nullptr;
-
+  IRBuilder<InstSimplifyFolder> Builder(
+      RuntimeCheckBB->getContext(),
+      InstSimplifyFolder(RuntimeCheckBB->getModule()->getDataLayout()));
   if (MemRuntimeCheck && SCEVRuntimeCheck) {
-    RuntimeCheck = BinaryOperator::Create(Instruction::Or, MemRuntimeCheck,
-                                          SCEVRuntimeCheck, "lver.safe");
-    if (auto *I = dyn_cast<Instruction>(RuntimeCheck))
-      I->insertBefore(RuntimeCheckBB->getTerminator());
+    Builder.SetInsertPoint(RuntimeCheckBB->getTerminator());
+    RuntimeCheck =
+        Builder.CreateOr(MemRuntimeCheck, SCEVRuntimeCheck, "lver.safe");
   } else
     RuntimeCheck = MemRuntimeCheck ? MemRuntimeCheck : SCEVRuntimeCheck;
 
@@ -111,8 +107,9 @@ void LoopVersioning::versionLoop(
 
   // Insert the conditional branch based on the result of the memchecks.
   Instruction *OrigTerm = RuntimeCheckBB->getTerminator();
-  BranchInst::Create(NonVersionedLoop->getLoopPreheader(),
-                     VersionedLoop->getLoopPreheader(), RuntimeCheck, OrigTerm);
+  Builder.SetInsertPoint(OrigTerm);
+  Builder.CreateCondBr(RuntimeCheck, NonVersionedLoop->getLoopPreheader(),
+                       VersionedLoop->getLoopPreheader());
   OrigTerm->eraseFromParent();
 
   // The loops merge in the original exit block.  This is now dominated by the
@@ -122,6 +119,11 @@ void LoopVersioning::versionLoop(
   // Adds the necessary PHI nodes for the versioned loops based on the
   // loop-defined values used outside of the loop.
   addPHINodes(DefsUsedOutside);
+  formDedicatedExitBlocks(NonVersionedLoop, DT, LI, nullptr, true);
+  formDedicatedExitBlocks(VersionedLoop, DT, LI, nullptr, true);
+  assert(NonVersionedLoop->isLoopSimplifyForm() &&
+         VersionedLoop->isLoopSimplifyForm() &&
+         "The versioned loops should be in simplify form.");
 }
 
 void LoopVersioning::addPHINodes(
@@ -136,13 +138,15 @@ void LoopVersioning::addPHINodes(
     // See if we have a single-operand PHI with the value defined by the
     // original loop.
     for (auto I = PHIBlock->begin(); (PN = dyn_cast<PHINode>(I)); ++I) {
-      if (PN->getIncomingValue(0) == Inst)
+      if (PN->getIncomingValue(0) == Inst) {
+        SE->forgetValue(PN);
         break;
+      }
     }
     // If not create it.
     if (!PN) {
-      PN = PHINode::Create(Inst->getType(), 2, Inst->getName() + ".lver",
-                           &PHIBlock->front());
+      PN = PHINode::Create(Inst->getType(), 2, Inst->getName() + ".lver");
+      PN->insertBefore(PHIBlock->begin());
       SmallVector<User*, 8> UsersToUpdate;
       for (User *U : Inst->users())
         if (!VersionedLoop->contains(cast<Instruction>(U)->getParent()))
@@ -205,7 +209,7 @@ void LoopVersioning::prepareNoAliasMetadata() {
   // Finally, transform the above to actually map to scope list which is what
   // the metadata uses.
 
-  for (auto Pair : GroupToNonAliasingScopes)
+  for (const auto &Pair : GroupToNonAliasingScopes)
     GroupToNonAliasingScopeList[Pair.first] = MDNode::get(Context, Pair.second);
 }
 
@@ -253,77 +257,50 @@ void LoopVersioning::annotateInstWithNoAlias(Instruction *VersionedInst,
 }
 
 namespace {
-/// Also expose this is a pass.  Currently this is only used for
-/// unit-testing.  It adds all memchecks necessary to remove all may-aliasing
-/// array accesses from the loop.
-class LoopVersioningPass : public FunctionPass {
-public:
-  LoopVersioningPass() : FunctionPass(ID) {
-    initializeLoopVersioningPassPass(*PassRegistry::getPassRegistry());
-  }
+bool runImpl(LoopInfo *LI, LoopAccessInfoManager &LAIs, DominatorTree *DT,
+             ScalarEvolution *SE) {
+  // Build up a worklist of inner-loops to version. This is necessary as the
+  // act of versioning a loop creates new loops and can invalidate iterators
+  // across the loops.
+  SmallVector<Loop *, 8> Worklist;
 
-  bool runOnFunction(Function &F) override {
-    auto *LI = &getAnalysis<LoopInfoWrapperPass>().getLoopInfo();
-    auto *LAA = &getAnalysis<LoopAccessLegacyAnalysis>();
-    auto *DT = &getAnalysis<DominatorTreeWrapperPass>().getDomTree();
-    auto *SE = &getAnalysis<ScalarEvolutionWrapperPass>().getSE();
+  for (Loop *TopLevelLoop : *LI)
+    for (Loop *L : depth_first(TopLevelLoop))
+      // We only handle inner-most loops.
+      if (L->isInnermost())
+        Worklist.push_back(L);
 
-    // Build up a worklist of inner-loops to version. This is necessary as the
-    // act of versioning a loop creates new loops and can invalidate iterators
-    // across the loops.
-    SmallVector<Loop *, 8> Worklist;
-
-    for (Loop *TopLevelLoop : *LI)
-      for (Loop *L : depth_first(TopLevelLoop))
-        // We only handle inner-most loops.
-        if (L->empty())
-          Worklist.push_back(L);
-
-    // Now walk the identified inner loops.
-    bool Changed = false;
-    for (Loop *L : Worklist) {
-      const LoopAccessInfo &LAI = LAA->getInfo(L);
-      if (L->isLoopSimplifyForm() && !LAI.hasConvergentOp() &&
-          (LAI.getNumRuntimePointerChecks() ||
-           !LAI.getPSE().getUnionPredicate().isAlwaysTrue())) {
-        LoopVersioning LVer(LAI, L, LI, DT, SE);
-        LVer.versionLoop();
-        LVer.annotateLoopWithNoAlias();
-        Changed = true;
-      }
+  // Now walk the identified inner loops.
+  bool Changed = false;
+  for (Loop *L : Worklist) {
+    if (!L->isLoopSimplifyForm() || !L->isRotatedForm() ||
+        !L->getExitingBlock())
+      continue;
+    const LoopAccessInfo &LAI = LAIs.getInfo(*L);
+    if (!LAI.hasConvergentOp() &&
+        (LAI.getNumRuntimePointerChecks() ||
+         !LAI.getPSE().getPredicate().isAlwaysTrue())) {
+      LoopVersioning LVer(LAI, LAI.getRuntimePointerChecking()->getChecks(), L,
+                          LI, DT, SE);
+      LVer.versionLoop();
+      LVer.annotateLoopWithNoAlias();
+      Changed = true;
+      LAIs.clear();
     }
-
-    return Changed;
   }
 
-  void getAnalysisUsage(AnalysisUsage &AU) const override {
-    AU.addRequired<LoopInfoWrapperPass>();
-    AU.addPreserved<LoopInfoWrapperPass>();
-    AU.addRequired<LoopAccessLegacyAnalysis>();
-    AU.addRequired<DominatorTreeWrapperPass>();
-    AU.addPreserved<DominatorTreeWrapperPass>();
-    AU.addRequired<ScalarEvolutionWrapperPass>();
-  }
-
-  static char ID;
-};
+  return Changed;
+}
 }
 
-#define LVER_OPTION "loop-versioning"
-#define DEBUG_TYPE LVER_OPTION
+PreservedAnalyses LoopVersioningPass::run(Function &F,
+                                          FunctionAnalysisManager &AM) {
+  auto &SE = AM.getResult<ScalarEvolutionAnalysis>(F);
+  auto &LI = AM.getResult<LoopAnalysis>(F);
+  LoopAccessInfoManager &LAIs = AM.getResult<LoopAccessAnalysis>(F);
+  auto &DT = AM.getResult<DominatorTreeAnalysis>(F);
 
-char LoopVersioningPass::ID;
-static const char LVer_name[] = "Loop Versioning";
-
-INITIALIZE_PASS_BEGIN(LoopVersioningPass, LVER_OPTION, LVer_name, false, false)
-INITIALIZE_PASS_DEPENDENCY(LoopInfoWrapperPass)
-INITIALIZE_PASS_DEPENDENCY(LoopAccessLegacyAnalysis)
-INITIALIZE_PASS_DEPENDENCY(DominatorTreeWrapperPass)
-INITIALIZE_PASS_DEPENDENCY(ScalarEvolutionWrapperPass)
-INITIALIZE_PASS_END(LoopVersioningPass, LVER_OPTION, LVer_name, false, false)
-
-namespace llvm {
-FunctionPass *createLoopVersioningPass() {
-  return new LoopVersioningPass();
-}
+  if (runImpl(&LI, LAIs, &DT, &SE))
+    return PreservedAnalyses::none();
+  return PreservedAnalyses::all();
 }

@@ -8,6 +8,9 @@
 
 // UNSUPPORTED: no-exceptions
 
+// PR41395 isn't fixed until the dylib shipped with macOS 10.15
+// XFAIL: stdlib=apple-libc++ && target={{.+}}-apple-macosx10.{{9|10|11|12|13|14}}
+
 #include "cxxabi.h"
 #include <new>
 #include <cassert>
@@ -15,7 +18,7 @@
 void dummy_ctor(void*) { assert(false && "should not be called"); }
 void dummy_dtor(void*) { assert(false && "should not be called"); }
 
-void *dummy_alloc(size_t) { assert(false && "should not be called"); }
+void *dummy_alloc(size_t) { assert(false && "should not be called"); return nullptr; }
 void dummy_dealloc(void*) { assert(false && "should not be called"); }
 void dummy_dealloc_sized(void*, size_t) { assert(false && "should not be called"); }
 

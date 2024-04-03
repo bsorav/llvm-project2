@@ -1,7 +1,10 @@
 # Test target to run Python test suite from main build.
 
+# Avoid configurations including '-include' from interfering with
+# our tests by setting CLANG_NO_DEFAULT_CONFIG.
 add_custom_target(check-clang-python
     COMMAND ${CMAKE_COMMAND} -E env
+            CLANG_NO_DEFAULT_CONFIG=1
             CLANG_LIBRARY_PATH=$<TARGET_FILE_DIR:libclang>
             "${Python3_EXECUTABLE}" -m unittest discover
     DEPENDS libclang
@@ -15,14 +18,13 @@ if(NOT LLVM_ENABLE_PIC)
   set(RUN_PYTHON_TESTS FALSE)
 endif()
 
-# Do not try to run if libclang was built with ASan because
+# Do not try to run if libclang was built with sanitizers because
 # the sanitizer library will likely be loaded too late to perform
 # interception and will then fail.
 # We could use LD_PRELOAD/DYLD_INSERT_LIBRARIES but this isn't
 # portable so its easier just to not run the tests when building
 # with ASan.
-list(FIND LLVM_USE_SANITIZER "Address" LLVM_USE_ASAN_INDEX)
-if(NOT LLVM_USE_ASAN_INDEX EQUAL -1)
+if(NOT LLVM_USE_SANITIZER STREQUAL "")
   set(RUN_PYTHON_TESTS FALSE)
 endif()
 
@@ -47,5 +49,5 @@ endif()
 
 if(RUN_PYTHON_TESTS)
     set_property(GLOBAL APPEND PROPERTY
-                 LLVM_ADDITIONAL_TEST_TARGETS check-clang-python)
+                 LLVM_ALL_ADDITIONAL_TEST_TARGETS check-clang-python)
 endif()

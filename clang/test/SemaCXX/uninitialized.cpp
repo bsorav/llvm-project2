@@ -181,7 +181,7 @@ struct S {
   S(bool (*)[5]) : x(foo(x)) {} // expected-warning {{field 'x' is uninitialized when used here}}
 
   // These don't actually require the value of x and so shouldn't warn.
-  S(char (*)[1]) : x(sizeof(x)) {} // rdar://8610363
+  S(char (*)[1]) : x(sizeof(x)) {}
   S(char (*)[2]) : ptr(&ptr) {}
   S(char (*)[3]) : x(bar(&x)) {}
   S(char (*)[4]) : x(boo(x)) {}
@@ -560,7 +560,6 @@ class U {
 
 struct C { char a[100], *e; } car = { .e = car.a };
 
-// <rdar://problem/10398199>
 namespace rdar10398199 {
   class FooBase { protected: ~FooBase() {} };
   class Foo : public FooBase {
@@ -1302,6 +1301,20 @@ namespace init_list {
       d2{ num, d2.a },
       d3{ d3.b, num } // expected-warning{{uninitialized}}
     {}
+  };
+  
+  struct E {
+    E();
+    E foo();
+    E* operator->();
+  };
+
+  struct F { F(E); };
+
+  struct EFComposed {
+    F f;
+    E e;
+    EFComposed() : f{ e->foo() }, e() {} // expected-warning{{uninitialized}}
   };
 }
 

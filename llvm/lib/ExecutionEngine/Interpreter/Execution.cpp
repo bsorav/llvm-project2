@@ -1017,7 +1017,7 @@ void Interpreter::SwitchToNewBasicBlock(BasicBlock *Dest, ExecutionContext &SF){
 void Interpreter::visitAllocaInst(AllocaInst &I) {
   ExecutionContext &SF = ECStack.back();
 
-  Type *Ty = I.getType()->getElementType();  // Type to be allocated
+  Type *Ty = I.getAllocatedType(); // Type to be allocated
 
   // Get the number of elements being allocated by the array...
   unsigned NumElements =
@@ -1074,7 +1074,7 @@ GenericValue Interpreter::executeGEPOperation(Value *Ptr, gep_type_iterator I,
         assert(BitWidth == 64 && "Invalid index type for getelementptr");
         Idx = (int64_t)IdxGV.IntVal.getZExtValue();
       }
-      Total += getDataLayout().getTypeAllocSize(I.getIndexedType()) * Idx;
+      Total += I.getSequentialElementStride(getDataLayout()) * Idx;
     }
   }
 

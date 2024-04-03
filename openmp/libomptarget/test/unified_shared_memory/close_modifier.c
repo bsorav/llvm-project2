@@ -1,9 +1,13 @@
-// RUN: %libomptarget-compile-run-and-check-aarch64-unknown-linux-gnu
-// RUN: %libomptarget-compile-run-and-check-powerpc64-ibm-linux-gnu
-// RUN: %libomptarget-compile-run-and-check-powerpc64le-ibm-linux-gnu
-// RUN: %libomptarget-compile-run-and-check-x86_64-pc-linux-gnu
+// RUN: %libomptarget-compile-run-and-check-generic
 
+// REQUIRES: unified_shared_memory
 // UNSUPPORTED: clang-6, clang-7, clang-8, clang-9
+
+// amdgpu runtime crash
+// Fails on nvptx with error: an illegal memory access was encountered
+// UNSUPPORTED: amdgcn-amd-amdhsa
+// UNSUPPORTED: nvptx64-nvidia-cuda
+// UNSUPPORTED: nvptx64-nvidia-cuda-LTO
 
 #include <omp.h>
 #include <stdio.h>
@@ -31,10 +35,8 @@ int main(int argc, char *argv[]) {
 // Test that updates on the device are not visible to host
 // when only a TO mapping is used.
 //
-#pragma omp target map(tofrom                                                  \
-                       : device_data, device_alloc) map(close, to              \
-                                                        : alloc[:N], data      \
-                                                        [:N])
+#pragma omp target map(tofrom : device_data, device_alloc)                     \
+    map(close, to : alloc[ : N], data[ : N])
   {
     device_data = &data[0];
     device_alloc = &alloc[0];
@@ -82,7 +84,7 @@ int main(int argc, char *argv[]) {
     data[i] += 1;
   }
 
-#pragma omp target map(close, tofrom : alloc[:N], data[:N])
+#pragma omp target map(close, tofrom : alloc[ : N], data[ : N])
   {
     // CHECK: Alloc device values are correct: Succeeded
     fails = 0;

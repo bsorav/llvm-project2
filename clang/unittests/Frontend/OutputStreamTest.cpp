@@ -42,7 +42,7 @@ TEST(FrontendOutputTests, TestOutputStream) {
   bool Success = ExecuteCompilerInvocation(&Compiler);
   EXPECT_TRUE(Success);
   EXPECT_TRUE(!IRBuffer.empty());
-  EXPECT_TRUE(StringRef(IRBuffer.data()).startswith("BC"));
+  EXPECT_TRUE(StringRef(IRBuffer.data()).starts_with("BC"));
 }
 
 TEST(FrontendOutputTests, TestVerboseOutputStreamShared) {
@@ -100,4 +100,13 @@ TEST(FrontendOutputTests, TestVerboseOutputStreamOwned) {
   EXPECT_TRUE(!VerboseBuffer.empty());
   EXPECT_TRUE(StringRef(VerboseBuffer.data()).contains("errors generated"));
 }
+
+TEST(FrontendOutputTests, TestVerboseOutputStreamOwnedNotLeaked) {
+  CompilerInstance Compiler;
+  Compiler.setVerboseOutputStream(std::make_unique<raw_null_ostream>());
+
+  // Trust leak sanitizer bots to catch a leak here.
+  Compiler.setVerboseOutputStream(llvm::nulls());
 }
+
+} // anonymous namespace

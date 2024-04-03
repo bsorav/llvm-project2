@@ -12,6 +12,7 @@
 
 #include "PredicateExpander.h"
 #include "CodeGenSchedule.h" // Definition of STIPredicateFunction.
+#include "llvm/TableGen/Record.h"
 
 namespace llvm {
 
@@ -56,6 +57,30 @@ void PredicateExpander::expandCheckImmOperandSimple(raw_ostream &OS,
      << ").getImm()";
   if (!FunctionMapper.empty())
     OS << ")";
+}
+
+void PredicateExpander::expandCheckImmOperandLT(raw_ostream &OS, int OpIndex,
+                                                int ImmVal,
+                                                StringRef FunctionMapper) {
+  if (!FunctionMapper.empty())
+    OS << FunctionMapper << "(";
+  OS << "MI" << (isByRef() ? "." : "->") << "getOperand(" << OpIndex
+     << ").getImm()";
+  if (!FunctionMapper.empty())
+    OS << ")";
+  OS << (shouldNegate() ? " >= " : " < ") << ImmVal;
+}
+
+void PredicateExpander::expandCheckImmOperandGT(raw_ostream &OS, int OpIndex,
+                                                int ImmVal,
+                                                StringRef FunctionMapper) {
+  if (!FunctionMapper.empty())
+    OS << FunctionMapper << "(";
+  OS << "MI" << (isByRef() ? "." : "->") << "getOperand(" << OpIndex
+     << ").getImm()";
+  if (!FunctionMapper.empty())
+    OS << ")";
+  OS << (shouldNegate() ? " <= " : " > ") << ImmVal;
 }
 
 void PredicateExpander::expandCheckRegOperand(raw_ostream &OS, int OpIndex,
@@ -193,9 +218,26 @@ void PredicateExpander::expandCheckIsRegOperand(raw_ostream &OS, int OpIndex) {
      << "getOperand(" << OpIndex << ").isReg() ";
 }
 
+void PredicateExpander::expandCheckIsVRegOperand(raw_ostream &OS, int OpIndex) {
+  OS << (shouldNegate() ? "!" : "") << "MI" << (isByRef() ? "." : "->")
+     << "getOperand(" << OpIndex << ").getReg().isVirtual()";
+}
+
 void PredicateExpander::expandCheckIsImmOperand(raw_ostream &OS, int OpIndex) {
   OS << (shouldNegate() ? "!" : "") << "MI" << (isByRef() ? "." : "->")
      << "getOperand(" << OpIndex << ").isImm() ";
+}
+
+void PredicateExpander::expandCheckFunctionPredicateWithTII(
+    raw_ostream &OS, StringRef MCInstFn, StringRef MachineInstrFn,
+    StringRef TIIPtr) {
+  if (!shouldExpandForMC()) {
+    OS << (TIIPtr.empty() ? "TII" : TIIPtr) << "->" << MachineInstrFn;
+    OS << (isByRef() ? "(MI)" : "(*MI)");
+    return;
+  }
+
+  OS << MCInstFn << (isByRef() ? "(MI" : "(*MI") << ", MCII)";
 }
 
 void PredicateExpander::expandCheckFunctionPredicate(raw_ostream &OS,
@@ -221,7 +263,6 @@ void PredicateExpander::expandReturnStatement(raw_ostream &OS,
   SS << "return ";
   expandPredicate(SS, Rec);
   SS << ";";
-  SS.flush();
   OS << Buffer;
 }
 
@@ -264,7 +305,6 @@ void PredicateExpander::expandOpcodeSwitchStatement(raw_ostream &OS,
 
   SS.indent(getIndentLevel() * 2);
   SS << "} // end of switch-stmt";
-  SS.flush();
   OS << Buffer;
 }
 
@@ -308,6 +348,9 @@ void PredicateExpander::expandPredicate(raw_ostream &OS, const Record *Rec) {
   if (Rec->isSubClassOf("CheckIsRegOperand"))
     return expandCheckIsRegOperand(OS, Rec->getValueAsInt("OpIndex"));
 
+  if (Rec->isSubClassOf("CheckIsVRegOperand"))
+    return expandCheckIsVRegOperand(OS, Rec->getValueAsInt("OpIndex"));
+
   if (Rec->isSubClassOf("CheckIsImmOperand"))
     return expandCheckIsImmOperand(OS, Rec->getValueAsInt("OpIndex"));
 
@@ -332,6 +375,16 @@ void PredicateExpander::expandPredicate(raw_ostream &OS, const Record *Rec) {
     return expandCheckImmOperand(OS, Rec->getValueAsInt("OpIndex"),
                                  Rec->getValueAsString("ImmVal"),
                                  Rec->getValueAsString("FunctionMapper"));
+
+  if (Rec->isSubClassOf("CheckImmOperandLT"))
+    return expandCheckImmOperandLT(OS, Rec->getValueAsInt("OpIndex"),
+                                   Rec->getValueAsInt("ImmVal"),
+                                   Rec->getValueAsString("FunctionMapper"));
+
+  if (Rec->isSubClassOf("CheckImmOperandGT"))
+    return expandCheckImmOperandGT(OS, Rec->getValueAsInt("OpIndex"),
+                                   Rec->getValueAsInt("ImmVal"),
+                                   Rec->getValueAsString("FunctionMapper"));
 
   if (Rec->isSubClassOf("CheckImmOperandSimple"))
     return expandCheckImmOperandSimple(OS, Rec->getValueAsInt("OpIndex"),
@@ -358,10 +411,18 @@ void PredicateExpander::expandPredicate(raw_ostream &OS, const Record *Rec) {
     return expandPredicateSequence(OS, Rec->getValueAsListOfDefs("Predicates"),
                                    /* AllOf */ false);
 
-  if (Rec->isSubClassOf("CheckFunctionPredicate"))
+  if (Rec->isSubClassOf("CheckFunctionPredicate")) {
     return expandCheckFunctionPredicate(
         OS, Rec->getValueAsString("MCInstFnName"),
         Rec->getValueAsString("MachineInstrFnName"));
+  }
+
+  if (Rec->isSubClassOf("CheckFunctionPredicateWithTII")) {
+    return expandCheckFunctionPredicateWithTII(
+        OS, Rec->getValueAsString("MCInstFnName"),
+        Rec->getValueAsString("MachineInstrFnName"),
+        Rec->getValueAsString("TIIPtrName"));
+  }
 
   if (Rec->isSubClassOf("CheckNonPortable"))
     return expandCheckNonPortable(OS, Rec->getValueAsString("CodeBlock"));
@@ -450,7 +511,7 @@ void STIPredicateExpander::expandOpcodeGroup(raw_ostream &OS, const OpcodeGroup 
     increaseIndentLevel();
     OS.indent(getIndentLevel() * 2);
     if (ShouldUpdateOpcodeMask) {
-      if (PI.OperandMask.isNullValue())
+      if (PI.OperandMask.isZero())
         OS << "Mask.clearAllBits();\n";
       else
         OS << "Mask = " << PI.OperandMask << ";\n";

@@ -1,5 +1,5 @@
-! RUN: llvm-mc %s -arch=sparc   -show-encoding | FileCheck %s
-! RUN: llvm-mc %s -arch=sparcv9 -show-encoding | FileCheck %s
+! RUN: llvm-mc %s -triple=sparc   -show-encoding | FileCheck %s
+! RUN: llvm-mc %s -triple=sparcv9 -show-encoding | FileCheck %s
 
         ! CHECK: call foo     ! encoding: [0b01AAAAAA,A,A,A]
         ! CHECK:              !   fixup A - offset: 0, value: foo, kind: fixup_sparc_call30
@@ -18,6 +18,10 @@
         ! CHECK-NEXT:                ! fixup A - offset: 0, value: %lo(sym), kind: fixup_sparc_lo10
         call %g1+%lo(sym)
 
+        ! CHECK-LABEL: .Ltmp0:
+        ! CHECK: call .Ltmp0-4 ! encoding: [0b01AAAAAA,A,A,A]
+        call . - 4
+
         ! CHECK: jmp %g1+%i2  ! encoding: [0x81,0xc0,0x40,0x1a]
         jmp %g1 + %i2
 
@@ -30,6 +34,9 @@
         ! CHECK: jmp %g1+%lo(sym)   ! encoding: [0x81,0xc0,0b011000AA,A]
         ! CHECK-NEXT:                ! fixup A - offset: 0, value: %lo(sym), kind: fixup_sparc_lo10
         jmp %g1+%lo(sym)
+
+        ! CHECK: jmp sym ! encoding: [0x81,0xc0,0b001AAAAA,A]
+        jmp sym
 
         ! CHECK: jmpl %g1+%i2, %g2  ! encoding: [0x85,0xc0,0x40,0x1a]
         jmpl %g1 + %i2, %g2
@@ -72,6 +79,10 @@
         ! CHECK-NEXT:         ! fixup A - offset: 0, value: .BB0, kind: fixup_sparc_br22
         bg .BB0
 
+        ! CHECK: bg .BB0      ! encoding: [0x14,0b10AAAAAA,A,A]
+        ! CHECK-NEXT:         ! fixup A - offset: 0, value: .BB0, kind: fixup_sparc_br22
+        bgt .BB0
+
         ! CHECK: ble .BB0      ! encoding: [0x04,0b10AAAAAA,A,A]
         ! CHECK-NEXT:         ! fixup A - offset: 0, value: .BB0, kind: fixup_sparc_br22
         ble .BB0
@@ -83,6 +94,10 @@
         ! CHECK: bl .BB0      ! encoding: [0x06,0b10AAAAAA,A,A]
         ! CHECK-NEXT:         ! fixup A - offset: 0, value: .BB0, kind: fixup_sparc_br22
         bl .BB0
+
+        ! CHECK: bl .BB0      ! encoding: [0x06,0b10AAAAAA,A,A]
+        ! CHECK-NEXT:         ! fixup A - offset: 0, value: .BB0, kind: fixup_sparc_br22
+        blt .BB0
 
         ! CHECK: bgu .BB0      ! encoding: [0x18,0b10AAAAAA,A,A]
         ! CHECK-NEXT:         ! fixup A - offset: 0, value: .BB0, kind: fixup_sparc_br22

@@ -1,5 +1,5 @@
 // RUN: %clang_cc1 -std=c++14 -Wno-unused-value -fsyntax-only -verify -verify=expected-cxx14 -fblocks %s
-// RUN: %clang_cc1 -std=c++17 -Wno-unused-value -fsyntax-only -verify -fblocks %s
+// RUN: %clang_cc1 -std=c++17 -Wno-unused-value -verify -ast-dump -fblocks %s | FileCheck %s
 
 namespace std { class type_info; };
 
@@ -12,17 +12,17 @@ namespace ExplicitCapture {
     virtual C& Overload(float);
 
     void ImplicitThisCapture() {
-      [](){(void)Member;}; // expected-error {{'this' cannot be implicitly captured in this context}}
-      const int var = [](){(void)Member; return 0;}(); // expected-error {{'this' cannot be implicitly captured in this context}}
+      []() { (void)Member; };     // expected-error {{'this' cannot be implicitly captured in this context}} expected-note {{explicitly capture 'this'}}
+      const int var = []() {(void)Member; return 0; }(); // expected-error {{'this' cannot be implicitly captured in this context}} expected-note {{explicitly capture 'this'}}
       [&](){(void)Member;};
 
       [this](){(void)Member;};
       [this]{[this]{};};
       []{[this]{};};// expected-error {{'this' cannot be implicitly captured in this context}}
       []{Overload(3);};
-      []{Overload();}; // expected-error {{'this' cannot be implicitly captured in this context}}
+      [] { Overload(); }; // expected-error {{'this' cannot be implicitly captured in this context}} expected-note {{explicitly capture 'this'}}
       []{(void)typeid(Overload());};
-      []{(void)typeid(Overload(.5f));};// expected-error {{'this' cannot be implicitly captured in this context}}
+      [] { (void)typeid(Overload(.5f)); }; // expected-error {{'this' cannot be implicitly captured in this context}} expected-note {{explicitly capture 'this'}}
     }
   };
 
@@ -47,14 +47,14 @@ namespace ReturnDeduction {
 namespace ImplicitCapture {
   void test() {
     int a = 0; // expected-note 5 {{declared}}
-    []() { return a; }; // expected-error {{variable 'a' cannot be implicitly captured in a lambda with no capture-default specified}} expected-note {{begins here}}
+    []() { return a; }; // expected-error {{variable 'a' cannot be implicitly captured in a lambda with no capture-default specified}} expected-note {{begins here}} expected-note 2 {{capture 'a' by}} expected-note 2 {{default capture by}}
     [&]() { return a; };
     [=]() { return a; };
     [=]() { int* b = &a; }; // expected-error {{cannot initialize a variable of type 'int *' with an rvalue of type 'const int *'}}
     [=]() { return [&]() { return a; }; };
-    []() { return [&]() { return a; }; }; // expected-error {{variable 'a' cannot be implicitly captured in a lambda with no capture-default specified}} expected-note {{lambda expression begins here}}
-    []() { return ^{ return a; }; };// expected-error {{variable 'a' cannot be implicitly captured in a lambda with no capture-default specified}} expected-note {{lambda expression begins here}}
-    []() { return [&a] { return a; }; }; // expected-error 2 {{variable 'a' cannot be implicitly captured in a lambda with no capture-default specified}} expected-note 2 {{lambda expression begins here}}
+    []() { return [&]() { return a; }; }; // expected-error {{variable 'a' cannot be implicitly captured in a lambda with no capture-default specified}} expected-note {{lambda expression begins here}} expected-note 2 {{capture 'a' by}} expected-note 2 {{default capture by}}
+    []() { return ^{ return a; }; };// expected-error {{variable 'a' cannot be implicitly captured in a lambda with no capture-default specified}} expected-note {{lambda expression begins here}} expected-note 2 {{capture 'a' by}} expected-note 2 {{default capture by}}
+    []() { return [&a] { return a; }; }; // expected-error 2 {{variable 'a' cannot be implicitly captured in a lambda with no capture-default specified}} expected-note 2 {{lambda expression begins here}}  expected-note 4 {{capture 'a' by}} expected-note 4 {{default capture by}}
     [=]() { return [&a] { return a; }; }; //
 
     const int b = 2;
@@ -74,7 +74,7 @@ namespace ImplicitCapture {
     int f[10]; // expected-note {{declared}}
     [&]() { return f[2]; };
     (void) ^{ return []() { return f[2]; }; }; // expected-error {{variable 'f' cannot be implicitly captured in a lambda with no capture-default specified}} \
-    // expected-note{{lambda expression begins here}}
+    // expected-note{{lambda expression begins here}} expected-note 2 {{capture 'f' by}} expected-note 2 {{default capture by}}
 
     struct G { G(); G(G&); int a; }; // expected-note 6 {{not viable}}
     G g;
@@ -83,13 +83,13 @@ namespace ImplicitCapture {
     (void)^{ return [=]{ const G* gg = &g; return gg->a; }(); }; // expected-error 2 {{no matching constructor for initialization of 'const G'}}
 
     const int h = a; // expected-note {{declared}}
-    []() { return h; }; // expected-error {{variable 'h' cannot be implicitly captured in a lambda with no capture-default specified}} expected-note {{lambda expression begins here}}
+    []() { return h; }; // expected-error {{variable 'h' cannot be implicitly captured in a lambda with no capture-default specified}} expected-note {{lambda expression begins here}} expected-note 2 {{capture 'h' by}} expected-note 2 {{default capture by}}
 
     // References can appear in constant expressions if they are initialized by
     // reference constant expressions.
     int i;
     int &ref_i = i; // expected-note {{declared}}
-    [] { return ref_i; }; // expected-error {{variable 'ref_i' cannot be implicitly captured in a lambda with no capture-default specified}} expected-note {{lambda expression begins here}}
+    [] { return ref_i; }; // expected-error {{variable 'ref_i' cannot be implicitly captured in a lambda with no capture-default specified}} expected-note {{lambda expression begins here}} expected-note 2 {{capture 'ref_i' by}} expected-note 2 {{default capture by}}
 
     static int j;
     int &ref_j = j;
@@ -121,7 +121,7 @@ namespace SpecialMembers {
   void g(P &p, Q &q, R &r) {
     // FIXME: The note attached to the second error here is just amazingly bad.
     auto pp = [p]{}; // expected-error {{deleted constructor}} expected-cxx14-error {{deleted copy constructor of '(lambda}}
-    // expected-cxx14-note@-1 {{copy constructor of '' is implicitly deleted because field '' has a deleted copy constructor}}
+    // expected-cxx14-note-re@-1 {{copy constructor of '(lambda at {{.*}})' is implicitly deleted because field '' has a deleted copy constructor}}
     auto qq = [q]{}; // expected-error {{deleted function}} expected-note {{because}}
 
     auto a = [r]{}; // expected-note 2{{here}}
@@ -150,9 +150,10 @@ namespace Array {
   int &f(int *p);
   char &f(...);
   void g() {
-    int n = -1;
+    int n = -1;   // expected-note {{declared here}}
     [=] {
-      int arr[n]; // VLA
+      int arr[n]; // expected-warning {{variable length arrays in C++ are a Clang extension}} \
+                     expected-note {{read of non-const variable 'n' is not allowed in a constant expression}}
     } ();
 
     const int m = -1;
@@ -259,10 +260,12 @@ namespace VariadicPackExpansion {
     // instantiation backtrace.
     f([&ts] { return (int)f(ts...); } ()...); // \
     // expected-error 2{{'ts' cannot be implicitly captured}} \
-    // expected-note 2{{lambda expression begins here}}
+    // expected-note 2{{lambda expression begins here}} \
+    // expected-note 4 {{capture 'ts' by}} \
+    // expected-note 2 {{while substituting into a lambda}}
   }
   template void nested2(int); // ok
-  template void nested2(int, int); // expected-note {{in instantiation of}}
+  template void nested2(int, int); // expected-note 2 {{in instantiation of}}
 }
 
 namespace PR13860 {
@@ -305,16 +308,16 @@ namespace lambdas_in_NSDMIs {
   template<class T>
   struct L {
       T t{};
-      T t2 = ([](int a) { return [](int b) { return b; };})(t)(t);    
+      T t2 = ([](int a) { return [](int b) { return b; };})(t)(t);
   };
-  L<int> l; 
-  
+  L<int> l;
+
   namespace non_template {
     struct L {
       int t = 0;
-      int t2 = ([](int a) { return [](int b) { return b; };})(t)(t);    
+      int t2 = ([](int a) { return [](int b) { return b; };})(t)(t);
     };
-    L l; 
+    L l;
   }
 }
 
@@ -375,8 +378,16 @@ namespace PR18128 {
     int a = [=]{ return n; }(); // ok
     int b = [=]{ return [=]{ return n; }(); }(); // ok
     int c = []{ int k = 0; return [=]{ return k; }(); }(); // ok
-    int d = []{ return [=]{ return n; }(); }(); // expected-error {{'this' cannot be implicitly captured in this context}}
+    int d = [] { return [=] { return n; }(); }();          // expected-error {{'this' cannot be implicitly captured in this context}} expected-note {{explicitly capture 'this'}}
   };
+}
+
+namespace gh67687 {
+struct S {
+  int n;
+  int a = (4, []() { return n; }());  // expected-error {{'this' cannot be implicitly captured in this context}} \
+                                      // expected-note {{explicitly capture 'this'}}
+};
 }
 
 namespace PR18473 {
@@ -513,13 +524,16 @@ int main() {
 A<int> a;
 }
 
-// rdar://22032373
 namespace rdar22032373 {
 void foo() {
   auto blk = [](bool b) {
     if (b)
       return undeclared_error; // expected-error {{use of undeclared identifier}}
     return 0;
+  };
+  auto bar = []() {
+    return undef(); // expected-error {{use of undeclared identifier}}
+    return 0; // verify no init_conversion_failed diagnostic emitted.
   };
 }
 }
@@ -529,9 +543,9 @@ template <int N>
 class S {};
 
 void foo() {
-  const int num = 18; 
+  const int num = 18;
   auto outer = []() {
-    auto inner = [](S<num> &X) {};  
+    auto inner = [](S<num> &X) {};
   };
 }
 }
@@ -579,9 +593,9 @@ void foo1() {
 }
 
 namespace PR25627_dont_odr_use_local_consts {
-  
+
   template<int> struct X {};
-  
+
   void foo() {
     const int N = 10;
     (void) [] { X<N> x; };
@@ -657,6 +671,64 @@ void Test() {
   };
   [] { return i; }; // expected-error {{variable '' cannot be implicitly captured in a lambda with no capture-default specified}}
                     // expected-note@-1 {{lambda expression begins here}}
-
+                    // expected-note@-2 2 {{default capture by}}
 }
 };
+
+namespace GH60518 {
+// Lambdas should not try to capture
+// function parameters that are used in enable_if
+struct StringLiteral {
+template <int N>
+StringLiteral(const char (&array)[N])
+    __attribute__((enable_if(__builtin_strlen(array) == 2,
+                              "invalid string literal")));
+};
+
+namespace cpp_attribute {
+struct StringLiteral {
+template <int N>
+StringLiteral(const char (&array)[N]) [[clang::annotate_type("test", array)]];
+};
+}
+
+void Func1() {
+  [[maybe_unused]] auto y = [&](decltype(StringLiteral("xx"))) {};
+  [[maybe_unused]] auto z = [&](decltype(cpp_attribute::StringLiteral("xx"))) {};
+}
+
+}
+
+#if __cplusplus > 201402L
+namespace GH60936 {
+struct S {
+  int i;
+  // `&i` in default initializer causes implicit `this` access.
+  int *p = &i;
+};
+
+static_assert([]() constexpr {
+  S r = S{2};
+  return r.p != nullptr;
+}());
+} // namespace GH60936
+#endif
+
+// Call operator attributes refering to a variable should
+// be properly handled after D124351
+constexpr int i = 2;
+void foo() {
+  (void)[=][[gnu::aligned(i)]] () {}; // expected-warning{{C++23 extension}}
+  // CHECK: AlignedAttr
+  // CHECK-NEXT: ConstantExpr
+  // CHECK-NEXT: value: Int 2
+}
+
+void GH48527() {
+  auto a = []()__attribute__((b(({ return 0; })))){}; // expected-warning {{unknown attribute 'b' ignored}}
+}
+
+void GH67492() {
+  constexpr auto test = 42;
+  auto lambda = (test, []() noexcept(true) {});
+}

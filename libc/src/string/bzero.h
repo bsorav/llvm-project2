@@ -9,12 +9,12 @@
 #ifndef LLVM_LIBC_SRC_STRING_BZERO_H
 #define LLVM_LIBC_SRC_STRING_BZERO_H
 
-#include "include/string.h"
+#include <stddef.h> // size_t
 
-namespace __llvm_libc {
+namespace LIBC_NAMESPACE {
 
 void bzero(void *ptr, size_t count);
 
-} // namespace __llvm_libc
+} // namespace LIBC_NAMESPACE
 
 #endif // LLVM_LIBC_SRC_STRING_BZERO_H

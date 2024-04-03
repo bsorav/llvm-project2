@@ -24,15 +24,11 @@
 #include "X86InstrBuilder.h"
 #include "X86InstrInfo.h"
 #include "X86Subtarget.h"
-#include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/ScopeExit.h"
 #include "llvm/ADT/SmallPtrSet.h"
-#include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/SmallVector.h"
-#include "llvm/ADT/SparseBitVector.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/CodeGen/MachineBasicBlock.h"
 #include "llvm/CodeGen/MachineConstantPool.h"
@@ -97,37 +93,37 @@ private:
   CondRegArray collectCondsInRegs(MachineBasicBlock &MBB,
                                   MachineBasicBlock::iterator CopyDefI);
 
-  unsigned promoteCondToReg(MachineBasicBlock &MBB,
+  Register promoteCondToReg(MachineBasicBlock &MBB,
                             MachineBasicBlock::iterator TestPos,
-                            DebugLoc TestLoc, X86::CondCode Cond);
-  std::pair<unsigned, bool>
-  getCondOrInverseInReg(MachineBasicBlock &TestMBB,
-                        MachineBasicBlock::iterator TestPos, DebugLoc TestLoc,
-                        X86::CondCode Cond, CondRegArray &CondRegs);
+                            const DebugLoc &TestLoc, X86::CondCode Cond);
+  std::pair<unsigned, bool> getCondOrInverseInReg(
+      MachineBasicBlock &TestMBB, MachineBasicBlock::iterator TestPos,
+      const DebugLoc &TestLoc, X86::CondCode Cond, CondRegArray &CondRegs);
   void insertTest(MachineBasicBlock &MBB, MachineBasicBlock::iterator Pos,
-                  DebugLoc Loc, unsigned Reg);
+                  const DebugLoc &Loc, unsigned Reg);
 
   void rewriteArithmetic(MachineBasicBlock &TestMBB,
-                         MachineBasicBlock::iterator TestPos, DebugLoc TestLoc,
-                         MachineInstr &MI, MachineOperand &FlagUse,
-                         CondRegArray &CondRegs);
+                         MachineBasicBlock::iterator TestPos,
+                         const DebugLoc &TestLoc, MachineInstr &MI,
+                         MachineOperand &FlagUse, CondRegArray &CondRegs);
   void rewriteCMov(MachineBasicBlock &TestMBB,
-                   MachineBasicBlock::iterator TestPos, DebugLoc TestLoc,
+                   MachineBasicBlock::iterator TestPos, const DebugLoc &TestLoc,
                    MachineInstr &CMovI, MachineOperand &FlagUse,
                    CondRegArray &CondRegs);
   void rewriteFCMov(MachineBasicBlock &TestMBB,
-                    MachineBasicBlock::iterator TestPos, DebugLoc TestLoc,
-                    MachineInstr &CMovI, MachineOperand &FlagUse,
-                    CondRegArray &CondRegs);
+                    MachineBasicBlock::iterator TestPos,
+                    const DebugLoc &TestLoc, MachineInstr &CMovI,
+                    MachineOperand &FlagUse, CondRegArray &CondRegs);
   void rewriteCondJmp(MachineBasicBlock &TestMBB,
-                      MachineBasicBlock::iterator TestPos, DebugLoc TestLoc,
-                      MachineInstr &JmpI, CondRegArray &CondRegs);
+                      MachineBasicBlock::iterator TestPos,
+                      const DebugLoc &TestLoc, MachineInstr &JmpI,
+                      CondRegArray &CondRegs);
   void rewriteCopy(MachineInstr &MI, MachineOperand &FlagUse,
                    MachineInstr &CopyDefI);
   void rewriteSetCC(MachineBasicBlock &TestMBB,
-                    MachineBasicBlock::iterator TestPos, DebugLoc TestLoc,
-                    MachineInstr &SetCCI, MachineOperand &FlagUse,
-                    CondRegArray &CondRegs);
+                    MachineBasicBlock::iterator TestPos,
+                    const DebugLoc &TestLoc, MachineInstr &SetCCI,
+                    MachineOperand &FlagUse, CondRegArray &CondRegs);
 };
 
 } // end anonymous namespace
@@ -156,8 +152,6 @@ namespace {
 /// dispatch with specific functionality.
 enum class FlagArithMnemonic {
   ADC,
-  ADCX,
-  ADOX,
   RCL,
   RCR,
   SBB,
@@ -220,18 +214,6 @@ static FlagArithMnemonic getMnemonicFromOpcode(unsigned Opcode) {
     return FlagArithMnemonic::RCR;
 
 #undef LLVM_EXPAND_INSTR_SIZES
-
-  case X86::ADCX32rr:
-  case X86::ADCX64rr:
-  case X86::ADCX32rm:
-  case X86::ADCX64rm:
-    return FlagArithMnemonic::ADCX;
-
-  case X86::ADOX32rr:
-  case X86::ADOX64rr:
-  case X86::ADOX32rm:
-  case X86::ADOX64rm:
-    return FlagArithMnemonic::ADOX;
 
   case X86::SETB_C32r:
   case X86::SETB_C64r:
@@ -739,8 +721,7 @@ CondRegArray X86FlagsCopyLoweringPass::collectCondsInRegs(
        llvm::reverse(llvm::make_range(MBB.begin(), TestPos))) {
     X86::CondCode Cond = X86::getCondFromSETCC(MI);
     if (Cond != X86::COND_INVALID && !MI.mayStore() &&
-        MI.getOperand(0).isReg() &&
-        Register::isVirtualRegister(MI.getOperand(0).getReg())) {
+        MI.getOperand(0).isReg() && MI.getOperand(0).getReg().isVirtual()) {
       assert(MI.getOperand(0).isDef() &&
              "A non-storing SETcc should always define a register!");
       CondRegs[Cond] = MI.getOperand(0).getReg();
@@ -754,9 +735,9 @@ CondRegArray X86FlagsCopyLoweringPass::collectCondsInRegs(
   return CondRegs;
 }
 
-unsigned X86FlagsCopyLoweringPass::promoteCondToReg(
+Register X86FlagsCopyLoweringPass::promoteCondToReg(
     MachineBasicBlock &TestMBB, MachineBasicBlock::iterator TestPos,
-    DebugLoc TestLoc, X86::CondCode Cond) {
+    const DebugLoc &TestLoc, X86::CondCode Cond) {
   Register Reg = MRI->createVirtualRegister(PromoteRC);
   auto SetI = BuildMI(TestMBB, TestPos, TestLoc,
                       TII->get(X86::SETCCr), Reg).addImm(Cond);
@@ -768,7 +749,7 @@ unsigned X86FlagsCopyLoweringPass::promoteCondToReg(
 
 std::pair<unsigned, bool> X86FlagsCopyLoweringPass::getCondOrInverseInReg(
     MachineBasicBlock &TestMBB, MachineBasicBlock::iterator TestPos,
-    DebugLoc TestLoc, X86::CondCode Cond, CondRegArray &CondRegs) {
+    const DebugLoc &TestLoc, X86::CondCode Cond, CondRegArray &CondRegs) {
   unsigned &CondReg = CondRegs[Cond];
   unsigned &InvCondReg = CondRegs[X86::GetOppositeBranchCondition(Cond)];
   if (!CondReg && !InvCondReg)
@@ -782,7 +763,7 @@ std::pair<unsigned, bool> X86FlagsCopyLoweringPass::getCondOrInverseInReg(
 
 void X86FlagsCopyLoweringPass::insertTest(MachineBasicBlock &MBB,
                                           MachineBasicBlock::iterator Pos,
-                                          DebugLoc Loc, unsigned Reg) {
+                                          const DebugLoc &Loc, unsigned Reg) {
   auto TestI =
       BuildMI(MBB, Pos, Loc, TII->get(X86::TEST8rr)).addReg(Reg).addReg(Reg);
   (void)TestI;
@@ -792,7 +773,7 @@ void X86FlagsCopyLoweringPass::insertTest(MachineBasicBlock &MBB,
 
 void X86FlagsCopyLoweringPass::rewriteArithmetic(
     MachineBasicBlock &TestMBB, MachineBasicBlock::iterator TestPos,
-    DebugLoc TestLoc, MachineInstr &MI, MachineOperand &FlagUse,
+    const DebugLoc &TestLoc, MachineInstr &MI, MachineOperand &FlagUse,
     CondRegArray &CondRegs) {
   // Arithmetic is either reading CF or OF. Figure out which condition we need
   // to preserve in a register.
@@ -803,7 +784,6 @@ void X86FlagsCopyLoweringPass::rewriteArithmetic(
 
   switch (getMnemonicFromOpcode(MI.getOpcode())) {
   case FlagArithMnemonic::ADC:
-  case FlagArithMnemonic::ADCX:
   case FlagArithMnemonic::RCL:
   case FlagArithMnemonic::RCR:
   case FlagArithMnemonic::SBB:
@@ -812,13 +792,6 @@ void X86FlagsCopyLoweringPass::rewriteArithmetic(
     // Set up an addend that when one is added will need a carry due to not
     // having a higher bit available.
     Addend = 255;
-    break;
-
-  case FlagArithMnemonic::ADOX:
-    Cond = X86::COND_O; // OF == 1
-    // Set up an addend that when one is added will turn from positive to
-    // negative and thus overflow in the signed domain.
-    Addend = 127;
     break;
   }
 
@@ -846,7 +819,7 @@ void X86FlagsCopyLoweringPass::rewriteArithmetic(
 
 void X86FlagsCopyLoweringPass::rewriteCMov(MachineBasicBlock &TestMBB,
                                            MachineBasicBlock::iterator TestPos,
-                                           DebugLoc TestLoc,
+                                           const DebugLoc &TestLoc,
                                            MachineInstr &CMovI,
                                            MachineOperand &FlagUse,
                                            CondRegArray &CondRegs) {
@@ -872,7 +845,7 @@ void X86FlagsCopyLoweringPass::rewriteCMov(MachineBasicBlock &TestMBB,
 
 void X86FlagsCopyLoweringPass::rewriteFCMov(MachineBasicBlock &TestMBB,
                                             MachineBasicBlock::iterator TestPos,
-                                            DebugLoc TestLoc,
+                                            const DebugLoc &TestLoc,
                                             MachineInstr &CMovI,
                                             MachineOperand &FlagUse,
                                             CondRegArray &CondRegs) {
@@ -917,7 +890,7 @@ void X86FlagsCopyLoweringPass::rewriteFCMov(MachineBasicBlock &TestMBB,
 
 void X86FlagsCopyLoweringPass::rewriteCondJmp(
     MachineBasicBlock &TestMBB, MachineBasicBlock::iterator TestPos,
-    DebugLoc TestLoc, MachineInstr &JmpI, CondRegArray &CondRegs) {
+    const DebugLoc &TestLoc, MachineInstr &JmpI, CondRegArray &CondRegs) {
   // First get the register containing this specific condition.
   X86::CondCode Cond = X86::getCondFromBranch(JmpI);
   unsigned CondReg;
@@ -948,7 +921,7 @@ void X86FlagsCopyLoweringPass::rewriteCopy(MachineInstr &MI,
 
 void X86FlagsCopyLoweringPass::rewriteSetCC(MachineBasicBlock &TestMBB,
                                             MachineBasicBlock::iterator TestPos,
-                                            DebugLoc TestLoc,
+                                            const DebugLoc &TestLoc,
                                             MachineInstr &SetCCI,
                                             MachineOperand &FlagUse,
                                             CondRegArray &CondRegs) {
@@ -965,7 +938,11 @@ void X86FlagsCopyLoweringPass::rewriteSetCC(MachineBasicBlock &TestMBB,
   if (!SetCCI.mayStore()) {
     assert(SetCCI.getOperand(0).isReg() &&
            "Cannot have a non-register defined operand to SETcc!");
-    MRI->replaceRegWith(SetCCI.getOperand(0).getReg(), CondReg);
+    Register OldReg = SetCCI.getOperand(0).getReg();
+    // Drop Kill flags on the old register before replacing. CondReg may have
+    // a longer live range.
+    MRI->clearKillFlags(OldReg);
+    MRI->replaceRegWith(OldReg, CondReg);
     SetCCI.eraseFromParent();
     return;
   }
@@ -982,5 +959,4 @@ void X86FlagsCopyLoweringPass::rewriteSetCC(MachineBasicBlock &TestMBB,
   MIB.setMemRefs(SetCCI.memoperands());
 
   SetCCI.eraseFromParent();
-  return;
 }

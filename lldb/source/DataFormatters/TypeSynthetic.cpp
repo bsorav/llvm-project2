@@ -84,6 +84,27 @@ std::string TypeFilterImpl::GetDescription() {
   return std::string(sstr.GetString());
 }
 
+SyntheticChildren::SyntheticChildren(const Flags &flags) : m_flags(flags) {}
+
+SyntheticChildren::~SyntheticChildren() = default;
+
+CXXSyntheticChildren::CXXSyntheticChildren(
+    const SyntheticChildren::Flags &flags, const char *description,
+    CreateFrontEndCallback callback)
+    : SyntheticChildren(flags), m_create_callback(std::move(callback)),
+      m_description(description ? description : "") {}
+
+CXXSyntheticChildren::~CXXSyntheticChildren() = default;
+
+bool SyntheticChildren::IsScripted() { return false; }
+
+std::string SyntheticChildren::GetDescription() { return ""; }
+
+SyntheticChildrenFrontEnd::AutoPointer
+SyntheticChildren::GetFrontEnd(ValueObject &backend) {
+  return nullptr;
+}
+
 std::string CXXSyntheticChildren::GetDescription() {
   StreamString sstr;
   sstr.Printf("%s%s%s %s", Cascades() ? "" : " (not cascading)",
@@ -128,7 +149,7 @@ ScriptedSyntheticChildren::FrontEnd::FrontEnd(std::string pclass,
                                               ValueObject &backend)
     : SyntheticChildrenFrontEnd(backend), m_python_class(pclass),
       m_wrapper_sp(), m_interpreter(nullptr) {
-  if (backend == LLDB_INVALID_UID)
+  if (backend.GetID() == LLDB_INVALID_UID)
     return;
 
   TargetSP target_sp = backend.GetTargetSP();
@@ -143,7 +164,7 @@ ScriptedSyntheticChildren::FrontEnd::FrontEnd(std::string pclass,
         m_python_class.c_str(), backend.GetSP());
 }
 
-ScriptedSyntheticChildren::FrontEnd::~FrontEnd() {}
+ScriptedSyntheticChildren::FrontEnd::~FrontEnd() = default;
 
 lldb::ValueObjectSP
 ScriptedSyntheticChildren::FrontEnd::GetChildAtIndex(size_t idx) {

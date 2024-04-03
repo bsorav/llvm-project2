@@ -18,15 +18,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_ANALYSIS_DEMANDED_BITS_H
-#define LLVM_ANALYSIS_DEMANDED_BITS_H
+#ifndef LLVM_ANALYSIS_DEMANDEDBITS_H
+#define LLVM_ANALYSIS_DEMANDEDBITS_H
 
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/IR/PassManager.h"
-#include "llvm/Pass.h"
 
 namespace llvm {
 
@@ -53,6 +51,9 @@ public:
   /// accepted, but will always produce a mask with all bits set.
   APInt getDemandedBits(Instruction *I);
 
+  /// Return the bits demanded from use U.
+  APInt getDemandedBits(Use *U);
+
   /// Return true if, during analysis, I could not be reached.
   bool isInstructionDead(Instruction *I);
 
@@ -60,6 +61,20 @@ public:
   bool isUseDead(Use *U);
 
   void print(raw_ostream &OS);
+
+  /// Compute alive bits of one addition operand from alive output and known
+  /// operand bits
+  static APInt determineLiveOperandBitsAdd(unsigned OperandNo,
+                                           const APInt &AOut,
+                                           const KnownBits &LHS,
+                                           const KnownBits &RHS);
+
+  /// Compute alive bits of one subtraction operand from alive output and known
+  /// operand bits
+  static APInt determineLiveOperandBitsSub(unsigned OperandNo,
+                                           const APInt &AOut,
+                                           const KnownBits &LHS,
+                                           const KnownBits &RHS);
 
 private:
   void performAnalysis();
@@ -80,26 +95,6 @@ private:
   // Uses with no demanded bits. If the user also has no demanded bits, the use
   // might not be stored explicitly in this map, to save memory during analysis.
   SmallPtrSet<Use *, 16> DeadUses;
-};
-
-class DemandedBitsWrapperPass : public FunctionPass {
-private:
-  mutable Optional<DemandedBits> DB;
-
-public:
-  static char ID; // Pass identification, replacement for typeid
-
-  DemandedBitsWrapperPass();
-
-  bool runOnFunction(Function &F) override;
-  void getAnalysisUsage(AnalysisUsage &AU) const override;
-
-  /// Clean up memory in between runs
-  void releaseMemory() override;
-
-  DemandedBits &getDemandedBits() { return *DB; }
-
-  void print(raw_ostream &OS, const Module *M) const override;
 };
 
 /// An analysis that produces \c DemandedBits for a function.
@@ -125,11 +120,10 @@ public:
   explicit DemandedBitsPrinterPass(raw_ostream &OS) : OS(OS) {}
 
   PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
-};
 
-/// Create a demanded bits analysis pass.
-FunctionPass *createDemandedBitsWrapperPass();
+  static bool isRequired() { return true; }
+};
 
 } // end namespace llvm
 
-#endif // LLVM_ANALYSIS_DEMANDED_BITS_H
+#endif // LLVM_ANALYSIS_DEMANDEDBITS_H

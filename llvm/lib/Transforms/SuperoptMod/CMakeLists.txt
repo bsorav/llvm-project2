@@ -1,7 +1,7 @@
 add_llvm_library( LLVMSuperopt MODULE
-  SplitModule.cpp
-  InstrumentMarkerCall.cpp
-  ConvertLocalLinkageToGlobal.cpp
+  #SplitModule.cpp
+  #InstrumentMarkerCall.cpp
+  #ConvertLocalLinkageToGlobal.cpp
 
   DEPENDS
   intrinsics_gen

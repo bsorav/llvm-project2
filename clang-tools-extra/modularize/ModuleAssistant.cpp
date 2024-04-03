@@ -175,7 +175,7 @@ static bool addModuleDescription(Module *RootModule,
   llvm::SmallString<256> NativePath, NativePrefix;
   llvm::sys::path::native(HeaderFilePath, NativePath);
   llvm::sys::path::native(HeaderPrefix, NativePrefix);
-  if (NativePath.startswith(NativePrefix))
+  if (NativePath.starts_with(NativePrefix))
     FilePath = std::string(NativePath.substr(NativePrefix.size() + 1));
   else
     FilePath = std::string(HeaderFilePath);
@@ -268,7 +268,7 @@ static bool writeModuleMap(llvm::StringRef ModuleMapPath,
 
   // Set up module map output file.
   std::error_code EC;
-  llvm::ToolOutputFile Out(FilePath, EC, llvm::sys::fs::OF_Text);
+  llvm::ToolOutputFile Out(FilePath, EC, llvm::sys::fs::OF_TextWithCRLF);
   if (EC) {
     llvm::errs() << Argv0 << ": error opening " << FilePath << ":"
                  << EC.message() << "\n";
@@ -305,7 +305,7 @@ bool createModuleMap(llvm::StringRef ModuleMapPath,
     loadModuleDescriptions(
       RootModuleName, HeaderFileNames, ProblemFileNames, Dependencies,
       HeaderPrefix));
-  if (!RootModule.get())
+  if (!RootModule)
     return false;
 
   // Write module map file.

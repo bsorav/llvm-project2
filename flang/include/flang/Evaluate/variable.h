@@ -80,6 +80,9 @@ public:
 
   const DataRef &base() const { return base_.value(); }
   DataRef &base() { return base_.value(); }
+  const SymbolRef &symbol() const { return symbol_; }
+  SymbolRef &symbol() { return symbol_; }
+
   int Rank() const;
   const Symbol &GetFirstSymbol() const;
   const Symbol &GetLastSymbol() const { return symbol_; }
@@ -107,7 +110,9 @@ public:
   const Symbol &GetLastSymbol() const;
   const Component &GetComponent() const { return std::get<Component>(u_); }
   Component &GetComponent() { return std::get<Component>(u_); }
-  const Component *UnwrapComponent() const; // null if just a Symbol
+  const SymbolRef *UnwrapSymbolRef() const; // null if a Component
+  SymbolRef *UnwrapSymbolRef();
+  const Component *UnwrapComponent() const; // null if not a Component
   Component *UnwrapComponent();
 
   int Rank() const;
@@ -128,9 +133,9 @@ private:
 // KIND(x), which is then folded to a constant value.
 // "Bare" type parameter references within a derived type definition do
 // not have base objects.
-template <int KIND> class TypeParamInquiry {
+class TypeParamInquiry {
 public:
-  using Result = Type<TypeCategory::Integer, KIND>;
+  using Result = SubscriptInteger;
   CLASS_BOILERPLATE(TypeParamInquiry)
   TypeParamInquiry(NamedEntity &&x, const Symbol &param)
       : base_{std::move(x)}, parameter_{param} {}
@@ -150,9 +155,6 @@ private:
   SymbolRef parameter_;
 };
 
-EXPAND_FOR_EACH_INTEGER_KIND(
-    TEMPLATE_INSTANTIATION, extern template class TypeParamInquiry, )
-
 // R921 subscript-triplet
 class Triplet {
 public:
@@ -163,14 +165,20 @@ public:
       std::optional<Expr<SubscriptInteger>> &&);
 
   std::optional<Expr<SubscriptInteger>> lower() const;
+  const Expr<SubscriptInteger> *GetLower() const {
+    return lower_.has_value() ? &lower_->value() : nullptr;
+  }
   Triplet &set_lower(Expr<SubscriptInteger> &&);
   std::optional<Expr<SubscriptInteger>> upper() const;
+  const Expr<SubscriptInteger> *GetUpper() const {
+    return upper_.has_value() ? &upper_->value() : nullptr;
+  }
   Triplet &set_upper(Expr<SubscriptInteger> &&);
   Expr<SubscriptInteger> stride() const; // N.B. result is not optional<>
+  const Expr<SubscriptInteger> &GetStride() const { return stride_.value(); }
   Triplet &set_stride(Expr<SubscriptInteger> &&);
 
   bool operator==(const Triplet &) const;
-  bool IsStrideOne() const;
   llvm::raw_ostream &AsFortran(llvm::raw_ostream &) const;
 
 private:
@@ -229,7 +237,7 @@ private:
 
 // R914 coindexed-named-object
 // R924 image-selector, R926 image-selector-spec.
-// C824 severely limits the usage of derived types with coarray ultimate
+// C825 severely limits the usage of derived types with coarray ultimate
 // components: they can't be pointers, allocatables, arrays, coarrays, or
 // function results.  They can be components of other derived types.
 // Although the F'2018 Standard never prohibits multiple image-selectors
@@ -349,6 +357,7 @@ public:
   ENUM_CLASS(Part, RE, IM)
   CLASS_BOILERPLATE(ComplexPart)
   ComplexPart(DataRef &&z, Part p) : complex_{std::move(z)}, part_{p} {}
+  DataRef &complex() { return complex_; }
   const DataRef &complex() const { return complex_; }
   Part part() const { return part_; }
   int Rank() const;
@@ -422,8 +431,6 @@ private:
 };
 
 #define INSTANTIATE_VARIABLE_TEMPLATES \
-  EXPAND_FOR_EACH_INTEGER_KIND( \
-      TEMPLATE_INSTANTIATION, template class TypeParamInquiry, ) \
   FOR_EACH_SPECIFIC_TYPE(template class Designator, )
 } // namespace Fortran::evaluate
 #endif // FORTRAN_EVALUATE_VARIABLE_H_

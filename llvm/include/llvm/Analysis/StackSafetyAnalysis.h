@@ -51,7 +51,8 @@ public:
   /// StackSafety assumes that missing parameter information means possibility
   /// of access to the parameter with any offset, so we can correctly link
   /// code without StackSafety information, e.g. non-ThinLTO.
-  std::vector<FunctionSummary::ParamAccess> getParamAccesses() const;
+  std::vector<FunctionSummary::ParamAccess>
+  getParamAccesses(ModuleSummaryIndex &Index) const;
 };
 
 class StackSafetyGlobalInfo {
@@ -74,7 +75,15 @@ public:
   StackSafetyGlobalInfo &operator=(StackSafetyGlobalInfo &&);
   ~StackSafetyGlobalInfo();
 
+  // Whether we can prove that all accesses to this Alloca are in-range and
+  // during its lifetime.
   bool isSafe(const AllocaInst &AI) const;
+
+  // Returns true if the instruction can be proven to do only two types of
+  // memory accesses:
+  //  (1) live stack locations in-bounds or
+  //  (2) non-stack locations.
+  bool stackAccessIsSafe(const Instruction &I) const;
   void print(raw_ostream &O) const;
   void dump() const;
 };
@@ -96,6 +105,7 @@ class StackSafetyPrinterPass : public PassInfoMixin<StackSafetyPrinterPass> {
 public:
   explicit StackSafetyPrinterPass(raw_ostream &OS) : OS(OS) {}
   PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
+  static bool isRequired() { return true; }
 };
 
 /// StackSafetyInfo wrapper for the legacy pass manager
@@ -134,6 +144,7 @@ class StackSafetyGlobalPrinterPass
 public:
   explicit StackSafetyGlobalPrinterPass(raw_ostream &OS) : OS(OS) {}
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
+  static bool isRequired() { return true; }
 };
 
 /// This pass performs the global (interprocedural) stack safety analysis

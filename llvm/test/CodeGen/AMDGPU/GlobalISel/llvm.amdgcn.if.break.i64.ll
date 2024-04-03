@@ -15,11 +15,12 @@ define amdgpu_kernel void @test_wave64(i32 %arg0, [8 x i32], i64 %saved) {
 ; GCN-NEXT:    v_mov_b32_e32 v0, s0
 ; GCN-NEXT:    v_mov_b32_e32 v1, s1
 ; GCN-NEXT:    flat_store_dwordx2 v[0:1], v[0:1]
+; GCN-NEXT:    s_waitcnt vmcnt(0)
 ; GCN-NEXT:    s_endpgm
 entry:
   %cond = icmp eq i32 %arg0, 0
   %break = call i64 @llvm.amdgcn.if.break.i64(i1 %cond, i64 %saved)
-  store volatile i64 %break, i64 addrspace(1)* undef
+  store volatile i64 %break, ptr addrspace(1) undef
   ret void
 }
 

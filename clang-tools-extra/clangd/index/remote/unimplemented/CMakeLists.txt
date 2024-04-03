@@ -6,6 +6,8 @@ add_clang_library(clangdRemoteIndex
   UnimplementedClient.cpp
 
   LINK_LIBS
-  clangDaemon
   clangdSupport
+
+  DEPENDS
+  ClangDriverOptions
   )

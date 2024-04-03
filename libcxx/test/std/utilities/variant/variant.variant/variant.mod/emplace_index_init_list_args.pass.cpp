@@ -1,4 +1,3 @@
-// -*- C++ -*-
 //===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -8,12 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 // UNSUPPORTED: c++03, c++11, c++14
-
-// Throwing bad_variant_access is supported starting in macosx10.13
-// XFAIL: with_system_cxx_lib=macosx10.12 && !no-exceptions
-// XFAIL: with_system_cxx_lib=macosx10.11 && !no-exceptions
-// XFAIL: with_system_cxx_lib=macosx10.10 && !no-exceptions
-// XFAIL: with_system_cxx_lib=macosx10.9 && !no-exceptions
 
 // <variant>
 
@@ -43,18 +36,18 @@ struct InitListArg {
       : size(il.size()), value(v) {}
 };
 
-template <class Var, size_t I, class... Args>
+template <class Var, std::size_t I, class... Args>
 constexpr auto test_emplace_exists_imp(int) -> decltype(
     std::declval<Var>().template emplace<I>(std::declval<Args>()...), true) {
   return true;
 }
 
-template <class, size_t, class...>
+template <class, std::size_t, class...>
 constexpr auto test_emplace_exists_imp(long) -> bool {
   return false;
 }
 
-template <class Var, size_t I, class... Args> constexpr bool emplace_exists() {
+template <class Var, std::size_t I, class... Args> constexpr bool emplace_exists() {
   return test_emplace_exists_imp<Var, I, Args...>(0);
 }
 

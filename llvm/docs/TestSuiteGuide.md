@@ -42,6 +42,10 @@ Quickstart
            ../test-suite
    ```
 
+**NOTE!** if you are using your built clang, and you want to build and run the
+MicroBenchmarks/XRay microbenchmarks, you need to add `compiler-rt` to your
+`LLVM_ENABLE_RUNTIMES` cmake flag.
+
 4. Build the benchmarks:
 
    ```text
@@ -158,12 +162,22 @@ benchmarks. CMake can print a list of them:
   automatically use `path/to/clang++` as the C++ compiler.  See
   [https://cmake.org/cmake/help/latest/variable/CMAKE_LANG_COMPILER.html](https://cmake.org/cmake/help/latest/variable/CMAKE_LANG_COMPILER.html)
 
+- `CMAKE_Fortran_COMPILER`
+
+  Select the Fortran compiler executable to be used. Not set by default and not
+  required unless running the Fortran Test Suite.
+
 - `CMAKE_BUILD_TYPE`
 
   Select a build type like `OPTIMIZE` or `DEBUG` selecting a set of predefined
   compiler flags. These flags are applied regardless of the `CMAKE_C_FLAGS`
   option and may be changed by modifying `CMAKE_C_FLAGS_OPTIMIZE` etc.  See
   [https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html](https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html)
+
+- `TEST_SUITE_FORTRAN`
+
+  Activate that Fortran tests. This is a work in progress. More information can be
+  found in the [Flang documentation](https://flang.llvm.org/docs/FortranLLVMTestSuite.html)
 
 - `TEST_SUITE_RUN_UNDER`
 
@@ -185,7 +199,7 @@ benchmarks. CMake can print a list of them:
 
 - `TEST_SUITE_COLLECT_STATS`
 
-  Collect internal LLVM statistics. Appends `-save-stats=obj` when invocing the
+  Collect internal LLVM statistics. Appends `-save-stats=obj` when invoking the
   compiler and makes the lit runner collect and merge the statistic files.
 
 - `TEST_SUITE_RUN_BENCHMARKS`
@@ -322,8 +336,9 @@ using `llvm-profdata` so they can be used by the second compilation run.
 
 Example:
 ```bash
-# Profile generation run:
+# Profile generation run using LLVM IR PGO:
 % cmake -DTEST_SUITE_PROFILE_GENERATE=ON \
+        -DTEST_SUITE_USE_IR_PGO=ON \
         -DTEST_SUITE_RUN_TYPE=train \
         ../test-suite
 % make
@@ -336,6 +351,8 @@ Example:
 % make
 % llvm-lit -o result.json .
 ```
+
+To use Clang frontend's PGO instead of LLVM IR PGO, set `-DTEST_SUITE_USE_IR_PGO=OFF`.
 
 The `TEST_SUITE_RUN_TYPE` setting only affects the SPEC benchmark suites.
 
@@ -372,6 +389,7 @@ There are two ways to run the tests in a cross compilation setting:
   ```bash
   % cmake -G Ninja -D CMAKE_C_COMPILER=path/to/clang \
           -C ../test-suite/cmake/caches/target-arm64-iphoneos-internal.cmake \
+          -D CMAKE_BUILD_TYPE=Release \
           -D TEST_SUITE_REMOTE_HOST=mydevice \
           ../test-suite
   % ninja

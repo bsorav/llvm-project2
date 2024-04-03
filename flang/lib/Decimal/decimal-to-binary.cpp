@@ -19,10 +19,16 @@ namespace Fortran::decimal {
 
 template <int PREC, int LOG10RADIX>
 bool BigRadixFloatingPointNumber<PREC, LOG10RADIX>::ParseNumber(
-    const char *&p, bool &inexact) {
+    const char *&p, bool &inexact, const char *end) {
   SetToZero();
-  while (*p == ' ') {
-    ++p;
+  if (end && p >= end) {
+    return false;
+  }
+  // Skip leading spaces
+  for (; p != end && *p == ' '; ++p) {
+  }
+  if (p == end) {
+    return false;
   }
   const char *q{p};
   isNegative_ = *q == '-';
@@ -30,23 +36,22 @@ bool BigRadixFloatingPointNumber<PREC, LOG10RADIX>::ParseNumber(
     ++q;
   }
   const char *start{q};
-  while (*q == '0') {
-    ++q;
+  for (; q != end && *q == '0'; ++q) {
   }
-  const char *first{q};
-  for (; *q >= '0' && *q <= '9'; ++q) {
+  const char *firstDigit{q};
+  for (; q != end && *q >= '0' && *q <= '9'; ++q) {
   }
   const char *point{nullptr};
-  if (*q == '.') {
+  if (q != end && *q == '.') {
     point = q;
-    for (++q; *q >= '0' && *q <= '9'; ++q) {
+    for (++q; q != end && *q >= '0' && *q <= '9'; ++q) {
     }
   }
-  if (q == start || (q == start + 1 && *start == '.')) {
+  if (q == start || (q == start + 1 && start == point)) {
     return false; // require at least one digit
   }
   // There's a valid number here; set the reference argument to point to
-  // the first character afterward.
+  // the first character afterward, which might be an exponent part.
   p = q;
   // Strip off trailing zeroes
   if (point) {
@@ -59,13 +64,13 @@ bool BigRadixFloatingPointNumber<PREC, LOG10RADIX>::ParseNumber(
     }
   }
   if (!point) {
-    while (q > first && q[-1] == '0') {
+    while (q > firstDigit && q[-1] == '0') {
       --q;
       ++exponent_;
     }
   }
   // Trim any excess digits
-  const char *limit{first + maxDigits * log10Radix + (point != nullptr)};
+  const char *limit{firstDigit + maxDigits * log10Radix + (point != nullptr)};
   if (q > limit) {
     inexact = true;
     if (point >= limit) {
@@ -80,11 +85,11 @@ bool BigRadixFloatingPointNumber<PREC, LOG10RADIX>::ParseNumber(
   if (point) {
     exponent_ -= static_cast<int>(q - point - 1);
   }
-  if (q == first) {
+  if (q == firstDigit) {
     exponent_ = 0; // all zeros
   }
   // Rack the decimal digits up into big Digits.
-  for (auto times{radix}; q-- > first;) {
+  for (auto times{radix}; q-- > firstDigit;) {
     if (*q != '.') {
       if (times == radix) {
         digit_[digits_++] = *q - '0';
@@ -96,6 +101,9 @@ bool BigRadixFloatingPointNumber<PREC, LOG10RADIX>::ParseNumber(
     }
   }
   // Look for an optional exponent field.
+  if (p == end) {
+    return true;
+  }
   q = p;
   switch (*q) {
   case 'e':
@@ -104,18 +112,20 @@ bool BigRadixFloatingPointNumber<PREC, LOG10RADIX>::ParseNumber(
   case 'D':
   case 'q':
   case 'Q': {
-    bool negExpo{*++q == '-'};
+    if (++q == end) {
+      break;
+    }
+    bool negExpo{*q == '-'};
     if (*q == '-' || *q == '+') {
       ++q;
     }
-    if (*q >= '0' && *q <= '9') {
+    if (q != end && *q >= '0' && *q <= '9') {
       int expo{0};
-      while (*q == '0') {
-        ++q;
+      for (; q != end && *q == '0'; ++q) {
       }
       const char *expDig{q};
-      while (*q >= '0' && *q <= '9') {
-        expo = 10 * expo + *q++ - '0';
+      for (; q != end && *q >= '0' && *q <= '9'; ++q) {
+        expo = 10 * expo + *q - '0';
       }
       if (q >= expDig + 8) {
         // There's a ridiculous number of nonzero exponent digits.
@@ -125,7 +135,7 @@ bool BigRadixFloatingPointNumber<PREC, LOG10RADIX>::ParseNumber(
         expo = 10 * Real::decimalRange;
         exponent_ = 0;
       }
-      p = q; // exponent was valid
+      p = q; // exponent is valid; advance the termination pointer
       if (negExpo) {
         exponent_ -= expo;
       } else {
@@ -150,7 +160,6 @@ void BigRadixFloatingPointNumber<PREC,
   bool incr{false};
   switch (rounding_) {
   case RoundNearest:
-  case RoundDefault:
     incr = LSD > radix / 2 || (LSD == radix / 2 && digit_[0] % 2 != 0);
     break;
   case RoundUp:
@@ -228,6 +237,15 @@ private:
   int exponent_{0};
 };
 
+// The standard says that these overflow cases round to "representable"
+// numbers, and some popular compilers interpret that to mean +/-HUGE()
+// rather than +/-Inf.
+static inline constexpr bool RoundOverflowToHuge(
+    enum FortranRounding rounding, bool isNegative) {
+  return rounding == RoundToZero || (!isNegative && rounding == RoundDown) ||
+      (isNegative && rounding == RoundUp);
+}
+
 template <int PREC>
 ConversionToBinaryResult<PREC> IntermediateFloat<PREC>::ToBinary(
     bool isNegative, FortranRounding rounding) const {
@@ -247,20 +265,32 @@ ConversionToBinaryResult<PREC> IntermediateFloat<PREC>::ToBinary(
   if (guard != 0) {
     flags |= Inexact;
   }
-  if (fraction == 0 && guard <= oneHalf) {
-    return {Binary{}, static_cast<enum ConversionResultFlags>(flags)};
-  }
-  // The value is nonzero; normalize it.
-  while (fraction < topBit && expo > 1) {
-    --expo;
-    fraction = fraction * 2 + (guard >> (guardBits - 2));
-    guard = (((guard >> (guardBits - 2)) & 1) << (guardBits - 1)) | (guard & 1);
+  if (fraction == 0) {
+    if (guard <= oneHalf) {
+      if ((!isNegative && rounding == RoundUp) ||
+          (isNegative && rounding == RoundDown)) {
+        // round to least nonzero value
+        expo = 0;
+      } else { // round to zero
+        if (guard != 0) {
+          flags |= Underflow;
+        }
+        return {Binary{}, static_cast<enum ConversionResultFlags>(flags)};
+      }
+    }
+  } else {
+    // The value is nonzero; normalize it.
+    while (fraction < topBit && expo > 1) {
+      --expo;
+      fraction = fraction * 2 + (guard >> (guardBits - 2));
+      guard =
+          (((guard >> (guardBits - 2)) & 1) << (guardBits - 1)) | (guard & 1);
+    }
   }
   // Apply rounding
   bool incr{false};
   switch (rounding) {
   case RoundNearest:
-  case RoundDefault:
     incr = guard > oneHalf || (guard == oneHalf && (fraction & 1));
     break;
   case RoundUp:
@@ -286,11 +316,22 @@ ConversionToBinaryResult<PREC> IntermediateFloat<PREC>::ToBinary(
   }
   if (expo == 1 && fraction < topBit) {
     expo = 0; // subnormal
-  }
-  if (expo >= Binary::maxExponent) {
-    expo = Binary::maxExponent; // Inf
-    flags |= Overflow;
-    fraction = 0;
+    flags |= Underflow;
+  } else if (expo == 0) {
+    flags |= Underflow;
+  } else if (expo >= Binary::maxExponent) {
+    if (RoundOverflowToHuge(rounding, isNegative)) {
+      expo = Binary::maxExponent - 1;
+      fraction = mask;
+    } else { // Inf
+      expo = Binary::maxExponent;
+      flags |= Overflow;
+      if constexpr (Binary::bits == 80) { // x87
+        fraction = IntType{1} << 63;
+      } else {
+        fraction = 0;
+      }
+    }
   }
   using Raw = typename Binary::RawType;
   Raw raw = static_cast<Raw>(isNegative) << (Binary::bits - 1);
@@ -318,10 +359,23 @@ BigRadixFloatingPointNumber<PREC, LOG10RADIX>::ConvertToBinary() {
   exponent_ += digits_ * log10Radix;
   // Sanity checks for ridiculous exponents
   static constexpr int crazy{2 * Real::decimalRange + log10Radix};
-  if (exponent_ < -crazy) { // underflow to +/-0.
-    return {Real{SignBit()}, Inexact};
-  } else if (exponent_ > crazy) { // overflow to +/-Inf.
-    return {Real{Infinity()}, Overflow};
+  if (exponent_ < -crazy) {
+    enum ConversionResultFlags flags {
+      static_cast<enum ConversionResultFlags>(Inexact | Underflow)
+    };
+    if ((!isNegative_ && rounding_ == RoundUp) ||
+        (isNegative_ && rounding_ == RoundDown)) {
+      // return least nonzero value
+      return {Real{Raw{1} | SignBit()}, flags};
+    } else { // underflow to +/-0.
+      return {Real{SignBit()}, flags};
+    }
+  } else if (exponent_ > crazy) { // overflow to +/-HUGE() or +/-Inf
+    if (RoundOverflowToHuge(rounding_, isNegative_)) {
+      return {Real{HUGE()}};
+    } else {
+      return {Real{Infinity()}, Overflow};
+    }
   }
   // Apply any negative decimal exponent by multiplication
   // by a power of two, adjusting the binary exponent to compensate.
@@ -387,9 +441,10 @@ BigRadixFloatingPointNumber<PREC, LOG10RADIX>::ConvertToBinary() {
 
 template <int PREC, int LOG10RADIX>
 ConversionToBinaryResult<PREC>
-BigRadixFloatingPointNumber<PREC, LOG10RADIX>::ConvertToBinary(const char *&p) {
+BigRadixFloatingPointNumber<PREC, LOG10RADIX>::ConvertToBinary(
+    const char *&p, const char *limit) {
   bool inexact{false};
-  if (ParseNumber(p, inexact)) {
+  if (ParseNumber(p, inexact, limit)) {
     auto result{ConvertToBinary()};
     if (inexact) {
       result.flags =
@@ -398,21 +453,49 @@ BigRadixFloatingPointNumber<PREC, LOG10RADIX>::ConvertToBinary(const char *&p) {
     return result;
   } else {
     // Could not parse a decimal floating-point number.  p has been
-    // advanced over any leading spaces.
-    if (toupper(p[0]) == 'N' && toupper(p[1]) == 'A' && toupper(p[2]) == 'N') {
-      // NaN
-      p += 3;
-      return {Real{NaN()}};
-    } else {
-      // Try to parse Inf, maybe with a sign
-      const char *q{p};
+    // advanced over any leading spaces.  Most Fortran compilers set
+    // the sign bit for -NaN.
+    const char *q{p};
+    if (!limit || q < limit) {
       isNegative_ = *q == '-';
-      if (*q == '-' || *q == '+') {
+      if (isNegative_ || *q == '+') {
         ++q;
       }
-      if (toupper(q[0]) == 'I' && toupper(q[1]) == 'N' &&
-          toupper(q[2]) == 'F') {
-        p = q + 3;
+    }
+    if ((!limit || limit >= q + 3) && toupper(q[0]) == 'N' &&
+        toupper(q[1]) == 'A' && toupper(q[2]) == 'N') {
+      // NaN
+      p = q + 3;
+      bool isQuiet{true};
+      if ((!limit || p < limit) && *p == '(') {
+        int depth{1};
+        do {
+          ++p;
+          if (limit && p >= limit) {
+            // Invalid input
+            return {Real{NaN(false)}, Invalid};
+          } else if (*p == '(') {
+            ++depth;
+          } else if (*p == ')') {
+            --depth;
+          } else if (*p != ' ') {
+            // Implementation dependent, but other compilers
+            // all return quiet NaNs.
+          }
+        } while (depth > 0);
+        ++p;
+      }
+      return {Real{NaN(isQuiet)}};
+    } else { // Inf?
+      if ((!limit || limit >= q + 3) && toupper(q[0]) == 'I' &&
+          toupper(q[1]) == 'N' && toupper(q[2]) == 'F') {
+        if ((!limit || limit >= q + 8) && toupper(q[3]) == 'I' &&
+            toupper(q[4]) == 'N' && toupper(q[5]) == 'I' &&
+            toupper(q[6]) == 'T' && toupper(q[7]) == 'Y') {
+          p = q + 8;
+        } else {
+          p = q + 3;
+        }
         return {Real{Infinity()}};
       } else {
         // Invalid input
@@ -424,22 +507,22 @@ BigRadixFloatingPointNumber<PREC, LOG10RADIX>::ConvertToBinary(const char *&p) {
 
 template <int PREC>
 ConversionToBinaryResult<PREC> ConvertToBinary(
-    const char *&p, enum FortranRounding rounding) {
-  return BigRadixFloatingPointNumber<PREC>{rounding}.ConvertToBinary(p);
+    const char *&p, enum FortranRounding rounding, const char *end) {
+  return BigRadixFloatingPointNumber<PREC>{rounding}.ConvertToBinary(p, end);
 }
 
 template ConversionToBinaryResult<8> ConvertToBinary<8>(
-    const char *&, enum FortranRounding);
+    const char *&, enum FortranRounding, const char *end);
 template ConversionToBinaryResult<11> ConvertToBinary<11>(
-    const char *&, enum FortranRounding);
+    const char *&, enum FortranRounding, const char *end);
 template ConversionToBinaryResult<24> ConvertToBinary<24>(
-    const char *&, enum FortranRounding);
+    const char *&, enum FortranRounding, const char *end);
 template ConversionToBinaryResult<53> ConvertToBinary<53>(
-    const char *&, enum FortranRounding);
+    const char *&, enum FortranRounding, const char *end);
 template ConversionToBinaryResult<64> ConvertToBinary<64>(
-    const char *&, enum FortranRounding);
+    const char *&, enum FortranRounding, const char *end);
 template ConversionToBinaryResult<113> ConvertToBinary<113>(
-    const char *&, enum FortranRounding);
+    const char *&, enum FortranRounding, const char *end);
 
 extern "C" {
 enum ConversionResultFlags ConvertDecimalToFloat(
@@ -456,7 +539,6 @@ enum ConversionResultFlags ConvertDecimalToDouble(
       reinterpret_cast<const void *>(&result.binary), sizeof *d);
   return result.flags;
 }
-#if __x86_64__ && !defined(_MSC_VER)
 enum ConversionResultFlags ConvertDecimalToLongDouble(
     const char **p, long double *ld, enum FortranRounding rounding) {
   auto result{Fortran::decimal::ConvertToBinary<64>(*p, rounding)};
@@ -464,6 +546,5 @@ enum ConversionResultFlags ConvertDecimalToLongDouble(
       reinterpret_cast<const void *>(&result.binary), sizeof *ld);
   return result.flags;
 }
-#endif
 }
 } // namespace Fortran::decimal

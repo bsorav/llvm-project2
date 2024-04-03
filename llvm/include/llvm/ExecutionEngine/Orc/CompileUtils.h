@@ -20,15 +20,12 @@
 
 namespace llvm {
 
-class MCContext;
 class MemoryBuffer;
 class Module;
 class ObjectCache;
 class TargetMachine;
 
 namespace orc {
-
-class JITTargetMachineBuilder;
 
 IRSymbolMapper::ManglingOptions
 irManglingOptionsFromTargetOptions(const TargetOptions &Opts);
@@ -64,7 +61,7 @@ private:
 
 /// A SimpleCompiler that owns its TargetMachine.
 ///
-/// This convenient for clients who don't want to own their TargetMachines,
+/// This is convenient for clients who don't want to own their TargetMachines,
 /// e.g. LLJIT.
 class TMOwningSimpleCompiler : public SimpleCompiler {
 public:

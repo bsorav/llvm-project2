@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "lldb/Utility/Args.h"
-#include "lldb/Utility/ConstString.h"
 #include "lldb/Utility/FileSpec.h"
 #include "lldb/Utility/Stream.h"
 #include "lldb/Utility/StringList.h"
@@ -26,7 +25,7 @@ static llvm::StringRef ParseDoubleQuotes(llvm::StringRef quoted,
   // Inside double quotes, '\' and '"' are special.
   static const char *k_escapable_characters = "\"\\";
   while (true) {
-    // Skip over over regular characters and append them.
+    // Skip over regular characters and append them.
     size_t regular = quoted.find_first_of(k_escapable_characters);
     result += quoted.substr(0, regular);
     quoted = quoted.substr(regular);
@@ -94,7 +93,7 @@ ParseSingleArgument(llvm::StringRef command) {
 
   bool arg_complete = false;
   do {
-    // Skip over over regular characters and append them.
+    // Skip over regular characters and append them.
     size_t regular = command.find_first_of(" \t\r\"'`\\");
     arg += command.substr(0, regular);
     command = command.substr(regular);
@@ -175,6 +174,11 @@ Args::Args(const StringList &list) : Args() {
     AppendArgument(arg);
 }
 
+Args::Args(llvm::ArrayRef<llvm::StringRef> args) : Args() {
+  for (llvm::StringRef arg : args)
+    AppendArgument(arg);
+}
+
 Args &Args::operator=(const Args &rhs) {
   Clear();
 
@@ -189,7 +193,7 @@ Args &Args::operator=(const Args &rhs) {
 }
 
 // Destructor
-Args::~Args() {}
+Args::~Args() = default;
 
 void Args::Dump(Stream &s, const char *label_name) const {
   if (!label_name)
@@ -210,7 +214,12 @@ bool Args::GetCommandString(std::string &command) const {
   for (size_t i = 0; i < m_entries.size(); ++i) {
     if (i > 0)
       command += ' ';
+    char quote = m_entries[i].quote;
+    if (quote != '\0')
+     command += quote;
     command += m_entries[i].ref();
+    if (quote != '\0')
+      command += quote;
   }
 
   return !m_entries.empty();
@@ -250,8 +259,6 @@ void Args::SetCommandString(llvm::StringRef command) {
   }
   m_argv.push_back(nullptr);
 }
-
-size_t Args::GetArgumentCount() const { return m_entries.size(); }
 
 const char *Args::GetArgumentAtIndex(size_t idx) const {
   if (idx < m_argv.size())
@@ -304,7 +311,7 @@ void Args::AppendArguments(const char **argv) {
   assert(m_argv.size() == m_entries.size() + 1);
   assert(m_argv.back() == nullptr);
   m_argv.pop_back();
-  for (auto arg : llvm::makeArrayRef(argv, argc)) {
+  for (auto arg : llvm::ArrayRef(argv, argc)) {
     m_entries.emplace_back(arg, '\0');
     m_argv.push_back(m_entries.back().data());
   }
@@ -350,7 +357,7 @@ void Args::DeleteArgumentAtIndex(size_t idx) {
 void Args::SetArguments(size_t argc, const char **argv) {
   Clear();
 
-  auto args = llvm::makeArrayRef(argv, argc);
+  auto args = llvm::ArrayRef(argv, argc);
   m_entries.resize(argc);
   m_argv.resize(argc + 1);
   for (size_t i = 0; i < args.size(); ++i) {
@@ -374,22 +381,24 @@ void Args::Clear() {
   m_argv.push_back(nullptr);
 }
 
-const char *Args::GetShellSafeArgument(const FileSpec &shell,
-                                       const char *unsafe_arg,
-                                       std::string &safe_arg) {
+std::string Args::GetShellSafeArgument(const FileSpec &shell,
+                                       llvm::StringRef unsafe_arg) {
   struct ShellDescriptor {
-    ConstString m_basename;
-    const char *m_escapables;
+    llvm::StringRef m_basename;
+    llvm::StringRef m_escapables;
   };
 
-  static ShellDescriptor g_Shells[] = {{ConstString("bash"), " '\"<>()&"},
-                                       {ConstString("tcsh"), " '\"<>()&$"},
-                                       {ConstString("sh"), " '\"<>()&"}};
+  static ShellDescriptor g_Shells[] = {{"bash", " '\"<>()&;"},
+                                       {"fish", " '\"<>()&\\|;"},
+                                       {"tcsh", " '\"<>()&;"},
+                                       {"zsh", " '\"<>()&;\\|"},
+                                       {"sh", " '\"<>()&;"}};
 
   // safe minimal set
-  const char *escapables = " '\"";
+  llvm::StringRef escapables = " '\"";
 
-  if (auto basename = shell.GetFilename()) {
+  auto basename = shell.GetFilename().GetStringRef();
+  if (!basename.empty()) {
     for (const auto &Shell : g_Shells) {
       if (Shell.m_basename == basename) {
         escapables = Shell.m_escapables;
@@ -398,18 +407,15 @@ const char *Args::GetShellSafeArgument(const FileSpec &shell,
     }
   }
 
-  safe_arg.assign(unsafe_arg);
-  size_t prev_pos = 0;
-  while (prev_pos < safe_arg.size()) {
-    // Escape spaces and quotes
-    size_t pos = safe_arg.find_first_of(escapables, prev_pos);
-    if (pos != std::string::npos) {
-      safe_arg.insert(pos, 1, '\\');
-      prev_pos = pos + 2;
-    } else
-      break;
+  std::string safe_arg;
+  safe_arg.reserve(unsafe_arg.size());
+  // Add a \ before every character that needs to be escaped.
+  for (char c : unsafe_arg) {
+    if (escapables.contains(c))
+      safe_arg.push_back('\\');
+    safe_arg.push_back(c);
   }
-  return safe_arg.c_str();
+  return safe_arg;
 }
 
 lldb::Encoding Args::StringToEncoding(llvm::StringRef s,
@@ -439,6 +445,7 @@ uint32_t Args::StringToGenericRegister(llvm::StringRef s) {
                         .Case("arg6", LLDB_REGNUM_GENERIC_ARG6)
                         .Case("arg7", LLDB_REGNUM_GENERIC_ARG7)
                         .Case("arg8", LLDB_REGNUM_GENERIC_ARG8)
+                        .Case("tp", LLDB_REGNUM_GENERIC_TP)
                         .Default(LLDB_INVALID_REGNUM);
   return result;
 }
@@ -634,13 +641,12 @@ void OptionsWithRaw::SetFromString(llvm::StringRef arg_string) {
 
   // If the string doesn't start with a dash, we just have no options and just
   // a raw part.
-  if (!arg_string.startswith("-")) {
+  if (!arg_string.starts_with("-")) {
     m_suffix = std::string(original_args);
     return;
   }
 
   bool found_suffix = false;
-
   while (!arg_string.empty()) {
     // The length of the prefix before parsing.
     std::size_t prev_prefix_length = original_args.size() - arg_string.size();
@@ -679,25 +685,6 @@ void OptionsWithRaw::SetFromString(llvm::StringRef arg_string) {
   }
 
   // If we didn't find a suffix delimiter, the whole string is the raw suffix.
-  if (!found_suffix) {
-    found_suffix = true;
+  if (!found_suffix)
     m_suffix = std::string(original_args);
-  }
-}
-
-void llvm::yaml::MappingTraits<Args::ArgEntry>::mapping(IO &io,
-                                                        Args::ArgEntry &v) {
-  MappingNormalization<NormalizedArgEntry, Args::ArgEntry> keys(io, v);
-  io.mapRequired("value", keys->value);
-  io.mapRequired("quote", keys->quote);
-}
-
-void llvm::yaml::MappingTraits<Args>::mapping(IO &io, Args &v) {
-  io.mapRequired("entries", v.m_entries);
-
-  // Recompute m_argv vector.
-  v.m_argv.clear();
-  for (auto &entry : v.m_entries)
-    v.m_argv.push_back(entry.data());
-  v.m_argv.push_back(nullptr);
 }

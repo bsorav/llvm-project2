@@ -7,13 +7,13 @@ define dso_local signext i32 @b() local_unnamed_addr #0 {
 ; CHECK-LABEL: b:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    mflr r0
-; CHECK-NEXT:    std r0, 16(r1)
 ; CHECK-NEXT:    stdu r1, -144(r1)
+; CHECK-NEXT:    std r0, 160(r1)
 ; CHECK-NEXT:    addis r3, r2, a@toc@ha
 ; CHECK-NEXT:    li r4, 1
 ; CHECK-NEXT:    lfd f0, a@toc@l(r3)
 ; CHECK-NEXT:    addis r3, r2, .LCPI0_0@toc@ha
-; CHECK-NEXT:    sldi r4, r4, 63
+; CHECK-NEXT:    rldic r4, r4, 63, 0
 ; CHECK-NEXT:    lfs f1, .LCPI0_0@toc@l(r3)
 ; CHECK-NEXT:    fsub f2, f0, f1
 ; CHECK-NEXT:    fctidz f2, f2
@@ -45,7 +45,7 @@ define dso_local signext i32 @b() local_unnamed_addr #0 {
 ; CHECK-NEXT:    mtlr r0
 ; CHECK-NEXT:    blr
 entry:
-  %0 = load double, double* @a, align 8
+  %0 = load double, ptr @a, align 8
   %conv = fptoui double %0 to i64
   %conv1 = sitofp i64 %conv to double
   %mul = fmul double %conv1, 1.000000e+06

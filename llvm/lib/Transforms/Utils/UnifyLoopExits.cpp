@@ -16,9 +16,14 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "llvm/Transforms/Utils/UnifyLoopExits.h"
+#include "llvm/ADT/MapVector.h"
+#include "llvm/Analysis/DomTreeUpdater.h"
 #include "llvm/Analysis/LoopInfo.h"
+#include "llvm/IR/Constants.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/InitializePasses.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Transforms/Utils.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 
@@ -26,18 +31,21 @@
 
 using namespace llvm;
 
+static cl::opt<unsigned> MaxBooleansInControlFlowHub(
+    "max-booleans-in-control-flow-hub", cl::init(32), cl::Hidden,
+    cl::desc("Set the maximum number of outgoing blocks for using a boolean "
+             "value to record the exiting block in CreateControlFlowHub."));
+
 namespace {
-struct UnifyLoopExits : public FunctionPass {
+struct UnifyLoopExitsLegacyPass : public FunctionPass {
   static char ID;
-  UnifyLoopExits() : FunctionPass(ID) {
-    initializeUnifyLoopExitsPass(*PassRegistry::getPassRegistry());
+  UnifyLoopExitsLegacyPass() : FunctionPass(ID) {
+    initializeUnifyLoopExitsLegacyPassPass(*PassRegistry::getPassRegistry());
   }
 
   void getAnalysisUsage(AnalysisUsage &AU) const override {
-    AU.addRequiredID(LowerSwitchID);
     AU.addRequired<LoopInfoWrapperPass>();
     AU.addRequired<DominatorTreeWrapperPass>();
-    AU.addPreservedID(LowerSwitchID);
     AU.addPreserved<LoopInfoWrapperPass>();
     AU.addPreserved<DominatorTreeWrapperPass>();
   }
@@ -46,17 +54,18 @@ struct UnifyLoopExits : public FunctionPass {
 };
 } // namespace
 
-char UnifyLoopExits::ID = 0;
+char UnifyLoopExitsLegacyPass::ID = 0;
 
-FunctionPass *llvm::createUnifyLoopExitsPass() { return new UnifyLoopExits(); }
+FunctionPass *llvm::createUnifyLoopExitsPass() {
+  return new UnifyLoopExitsLegacyPass();
+}
 
-INITIALIZE_PASS_BEGIN(UnifyLoopExits, "unify-loop-exits",
+INITIALIZE_PASS_BEGIN(UnifyLoopExitsLegacyPass, "unify-loop-exits",
                       "Fixup each natural loop to have a single exit block",
                       false /* Only looks at CFG */, false /* Analysis Pass */)
-INITIALIZE_PASS_DEPENDENCY(LowerSwitch)
 INITIALIZE_PASS_DEPENDENCY(DominatorTreeWrapperPass)
 INITIALIZE_PASS_DEPENDENCY(LoopInfoWrapperPass)
-INITIALIZE_PASS_END(UnifyLoopExits, "unify-loop-exits",
+INITIALIZE_PASS_END(UnifyLoopExitsLegacyPass, "unify-loop-exits",
                     "Fixup each natural loop to have a single exit block",
                     false /* Only looks at CFG */, false /* Analysis Pass */)
 
@@ -80,9 +89,9 @@ static void restoreSSA(const DominatorTree &DT, const Loop *L,
                        const SetVector<BasicBlock *> &Incoming,
                        BasicBlock *LoopExitBlock) {
   using InstVector = SmallVector<Instruction *, 8>;
-  using IIMap = DenseMap<Instruction *, InstVector>;
+  using IIMap = MapVector<Instruction *, InstVector>;
   IIMap ExternalUsers;
-  for (auto BB : L->blocks()) {
+  for (auto *BB : L->blocks()) {
     for (auto &I : *BB) {
       for (auto &U : I.uses()) {
         auto UserInst = cast<Instruction>(U.getUser());
@@ -101,29 +110,29 @@ static void restoreSSA(const DominatorTree &DT, const Loop *L,
     }
   }
 
-  for (auto II : ExternalUsers) {
+  for (const auto &II : ExternalUsers) {
     // For each Def used outside the loop, create NewPhi in
     // LoopExitBlock. NewPhi receives Def only along exiting blocks that
     // dominate it, while the remaining values are undefined since those paths
     // didn't exist in the original CFG.
     auto Def = II.first;
     LLVM_DEBUG(dbgs() << "externally used: " << Def->getName() << "\n");
-    auto NewPhi = PHINode::Create(Def->getType(), Incoming.size(),
-                                  Def->getName() + ".moved",
-                                  LoopExitBlock->getTerminator());
-    for (auto In : Incoming) {
+    auto NewPhi =
+        PHINode::Create(Def->getType(), Incoming.size(),
+                        Def->getName() + ".moved", &LoopExitBlock->front());
+    for (auto *In : Incoming) {
       LLVM_DEBUG(dbgs() << "predecessor " << In->getName() << ": ");
       if (Def->getParent() == In || DT.dominates(Def, In)) {
         LLVM_DEBUG(dbgs() << "dominated\n");
         NewPhi->addIncoming(Def, In);
       } else {
         LLVM_DEBUG(dbgs() << "not dominated\n");
-        NewPhi->addIncoming(UndefValue::get(Def->getType()), In);
+        NewPhi->addIncoming(PoisonValue::get(Def->getType()), In);
       }
     }
 
     LLVM_DEBUG(dbgs() << "external users:");
-    for (auto U : II.second) {
+    for (auto *U : II.second) {
       LLVM_DEBUG(dbgs() << " " << U->getName());
       U->replaceUsesOfWith(Def, NewPhi);
     }
@@ -143,9 +152,9 @@ static bool unifyLoopExits(DominatorTree &DT, LoopInfo &LI, Loop *L) {
   // We need SetVectors, but the Loop API takes a vector, so we use a temporary.
   SmallVector<BasicBlock *, 8> Temp;
   L->getExitingBlocks(Temp);
-  for (auto BB : Temp) {
+  for (auto *BB : Temp) {
     ExitingBlocks.insert(BB);
-    for (auto S : successors(BB)) {
+    for (auto *S : successors(BB)) {
       auto SL = LI.getLoopFor(S);
       // A successor is not an exit if it is directly or indirectly in the
       // current loop.
@@ -175,8 +184,9 @@ static bool unifyLoopExits(DominatorTree &DT, LoopInfo &LI, Loop *L) {
 
   SmallVector<BasicBlock *, 8> GuardBlocks;
   DomTreeUpdater DTU(DT, DomTreeUpdater::UpdateStrategy::Eager);
-  auto LoopExitBlock = CreateControlFlowHub(&DTU, GuardBlocks, ExitingBlocks,
-                                            Exits, "loop.exit");
+  auto LoopExitBlock =
+      CreateControlFlowHub(&DTU, GuardBlocks, ExitingBlocks, Exits, "loop.exit",
+                           MaxBooleansInControlFlowHub.getValue());
 
   restoreSSA(DT, L, ExitingBlocks, LoopExitBlock);
 
@@ -190,7 +200,7 @@ static bool unifyLoopExits(DominatorTree &DT, LoopInfo &LI, Loop *L) {
   // The guard blocks were created outside the loop, so they need to become
   // members of the parent loop.
   if (auto ParentLoop = L->getParentLoop()) {
-    for (auto G : GuardBlocks) {
+    for (auto *G : GuardBlocks) {
       ParentLoop->addBasicBlockToLoop(G, LI);
     }
     ParentLoop->verifyLoop();
@@ -203,18 +213,41 @@ static bool unifyLoopExits(DominatorTree &DT, LoopInfo &LI, Loop *L) {
   return true;
 }
 
-bool UnifyLoopExits::runOnFunction(Function &F) {
-  LLVM_DEBUG(dbgs() << "===== Unifying loop exits in function " << F.getName()
-                    << "\n");
-  auto &LI = getAnalysis<LoopInfoWrapperPass>().getLoopInfo();
-  auto &DT = getAnalysis<DominatorTreeWrapperPass>().getDomTree();
+static bool runImpl(LoopInfo &LI, DominatorTree &DT) {
 
   bool Changed = false;
   auto Loops = LI.getLoopsInPreorder();
-  for (auto L : Loops) {
+  for (auto *L : Loops) {
     LLVM_DEBUG(dbgs() << "Loop: " << L->getHeader()->getName() << " (depth: "
                       << LI.getLoopDepth(L->getHeader()) << ")\n");
     Changed |= unifyLoopExits(DT, LI, L);
   }
   return Changed;
 }
+
+bool UnifyLoopExitsLegacyPass::runOnFunction(Function &F) {
+  LLVM_DEBUG(dbgs() << "===== Unifying loop exits in function " << F.getName()
+                    << "\n");
+  auto &LI = getAnalysis<LoopInfoWrapperPass>().getLoopInfo();
+  auto &DT = getAnalysis<DominatorTreeWrapperPass>().getDomTree();
+
+  assert(hasOnlySimpleTerminator(F) && "Unsupported block terminator.");
+
+  return runImpl(LI, DT);
+}
+
+namespace llvm {
+
+PreservedAnalyses UnifyLoopExitsPass::run(Function &F,
+                                          FunctionAnalysisManager &AM) {
+  auto &LI = AM.getResult<LoopAnalysis>(F);
+  auto &DT = AM.getResult<DominatorTreeAnalysis>(F);
+
+  if (!runImpl(LI, DT))
+    return PreservedAnalyses::all();
+  PreservedAnalyses PA;
+  PA.preserve<LoopAnalysis>();
+  PA.preserve<DominatorTreeAnalysis>();
+  return PA;
+}
+} // namespace llvm

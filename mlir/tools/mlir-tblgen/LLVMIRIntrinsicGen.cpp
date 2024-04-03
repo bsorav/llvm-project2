@@ -14,28 +14,41 @@
 #include "mlir/TableGen/GenInfo.h"
 
 #include "llvm/ADT/SmallBitVector.h"
+#include "llvm/CodeGen/MachineValueType.h"
 #include "llvm/Support/CommandLine.h"
-#include "llvm/Support/MachineValueType.h"
 #include "llvm/Support/PrettyStackTrace.h"
+#include "llvm/Support/Regex.h"
 #include "llvm/Support/Signals.h"
 #include "llvm/TableGen/Error.h"
 #include "llvm/TableGen/Main.h"
 #include "llvm/TableGen/Record.h"
 #include "llvm/TableGen/TableGenBackend.h"
 
-static llvm::cl::OptionCategory IntrinsicGenCat("Intrinsics Generator Options");
+static llvm::cl::OptionCategory intrinsicGenCat("Intrinsics Generator Options");
 
 static llvm::cl::opt<std::string>
     nameFilter("llvmir-intrinsics-filter",
                llvm::cl::desc("Only keep the intrinsics with the specified "
                               "substring in their record name"),
-               llvm::cl::cat(IntrinsicGenCat));
+               llvm::cl::cat(intrinsicGenCat));
 
 static llvm::cl::opt<std::string>
     opBaseClass("dialect-opclass-base",
                 llvm::cl::desc("The base class for the ops in the dialect we "
                                "are planning to emit"),
-                llvm::cl::init("LLVM_IntrOp"), llvm::cl::cat(IntrinsicGenCat));
+                llvm::cl::init("LLVM_IntrOp"), llvm::cl::cat(intrinsicGenCat));
+
+static llvm::cl::opt<std::string> accessGroupRegexp(
+    "llvmir-intrinsics-access-group-regexp",
+    llvm::cl::desc("Mark intrinsics that match the specified "
+                   "regexp as taking an access group metadata"),
+    llvm::cl::cat(intrinsicGenCat));
+
+static llvm::cl::opt<std::string> aliasAnalysisRegexp(
+    "llvmir-intrinsics-alias-analysis-regexp",
+    llvm::cl::desc("Mark intrinsics that match the specified "
+                   "regexp as taking alias.scopes, noalias, and tbaa metadata"),
+    llvm::cl::cat(intrinsicGenCat));
 
 // Used to represent the indices of overloadable operands/results.
 using IndicesTy = llvm::SmallBitVector;
@@ -52,7 +65,7 @@ static IndicesTy getOverloadableTypeIdxs(const llvm::Record &record,
                                          const char *listName) {
   auto results = record.getValueAsListOfDefs(listName);
   IndicesTy overloadedOps(results.size());
-  for (auto r : llvm::enumerate(results)) {
+  for (const auto &r : llvm::enumerate(results)) {
     llvm::MVT::SimpleValueType vt = getValueType(r.value());
     switch (vt) {
     case llvm::MVT::iAny:
@@ -85,13 +98,13 @@ public:
       return name.str();
 
     name = record.getName();
-    assert(name.startswith("int_") &&
+    assert(name.starts_with("int_") &&
            "LLVM intrinsic names are expected to start with 'int_'");
     name = name.drop_front(4);
     llvm::SmallVector<llvm::StringRef, 8> chunks;
     llvm::StringRef targetPrefix = record.getValueAsString("TargetPrefix");
     name.split(chunks, '_');
-    auto chunksBegin = chunks.begin();
+    auto *chunksBegin = chunks.begin();
     // Remove the target prefix from target specific intrinsics.
     if (!targetPrefix.empty()) {
       assert(targetPrefix == *chunksBegin &&
@@ -108,7 +121,7 @@ public:
   /// Get the name of the record without the "intrinsic" prefix.
   llvm::StringRef getProperRecordName() const {
     llvm::StringRef name = record.getName();
-    assert(name.startswith("int_") &&
+    assert(name.starts_with("int_") &&
            "LLVM intrinsic names are expected to start with 'int_'");
     return name.drop_front(4);
   }
@@ -140,23 +153,17 @@ public:
   /// Return true if the intrinsic may have side effects, i.e. does not have the
   /// `IntrNoMem` property.
   bool hasSideEffects() const {
-    auto props = record.getValueAsListOfDefs(fieldTraits);
-    for (const llvm::Record *r : props) {
-      if (r->getName() == "IntrNoMem")
-        return true;
-    }
-    return false;
+    return llvm::none_of(
+        record.getValueAsListOfDefs(fieldTraits),
+        [](const llvm::Record *r) { return r->getName() == "IntrNoMem"; });
   }
 
   /// Return true if the intrinsic is commutative, i.e. has the respective
   /// property.
   bool isCommutative() const {
-    auto props = record.getValueAsListOfDefs(fieldTraits);
-    for (const llvm::Record *r : props) {
-      if (r->getName() == "Commutative")
-        return true;
-    }
-    return false;
+    return llvm::any_of(
+        record.getValueAsListOfDefs(fieldTraits),
+        [](const llvm::Record *r) { return r->getName() == "Commutative"; });
   }
 
   IndicesTy getOverloadableOperandsIdxs() const {
@@ -191,16 +198,33 @@ void printBracketedRange(const Range &range, llvm::raw_ostream &os) {
 static bool emitIntrinsic(const llvm::Record &record, llvm::raw_ostream &os) {
   LLVMIntrinsic intr(record);
 
+  llvm::Regex accessGroupMatcher(accessGroupRegexp);
+  bool requiresAccessGroup =
+      !accessGroupRegexp.empty() && accessGroupMatcher.match(record.getName());
+
+  llvm::Regex aliasAnalysisMatcher(aliasAnalysisRegexp);
+  bool requiresAliasAnalysis = !aliasAnalysisRegexp.empty() &&
+                               aliasAnalysisMatcher.match(record.getName());
+
   // Prepare strings for traits, if any.
   llvm::SmallVector<llvm::StringRef, 2> traits;
   if (intr.isCommutative())
     traits.push_back("Commutative");
   if (!intr.hasSideEffects())
-    traits.push_back("NoSideEffect");
+    traits.push_back("NoMemoryEffect");
 
   // Prepare strings for operands.
   llvm::SmallVector<llvm::StringRef, 8> operands(intr.getNumOperands(),
                                                  "LLVM_Type");
+  if (requiresAccessGroup)
+    operands.push_back(
+        "OptionalAttr<LLVM_AccessGroupArrayAttr>:$access_groups");
+  if (requiresAliasAnalysis) {
+    operands.push_back("OptionalAttr<LLVM_AliasScopeArrayAttr>:$alias_scopes");
+    operands.push_back(
+        "OptionalAttr<LLVM_AliasScopeArrayAttr>:$noalias_scopes");
+    operands.push_back("OptionalAttr<LLVM_TBAATagArrayAttr>:$tbaa");
+  }
 
   // Emit the definition.
   os << "def LLVM_" << intr.getProperRecordName() << " : " << opBaseClass
@@ -210,7 +234,9 @@ static bool emitIntrinsic(const llvm::Record &record, llvm::raw_ostream &os) {
   printBracketedRange(intr.getOverloadableOperandsIdxs().set_bits(), os);
   os << ", ";
   printBracketedRange(traits, os);
-  os << ", " << (intr.getNumResults() == 0 ? 0 : 1) << ">, Arguments<(ins"
+  os << ", " << intr.getNumResults() << ", "
+     << (requiresAccessGroup ? "1" : "0") << ", "
+     << (requiresAliasAnalysis ? "1" : "0") << ">, Arguments<(ins"
      << (operands.empty() ? "" : " ");
   llvm::interleaveComma(operands, os);
   os << ")>;\n\n";
@@ -223,7 +249,7 @@ static bool emitIntrinsic(const llvm::Record &record, llvm::raw_ostream &os) {
 /// the name matching the filter.
 static bool emitIntrinsics(const llvm::RecordKeeper &records,
                            llvm::raw_ostream &os) {
-  llvm::emitSourceFileHeader("Operations for LLVM intrinsics", os);
+  llvm::emitSourceFileHeader("Operations for LLVM intrinsics", os, records);
   os << "include \"mlir/Dialect/LLVMIR/LLVMOpBase.td\"\n";
   os << "include \"mlir/Interfaces/SideEffectInterfaces.td\"\n\n";
 

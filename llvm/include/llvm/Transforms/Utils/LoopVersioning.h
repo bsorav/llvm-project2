@@ -15,16 +15,17 @@
 #ifndef LLVM_TRANSFORMS_UTILS_LOOPVERSIONING_H
 #define LLVM_TRANSFORMS_UTILS_LOOPVERSIONING_H
 
-#include "llvm/Analysis/ScalarEvolution.h"
+#include "llvm/IR/PassManager.h"
 #include "llvm/Transforms/Utils/LoopUtils.h"
 #include "llvm/Transforms/Utils/ValueMapper.h"
 
 namespace llvm {
 
 class Loop;
+class SCEVPredicate;
+class ScalarEvolution;
 class LoopAccessInfo;
 class LoopInfo;
-class ScalarEvolution;
 struct RuntimeCheckingPtrGroup;
 typedef std::pair<const RuntimeCheckingPtrGroup *,
                   const RuntimeCheckingPtrGroup *>
@@ -43,9 +44,9 @@ public:
   /// It uses runtime check provided by the user. If \p UseLAIChecks is true,
   /// we will retain the default checks made by LAI. Otherwise, construct an
   /// object having no checks and we expect the user to add them.
-  LoopVersioning(const LoopAccessInfo &LAI, Loop *L, LoopInfo *LI,
-                 DominatorTree *DT, ScalarEvolution *SE,
-                 bool UseLAIChecks = true);
+  LoopVersioning(const LoopAccessInfo &LAI,
+                 ArrayRef<RuntimePointerCheck> Checks, Loop *L, LoopInfo *LI,
+                 DominatorTree *DT, ScalarEvolution *SE);
 
   /// Performs the CFG manipulation part of versioning the loop including
   /// the DominatorTree and LoopInfo updates.
@@ -74,12 +75,6 @@ public:
   /// Returns the fall-back loop.  Control flows here if pointers in the
   /// loop may alias (i.e. one of the memchecks failed).
   Loop *getNonVersionedLoop() { return NonVersionedLoop; }
-
-  /// Sets the runtime alias checks for versioning the loop.
-  void setAliasChecks(ArrayRef<RuntimePointerCheck> Checks);
-
-  /// Sets the runtime SCEV checks for versioning the loop.
-  void setSCEVChecks(SCEVUnionPredicate Check);
 
   /// Annotate memory instructions in the versioned loop with no-alias
   /// metadata based on the memchecks issued.
@@ -119,7 +114,7 @@ private:
   Loop *VersionedLoop;
   /// The fall-back loop.  I.e. control flows here if pointers in the
   /// loop may alias (memchecks failed).
-  Loop *NonVersionedLoop;
+  Loop *NonVersionedLoop = nullptr;
 
   /// This maps the instructions from VersionedLoop to their counterpart
   /// in NonVersionedLoop.
@@ -129,7 +124,7 @@ private:
   SmallVector<RuntimePointerCheck, 4> AliasChecks;
 
   /// The set of SCEV checks that we are versioning for.
-  SCEVUnionPredicate Preds;
+  const SCEVPredicate &Preds;
 
   /// Maps a pointer to the pointer checking group that the pointer
   /// belongs to.
@@ -147,6 +142,14 @@ private:
   LoopInfo *LI;
   DominatorTree *DT;
   ScalarEvolution *SE;
+};
+
+/// Expose LoopVersioning as a pass.  Currently this is only used for
+/// unit-testing.  It adds all memchecks necessary to remove all may-aliasing
+/// array accesses from the loop.
+class LoopVersioningPass : public PassInfoMixin<LoopVersioningPass> {
+public:
+  PreservedAnalyses run(Function &F, FunctionAnalysisManager &FAM);
 };
 }
 

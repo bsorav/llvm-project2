@@ -6,15 +6,14 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "llvm/ADT/StringRef.h"
-
 #include "CommandObjectCommands.h"
 #include "CommandObjectHelp.h"
+#include "CommandObjectRegexCommand.h"
 #include "lldb/Core/Debugger.h"
 #include "lldb/Core/IOHandler.h"
 #include "lldb/Interpreter/CommandHistory.h"
 #include "lldb/Interpreter/CommandInterpreter.h"
-#include "lldb/Interpreter/CommandObjectRegexCommand.h"
+#include "lldb/Interpreter/CommandOptionArgumentTable.h"
 #include "lldb/Interpreter/CommandReturnObject.h"
 #include "lldb/Interpreter/OptionArgParser.h"
 #include "lldb/Interpreter/OptionValueBoolean.h"
@@ -24,6 +23,8 @@
 #include "lldb/Interpreter/ScriptInterpreter.h"
 #include "lldb/Utility/Args.h"
 #include "lldb/Utility/StringList.h"
+#include "llvm/ADT/StringRef.h"
+#include <optional>
 
 using namespace lldb;
 using namespace lldb_private;
@@ -39,8 +40,7 @@ public:
       : CommandObjectParsed(
             interpreter, "command source",
             "Read and execute LLDB commands from the file <filename>.",
-            nullptr),
-        m_options() {
+            nullptr) {
     CommandArgumentEntry arg;
     CommandArgumentData file_arg;
 
@@ -58,17 +58,16 @@ public:
 
   ~CommandObjectCommandsSource() override = default;
 
-  const char *GetRepeatCommand(Args &current_command_args,
-                               uint32_t index) override {
-    return "";
+  std::optional<std::string> GetRepeatCommand(Args &current_command_args,
+                                              uint32_t index) override {
+    return std::string("");
   }
 
   void
   HandleArgumentCompletion(CompletionRequest &request,
                            OptionElementVector &opt_element_vector) override {
-    CommandCompletions::InvokeCommonCompletionCallbacks(
-        GetCommandInterpreter(), CommandCompletions::eDiskFileCompletion,
-        request, nullptr);
+    lldb_private::CommandCompletions::InvokeCommonCompletionCallbacks(
+        GetCommandInterpreter(), lldb::eDiskFileCompletion, request, nullptr);
   }
 
   Options *GetOptions() override { return &m_options; }
@@ -77,8 +76,8 @@ protected:
   class CommandOptions : public Options {
   public:
     CommandOptions()
-        : Options(), m_stop_on_error(true), m_silent_run(false),
-          m_stop_on_continue(true) {}
+        : m_stop_on_error(true), m_silent_run(false), m_stop_on_continue(true),
+          m_cmd_relative_to_command_file(false) {}
 
     ~CommandOptions() override = default;
 
@@ -96,6 +95,10 @@ protected:
         error = m_stop_on_continue.SetValueFromString(option_arg);
         break;
 
+      case 'C':
+        m_cmd_relative_to_command_file = true;
+        break;
+
       case 's':
         error = m_silent_run.SetValueFromString(option_arg);
         break;
@@ -111,10 +114,11 @@ protected:
       m_stop_on_error.Clear();
       m_silent_run.Clear();
       m_stop_on_continue.Clear();
+      m_cmd_relative_to_command_file.Clear();
     }
 
     llvm::ArrayRef<OptionDefinition> GetDefinitions() override {
-      return llvm::makeArrayRef(g_source_options);
+      return llvm::ArrayRef(g_source_options);
     }
 
     // Instance variables to hold the values for command options.
@@ -122,28 +126,47 @@ protected:
     OptionValueBoolean m_stop_on_error;
     OptionValueBoolean m_silent_run;
     OptionValueBoolean m_stop_on_continue;
+    OptionValueBoolean m_cmd_relative_to_command_file;
   };
 
-  bool DoExecute(Args &command, CommandReturnObject &result) override {
+  void DoExecute(Args &command, CommandReturnObject &result) override {
     if (command.GetArgumentCount() != 1) {
       result.AppendErrorWithFormat(
           "'%s' takes exactly one executable filename argument.\n",
           GetCommandName().str().c_str());
-      result.SetStatus(eReturnStatusFailed);
-      return false;
+      return;
+    }
+
+    FileSpec source_dir = {};
+    if (m_options.m_cmd_relative_to_command_file) {
+      source_dir = GetDebugger().GetCommandInterpreter().GetCurrentSourceDir();
+      if (!source_dir) {
+        result.AppendError("command source -C can only be specified "
+                           "from a command file");
+        result.SetStatus(eReturnStatusFailed);
+        return;
+      }
     }
 
     FileSpec cmd_file(command[0].ref());
-    FileSystem::Instance().Resolve(cmd_file);
-    ExecutionContext *exe_ctx = nullptr; // Just use the default context.
+    if (source_dir) {
+      // Prepend the source_dir to the cmd_file path:
+      if (!cmd_file.IsRelative()) {
+        result.AppendError("command source -C can only be used "
+                           "with a relative path.");
+        result.SetStatus(eReturnStatusFailed);
+        return;
+      }
+      cmd_file.MakeAbsolute(source_dir);
+    }
 
+    FileSystem::Instance().Resolve(cmd_file);
+
+    CommandInterpreterRunOptions options;
     // If any options were set, then use them
     if (m_options.m_stop_on_error.OptionWasSet() ||
         m_options.m_silent_run.OptionWasSet() ||
         m_options.m_stop_on_continue.OptionWasSet()) {
-      // Use user set settings
-      CommandInterpreterRunOptions options;
-
       if (m_options.m_stop_on_continue.OptionWasSet())
         options.SetStopOnContinue(
             m_options.m_stop_on_continue.GetCurrentValue());
@@ -160,15 +183,9 @@ protected:
         options.SetEchoCommands(m_interpreter.GetEchoCommands());
         options.SetEchoCommentCommands(m_interpreter.GetEchoCommentCommands());
       }
-
-      m_interpreter.HandleCommandsFromFile(cmd_file, exe_ctx, options, result);
-    } else {
-      // No options were set, inherit any settings from nested "command source"
-      // commands, or set to sane default settings...
-      CommandInterpreterRunOptions options;
-      m_interpreter.HandleCommandsFromFile(cmd_file, exe_ctx, options, result);
     }
-    return result.Succeeded();
+
+    m_interpreter.HandleCommandsFromFile(cmd_file, options, result);
   }
 
   CommandOptions m_options;
@@ -183,18 +200,18 @@ protected:
 static const char *g_python_command_instructions =
     "Enter your Python command(s). Type 'DONE' to end.\n"
     "You must define a Python function with this signature:\n"
-    "def my_command_impl(debugger, args, result, internal_dict):\n";
+    "def my_command_impl(debugger, args, exe_ctx, result, internal_dict):\n";
 
 class CommandObjectCommandsAlias : public CommandObjectRaw {
 protected:
   class CommandOptions : public OptionGroup {
   public:
-    CommandOptions() : OptionGroup(), m_help(), m_long_help() {}
+    CommandOptions() = default;
 
     ~CommandOptions() override = default;
 
     llvm::ArrayRef<OptionDefinition> GetDefinitions() override {
-      return llvm::makeArrayRef(g_alias_options);
+      return llvm::ArrayRef(g_alias_options);
     }
 
     Status SetOptionValue(uint32_t option_idx, llvm::StringRef option_value,
@@ -240,8 +257,7 @@ public:
   CommandObjectCommandsAlias(CommandInterpreter &interpreter)
       : CommandObjectRaw(
             interpreter, "command alias",
-            "Define a custom command in terms of an existing command."),
-        m_option_group(), m_command_options() {
+            "Define a custom command in terms of an existing command.") {
     m_option_group.Append(&m_command_options);
     m_option_group.Finalize();
 
@@ -367,11 +383,11 @@ rather than using a positional placeholder:"
   ~CommandObjectCommandsAlias() override = default;
 
 protected:
-  bool DoExecute(llvm::StringRef raw_command_line,
+  void DoExecute(llvm::StringRef raw_command_line,
                  CommandReturnObject &result) override {
     if (raw_command_line.empty()) {
       result.AppendError("'command alias' requires at least two arguments");
-      return false;
+      return;
     }
 
     ExecutionContext exe_ctx = GetCommandInterpreter().GetExecutionContext();
@@ -382,28 +398,26 @@ protected:
     if (args_with_suffix.HasArgs())
       if (!ParseOptionsAndNotify(args_with_suffix.GetArgs(), result,
                                  m_option_group, exe_ctx))
-        return false;
+        return;
 
     llvm::StringRef raw_command_string = args_with_suffix.GetRawPart();
     Args args(raw_command_string);
 
     if (args.GetArgumentCount() < 2) {
       result.AppendError("'command alias' requires at least two arguments");
-      result.SetStatus(eReturnStatusFailed);
-      return false;
+      return;
     }
 
     // Get the alias command.
 
     auto alias_command = args[0].ref();
-    if (alias_command.startswith("-")) {
+    if (alias_command.starts_with("-")) {
       result.AppendError("aliases starting with a dash are not supported");
       if (alias_command == "--help" || alias_command == "--long-help") {
         result.AppendWarning("if trying to pass options to 'command alias' add "
                              "a -- at the end of the options");
       }
-      result.SetStatus(eReturnStatusFailed);
-      return false;
+      return;
     }
 
     // Strip the new alias name off 'raw_command_string'  (leave it on args,
@@ -416,8 +430,7 @@ protected:
         raw_command_string = raw_command_string.substr(pos);
     } else {
       result.AppendError("Error parsing command string.  No alias created.");
-      result.SetStatus(eReturnStatusFailed);
-      return false;
+      return;
     }
 
     // Verify that the command is alias-able.
@@ -425,8 +438,15 @@ protected:
       result.AppendErrorWithFormat(
           "'%s' is a permanent debugger command and cannot be redefined.\n",
           args[0].c_str());
-      result.SetStatus(eReturnStatusFailed);
-      return false;
+      return;
+    }
+
+    if (m_interpreter.UserMultiwordCommandExists(alias_command)) {
+      result.AppendErrorWithFormat(
+          "'%s' is a user container command and cannot be overwritten.\n"
+          "Delete it first with 'command container delete'\n",
+          args[0].c_str());
+      return;
     }
 
     // Get CommandObject that is being aliased. The command name is read from
@@ -441,18 +461,15 @@ protected:
                                    "'%s' does not begin with a valid command."
                                    "  No alias created.",
                                    original_raw_command_string.str().c_str());
-      result.SetStatus(eReturnStatusFailed);
-      return false;
     } else if (!cmd_obj->WantsRawCommandString()) {
       // Note that args was initialized with the original command, and has not
       // been updated to this point. Therefore can we pass it to the version of
       // Execute that does not need/expect raw input in the alias.
-      return HandleAliasingNormalCommand(args, result);
+      HandleAliasingNormalCommand(args, result);
     } else {
-      return HandleAliasingRawCommand(alias_command, raw_command_string,
-                                      *cmd_obj, result);
+      HandleAliasingRawCommand(alias_command, raw_command_string, *cmd_obj,
+                               result);
     }
-    return result.Succeeded();
   }
 
   bool HandleAliasingRawCommand(llvm::StringRef alias_command,
@@ -464,31 +481,32 @@ protected:
     OptionArgVectorSP option_arg_vector_sp =
         OptionArgVectorSP(new OptionArgVector);
 
-    if (CommandObjectSP cmd_obj_sp =
-            m_interpreter.GetCommandSPExact(cmd_obj.GetCommandName(), false)) {
-      if (m_interpreter.AliasExists(alias_command) ||
-          m_interpreter.UserCommandExists(alias_command)) {
-        result.AppendWarningWithFormat(
-            "Overwriting existing definition for '%s'.\n",
-            alias_command.str().c_str());
-      }
-      if (CommandAlias *alias = m_interpreter.AddAlias(
-              alias_command, cmd_obj_sp, raw_command_string)) {
-        if (m_command_options.m_help.OptionWasSet())
-          alias->SetHelp(m_command_options.m_help.GetCurrentValue());
-        if (m_command_options.m_long_help.OptionWasSet())
-          alias->SetHelpLong(m_command_options.m_long_help.GetCurrentValue());
-        result.SetStatus(eReturnStatusSuccessFinishNoResult);
-      } else {
-        result.AppendError("Unable to create requested alias.\n");
-        result.SetStatus(eReturnStatusFailed);
-      }
+    const bool include_aliases = true;
+    // Look up the command using command's name first.  This is to resolve
+    // aliases when you are making nested aliases.  But if you don't find
+    // it that way, then it wasn't an alias and we can just use the object
+    // we were passed in.
+    CommandObjectSP cmd_obj_sp = m_interpreter.GetCommandSPExact(
+            cmd_obj.GetCommandName(), include_aliases);
+    if (!cmd_obj_sp)
+      cmd_obj_sp = cmd_obj.shared_from_this();
 
+    if (m_interpreter.AliasExists(alias_command) ||
+        m_interpreter.UserCommandExists(alias_command)) {
+      result.AppendWarningWithFormat(
+          "Overwriting existing definition for '%s'.\n",
+          alias_command.str().c_str());
+    }
+    if (CommandAlias *alias = m_interpreter.AddAlias(
+            alias_command, cmd_obj_sp, raw_command_string)) {
+      if (m_command_options.m_help.OptionWasSet())
+        alias->SetHelp(m_command_options.m_help.GetCurrentValue());
+      if (m_command_options.m_long_help.OptionWasSet())
+        alias->SetHelpLong(m_command_options.m_long_help.GetCurrentValue());
+      result.SetStatus(eReturnStatusSuccessFinishNoResult);
     } else {
       result.AppendError("Unable to create requested alias.\n");
-      result.SetStatus(eReturnStatusFailed);
     }
-
     return result.Succeeded();
   }
 
@@ -497,7 +515,6 @@ protected:
 
     if (argc < 2) {
       result.AppendError("'command alias' requires at least two arguments");
-      result.SetStatus(eReturnStatusFailed);
       return false;
     }
 
@@ -515,7 +532,14 @@ protected:
       result.AppendErrorWithFormat(
           "'%s' is a permanent debugger command and cannot be redefined.\n",
           alias_command.c_str());
-      result.SetStatus(eReturnStatusFailed);
+      return false;
+    }
+
+    if (m_interpreter.UserMultiwordCommandExists(alias_command)) {
+      result.AppendErrorWithFormat(
+          "'%s' is user container command and cannot be overwritten.\n"
+          "Delete it first with 'command container delete'",
+          alias_command.c_str());
       return false;
     }
 
@@ -526,7 +550,6 @@ protected:
     if (!command_obj_sp) {
       result.AppendErrorWithFormat("'%s' is not an existing command.\n",
                                    actual_command.c_str());
-      result.SetStatus(eReturnStatusFailed);
       return false;
     }
     CommandObject *cmd_obj = command_obj_sp.get();
@@ -543,7 +566,6 @@ protected:
             "'%s' is not a valid sub-command of '%s'.  "
             "Unable to create alias.\n",
             args[0].c_str(), actual_command.c_str());
-        result.SetStatus(eReturnStatusFailed);
         return false;
       }
 
@@ -559,10 +581,9 @@ protected:
 
     if (!args.empty()) {
       CommandObjectSP tmp_sp =
-          m_interpreter.GetCommandSPExact(cmd_obj->GetCommandName(), false);
+          m_interpreter.GetCommandSPExact(cmd_obj->GetCommandName());
       if (use_subcommand)
-        tmp_sp = m_interpreter.GetCommandSPExact(sub_cmd_obj->GetCommandName(),
-                                                 false);
+        tmp_sp = m_interpreter.GetCommandSPExact(sub_cmd_obj->GetCommandName());
 
       args.GetCommandString(args_string);
     }
@@ -583,7 +604,6 @@ protected:
       result.SetStatus(eReturnStatusSuccessFinishNoResult);
     } else {
       result.AppendError("Unable to create requested alias.\n");
-      result.SetStatus(eReturnStatusFailed);
       return false;
     }
 
@@ -618,15 +638,25 @@ public:
 
   ~CommandObjectCommandsUnalias() override = default;
 
+  void
+  HandleArgumentCompletion(CompletionRequest &request,
+                           OptionElementVector &opt_element_vector) override {
+    if (!m_interpreter.HasCommands() || request.GetCursorIndex() != 0)
+      return;
+
+    for (const auto &ent : m_interpreter.GetAliases()) {
+      request.TryCompleteCurrentArg(ent.first, ent.second->GetHelp());
+    }
+  }
+
 protected:
-  bool DoExecute(Args &args, CommandReturnObject &result) override {
+  void DoExecute(Args &args, CommandReturnObject &result) override {
     CommandObject::CommandMap::iterator pos;
     CommandObject *cmd_obj;
 
     if (args.empty()) {
       result.AppendError("must call 'unalias' with a valid alias");
-      result.SetStatus(eReturnStatusFailed);
-      return false;
+      return;
     }
 
     auto command_name = args[0].ref();
@@ -636,8 +666,7 @@ protected:
           "'%s' is not a known command.\nTry 'help' to see a "
           "current list of commands.\n",
           args[0].c_str());
-      result.SetStatus(eReturnStatusFailed);
-      return false;
+      return;
     }
 
     if (m_interpreter.CommandExists(command_name)) {
@@ -651,8 +680,7 @@ protected:
             "'%s' is a permanent debugger command and cannot be removed.\n",
             args[0].c_str());
       }
-      result.SetStatus(eReturnStatusFailed);
-      return false;
+      return;
     }
 
     if (!m_interpreter.RemoveAlias(command_name)) {
@@ -663,12 +691,10 @@ protected:
       else
         result.AppendErrorWithFormat("'%s' is not an existing alias.\n",
                                      args[0].c_str());
-      result.SetStatus(eReturnStatusFailed);
-      return false;
+      return;
     }
 
     result.SetStatus(eReturnStatusSuccessFinishNoResult);
-    return result.Succeeded();
   }
 };
 
@@ -699,16 +725,27 @@ public:
 
   ~CommandObjectCommandsDelete() override = default;
 
+  void
+  HandleArgumentCompletion(CompletionRequest &request,
+                           OptionElementVector &opt_element_vector) override {
+    if (!m_interpreter.HasCommands() || request.GetCursorIndex() != 0)
+      return;
+
+    for (const auto &ent : m_interpreter.GetCommands()) {
+      if (ent.second->IsRemovable())
+        request.TryCompleteCurrentArg(ent.first, ent.second->GetHelp());
+    }
+  }
+
 protected:
-  bool DoExecute(Args &args, CommandReturnObject &result) override {
+  void DoExecute(Args &args, CommandReturnObject &result) override {
     CommandObject::CommandMap::iterator pos;
 
     if (args.empty()) {
       result.AppendErrorWithFormat("must call '%s' with one or more valid user "
                                    "defined regular expression command names",
                                    GetCommandName().str().c_str());
-      result.SetStatus(eReturnStatusFailed);
-      return false;
+      return;
     }
 
     auto command_name = args[0].ref();
@@ -720,20 +757,17 @@ protected:
           &error_msg_stream, command_name, llvm::StringRef(), llvm::StringRef(),
           generate_upropos, generate_type_lookup);
       result.AppendError(error_msg_stream.GetString());
-      result.SetStatus(eReturnStatusFailed);
-      return false;
+      return;
     }
 
     if (!m_interpreter.RemoveCommand(command_name)) {
       result.AppendErrorWithFormat(
           "'%s' is a permanent debugger command and cannot be removed.\n",
           args[0].c_str());
-      result.SetStatus(eReturnStatusFailed);
-      return false;
+      return;
     }
 
     result.SetStatus(eReturnStatusSuccessFinishNoResult);
-    return true;
   }
 };
 
@@ -755,8 +789,7 @@ public:
             "regular expressions.",
             "command regex <cmd-name> [s/<regex>/<subst>/ ...]"),
         IOHandlerDelegateMultiline("",
-                                   IOHandlerDelegate::Completion::LLDBCommand),
-        m_options() {
+                                   IOHandlerDelegate::Completion::LLDBCommand) {
     SetHelpLong(
         R"(
 )"
@@ -789,6 +822,8 @@ a number follows 'f':"
         R"(
 
     (lldb) command regex f s/^$/finish/ 's/([0-9]+)/frame select %1/')");
+    CommandArgumentData thread_arg{eArgTypeSEDStylePair, eArgRepeatOptional};
+    m_arguments.push_back({thread_arg});
   }
 
   ~CommandObjectCommandsAddRegex() override = default;
@@ -828,19 +863,18 @@ protected:
     }
   }
 
-  bool DoExecute(Args &command, CommandReturnObject &result) override {
+  void DoExecute(Args &command, CommandReturnObject &result) override {
     const size_t argc = command.GetArgumentCount();
     if (argc == 0) {
       result.AppendError("usage: 'command regex <command-name> "
                          "[s/<regex1>/<subst1>/ s/<regex2>/<subst2>/ ...]'\n");
-      result.SetStatus(eReturnStatusFailed);
-      return false;
+      return;
     }
 
     Status error;
     auto name = command[0].ref();
     m_regex_cmd_up = std::make_unique<CommandObjectRegexCommand>(
-        m_interpreter, name, m_options.GetHelp(), m_options.GetSyntax(), 10, 0,
+        m_interpreter, name, m_options.GetHelp(), m_options.GetSyntax(), 0,
         true);
 
     if (argc == 1) {
@@ -854,7 +888,7 @@ protected:
           llvm::StringRef(),     // Continuation prompt
           multiple_lines, color_prompt,
           0, // Don't show line numbers
-          *this, nullptr));
+          *this));
 
       if (io_handler_sp) {
         debugger.RunIOHandlerAsync(io_handler_sp);
@@ -874,10 +908,7 @@ protected:
     }
     if (error.Fail()) {
       result.AppendError(error.AsCString());
-      result.SetStatus(eReturnStatusFailed);
     }
-
-    return result.Succeeded();
   }
 
   Status AppendRegexSubstitution(const llvm::StringRef &regex_sed,
@@ -989,7 +1020,7 @@ private:
 
   class CommandOptions : public Options {
   public:
-    CommandOptions() : Options() {}
+    CommandOptions() = default;
 
     ~CommandOptions() override = default;
 
@@ -1018,7 +1049,7 @@ private:
     }
 
     llvm::ArrayRef<OptionDefinition> GetDefinitions() override {
-      return llvm::makeArrayRef(g_regex_options);
+      return llvm::ArrayRef(g_regex_options);
     }
 
     llvm::StringRef GetHelp() { return m_help; }
@@ -1041,9 +1072,10 @@ class CommandObjectPythonFunction : public CommandObjectRaw {
 public:
   CommandObjectPythonFunction(CommandInterpreter &interpreter, std::string name,
                               std::string funct, std::string help,
-                              ScriptedCommandSynchronicity synch)
+                              ScriptedCommandSynchronicity synch,
+                              CompletionType completion_type)
       : CommandObjectRaw(interpreter, name), m_function_name(funct),
-        m_synchro(synch), m_fetched_help_long(false) {
+        m_synchro(synch), m_completion_type(completion_type) {
     if (!help.empty())
       SetHelp(help);
     else {
@@ -1077,8 +1109,17 @@ public:
     return CommandObjectRaw::GetHelpLong();
   }
 
+  void
+  HandleArgumentCompletion(CompletionRequest &request,
+                           OptionElementVector &opt_element_vector) override {
+    lldb_private::CommandCompletions::InvokeCommonCompletionCallbacks(
+        GetCommandInterpreter(), m_completion_type, request, nullptr);
+  }
+
+  bool WantsCompletion() override { return true; }
+
 protected:
-  bool DoExecute(llvm::StringRef raw_command_line,
+  void DoExecute(llvm::StringRef raw_command_line,
                  CommandReturnObject &result) override {
     ScriptInterpreter *scripter = GetDebugger().GetScriptInterpreter();
 
@@ -1090,7 +1131,6 @@ protected:
                          m_function_name.c_str(), raw_command_line, m_synchro,
                          result, error, m_exe_ctx)) {
       result.AppendError(error.AsCString());
-      result.SetStatus(eReturnStatusFailed);
     } else {
       // Don't change the status if the command already set it...
       if (result.GetStatus() == eReturnStatusInvalid) {
@@ -1100,14 +1140,13 @@ protected:
           result.SetStatus(eReturnStatusSuccessFinishResult);
       }
     }
-
-    return result.Succeeded();
   }
 
 private:
   std::string m_function_name;
   ScriptedCommandSynchronicity m_synchro;
-  bool m_fetched_help_long;
+  bool m_fetched_help_long = false;
+  CompletionType m_completion_type = eNoCompletion;
 };
 
 class CommandObjectScriptingObject : public CommandObjectRaw {
@@ -1115,10 +1154,11 @@ public:
   CommandObjectScriptingObject(CommandInterpreter &interpreter,
                                std::string name,
                                StructuredData::GenericSP cmd_obj_sp,
-                               ScriptedCommandSynchronicity synch)
+                               ScriptedCommandSynchronicity synch,
+                               CompletionType completion_type)
       : CommandObjectRaw(interpreter, name), m_cmd_obj_sp(cmd_obj_sp),
         m_synchro(synch), m_fetched_help_short(false),
-        m_fetched_help_long(false) {
+        m_fetched_help_long(false), m_completion_type(completion_type) {
     StreamString stream;
     stream.Printf("For more information run 'help %s'", name.c_str());
     SetHelp(stream.GetString());
@@ -1127,6 +1167,15 @@ public:
   }
 
   ~CommandObjectScriptingObject() override = default;
+
+  void
+  HandleArgumentCompletion(CompletionRequest &request,
+                           OptionElementVector &opt_element_vector) override {
+    lldb_private::CommandCompletions::InvokeCommonCompletionCallbacks(
+        GetCommandInterpreter(), m_completion_type, request, nullptr);
+  }
+
+  bool WantsCompletion() override { return true; }
 
   bool IsRemovable() const override { return true; }
 
@@ -1164,7 +1213,7 @@ public:
   }
 
 protected:
-  bool DoExecute(llvm::StringRef raw_command_line,
+  void DoExecute(llvm::StringRef raw_command_line,
                  CommandReturnObject &result) override {
     ScriptInterpreter *scripter = GetDebugger().GetScriptInterpreter();
 
@@ -1176,7 +1225,6 @@ protected:
         !scripter->RunScriptBasedCommand(m_cmd_obj_sp, raw_command_line,
                                          m_synchro, result, error, m_exe_ctx)) {
       result.AppendError(error.AsCString());
-      result.SetStatus(eReturnStatusFailed);
     } else {
       // Don't change the status if the command already set it...
       if (result.GetStatus() == eReturnStatusInvalid) {
@@ -1186,8 +1234,6 @@ protected:
           result.SetStatus(eReturnStatusSuccessFinishResult);
       }
     }
-
-    return result.Succeeded();
   }
 
 private:
@@ -1195,6 +1241,7 @@ private:
   ScriptedCommandSynchronicity m_synchro;
   bool m_fetched_help_short : 1;
   bool m_fetched_help_long : 1;
+  CompletionType m_completion_type = eNoCompletion;
 };
 
 // CommandObjectCommandsScriptImport
@@ -1205,8 +1252,7 @@ class CommandObjectCommandsScriptImport : public CommandObjectParsed {
 public:
   CommandObjectCommandsScriptImport(CommandInterpreter &interpreter)
       : CommandObjectParsed(interpreter, "command script import",
-                            "Import a scripting module in LLDB.", nullptr),
-        m_options() {
+                            "Import a scripting module in LLDB.", nullptr) {
     CommandArgumentEntry arg1;
     CommandArgumentData cmd_arg;
 
@@ -1227,9 +1273,8 @@ public:
   void
   HandleArgumentCompletion(CompletionRequest &request,
                            OptionElementVector &opt_element_vector) override {
-    CommandCompletions::InvokeCommonCompletionCallbacks(
-        GetCommandInterpreter(), CommandCompletions::eDiskFileCompletion,
-        request, nullptr);
+    lldb_private::CommandCompletions::InvokeCommonCompletionCallbacks(
+        GetCommandInterpreter(), lldb::eDiskFileCompletion, request, nullptr);
   }
 
   Options *GetOptions() override { return &m_options; }
@@ -1237,7 +1282,7 @@ public:
 protected:
   class CommandOptions : public Options {
   public:
-    CommandOptions() : Options() {}
+    CommandOptions() = default;
 
     ~CommandOptions() override = default;
 
@@ -1250,6 +1295,12 @@ protected:
       case 'r':
         // NO-OP
         break;
+      case 'c':
+        relative_to_command_file = true;
+        break;
+      case 's':
+        silent = true;
+        break;
       default:
         llvm_unreachable("Unimplemented option");
       }
@@ -1258,24 +1309,39 @@ protected:
     }
 
     void OptionParsingStarting(ExecutionContext *execution_context) override {
+      relative_to_command_file = false;
     }
 
     llvm::ArrayRef<OptionDefinition> GetDefinitions() override {
-      return llvm::makeArrayRef(g_script_import_options);
+      return llvm::ArrayRef(g_script_import_options);
     }
+    bool relative_to_command_file = false;
+    bool silent = false;
   };
 
-  bool DoExecute(Args &command, CommandReturnObject &result) override {
+  void DoExecute(Args &command, CommandReturnObject &result) override {
     if (command.empty()) {
       result.AppendError("command script import needs one or more arguments");
-      result.SetStatus(eReturnStatusFailed);
-      return false;
+      return;
+    }
+
+    FileSpec source_dir = {};
+    if (m_options.relative_to_command_file) {
+      source_dir = GetDebugger().GetCommandInterpreter().GetCurrentSourceDir();
+      if (!source_dir) {
+        result.AppendError("command script import -c can only be specified "
+                           "from a command file");
+        return;
+      }
     }
 
     for (auto &entry : command.entries()) {
       Status error;
 
-      const bool init_session = true;
+      LoadScriptOptions options;
+      options.SetInitSession(true);
+      options.SetSilent(m_options.silent);
+
       // FIXME: this is necessary because CommandObject::CheckRequirements()
       // assumes that commands won't ever be recursively invoked, but it's
       // actually possible to craft a Python script that does other "command
@@ -1286,43 +1352,18 @@ protected:
       // more)
       m_exe_ctx.Clear();
       if (GetDebugger().GetScriptInterpreter()->LoadScriptingModule(
-              entry.c_str(), init_session, error)) {
+              entry.c_str(), options, error, /*module_sp=*/nullptr,
+              source_dir)) {
         result.SetStatus(eReturnStatusSuccessFinishNoResult);
       } else {
         result.AppendErrorWithFormat("module importing failed: %s",
                                      error.AsCString());
-        result.SetStatus(eReturnStatusFailed);
       }
     }
-
-    return result.Succeeded();
   }
 
   CommandOptions m_options;
 };
-
-// CommandObjectCommandsScriptAdd
-static constexpr OptionEnumValueElement g_script_synchro_type[] = {
-    {
-        eScriptedCommandSynchronicitySynchronous,
-        "synchronous",
-        "Run synchronous",
-    },
-    {
-        eScriptedCommandSynchronicityAsynchronous,
-        "asynchronous",
-        "Run asynchronous",
-    },
-    {
-        eScriptedCommandSynchronicityCurrentValue,
-        "current",
-        "Do not alter current setting",
-    },
-};
-
-static constexpr OptionEnumValues ScriptSynchroType() {
-  return OptionEnumValues(g_script_synchro_type);
-}
 
 #define LLDB_OPTIONS_script_add
 #include "CommandOptions.inc"
@@ -1333,14 +1374,21 @@ public:
   CommandObjectCommandsScriptAdd(CommandInterpreter &interpreter)
       : CommandObjectParsed(interpreter, "command script add",
                             "Add a scripted function as an LLDB command.",
-                            nullptr),
-        IOHandlerDelegateMultiline("DONE"), m_options() {
+                            "Add a scripted function as an lldb command. "
+                            "If you provide a single argument, the command "
+                            "will be added at the root level of the command "
+                            "hierarchy.  If there are more arguments they "
+                            "must be a path to a user-added container "
+                            "command, and the last element will be the new "
+                            "command name."),
+        IOHandlerDelegateMultiline("DONE") {
     CommandArgumentEntry arg1;
     CommandArgumentData cmd_arg;
 
-    // Define the first (and only) variant of this arg.
-    cmd_arg.arg_type = eArgTypeCommandName;
-    cmd_arg.arg_repetition = eArgRepeatPlain;
+    // This is one or more command names, which form the path to the command
+    // you want to add.
+    cmd_arg.arg_type = eArgTypeCommand;
+    cmd_arg.arg_repetition = eArgRepeatPlus;
 
     // There is only one variant this argument could be; put it into the
     // argument entry.
@@ -1354,12 +1402,17 @@ public:
 
   Options *GetOptions() override { return &m_options; }
 
+  void
+  HandleArgumentCompletion(CompletionRequest &request,
+                           OptionElementVector &opt_element_vector) override {
+    CommandCompletions::CompleteModifiableCmdPathArgs(m_interpreter, request,
+                                                      opt_element_vector);
+  }
+
 protected:
   class CommandOptions : public Options {
   public:
-    CommandOptions()
-        : Options(), m_class_name(), m_funct_name(), m_short_help(),
-          m_synchronicity(eScriptedCommandSynchronicitySynchronous) {}
+    CommandOptions() = default;
 
     ~CommandOptions() override = default;
 
@@ -1381,6 +1434,9 @@ protected:
         if (!option_arg.empty())
           m_short_help = std::string(option_arg);
         break;
+      case 'o':
+        m_overwrite_lazy = eLazyBoolYes;
+        break;
       case 's':
         m_synchronicity =
             (ScriptedCommandSynchronicity)OptionArgParser::ToOptionEnum(
@@ -1390,6 +1446,18 @@ protected:
               "unrecognized value for synchronicity '%s'",
               option_arg.str().c_str());
         break;
+      case 'C': {
+        Status error;
+        OptionDefinition definition = GetDefinitions()[option_idx];
+        lldb::CompletionType completion_type =
+            static_cast<lldb::CompletionType>(OptionArgParser::ToOptionEnum(
+                option_arg, definition.enum_values, eNoCompletion, error));
+        if (!error.Success())
+          error.SetErrorStringWithFormat(
+              "unrecognized value for command completion type '%s'",
+              option_arg.str().c_str());
+        m_completion_type = completion_type;
+      } break;
       default:
         llvm_unreachable("Unimplemented option");
       }
@@ -1401,11 +1469,13 @@ protected:
       m_class_name.clear();
       m_funct_name.clear();
       m_short_help.clear();
+      m_completion_type = eNoCompletion;
+      m_overwrite_lazy = eLazyBoolCalculate;
       m_synchronicity = eScriptedCommandSynchronicitySynchronous;
     }
 
     llvm::ArrayRef<OptionDefinition> GetDefinitions() override {
-      return llvm::makeArrayRef(g_script_add_options);
+      return llvm::ArrayRef(g_script_add_options);
     }
 
     // Instance variables to hold the values for command options.
@@ -1413,7 +1483,10 @@ protected:
     std::string m_class_name;
     std::string m_funct_name;
     std::string m_short_help;
-    ScriptedCommandSynchronicity m_synchronicity;
+    LazyBool m_overwrite_lazy = eLazyBoolCalculate;
+    ScriptedCommandSynchronicity m_synchronicity =
+        eScriptedCommandSynchronicitySynchronous;
+    CompletionType m_completion_type = eNoCompletion;
   };
 
   void IOHandlerActivated(IOHandler &io_handler, bool interactive) override {
@@ -1430,7 +1503,6 @@ protected:
 
     ScriptInterpreter *interpreter = GetDebugger().GetScriptInterpreter();
     if (interpreter) {
-
       StringList lines;
       lines.SplitIntoLines(data);
       if (lines.GetSize() > 0) {
@@ -1445,101 +1517,146 @@ protected:
 
             CommandObjectSP command_obj_sp(new CommandObjectPythonFunction(
                 m_interpreter, m_cmd_name, funct_name_str, m_short_help,
-                m_synchronicity));
-
-            if (!m_interpreter.AddUserCommand(m_cmd_name, command_obj_sp,
-                                              true)) {
-              error_sp->Printf("error: unable to add selected command, didn't "
-                               "add python command.\n");
-              error_sp->Flush();
+                m_synchronicity, m_completion_type));
+            if (!m_container) {
+              Status error = m_interpreter.AddUserCommand(
+                  m_cmd_name, command_obj_sp, m_overwrite);
+              if (error.Fail()) {
+                error_sp->Printf("error: unable to add selected command: '%s'",
+                                 error.AsCString());
+                error_sp->Flush();
+              }
+            } else {
+              llvm::Error llvm_error = m_container->LoadUserSubcommand(
+                  m_cmd_name, command_obj_sp, m_overwrite);
+              if (llvm_error) {
+                error_sp->Printf("error: unable to add selected command: '%s'",
+                               llvm::toString(std::move(llvm_error)).c_str());
+                error_sp->Flush();
+              }
             }
           }
         } else {
           error_sp->Printf(
-              "error: unable to create function, didn't add python command.\n");
+              "error: unable to create function, didn't add python command\n");
           error_sp->Flush();
         }
       } else {
-        error_sp->Printf("error: empty function, didn't add python command.\n");
+        error_sp->Printf("error: empty function, didn't add python command\n");
         error_sp->Flush();
       }
     } else {
       error_sp->Printf(
-          "error: script interpreter missing, didn't add python command.\n");
+          "error: script interpreter missing, didn't add python command\n");
       error_sp->Flush();
     }
 
     io_handler.SetIsDone(true);
   }
 
-  bool DoExecute(Args &command, CommandReturnObject &result) override {
+  void DoExecute(Args &command, CommandReturnObject &result) override {
     if (GetDebugger().GetScriptLanguage() != lldb::eScriptLanguagePython) {
       result.AppendError("only scripting language supported for scripted "
                          "commands is currently Python");
-      result.SetStatus(eReturnStatusFailed);
-      return false;
+      return;
     }
 
-    if (command.GetArgumentCount() != 1) {
-      result.AppendError("'command script add' requires one argument");
-      result.SetStatus(eReturnStatusFailed);
-      return false;
+    if (command.GetArgumentCount() == 0) {
+      result.AppendError("'command script add' requires at least one argument");
+      return;
+    }
+    // Store the options in case we get multi-line input, also figure out the
+    // default if not user supplied:
+    switch (m_options.m_overwrite_lazy) {
+      case eLazyBoolCalculate:
+        m_overwrite = !GetDebugger().GetCommandInterpreter().GetRequireCommandOverwrite();
+        break;
+      case eLazyBoolYes:
+        m_overwrite = true;
+        break;
+      case eLazyBoolNo:
+        m_overwrite = false;
+    }
+    
+    Status path_error;
+    m_container = GetCommandInterpreter().VerifyUserMultiwordCmdPath(
+        command, true, path_error);
+
+    if (path_error.Fail()) {
+      result.AppendErrorWithFormat("error in command path: %s",
+                                   path_error.AsCString());
+      return;
     }
 
-    // Store the options in case we get multi-line input
-    m_cmd_name = std::string(command[0].ref());
+    if (!m_container) {
+      // This is getting inserted into the root of the interpreter.
+      m_cmd_name = std::string(command[0].ref());
+    } else {
+      size_t num_args = command.GetArgumentCount();
+      m_cmd_name = std::string(command[num_args - 1].ref());
+    }
+
     m_short_help.assign(m_options.m_short_help);
     m_synchronicity = m_options.m_synchronicity;
+    m_completion_type = m_options.m_completion_type;
 
+    // Handle the case where we prompt for the script code first:
+    if (m_options.m_class_name.empty() && m_options.m_funct_name.empty()) {
+      m_interpreter.GetPythonCommandsFromIOHandler("     ", // Prompt
+                                                   *this);  // IOHandlerDelegate
+      return;
+    }
+
+    CommandObjectSP new_cmd_sp;
     if (m_options.m_class_name.empty()) {
-      if (m_options.m_funct_name.empty()) {
-        m_interpreter.GetPythonCommandsFromIOHandler(
-            "     ", // Prompt
-            *this);  // IOHandlerDelegate
-      } else {
-        CommandObjectSP new_cmd(new CommandObjectPythonFunction(
-            m_interpreter, m_cmd_name, m_options.m_funct_name,
-            m_options.m_short_help, m_synchronicity));
-        if (m_interpreter.AddUserCommand(m_cmd_name, new_cmd, true)) {
-          result.SetStatus(eReturnStatusSuccessFinishNoResult);
-        } else {
-          result.AppendError("cannot add command");
-          result.SetStatus(eReturnStatusFailed);
-        }
-      }
+      new_cmd_sp.reset(new CommandObjectPythonFunction(
+          m_interpreter, m_cmd_name, m_options.m_funct_name,
+          m_options.m_short_help, m_synchronicity, m_completion_type));
     } else {
       ScriptInterpreter *interpreter = GetDebugger().GetScriptInterpreter();
       if (!interpreter) {
         result.AppendError("cannot find ScriptInterpreter");
-        result.SetStatus(eReturnStatusFailed);
-        return false;
+        return;
       }
 
       auto cmd_obj_sp = interpreter->CreateScriptCommandObject(
           m_options.m_class_name.c_str());
       if (!cmd_obj_sp) {
-        result.AppendError("cannot create helper object");
-        result.SetStatus(eReturnStatusFailed);
-        return false;
+        result.AppendErrorWithFormatv("cannot create helper object for: "
+                                      "'{0}'", m_options.m_class_name);
+        return;
       }
 
-      CommandObjectSP new_cmd(new CommandObjectScriptingObject(
-          m_interpreter, m_cmd_name, cmd_obj_sp, m_synchronicity));
-      if (m_interpreter.AddUserCommand(m_cmd_name, new_cmd, true)) {
-        result.SetStatus(eReturnStatusSuccessFinishNoResult);
-      } else {
-        result.AppendError("cannot add command");
-        result.SetStatus(eReturnStatusFailed);
-      }
+      new_cmd_sp.reset(new CommandObjectScriptingObject(
+          m_interpreter, m_cmd_name, cmd_obj_sp, m_synchronicity,
+          m_completion_type));
     }
-
-    return result.Succeeded();
+    
+    // Assume we're going to succeed...
+    result.SetStatus(eReturnStatusSuccessFinishNoResult);
+    if (!m_container) {
+      Status add_error =
+          m_interpreter.AddUserCommand(m_cmd_name, new_cmd_sp, m_overwrite);
+      if (add_error.Fail())
+        result.AppendErrorWithFormat("cannot add command: %s",
+                                     add_error.AsCString());
+    } else {
+      llvm::Error llvm_error =
+          m_container->LoadUserSubcommand(m_cmd_name, new_cmd_sp, m_overwrite);
+      if (llvm_error)
+        result.AppendErrorWithFormat("cannot add command: %s", 
+                                     llvm::toString(std::move(llvm_error)).c_str());
+    }
   }
 
   CommandOptions m_options;
   std::string m_cmd_name;
+  CommandObjectMultiword *m_container = nullptr;
   std::string m_short_help;
-  ScriptedCommandSynchronicity m_synchronicity;
+  bool m_overwrite = false;
+  ScriptedCommandSynchronicity m_synchronicity =
+      eScriptedCommandSynchronicitySynchronous;
+  CompletionType m_completion_type = eNoCompletion;
 };
 
 // CommandObjectCommandsScriptList
@@ -1548,22 +1665,15 @@ class CommandObjectCommandsScriptList : public CommandObjectParsed {
 public:
   CommandObjectCommandsScriptList(CommandInterpreter &interpreter)
       : CommandObjectParsed(interpreter, "command script list",
-                            "List defined scripted commands.", nullptr) {}
+                            "List defined top-level scripted commands.",
+                            nullptr) {}
 
   ~CommandObjectCommandsScriptList() override = default;
 
-  bool DoExecute(Args &command, CommandReturnObject &result) override {
-    if (command.GetArgumentCount() != 0) {
-      result.AppendError("'command script list' doesn't take any arguments");
-      result.SetStatus(eReturnStatusFailed);
-      return false;
-    }
-
+  void DoExecute(Args &command, CommandReturnObject &result) override {
     m_interpreter.GetHelp(result, CommandInterpreter::eCommandTypesUserDef);
 
     result.SetStatus(eReturnStatusSuccessFinishResult);
-
-    return true;
   }
 };
 
@@ -1578,18 +1688,10 @@ public:
   ~CommandObjectCommandsScriptClear() override = default;
 
 protected:
-  bool DoExecute(Args &command, CommandReturnObject &result) override {
-    if (command.GetArgumentCount() != 0) {
-      result.AppendError("'command script clear' doesn't take any arguments");
-      result.SetStatus(eReturnStatusFailed);
-      return false;
-    }
-
+  void DoExecute(Args &command, CommandReturnObject &result) override {
     m_interpreter.RemoveAllUser();
 
     result.SetStatus(eReturnStatusSuccessFinishResult);
-
-    return true;
   }
 };
 
@@ -1598,14 +1700,17 @@ protected:
 class CommandObjectCommandsScriptDelete : public CommandObjectParsed {
 public:
   CommandObjectCommandsScriptDelete(CommandInterpreter &interpreter)
-      : CommandObjectParsed(interpreter, "command script delete",
-                            "Delete a scripted command.", nullptr) {
+      : CommandObjectParsed(
+            interpreter, "command script delete",
+            "Delete a scripted command by specifying the path to the command.",
+            nullptr) {
     CommandArgumentEntry arg1;
     CommandArgumentData cmd_arg;
 
-    // Define the first (and only) variant of this arg.
-    cmd_arg.arg_type = eArgTypeCommandName;
-    cmd_arg.arg_repetition = eArgRepeatPlain;
+    // This is a list of command names forming the path to the command
+    // to be deleted.
+    cmd_arg.arg_type = eArgTypeCommand;
+    cmd_arg.arg_repetition = eArgRepeatPlus;
 
     // There is only one variant this argument could be; put it into the
     // argument entry.
@@ -1620,34 +1725,87 @@ public:
   void
   HandleArgumentCompletion(CompletionRequest &request,
                            OptionElementVector &opt_element_vector) override {
-    if (!m_interpreter.HasCommands() || request.GetCursorIndex() != 0)
-      return;
-
-    for (const auto &c : m_interpreter.GetUserCommands())
-      request.TryCompleteCurrentArg(c.first, c.second->GetHelp());
+    lldb_private::CommandCompletions::CompleteModifiableCmdPathArgs(
+        m_interpreter, request, opt_element_vector);
   }
 
 protected:
-  bool DoExecute(Args &command, CommandReturnObject &result) override {
+  void DoExecute(Args &command, CommandReturnObject &result) override {
 
-    if (command.GetArgumentCount() != 1) {
-      result.AppendError("'command script delete' requires one argument");
-      result.SetStatus(eReturnStatusFailed);
-      return false;
+    llvm::StringRef root_cmd = command[0].ref();
+    size_t num_args = command.GetArgumentCount();
+
+    if (root_cmd.empty()) {
+      result.AppendErrorWithFormat("empty root command name");
+      return;
+    }
+    if (!m_interpreter.HasUserCommands() &&
+        !m_interpreter.HasUserMultiwordCommands()) {
+      result.AppendErrorWithFormat("can only delete user defined commands, "
+                                   "but no user defined commands found");
+      return;
     }
 
-    auto cmd_name = command[0].ref();
-
-    if (cmd_name.empty() || !m_interpreter.HasUserCommands() ||
-        !m_interpreter.UserCommandExists(cmd_name)) {
-      result.AppendErrorWithFormat("command %s not found", command[0].c_str());
-      result.SetStatus(eReturnStatusFailed);
-      return false;
+    CommandObjectSP cmd_sp = m_interpreter.GetCommandSPExact(root_cmd);
+    if (!cmd_sp) {
+      result.AppendErrorWithFormat("command '%s' not found.",
+                                   command[0].c_str());
+      return;
+    }
+    if (!cmd_sp->IsUserCommand()) {
+      result.AppendErrorWithFormat("command '%s' is not a user command.",
+                                   command[0].c_str());
+      return;
+    }
+    if (cmd_sp->GetAsMultiwordCommand() && num_args == 1) {
+      result.AppendErrorWithFormat("command '%s' is a multi-word command.\n "
+                                   "Delete with \"command container delete\"",
+                                   command[0].c_str());
+      return;
     }
 
-    m_interpreter.RemoveUser(cmd_name);
+    if (command.GetArgumentCount() == 1) {
+      m_interpreter.RemoveUser(root_cmd);
+      result.SetStatus(eReturnStatusSuccessFinishResult);
+      return;
+    }
+    // We're deleting a command from a multiword command.  Verify the command
+    // path:
+    Status error;
+    CommandObjectMultiword *container =
+        GetCommandInterpreter().VerifyUserMultiwordCmdPath(command, true,
+                                                           error);
+    if (error.Fail()) {
+      result.AppendErrorWithFormat("could not resolve command path: %s",
+                                   error.AsCString());
+      return;
+    }
+    if (!container) {
+      // This means that command only had a leaf command, so the container is
+      // the root.  That should have been handled above.
+      result.AppendErrorWithFormat("could not find a container for '%s'",
+                                   command[0].c_str());
+      return;
+    }
+    const char *leaf_cmd = command[num_args - 1].c_str();
+    llvm::Error llvm_error = container->RemoveUserSubcommand(leaf_cmd,
+                                            /* multiword not okay */ false);
+    if (llvm_error) {
+      result.AppendErrorWithFormat("could not delete command '%s': %s",
+                                   leaf_cmd, 
+                                   llvm::toString(std::move(llvm_error)).c_str());
+      return;
+    }
+
+    Stream &out_stream = result.GetOutputStream();
+
+    out_stream << "Deleted command:";
+    for (size_t idx = 0; idx < num_args; idx++) {
+      out_stream << ' ';
+      out_stream << command[idx].c_str();
+    }
+    out_stream << '\n';
     result.SetStatus(eReturnStatusSuccessFinishResult);
-    return true;
   }
 };
 
@@ -1682,6 +1840,269 @@ public:
   ~CommandObjectMultiwordCommandsScript() override = default;
 };
 
+#pragma mark CommandObjectCommandContainer
+#define LLDB_OPTIONS_container_add
+#include "CommandOptions.inc"
+
+class CommandObjectCommandsContainerAdd : public CommandObjectParsed {
+public:
+  CommandObjectCommandsContainerAdd(CommandInterpreter &interpreter)
+      : CommandObjectParsed(
+            interpreter, "command container add",
+            "Add a container command to lldb.  Adding to built-"
+            "in container commands is not allowed.",
+            "command container add [[path1]...] container-name") {
+    CommandArgumentEntry arg1;
+    CommandArgumentData cmd_arg;
+
+    // This is one or more command names, which form the path to the command
+    // you want to add.
+    cmd_arg.arg_type = eArgTypeCommand;
+    cmd_arg.arg_repetition = eArgRepeatPlus;
+
+    // There is only one variant this argument could be; put it into the
+    // argument entry.
+    arg1.push_back(cmd_arg);
+
+    // Push the data for the first argument into the m_arguments vector.
+    m_arguments.push_back(arg1);
+  }
+
+  ~CommandObjectCommandsContainerAdd() override = default;
+
+  Options *GetOptions() override { return &m_options; }
+
+  void
+  HandleArgumentCompletion(CompletionRequest &request,
+                           OptionElementVector &opt_element_vector) override {
+    lldb_private::CommandCompletions::CompleteModifiableCmdPathArgs(
+        m_interpreter, request, opt_element_vector);
+  }
+
+protected:
+  class CommandOptions : public Options {
+  public:
+    CommandOptions() = default;
+
+    ~CommandOptions() override = default;
+
+    Status SetOptionValue(uint32_t option_idx, llvm::StringRef option_arg,
+                          ExecutionContext *execution_context) override {
+      Status error;
+      const int short_option = m_getopt_table[option_idx].val;
+
+      switch (short_option) {
+      case 'h':
+        if (!option_arg.empty())
+          m_short_help = std::string(option_arg);
+        break;
+      case 'o':
+        m_overwrite = true;
+        break;
+      case 'H':
+        if (!option_arg.empty())
+          m_long_help = std::string(option_arg);
+        break;
+      default:
+        llvm_unreachable("Unimplemented option");
+      }
+
+      return error;
+    }
+
+    void OptionParsingStarting(ExecutionContext *execution_context) override {
+      m_short_help.clear();
+      m_long_help.clear();
+      m_overwrite = false;
+    }
+
+    llvm::ArrayRef<OptionDefinition> GetDefinitions() override {
+      return llvm::ArrayRef(g_container_add_options);
+    }
+
+    // Instance variables to hold the values for command options.
+
+    std::string m_short_help;
+    std::string m_long_help;
+    bool m_overwrite = false;
+  };
+  void DoExecute(Args &command, CommandReturnObject &result) override {
+    size_t num_args = command.GetArgumentCount();
+
+    if (num_args == 0) {
+      result.AppendError("no command was specified");
+      return;
+    }
+
+    if (num_args == 1) {
+      // We're adding this as a root command, so use the interpreter.
+      const char *cmd_name = command.GetArgumentAtIndex(0);
+      auto cmd_sp = CommandObjectSP(new CommandObjectMultiword(
+          GetCommandInterpreter(), cmd_name, m_options.m_short_help.c_str(),
+          m_options.m_long_help.c_str()));
+      cmd_sp->GetAsMultiwordCommand()->SetRemovable(true);
+      Status add_error = GetCommandInterpreter().AddUserCommand(
+          cmd_name, cmd_sp, m_options.m_overwrite);
+      if (add_error.Fail()) {
+        result.AppendErrorWithFormat("error adding command: %s",
+                                     add_error.AsCString());
+        return;
+      }
+      result.SetStatus(eReturnStatusSuccessFinishNoResult);
+      return;
+    }
+
+    // We're adding this to a subcommand, first find the subcommand:
+    Status path_error;
+    CommandObjectMultiword *add_to_me =
+        GetCommandInterpreter().VerifyUserMultiwordCmdPath(command, true,
+                                                           path_error);
+
+    if (!add_to_me) {
+      result.AppendErrorWithFormat("error adding command: %s",
+                                   path_error.AsCString());
+      return;
+    }
+
+    const char *cmd_name = command.GetArgumentAtIndex(num_args - 1);
+    auto cmd_sp = CommandObjectSP(new CommandObjectMultiword(
+        GetCommandInterpreter(), cmd_name, m_options.m_short_help.c_str(),
+        m_options.m_long_help.c_str()));
+    llvm::Error llvm_error =
+        add_to_me->LoadUserSubcommand(cmd_name, cmd_sp, m_options.m_overwrite);
+    if (llvm_error) {
+      result.AppendErrorWithFormat("error adding subcommand: %s",
+                                   llvm::toString(std::move(llvm_error)).c_str());
+      return;
+    }
+
+    result.SetStatus(eReturnStatusSuccessFinishNoResult);
+  }
+
+private:
+  CommandOptions m_options;
+};
+
+#define LLDB_OPTIONS_multiword_delete
+#include "CommandOptions.inc"
+class CommandObjectCommandsContainerDelete : public CommandObjectParsed {
+public:
+  CommandObjectCommandsContainerDelete(CommandInterpreter &interpreter)
+      : CommandObjectParsed(
+            interpreter, "command container delete",
+            "Delete a container command previously added to "
+            "lldb.",
+            "command container delete [[path1] ...] container-cmd") {
+    CommandArgumentEntry arg1;
+    CommandArgumentData cmd_arg;
+
+    // This is one or more command names, which form the path to the command
+    // you want to add.
+    cmd_arg.arg_type = eArgTypeCommand;
+    cmd_arg.arg_repetition = eArgRepeatPlus;
+
+    // There is only one variant this argument could be; put it into the
+    // argument entry.
+    arg1.push_back(cmd_arg);
+
+    // Push the data for the first argument into the m_arguments vector.
+    m_arguments.push_back(arg1);
+  }
+
+  ~CommandObjectCommandsContainerDelete() override = default;
+
+  void
+  HandleArgumentCompletion(CompletionRequest &request,
+                           OptionElementVector &opt_element_vector) override {
+    lldb_private::CommandCompletions::CompleteModifiableCmdPathArgs(
+        m_interpreter, request, opt_element_vector);
+  }
+
+protected:
+  void DoExecute(Args &command, CommandReturnObject &result) override {
+    size_t num_args = command.GetArgumentCount();
+
+    if (num_args == 0) {
+      result.AppendError("No command was specified.");
+      return;
+    }
+
+    if (num_args == 1) {
+      // We're removing a root command, so we need to delete it from the
+      // interpreter.
+      const char *cmd_name = command.GetArgumentAtIndex(0);
+      // Let's do a little more work here so we can do better error reporting.
+      CommandInterpreter &interp = GetCommandInterpreter();
+      CommandObjectSP cmd_sp = interp.GetCommandSPExact(cmd_name);
+      if (!cmd_sp) {
+        result.AppendErrorWithFormat("container command %s doesn't exist.",
+                                     cmd_name);
+        return;
+      }
+      if (!cmd_sp->IsUserCommand()) {
+        result.AppendErrorWithFormat(
+            "container command %s is not a user command", cmd_name);
+        return;
+      }
+      if (!cmd_sp->GetAsMultiwordCommand()) {
+        result.AppendErrorWithFormat("command %s is not a container command",
+                                     cmd_name);
+        return;
+      }
+
+      bool did_remove = GetCommandInterpreter().RemoveUserMultiword(cmd_name);
+      if (!did_remove) {
+        result.AppendErrorWithFormat("error removing command %s.", cmd_name);
+        return;
+      }
+
+      result.SetStatus(eReturnStatusSuccessFinishNoResult);
+      return;
+    }
+
+    // We're removing a subcommand, first find the subcommand's owner:
+    Status path_error;
+    CommandObjectMultiword *container =
+        GetCommandInterpreter().VerifyUserMultiwordCmdPath(command, true,
+                                                           path_error);
+
+    if (!container) {
+      result.AppendErrorWithFormat("error removing container command: %s",
+                                   path_error.AsCString());
+      return;
+    }
+    const char *leaf = command.GetArgumentAtIndex(num_args - 1);
+    llvm::Error llvm_error =
+        container->RemoveUserSubcommand(leaf, /* multiword okay */ true);
+    if (llvm_error) {
+      result.AppendErrorWithFormat("error removing container command: %s",
+                                   llvm::toString(std::move(llvm_error)).c_str());
+      return;
+    }
+    result.SetStatus(eReturnStatusSuccessFinishNoResult);
+  }
+};
+
+class CommandObjectCommandContainer : public CommandObjectMultiword {
+public:
+  CommandObjectCommandContainer(CommandInterpreter &interpreter)
+      : CommandObjectMultiword(
+            interpreter, "command container",
+            "Commands for adding container commands to lldb.  "
+            "Container commands are containers for other commands.  You can "
+            "add nested container commands by specifying a command path, "
+            "but you can't add commands into the built-in command hierarchy.",
+            "command container <subcommand> [<subcommand-options>]") {
+    LoadSubCommand("add", CommandObjectSP(new CommandObjectCommandsContainerAdd(
+                              interpreter)));
+    LoadSubCommand(
+        "delete",
+        CommandObjectSP(new CommandObjectCommandsContainerDelete(interpreter)));
+  }
+
+  ~CommandObjectCommandContainer() override = default;
+};
+
 #pragma mark CommandObjectMultiwordCommands
 
 // CommandObjectMultiwordCommands
@@ -1699,6 +2120,8 @@ CommandObjectMultiwordCommands::CommandObjectMultiwordCommands(
                                 new CommandObjectCommandsUnalias(interpreter)));
   LoadSubCommand("delete",
                  CommandObjectSP(new CommandObjectCommandsDelete(interpreter)));
+  LoadSubCommand("container", CommandObjectSP(new CommandObjectCommandContainer(
+                                  interpreter)));
   LoadSubCommand(
       "regex", CommandObjectSP(new CommandObjectCommandsAddRegex(interpreter)));
   LoadSubCommand(

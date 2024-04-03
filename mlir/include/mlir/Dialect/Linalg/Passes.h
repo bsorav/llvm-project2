@@ -13,50 +13,57 @@
 #ifndef MLIR_DIALECT_LINALG_PASSES_H_
 #define MLIR_DIALECT_LINALG_PASSES_H_
 
+#include "mlir/Dialect/Linalg/Transforms/Transforms.h"
+#include "mlir/Dialect/Linalg/Utils/Utils.h"
 #include "mlir/Pass/Pass.h"
 
 namespace mlir {
-std::unique_ptr<OperationPass<FuncOp>> createLinalgFoldUnitExtentDimsPass();
+namespace func {
+class FuncOp;
+} // namespace func
 
-std::unique_ptr<OperationPass<FuncOp>> createLinalgFusionPass();
-std::unique_ptr<Pass> createLinalgFusionOfTensorOpsPass();
+namespace bufferization {
+struct OneShotBufferizationOptions;
+} // namespace bufferization
 
-std::unique_ptr<OperationPass<FuncOp>>
-createLinalgTilingPass(ArrayRef<int64_t> tileSizes = {});
+#define GEN_PASS_DECL
+#include "mlir/Dialect/Linalg/Passes.h.inc"
 
-std::unique_ptr<OperationPass<FuncOp>>
-createLinalgTilingToParallelLoopsPass(ArrayRef<int64_t> tileSizes = {});
+std::unique_ptr<Pass> createConvertElementwiseToLinalgPass();
 
-std::unique_ptr<OperationPass<FuncOp>>
-createLinalgPromotionPass(bool dynamicBuffers, bool useAlloca);
-std::unique_ptr<OperationPass<FuncOp>> createLinalgPromotionPass();
+std::unique_ptr<Pass> createLinalgFoldUnitExtentDimsPass();
+
+std::unique_ptr<Pass> createLinalgElementwiseOpFusionPass();
+std::unique_ptr<Pass> createFoldReshapeOpsByLinearizationPass();
+
+std::unique_ptr<Pass> createLinalgNamedOpConversionPass();
+
+std::unique_ptr<Pass> createLinalgInlineScalarOperandsPass();
 
 /// Create a pass to convert Linalg operations to scf.for loops and
-/// std.load/std.store accesses.
-std::unique_ptr<OperationPass<FuncOp>> createConvertLinalgToLoopsPass();
+/// memref.load/memref.store accesses.
+std::unique_ptr<Pass> createConvertLinalgToLoopsPass();
 
 /// Create a pass to convert Linalg operations to scf.parallel loops and
-/// std.load/std.store accesses.
-std::unique_ptr<OperationPass<FuncOp>> createConvertLinalgToParallelLoopsPass();
+/// memref.load/memref.store accesses.
+std::unique_ptr<Pass> createConvertLinalgToParallelLoopsPass();
 
 /// Create a pass to convert Linalg operations to affine.for loops and
 /// affine_load/affine_store accesses.
 /// Placeholder for now, this is NYI.
-std::unique_ptr<OperationPass<FuncOp>> createConvertLinalgToAffineLoopsPass();
+std::unique_ptr<Pass> createConvertLinalgToAffineLoopsPass();
 
 /// Create a pass to convert Linalg operations which work on tensors to use
 /// buffers instead.
-std::unique_ptr<OperationPass<ModuleOp>>
-createConvertLinalgOnTensorsToBuffersPass();
+std::unique_ptr<Pass> createLinalgBufferizePass();
 
-/// Patterns for fusing linalg operation on tensors.
-void populateLinalgTensorOpsFusionPatterns(MLIRContext *context,
-                                           OwningRewritePatternList &patterns);
+/// Create a pass to convert named Linalg operations to Linalg generic
+/// operations.
+std::unique_ptr<Pass> createLinalgGeneralizationPass();
 
-/// Patterns to fold unit-extent dimensions in operands/results of linalg ops on
-/// tensors.
-void populateLinalgFoldUnitExtentDimsPatterns(
-    MLIRContext *context, OwningRewritePatternList &patterns);
+/// Create a pass to convert Linalg operations to equivalent operations that
+/// work on primitive types, if possible.
+std::unique_ptr<Pass> createLinalgDetensorizePass();
 
 //===----------------------------------------------------------------------===//
 // Registration

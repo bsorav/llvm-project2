@@ -7,22 +7,30 @@
 //===----------------------------------------------------------------------===//
 
 #include "lldb/Host/Config.h"
+#include "lldb/lldb-enumerations.h"
 
 #if LLDB_ENABLE_PYTHON
 
 // LLDB Python header must be included first
 #include "lldb-python.h"
 
+#include "Interfaces/OperatingSystemPythonInterface.h"
+#include "Interfaces/ScriptedPlatformPythonInterface.h"
+#include "Interfaces/ScriptedProcessPythonInterface.h"
+#include "Interfaces/ScriptedThreadPythonInterface.h"
 #include "PythonDataObjects.h"
 #include "PythonReadline.h"
+#include "SWIGPythonBridge.h"
 #include "ScriptInterpreterPythonImpl.h"
+
+#include "lldb/API/SBError.h"
 #include "lldb/API/SBFrame.h"
 #include "lldb/API/SBValue.h"
 #include "lldb/Breakpoint/StoppointCallbackContext.h"
 #include "lldb/Breakpoint/WatchpointOptions.h"
-#include "lldb/Core/Communication.h"
 #include "lldb/Core/Debugger.h"
 #include "lldb/Core/PluginManager.h"
+#include "lldb/Core/ThreadedCommunication.h"
 #include "lldb/Core/ValueObject.h"
 #include "lldb/DataFormatters/TypeSummary.h"
 #include "lldb/Host/FileSystem.h"
@@ -32,6 +40,8 @@
 #include "lldb/Interpreter/CommandReturnObject.h"
 #include "lldb/Target/Thread.h"
 #include "lldb/Target/ThreadPlan.h"
+#include "lldb/Utility/Instrumentation.h"
+#include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/Timer.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringRef.h"
@@ -39,10 +49,11 @@
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/FormatAdapters.h"
 
+#include <cstdio>
+#include <cstdlib>
 #include <memory>
 #include <mutex>
-#include <stdio.h>
-#include <stdlib.h>
+#include <optional>
 #include <string>
 
 using namespace lldb;
@@ -53,158 +64,24 @@ using llvm::Expected;
 LLDB_PLUGIN_DEFINE(ScriptInterpreterPython)
 
 // Defined in the SWIG source file
-#if PY_MAJOR_VERSION >= 3
 extern "C" PyObject *PyInit__lldb(void);
 
 #define LLDBSwigPyInit PyInit__lldb
 
+#if defined(_WIN32)
+// Don't mess with the signal handlers on Windows.
+#define LLDB_USE_PYTHON_SET_INTERRUPT 0
 #else
-extern "C" void init_lldb(void);
-
-#define LLDBSwigPyInit init_lldb
+// PyErr_SetInterrupt was introduced in 3.2.
+#define LLDB_USE_PYTHON_SET_INTERRUPT                                          \
+  (PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 2) || (PY_MAJOR_VERSION > 3)
 #endif
 
-// These prototypes are the Pythonic implementations of the required callbacks.
-// Although these are scripting-language specific, their definition depends on
-// the public API.
-
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wreturn-type-c-linkage"
-
-// Disable warning C4190: 'LLDBSwigPythonBreakpointCallbackFunction' has
-// C-linkage specified, but returns UDT 'llvm::Expected<bool>' which is
-// incompatible with C
-#if _MSC_VER
-#pragma warning (push)
-#pragma warning (disable : 4190)
-#endif
-
-extern "C" llvm::Expected<bool> LLDBSwigPythonBreakpointCallbackFunction(
-    const char *python_function_name, const char *session_dictionary_name,
-    const lldb::StackFrameSP &sb_frame,
-    const lldb::BreakpointLocationSP &sb_bp_loc, StructuredDataImpl *args_impl);
-
-#if _MSC_VER
-#pragma warning (pop)
-#endif
-
-#pragma clang diagnostic pop
-
-extern "C" bool LLDBSwigPythonWatchpointCallbackFunction(
-    const char *python_function_name, const char *session_dictionary_name,
-    const lldb::StackFrameSP &sb_frame, const lldb::WatchpointSP &sb_wp);
-
-extern "C" bool LLDBSwigPythonCallTypeScript(
-    const char *python_function_name, void *session_dictionary,
-    const lldb::ValueObjectSP &valobj_sp, void **pyfunct_wrapper,
-    const lldb::TypeSummaryOptionsSP &options_sp, std::string &retval);
-
-extern "C" void *
-LLDBSwigPythonCreateSyntheticProvider(const char *python_class_name,
-                                      const char *session_dictionary_name,
-                                      const lldb::ValueObjectSP &valobj_sp);
-
-extern "C" void *
-LLDBSwigPythonCreateCommandObject(const char *python_class_name,
-                                  const char *session_dictionary_name,
-                                  const lldb::DebuggerSP debugger_sp);
-
-extern "C" void *LLDBSwigPythonCreateScriptedThreadPlan(
-    const char *python_class_name, const char *session_dictionary_name,
-    StructuredDataImpl *args_data,
-    std::string &error_string,
-    const lldb::ThreadPlanSP &thread_plan_sp);
-
-extern "C" bool LLDBSWIGPythonCallThreadPlan(void *implementor,
-                                             const char *method_name,
-                                             Event *event_sp, bool &got_error);
-
-extern "C" void *LLDBSwigPythonCreateScriptedBreakpointResolver(
-    const char *python_class_name, const char *session_dictionary_name,
-    lldb_private::StructuredDataImpl *args, lldb::BreakpointSP &bkpt_sp);
-
-extern "C" unsigned int
-LLDBSwigPythonCallBreakpointResolver(void *implementor, const char *method_name,
-                                     lldb_private::SymbolContext *sym_ctx);
-
-extern "C" size_t LLDBSwigPython_CalculateNumChildren(void *implementor,
-                                                      uint32_t max);
-
-extern "C" void *LLDBSwigPython_GetChildAtIndex(void *implementor,
-                                                uint32_t idx);
-
-extern "C" int LLDBSwigPython_GetIndexOfChildWithName(void *implementor,
-                                                      const char *child_name);
-
-extern "C" void *LLDBSWIGPython_CastPyObjectToSBValue(void *data);
-
-extern lldb::ValueObjectSP
-LLDBSWIGPython_GetValueObjectSPFromSBValue(void *data);
-
-extern "C" bool LLDBSwigPython_UpdateSynthProviderInstance(void *implementor);
-
-extern "C" bool
-LLDBSwigPython_MightHaveChildrenSynthProviderInstance(void *implementor);
-
-extern "C" void *
-LLDBSwigPython_GetValueSynthProviderInstance(void *implementor);
-
-extern "C" bool
-LLDBSwigPythonCallCommand(const char *python_function_name,
-                          const char *session_dictionary_name,
-                          lldb::DebuggerSP &debugger, const char *args,
-                          lldb_private::CommandReturnObject &cmd_retobj,
-                          lldb::ExecutionContextRefSP exe_ctx_ref_sp);
-
-extern "C" bool
-LLDBSwigPythonCallCommandObject(void *implementor, lldb::DebuggerSP &debugger,
-                                const char *args,
-                                lldb_private::CommandReturnObject &cmd_retobj,
-                                lldb::ExecutionContextRefSP exe_ctx_ref_sp);
-
-extern "C" bool
-LLDBSwigPythonCallModuleInit(const char *python_module_name,
-                             const char *session_dictionary_name,
-                             lldb::DebuggerSP &debugger);
-
-extern "C" void *
-LLDBSWIGPythonCreateOSPlugin(const char *python_class_name,
-                             const char *session_dictionary_name,
-                             const lldb::ProcessSP &process_sp);
-
-extern "C" void *
-LLDBSWIGPython_CreateFrameRecognizer(const char *python_class_name,
-                                     const char *session_dictionary_name);
-
-extern "C" void *
-LLDBSwigPython_GetRecognizedArguments(void *implementor,
-                                      const lldb::StackFrameSP &frame_sp);
-
-extern "C" bool LLDBSWIGPythonRunScriptKeywordProcess(
-    const char *python_function_name, const char *session_dictionary_name,
-    lldb::ProcessSP &process, std::string &output);
-
-extern "C" bool LLDBSWIGPythonRunScriptKeywordThread(
-    const char *python_function_name, const char *session_dictionary_name,
-    lldb::ThreadSP &thread, std::string &output);
-
-extern "C" bool LLDBSWIGPythonRunScriptKeywordTarget(
-    const char *python_function_name, const char *session_dictionary_name,
-    lldb::TargetSP &target, std::string &output);
-
-extern "C" bool LLDBSWIGPythonRunScriptKeywordFrame(
-    const char *python_function_name, const char *session_dictionary_name,
-    lldb::StackFrameSP &frame, std::string &output);
-
-extern "C" bool LLDBSWIGPythonRunScriptKeywordValue(
-    const char *python_function_name, const char *session_dictionary_name,
-    lldb::ValueObjectSP &value, std::string &output);
-
-extern "C" void *
-LLDBSWIGPython_GetDynamicSetting(void *module, const char *setting,
-                                 const lldb::TargetSP &target_sp);
-
-static bool g_initialized = false;
+static ScriptInterpreterPythonImpl *GetPythonInterpreter(Debugger &debugger) {
+  ScriptInterpreter *script_interpreter =
+      debugger.GetScriptInterpreter(true, lldb::eScriptLanguagePython);
+  return static_cast<ScriptInterpreterPythonImpl *>(script_interpreter);
+}
 
 namespace {
 
@@ -216,15 +93,14 @@ namespace {
 // save off initial state at the beginning, and restore it at the end
 struct InitializePythonRAII {
 public:
-  InitializePythonRAII()
-      : m_gil_state(PyGILState_UNLOCKED), m_was_already_initialized(false) {
+  InitializePythonRAII() {
     InitializePythonHome();
 
 #ifdef LLDB_USE_LIBEDIT_READLINE_COMPAT_MODULE
     // Python's readline is incompatible with libedit being linked into lldb.
     // Provide a patched version local to the embedded interpreter.
     bool ReadlinePatched = false;
-    for (auto *p = PyImport_Inittab; p->name != NULL; p++) {
+    for (auto *p = PyImport_Inittab; p->name != nullptr; p++) {
       if (strcmp(p->name, "readline") == 0) {
         p->initfunc = initlldb_readline;
         break;
@@ -253,7 +129,7 @@ public:
 
   ~InitializePythonRAII() {
     if (m_was_already_initialized) {
-      Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_SCRIPT));
+      Log *log = GetLog(LLDBLog::Script);
       LLDB_LOGV(log, "Releasing PyGILState. Returning to state = {0}locked",
                 m_gil_state == PyGILState_UNLOCKED ? "un" : "");
       PyGILState_Release(m_gil_state);
@@ -266,11 +142,7 @@ public:
 private:
   void InitializePythonHome() {
 #if LLDB_EMBED_PYTHON_HOME
-#if PY_MAJOR_VERSION >= 3
-    typedef wchar_t* str_type;
-#else
-    typedef char* str_type;
-#endif
+    typedef wchar_t *str_type;
     static str_type g_python_home = []() -> str_type {
       const char *lldb_python_home = LLDB_PYTHON_HOME;
       const char *absolute_python_home = nullptr;
@@ -285,27 +157,12 @@ private:
         llvm::sys::path::append(path, lldb_python_home);
         absolute_python_home = path.c_str();
       }
-#if PY_MAJOR_VERSION >= 3
       size_t size = 0;
       return Py_DecodeLocale(absolute_python_home, &size);
-#else
-      return strdup(absolute_python_home);
-#endif
     }();
     if (g_python_home != nullptr) {
       Py_SetPythonHome(g_python_home);
     }
-#else
-#if defined(__APPLE__) && PY_MAJOR_VERSION == 2 && PY_MINOR_VERSION == 7
-    // For Darwin, the only Python version supported is the one shipped in the
-    // OS OS and linked with lldb. Other installation of Python may have higher
-    // priorities in the path, overriding PYTHONHOME and causing
-    // problems/incompatibilities. In order to avoid confusion, always hardcode
-    // the PythonHome to be right, as it's not going to change.
-    static char path[] =
-        "/System/Library/Frameworks/Python.framework/Versions/2.7";
-    Py_SetPythonHome(path);
-#endif
 #endif
   }
 
@@ -322,24 +179,58 @@ private:
       return;
 #endif
 
+// `PyEval_ThreadsInitialized` was deprecated in Python 3.9 and removed in
+// Python 3.13. It has been returning `true` always since Python 3.7.
+#if (PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION < 9) || (PY_MAJOR_VERSION < 3)
     if (PyEval_ThreadsInitialized()) {
-      Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_SCRIPT));
+#else
+    if (true) {
+#endif
+      Log *log = GetLog(LLDBLog::Script);
 
       m_was_already_initialized = true;
       m_gil_state = PyGILState_Ensure();
       LLDB_LOGV(log, "Ensured PyGILState. Previous state = {0}locked\n",
                 m_gil_state == PyGILState_UNLOCKED ? "un" : "");
+
+// `PyEval_InitThreads` was deprecated in Python 3.9 and removed in
+// Python 3.13.
+#if (PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION < 9) || (PY_MAJOR_VERSION < 3)
       return;
     }
 
     // InitThreads acquires the GIL if it hasn't been called before.
     PyEval_InitThreads();
+#else
+    }
+#endif
   }
 
-  TerminalState m_stdin_tty_state;
-  PyGILState_STATE m_gil_state;
-  bool m_was_already_initialized;
+  PyGILState_STATE m_gil_state = PyGILState_UNLOCKED;
+  bool m_was_already_initialized = false;
 };
+
+#if LLDB_USE_PYTHON_SET_INTERRUPT
+/// Saves the current signal handler for the specified signal and restores
+/// it at the end of the current scope.
+struct RestoreSignalHandlerScope {
+  /// The signal handler.
+  struct sigaction m_prev_handler;
+  int m_signal_code;
+  RestoreSignalHandlerScope(int signal_code) : m_signal_code(signal_code) {
+    // Initialize sigaction to their default state.
+    std::memset(&m_prev_handler, 0, sizeof(m_prev_handler));
+    // Don't install a new handler, just read back the old one.
+    struct sigaction *new_handler = nullptr;
+    int signal_err = ::sigaction(m_signal_code, new_handler, &m_prev_handler);
+    lldbassert(signal_err == 0 && "sigaction failed to read handler");
+  }
+  ~RestoreSignalHandlerScope() {
+    int signal_err = ::sigaction(m_signal_code, &m_prev_handler, nullptr);
+    lldbassert(signal_err == 0 && "sigaction failed to restore old handler");
+  }
+};
+#endif
 } // namespace
 
 void ScriptInterpreterPython::ComputePythonDirForApple(
@@ -367,7 +258,7 @@ void ScriptInterpreterPython::ComputePythonDir(
   llvm::sys::path::append(path, LLDB_PYTHON_RELATIVE_LIBDIR);
 
 #if defined(_WIN32)
-  // This will be injected directly through FileSpec.GetDirectory().SetString(),
+  // This will be injected directly through FileSpec.SetDirectory(),
   // so we need to normalize manually.
   std::replace(path.begin(), path.end(), '\\', '/');
 #endif
@@ -386,29 +277,80 @@ FileSpec ScriptInterpreterPython::GetPythonDir() {
 #else
     ComputePythonDir(path);
 #endif
-    spec.GetDirectory().SetString(path);
+    spec.SetDirectory(path);
     return spec;
   }();
   return g_spec;
 }
 
-lldb_private::ConstString ScriptInterpreterPython::GetPluginNameStatic() {
-  static ConstString g_name("script-python");
-  return g_name;
+static const char GetInterpreterInfoScript[] = R"(
+import os
+import sys
+
+def main(lldb_python_dir, python_exe_relative_path):
+  info = {
+    "lldb-pythonpath": lldb_python_dir,
+    "language": "python",
+    "prefix": sys.prefix,
+    "executable": os.path.join(sys.prefix, python_exe_relative_path)
+  }
+  return info
+)";
+
+static const char python_exe_relative_path[] = LLDB_PYTHON_EXE_RELATIVE_PATH;
+
+StructuredData::DictionarySP ScriptInterpreterPython::GetInterpreterInfo() {
+  GIL gil;
+  FileSpec python_dir_spec = GetPythonDir();
+  if (!python_dir_spec)
+    return nullptr;
+  PythonScript get_info(GetInterpreterInfoScript);
+  auto info_json = unwrapIgnoringErrors(
+      As<PythonDictionary>(get_info(PythonString(python_dir_spec.GetPath()),
+                                    PythonString(python_exe_relative_path))));
+  if (!info_json)
+    return nullptr;
+  return info_json.CreateStructuredDictionary();
 }
 
-const char *ScriptInterpreterPython::GetPluginDescriptionStatic() {
+void ScriptInterpreterPython::SharedLibraryDirectoryHelper(
+    FileSpec &this_file) {
+  // When we're loaded from python, this_file will point to the file inside the
+  // python package directory. Replace it with the one in the lib directory.
+#ifdef _WIN32
+  // On windows, we need to manually back out of the python tree, and go into
+  // the bin directory. This is pretty much the inverse of what ComputePythonDir
+  // does.
+  if (this_file.GetFileNameExtension() == ".pyd") {
+    this_file.RemoveLastPathComponent(); // _lldb.pyd or _lldb_d.pyd
+    this_file.RemoveLastPathComponent(); // lldb
+    llvm::StringRef libdir = LLDB_PYTHON_RELATIVE_LIBDIR;
+    for (auto it = llvm::sys::path::begin(libdir),
+              end = llvm::sys::path::end(libdir);
+         it != end; ++it)
+      this_file.RemoveLastPathComponent();
+    this_file.AppendPathComponent("bin");
+    this_file.AppendPathComponent("liblldb.dll");
+  }
+#else
+  // The python file is a symlink, so we can find the real library by resolving
+  // it. We can do this unconditionally.
+  FileSystem::Instance().ResolveSymbolicLink(this_file, this_file);
+#endif
+}
+
+llvm::StringRef ScriptInterpreterPython::GetPluginDescriptionStatic() {
   return "Embedded Python interpreter";
 }
 
 void ScriptInterpreterPython::Initialize() {
   static llvm::once_flag g_once_flag;
-
   llvm::call_once(g_once_flag, []() {
     PluginManager::RegisterPlugin(GetPluginNameStatic(),
                                   GetPluginDescriptionStatic(),
                                   lldb::eScriptLanguagePython,
                                   ScriptInterpreterPythonImpl::CreateInstance);
+    ScriptInterpreterPythonImpl::Initialize();
   });
 }
 
@@ -430,7 +372,7 @@ ScriptInterpreterPythonImpl::Locker::Locker(
 }
 
 bool ScriptInterpreterPythonImpl::Locker::DoAcquireLock() {
-  Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_SCRIPT));
+  Log *log = GetLog(LLDBLog::Script);
   m_GILState = PyGILState_Ensure();
   LLDB_LOGV(log, "Ensured PyGILState. Previous state = {0}locked",
             m_GILState == PyGILState_UNLOCKED ? "un" : "");
@@ -454,7 +396,7 @@ bool ScriptInterpreterPythonImpl::Locker::DoInitSession(uint16_t on_entry_flags,
 }
 
 bool ScriptInterpreterPythonImpl::Locker::DoFreeLock() {
-  Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_SCRIPT));
+  Log *log = GetLog(LLDBLog::Script);
   LLDB_LOGV(log, "Releasing PyGILState. Returning to state = {0}locked",
             m_GILState == PyGILState_UNLOCKED ? "un" : "");
   PyGILState_Release(m_GILState);
@@ -481,11 +423,10 @@ ScriptInterpreterPythonImpl::ScriptInterpreterPythonImpl(Debugger &debugger)
       m_session_dict(PyInitialValue::Invalid),
       m_sys_module_dict(PyInitialValue::Invalid), m_run_one_line_function(),
       m_run_one_line_str_global(),
-      m_dictionary_name(m_debugger.GetInstanceName().AsCString()),
+      m_dictionary_name(m_debugger.GetInstanceName()),
       m_active_io_handler(eIOHandlerNone), m_session_is_active(false),
       m_pty_secondary_is_open(false), m_valid_session(true), m_lock_count(0),
       m_command_thread_state(nullptr) {
-  InitializePrivate();
 
   m_dictionary_name.append("_dict");
   StreamString run_string;
@@ -503,7 +444,7 @@ ScriptInterpreterPythonImpl::ScriptInterpreterPythonImpl(Debugger &debugger)
   // Reloading modules requires a different syntax in Python 2 and Python 3.
   // This provides a consistent syntax no matter what version of Python.
   run_string.Clear();
-  run_string.Printf("run_one_line (%s, 'from six.moves import reload_module')",
+  run_string.Printf("run_one_line (%s, 'from importlib import reload as reload_module')",
                     m_dictionary_name.c_str());
   PyRun_SimpleString(run_string.GetData());
 
@@ -513,7 +454,7 @@ ScriptInterpreterPythonImpl::ScriptInterpreterPythonImpl(Debugger &debugger)
   // do their task
   run_string.Clear();
   run_string.Printf(
-      "run_one_line (%s, 'import lldb.formatters, lldb.formatters.cpp, pydoc')",
+      "run_one_line (%s, 'import lldb.formatters, lldb.formatters.cpp')",
       m_dictionary_name.c_str());
   PyRun_SimpleString(run_string.GetData());
   run_string.Clear();
@@ -526,7 +467,7 @@ ScriptInterpreterPythonImpl::ScriptInterpreterPythonImpl(Debugger &debugger)
   run_string.Clear();
 
   run_string.Printf("run_one_line (%s, 'lldb.debugger_unique_id = %" PRIu64
-                    "; pydoc.pager = pydoc.plainpager')",
+                    "')",
                     m_dictionary_name.c_str(), m_debugger.GetID());
   PyRun_SimpleString(run_string.GetData());
 }
@@ -541,12 +482,6 @@ ScriptInterpreterPythonImpl::~ScriptInterpreterPythonImpl() {
   m_session_dict.Reset();
   PyGILState_Release(gil_state);
 }
-
-lldb_private::ConstString ScriptInterpreterPythonImpl::GetPluginName() {
-  return GetPluginNameStatic();
-}
-
-uint32_t ScriptInterpreterPythonImpl::GetPluginVersion() { return 1; }
 
 void ScriptInterpreterPythonImpl::IOHandlerActivated(IOHandler &io_handler,
                                                      bool interactive) {
@@ -586,11 +521,10 @@ void ScriptInterpreterPythonImpl::IOHandlerInputComplete(IOHandler &io_handler,
   case eIOHandlerNone:
     break;
   case eIOHandlerBreakpoint: {
-    std::vector<BreakpointOptions *> *bp_options_vec =
-        (std::vector<BreakpointOptions *> *)io_handler.GetUserData();
-    for (auto bp_options : *bp_options_vec) {
-      if (!bp_options)
-        continue;
+    std::vector<std::reference_wrapper<BreakpointOptions>> *bp_options_vec =
+        (std::vector<std::reference_wrapper<BreakpointOptions>> *)
+            io_handler.GetUserData();
+    for (BreakpointOptions &bp_options : *bp_options_vec) {
 
       auto data_up = std::make_unique<CommandDataPython>();
       if (!data_up)
@@ -600,11 +534,12 @@ void ScriptInterpreterPythonImpl::IOHandlerInputComplete(IOHandler &io_handler,
       StructuredData::ObjectSP empty_args_sp;
       if (GenerateBreakpointCommandCallbackData(data_up->user_source,
                                                 data_up->script_source,
-                                                false)
+                                                /*has_extra_args=*/false,
+                                                /*is_callback=*/false)
               .Success()) {
         auto baton_sp = std::make_shared<BreakpointOptions::CommandBaton>(
             std::move(data_up));
-        bp_options->SetCallback(
+        bp_options.SetCallback(
             ScriptInterpreterPythonImpl::BreakpointCallbackFunction, baton_sp);
       } else if (!batch_mode) {
         StreamFileSP error_sp = io_handler.GetErrorStreamFileSP();
@@ -623,7 +558,8 @@ void ScriptInterpreterPythonImpl::IOHandlerInputComplete(IOHandler &io_handler,
     data_up->user_source.SplitIntoLines(data);
 
     if (GenerateWatchpointCommandCallbackData(data_up->user_source,
-                                              data_up->script_source)) {
+                                              data_up->script_source,
+                                              /*is_callback=*/false)) {
       auto baton_sp =
           std::make_shared<WatchpointOptions::CommandBaton>(std::move(data_up));
       wp_options->SetCallback(
@@ -646,7 +582,7 @@ ScriptInterpreterPythonImpl::CreateInstance(Debugger &debugger) {
 }
 
 void ScriptInterpreterPythonImpl::LeaveSession() {
-  Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_SCRIPT));
+  Log *log = GetLog(LLDBLog::Script);
   if (log)
     log->PutCString("ScriptInterpreterPythonImpl::LeaveSession()");
 
@@ -659,10 +595,6 @@ void ScriptInterpreterPythonImpl::LeaveSession() {
   // up believing we have no thread state and PyImport_AddModule will crash if
   // that is the case - since that seems to only happen when destroying the
   // SBDebugger, we can make do without clearing up stdout and stderr
-
-  // rdar://problem/11292882
-  // When the current thread state is NULL, PyThreadState_Get() issues a fatal
-  // error.
   if (PyThreadState_GetDict()) {
     PythonDictionary &sys_module_dict = GetSysModuleDictionary();
     if (sys_module_dict.IsValid()) {
@@ -716,7 +648,7 @@ bool ScriptInterpreterPythonImpl::EnterSession(uint16_t on_entry_flags,
                                                FileSP err_sp) {
   // If we have already entered the session, without having officially 'left'
   // it, then there is no need to 'enter' it again.
-  Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_SCRIPT));
+  Log *log = GetLog(LLDBLog::Script);
   if (m_session_is_active) {
     LLDB_LOGF(
         log,
@@ -982,8 +914,7 @@ bool ScriptInterpreterPythonImpl::ExecuteOneLine(
 }
 
 void ScriptInterpreterPythonImpl::ExecuteInterpreterLoop() {
-  static Timer::Category func_cat(LLVM_PRETTY_FUNCTION);
-  Timer scoped_timer(func_cat, LLVM_PRETTY_FUNCTION);
+  LLDB_SCOPED_TIMER();
 
   Debugger &debugger = m_debugger;
 
@@ -1003,7 +934,23 @@ void ScriptInterpreterPythonImpl::ExecuteInterpreterLoop() {
 }
 
 bool ScriptInterpreterPythonImpl::Interrupt() {
-  Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_SCRIPT));
+#if LLDB_USE_PYTHON_SET_INTERRUPT
+  // If the interpreter isn't evaluating any Python at the moment then return
+  // false to signal that this function didn't handle the interrupt and the
+  // next component should try handling it.
+  if (!IsExecutingPython())
+    return false;
+
+  // Tell Python that it should pretend to have received a SIGINT.
+  PyErr_SetInterrupt();
+  // PyErr_SetInterrupt has no way to return an error so we can only pretend the
+  // signal got successfully handled and return true.
+  // Python 3.10 introduces PyErr_SetInterruptEx that could return an error, but
+  // the error handling is limited to checking the arguments which would be
+  // just our (hardcoded) input signal code SIGINT, so that's not useful at all.
+  return true;
+#else
+  Log *log = GetLog(LLDBLog::Script);
 
   if (IsExecutingPython()) {
     PyThreadState *state = PyThreadState_GET();
@@ -1024,17 +971,31 @@ bool ScriptInterpreterPythonImpl::Interrupt() {
             "ScriptInterpreterPythonImpl::Interrupt() python code not running, "
             "can't interrupt");
   return false;
+#endif
 }
 
 bool ScriptInterpreterPythonImpl::ExecuteOneLineWithReturn(
     llvm::StringRef in_string, ScriptInterpreter::ScriptReturnType return_type,
     void *ret_value, const ExecuteScriptOptions &options) {
 
+  llvm::Expected<std::unique_ptr<ScriptInterpreterIORedirect>>
+      io_redirect_or_error = ScriptInterpreterIORedirect::Create(
+          options.GetEnableIO(), m_debugger, /*result=*/nullptr);
+
+  if (!io_redirect_or_error) {
+    llvm::consumeError(io_redirect_or_error.takeError());
+    return false;
+  }
+
+  ScriptInterpreterIORedirect &io_redirect = **io_redirect_or_error;
+
   Locker locker(this,
                 Locker::AcquireLock | Locker::InitSession |
                     (options.GetSetLLDBGlobals() ? Locker::InitGlobals : 0) |
                     Locker::NoSTDIN,
-                Locker::FreeAcquiredLock | Locker::TearDownSession);
+                Locker::FreeAcquiredLock | Locker::TearDownSession,
+                io_redirect.GetInputFile(), io_redirect.GetOutputFile(),
+                io_redirect.GetErrorFile());
 
   PythonModule &main_module = GetMainModule();
   PythonDictionary globals = main_module.GetDictionary();
@@ -1143,11 +1104,22 @@ Status ScriptInterpreterPythonImpl::ExecuteMultipleLines(
   if (in_string == nullptr)
     return Status();
 
+  llvm::Expected<std::unique_ptr<ScriptInterpreterIORedirect>>
+      io_redirect_or_error = ScriptInterpreterIORedirect::Create(
+          options.GetEnableIO(), m_debugger, /*result=*/nullptr);
+
+  if (!io_redirect_or_error)
+    return Status(io_redirect_or_error.takeError());
+
+  ScriptInterpreterIORedirect &io_redirect = **io_redirect_or_error;
+
   Locker locker(this,
                 Locker::AcquireLock | Locker::InitSession |
                     (options.GetSetLLDBGlobals() ? Locker::InitGlobals : 0) |
                     Locker::NoSTDIN,
-                Locker::FreeAcquiredLock | Locker::TearDownSession);
+                Locker::FreeAcquiredLock | Locker::TearDownSession,
+                io_redirect.GetInputFile(), io_redirect.GetOutputFile(),
+                io_redirect.GetErrorFile());
 
   PythonModule &main_module = GetMainModule();
   PythonDictionary globals = main_module.GetDictionary();
@@ -1178,7 +1150,7 @@ Status ScriptInterpreterPythonImpl::ExecuteMultipleLines(
 }
 
 void ScriptInterpreterPythonImpl::CollectDataForBreakpointCommandCallback(
-    std::vector<BreakpointOptions *> &bp_options_vec,
+    std::vector<std::reference_wrapper<BreakpointOptions>> &bp_options_vec,
     CommandReturnObject &result) {
   m_active_io_handler = eIOHandlerBreakpoint;
   m_debugger.GetCommandInterpreter().GetPythonCommandsFromIOHandler(
@@ -1193,12 +1165,11 @@ void ScriptInterpreterPythonImpl::CollectDataForWatchpointCommandCallback(
 }
 
 Status ScriptInterpreterPythonImpl::SetBreakpointCommandCallbackFunction(
-    BreakpointOptions *bp_options, const char *function_name,
+    BreakpointOptions &bp_options, const char *function_name,
     StructuredData::ObjectSP extra_args_sp) {
   Status error;
   // For now just cons up a oneliner that calls the provided function.
-  std::string oneliner("return ");
-  oneliner += function_name;
+  std::string function_signature = function_name;
 
   llvm::Expected<unsigned> maybe_args =
       GetMaxPositionalArgumentsForCallable(function_name);
@@ -1213,7 +1184,7 @@ Status ScriptInterpreterPythonImpl::SetBreakpointCommandCallbackFunction(
   bool uses_extra_args = false;
   if (max_args >= 4) {
     uses_extra_args = true;
-    oneliner += "(frame, bp_loc, extra_args, internal_dict)";
+    function_signature += "(frame, bp_loc, extra_args, internal_dict)";
   } else if (max_args >= 3) {
     if (extra_args_sp) {
       error.SetErrorString("cannot pass extra_args to a three argument callback"
@@ -1221,7 +1192,7 @@ Status ScriptInterpreterPythonImpl::SetBreakpointCommandCallbackFunction(
       return error;
     }
     uses_extra_args = false;
-    oneliner += "(frame, bp_loc, internal_dict)";
+    function_signature += "(frame, bp_loc, internal_dict)";
   } else {
     error.SetErrorStringWithFormat("expected 3 or 4 argument "
                                    "function, %s can only take %zu",
@@ -1229,38 +1200,42 @@ Status ScriptInterpreterPythonImpl::SetBreakpointCommandCallbackFunction(
     return error;
   }
 
-  SetBreakpointCommandCallback(bp_options, oneliner.c_str(), extra_args_sp,
-                               uses_extra_args);
+  SetBreakpointCommandCallback(bp_options, function_signature.c_str(),
+                               extra_args_sp, uses_extra_args,
+                               /*is_callback=*/true);
   return error;
 }
 
 Status ScriptInterpreterPythonImpl::SetBreakpointCommandCallback(
-    BreakpointOptions *bp_options,
+    BreakpointOptions &bp_options,
     std::unique_ptr<BreakpointOptions::CommandData> &cmd_data_up) {
   Status error;
   error = GenerateBreakpointCommandCallbackData(cmd_data_up->user_source,
                                                 cmd_data_up->script_source,
-                                                false);
+                                                /*has_extra_args=*/false,
+                                                /*is_callback=*/false);
   if (error.Fail()) {
     return error;
   }
   auto baton_sp =
       std::make_shared<BreakpointOptions::CommandBaton>(std::move(cmd_data_up));
-  bp_options->SetCallback(
+  bp_options.SetCallback(
       ScriptInterpreterPythonImpl::BreakpointCallbackFunction, baton_sp);
   return error;
 }
 
 Status ScriptInterpreterPythonImpl::SetBreakpointCommandCallback(
-    BreakpointOptions *bp_options, const char *command_body_text) {
-  return SetBreakpointCommandCallback(bp_options, command_body_text, {},false);
+    BreakpointOptions &bp_options, const char *command_body_text,
+    bool is_callback) {
+  return SetBreakpointCommandCallback(bp_options, command_body_text, {},
+                                      /*uses_extra_args=*/false, is_callback);
 }
 
 // Set a Python one-liner as the callback for the breakpoint.
 Status ScriptInterpreterPythonImpl::SetBreakpointCommandCallback(
-    BreakpointOptions *bp_options, const char *command_body_text,
-    StructuredData::ObjectSP extra_args_sp,
-    bool uses_extra_args) {
+    BreakpointOptions &bp_options, const char *command_body_text,
+    StructuredData::ObjectSP extra_args_sp, bool uses_extra_args,
+    bool is_callback) {
   auto data_up = std::make_unique<CommandDataPython>(extra_args_sp);
   // Split the command_body_text into lines, and pass that to
   // GenerateBreakpointCommandCallbackData.  That will wrap the body in an
@@ -1268,13 +1243,13 @@ Status ScriptInterpreterPythonImpl::SetBreakpointCommandCallback(
   // That is what the callback will actually invoke.
 
   data_up->user_source.SplitIntoLines(command_body_text);
-  Status error = GenerateBreakpointCommandCallbackData(data_up->user_source,
-                                                       data_up->script_source,
-                                                       uses_extra_args);
+  Status error = GenerateBreakpointCommandCallbackData(
+      data_up->user_source, data_up->script_source, uses_extra_args,
+      is_callback);
   if (error.Success()) {
     auto baton_sp =
         std::make_shared<BreakpointOptions::CommandBaton>(std::move(data_up));
-    bp_options->SetCallback(
+    bp_options.SetCallback(
         ScriptInterpreterPythonImpl::BreakpointCallbackFunction, baton_sp);
     return error;
   }
@@ -1283,7 +1258,8 @@ Status ScriptInterpreterPythonImpl::SetBreakpointCommandCallback(
 
 // Set a Python one-liner as the callback for the watchpoint.
 void ScriptInterpreterPythonImpl::SetWatchpointCommandCallback(
-    WatchpointOptions *wp_options, const char *oneliner) {
+    WatchpointOptions *wp_options, const char *user_input,
+    bool is_callback) {
   auto data_up = std::make_unique<WatchpointOptions::CommandData>();
 
   // It's necessary to set both user_source and script_source to the oneliner.
@@ -1291,18 +1267,16 @@ void ScriptInterpreterPythonImpl::SetWatchpointCommandCallback(
   // command list) while the latter is used for Python to interpret during the
   // actual callback.
 
-  data_up->user_source.AppendString(oneliner);
-  data_up->script_source.assign(oneliner);
+  data_up->user_source.AppendString(user_input);
+  data_up->script_source.assign(user_input);
 
-  if (GenerateWatchpointCommandCallbackData(data_up->user_source,
-                                            data_up->script_source)) {
+  if (GenerateWatchpointCommandCallbackData(
+          data_up->user_source, data_up->script_source, is_callback)) {
     auto baton_sp =
         std::make_shared<WatchpointOptions::CommandBaton>(std::move(data_up));
     wp_options->SetCallback(
         ScriptInterpreterPythonImpl::WatchpointCallbackFunction, baton_sp);
   }
-
-  return;
 }
 
 Status ScriptInterpreterPythonImpl::ExportFunctionDefinitionToInterpreter(
@@ -1312,12 +1286,13 @@ Status ScriptInterpreterPythonImpl::ExportFunctionDefinitionToInterpreter(
 
   Status error = ExecuteMultipleLines(
       function_def_string.c_str(),
-      ScriptInterpreter::ExecuteScriptOptions().SetEnableIO(false));
+      ExecuteScriptOptions().SetEnableIO(false));
   return error;
 }
 
 Status ScriptInterpreterPythonImpl::GenerateFunction(const char *signature,
-                                                     const StringList &input) {
+                                                     const StringList &input,
+                                                     bool is_callback) {
   Status error;
   int num_lines = input.GetSize();
   if (num_lines == 0) {
@@ -1334,40 +1309,61 @@ Status ScriptInterpreterPythonImpl::GenerateFunction(const char *signature,
   StringList auto_generated_function;
   auto_generated_function.AppendString(signature);
   auto_generated_function.AppendString(
-      "     global_dict = globals()"); // Grab the global dictionary
+      "    global_dict = globals()"); // Grab the global dictionary
   auto_generated_function.AppendString(
-      "     new_keys = internal_dict.keys()"); // Make a list of keys in the
-                                               // session dict
+      "    new_keys = internal_dict.keys()"); // Make a list of keys in the
+                                              // session dict
   auto_generated_function.AppendString(
-      "     old_keys = global_dict.keys()"); // Save list of keys in global dict
+      "    old_keys = global_dict.keys()"); // Save list of keys in global dict
   auto_generated_function.AppendString(
-      "     global_dict.update (internal_dict)"); // Add the session dictionary
-                                                  // to the
-  // global dictionary.
+      "    global_dict.update(internal_dict)"); // Add the session dictionary
+                                                // to the global dictionary.
 
-  // Wrap everything up inside the function, increasing the indentation.
-
-  auto_generated_function.AppendString("     if True:");
-  for (int i = 0; i < num_lines; ++i) {
-    sstr.Clear();
-    sstr.Printf("       %s", input.GetStringAtIndex(i));
-    auto_generated_function.AppendString(sstr.GetData());
+  if (is_callback) {
+    // If the user input is a callback to a python function, make sure the input
+    // is only 1 line, otherwise appending the user input would break the
+    // generated wrapped function
+    if (num_lines == 1) {
+      sstr.Clear();
+      sstr.Printf("    __return_val = %s", input.GetStringAtIndex(0));
+      auto_generated_function.AppendString(sstr.GetData());
+    } else {
+      return Status("ScriptInterpreterPythonImpl::GenerateFunction(is_callback="
+                    "true) = ERROR: python function is multiline.");
+    }
+  } else {
+    auto_generated_function.AppendString(
+        "    __return_val = None"); // Initialize user callback return value.
+    auto_generated_function.AppendString(
+        "    def __user_code():"); // Create a nested function that will wrap
+                                   // the user input. This is necessary to
+                                   // capture the return value of the user input
+                                   // and prevent early returns.
+    for (int i = 0; i < num_lines; ++i) {
+      sstr.Clear();
+      sstr.Printf("      %s", input.GetStringAtIndex(i));
+      auto_generated_function.AppendString(sstr.GetData());
+    }
+    auto_generated_function.AppendString(
+        "    __return_val = __user_code()"); //  Call user code and capture
+                                             //  return value
   }
   auto_generated_function.AppendString(
-      "     for key in new_keys:"); // Iterate over all the keys from session
-                                    // dict
+      "    for key in new_keys:"); // Iterate over all the keys from session
+                                   // dict
   auto_generated_function.AppendString(
-      "         internal_dict[key] = global_dict[key]"); // Update session dict
-                                                         // values
+      "        internal_dict[key] = global_dict[key]"); // Update session dict
+                                                        // values
   auto_generated_function.AppendString(
-      "         if key not in old_keys:"); // If key was not originally in
-                                           // global dict
+      "        if key not in old_keys:"); // If key was not originally in
+                                          // global dict
   auto_generated_function.AppendString(
-      "             del global_dict[key]"); //  ...then remove key/value from
-                                            //  global dict
+      "            del global_dict[key]"); //  ...then remove key/value from
+                                           //  global dict
+  auto_generated_function.AppendString(
+      "    return __return_val"); //  Return the user callback return value.
 
   // Verify that the results are valid Python.
-
   error = ExportFunctionDefinitionToInterpreter(auto_generated_function);
 
   return error;
@@ -1392,7 +1388,8 @@ bool ScriptInterpreterPythonImpl::GenerateTypeScriptFunction(
   sstr.Printf("def %s (valobj, internal_dict):",
               auto_generated_function_name.c_str());
 
-  if (!GenerateFunction(sstr.GetData(), user_input).Success())
+  if (!GenerateFunction(sstr.GetData(), user_input, /*is_callback=*/false)
+           .Success())
     return false;
 
   // Store the name of the auto-generated function to be called.
@@ -1413,10 +1410,11 @@ bool ScriptInterpreterPythonImpl::GenerateScriptAliasFunction(
   std::string auto_generated_function_name(GenerateUniqueName(
       "lldb_autogen_python_cmd_alias_func", num_created_functions));
 
-  sstr.Printf("def %s (debugger, args, result, internal_dict):",
+  sstr.Printf("def %s (debugger, args, exe_ctx, result, internal_dict):",
               auto_generated_function_name.c_str());
 
-  if (!GenerateFunction(sstr.GetData(), user_input).Success())
+  if (!GenerateFunction(sstr.GetData(), user_input, /*is_callback=*/true)
+           .Success())
     return false;
 
   // Store the name of the auto-generated function to be called.
@@ -1473,16 +1471,12 @@ ScriptInterpreterPythonImpl::CreateFrameRecognizer(const char *class_name) {
   if (class_name == nullptr || class_name[0] == '\0')
     return StructuredData::GenericSP();
 
-  void *ret_val;
+  Locker py_lock(this, Locker::AcquireLock | Locker::NoSTDIN, Locker::FreeLock);
+  PythonObject ret_val = SWIGBridge::LLDBSWIGPython_CreateFrameRecognizer(
+      class_name, m_dictionary_name.c_str());
 
-  {
-    Locker py_lock(this, Locker::AcquireLock | Locker::NoSTDIN,
-                   Locker::FreeLock);
-    ret_val = LLDBSWIGPython_CreateFrameRecognizer(class_name,
-                                                   m_dictionary_name.c_str());
-  }
-
-  return StructuredData::GenericSP(new StructuredPythonObject(ret_val));
+  return StructuredData::GenericSP(
+      new StructuredPythonObject(std::move(ret_val)));
 }
 
 lldb::ValueObjectListSP ScriptInterpreterPythonImpl::GetRecognizedArguments(
@@ -1504,7 +1498,7 @@ lldb::ValueObjectListSP ScriptInterpreterPythonImpl::GetRecognizedArguments(
     return ValueObjectListSP();
 
   PythonObject py_return(PyRefType::Owned,
-                         (PyObject *)LLDBSwigPython_GetRecognizedArguments(
+                         SWIGBridge::LLDBSwigPython_GetRecognizedArguments(
                              implementor.get(), frame_sp));
 
   // if it fails, print the error but otherwise go on
@@ -1519,7 +1513,8 @@ lldb::ValueObjectListSP ScriptInterpreterPythonImpl::GetRecognizedArguments(
       PyObject *item = result_list.GetItemAtIndex(i).get();
       lldb::SBValue *sb_value_ptr =
           (lldb::SBValue *)LLDBSWIGPython_CastPyObjectToSBValue(item);
-      auto valobj_sp = LLDBSWIGPython_GetValueObjectSPFromSBValue(sb_value_ptr);
+      auto valobj_sp =
+          SWIGBridge::LLDBSWIGPython_GetValueObjectSPFromSBValue(sb_value_ptr);
       if (valobj_sp)
         result->Append(valobj_sp);
     }
@@ -1528,285 +1523,34 @@ lldb::ValueObjectListSP ScriptInterpreterPythonImpl::GetRecognizedArguments(
   return ValueObjectListSP();
 }
 
-StructuredData::GenericSP
-ScriptInterpreterPythonImpl::OSPlugin_CreatePluginObject(
-    const char *class_name, lldb::ProcessSP process_sp) {
-  if (class_name == nullptr || class_name[0] == '\0')
-    return StructuredData::GenericSP();
-
-  if (!process_sp)
-    return StructuredData::GenericSP();
-
-  void *ret_val;
-
-  {
-    Locker py_lock(this, Locker::AcquireLock | Locker::NoSTDIN,
-                   Locker::FreeLock);
-    ret_val = LLDBSWIGPythonCreateOSPlugin(
-        class_name, m_dictionary_name.c_str(), process_sp);
-  }
-
-  return StructuredData::GenericSP(new StructuredPythonObject(ret_val));
+ScriptedProcessInterfaceUP
+ScriptInterpreterPythonImpl::CreateScriptedProcessInterface() {
+  return std::make_unique<ScriptedProcessPythonInterface>(*this);
 }
 
-StructuredData::DictionarySP ScriptInterpreterPythonImpl::OSPlugin_RegisterInfo(
-    StructuredData::ObjectSP os_plugin_object_sp) {
+ScriptedThreadInterfaceSP
+ScriptInterpreterPythonImpl::CreateScriptedThreadInterface() {
+  return std::make_shared<ScriptedThreadPythonInterface>(*this);
+}
+
+OperatingSystemInterfaceSP
+ScriptInterpreterPythonImpl::CreateOperatingSystemInterface() {
+  return std::make_shared<OperatingSystemPythonInterface>(*this);
+}
+
+StructuredData::ObjectSP
+ScriptInterpreterPythonImpl::CreateStructuredDataFromScriptObject(
+    ScriptObject obj) {
+  void *ptr = const_cast<void *>(obj.GetPointer());
+  PythonObject py_obj(PyRefType::Borrowed, static_cast<PyObject *>(ptr));
+  if (!py_obj.IsValid() || py_obj.IsNone())
+    return {};
   Locker py_lock(this, Locker::AcquireLock | Locker::NoSTDIN, Locker::FreeLock);
-
-  static char callee_name[] = "get_register_info";
-
-  if (!os_plugin_object_sp)
-    return StructuredData::DictionarySP();
-
-  StructuredData::Generic *generic = os_plugin_object_sp->GetAsGeneric();
-  if (!generic)
-    return nullptr;
-
-  PythonObject implementor(PyRefType::Borrowed,
-                           (PyObject *)generic->GetValue());
-
-  if (!implementor.IsAllocated())
-    return StructuredData::DictionarySP();
-
-  PythonObject pmeth(PyRefType::Owned,
-                     PyObject_GetAttrString(implementor.get(), callee_name));
-
-  if (PyErr_Occurred())
-    PyErr_Clear();
-
-  if (!pmeth.IsAllocated())
-    return StructuredData::DictionarySP();
-
-  if (PyCallable_Check(pmeth.get()) == 0) {
-    if (PyErr_Occurred())
-      PyErr_Clear();
-
-    return StructuredData::DictionarySP();
-  }
-
-  if (PyErr_Occurred())
-    PyErr_Clear();
-
-  // right now we know this function exists and is callable..
-  PythonObject py_return(
-      PyRefType::Owned,
-      PyObject_CallMethod(implementor.get(), callee_name, nullptr));
-
-  // if it fails, print the error but otherwise go on
-  if (PyErr_Occurred()) {
-    PyErr_Print();
-    PyErr_Clear();
-  }
-  if (py_return.get()) {
-    PythonDictionary result_dict(PyRefType::Borrowed, py_return.get());
-    return result_dict.CreateStructuredDictionary();
-  }
-  return StructuredData::DictionarySP();
-}
-
-StructuredData::ArraySP ScriptInterpreterPythonImpl::OSPlugin_ThreadsInfo(
-    StructuredData::ObjectSP os_plugin_object_sp) {
-  Locker py_lock(this, Locker::AcquireLock | Locker::NoSTDIN, Locker::FreeLock);
-
-  static char callee_name[] = "get_thread_info";
-
-  if (!os_plugin_object_sp)
-    return StructuredData::ArraySP();
-
-  StructuredData::Generic *generic = os_plugin_object_sp->GetAsGeneric();
-  if (!generic)
-    return nullptr;
-
-  PythonObject implementor(PyRefType::Borrowed,
-                           (PyObject *)generic->GetValue());
-
-  if (!implementor.IsAllocated())
-    return StructuredData::ArraySP();
-
-  PythonObject pmeth(PyRefType::Owned,
-                     PyObject_GetAttrString(implementor.get(), callee_name));
-
-  if (PyErr_Occurred())
-    PyErr_Clear();
-
-  if (!pmeth.IsAllocated())
-    return StructuredData::ArraySP();
-
-  if (PyCallable_Check(pmeth.get()) == 0) {
-    if (PyErr_Occurred())
-      PyErr_Clear();
-
-    return StructuredData::ArraySP();
-  }
-
-  if (PyErr_Occurred())
-    PyErr_Clear();
-
-  // right now we know this function exists and is callable..
-  PythonObject py_return(
-      PyRefType::Owned,
-      PyObject_CallMethod(implementor.get(), callee_name, nullptr));
-
-  // if it fails, print the error but otherwise go on
-  if (PyErr_Occurred()) {
-    PyErr_Print();
-    PyErr_Clear();
-  }
-
-  if (py_return.get()) {
-    PythonList result_list(PyRefType::Borrowed, py_return.get());
-    return result_list.CreateStructuredArray();
-  }
-  return StructuredData::ArraySP();
-}
-
-// GetPythonValueFormatString provides a system independent type safe way to
-// convert a variable's type into a python value format. Python value formats
-// are defined in terms of builtin C types and could change from system to as
-// the underlying typedef for uint* types, size_t, off_t and other values
-// change.
-
-template <typename T> const char *GetPythonValueFormatString(T t);
-template <> const char *GetPythonValueFormatString(char *) { return "s"; }
-template <> const char *GetPythonValueFormatString(char) { return "b"; }
-template <> const char *GetPythonValueFormatString(unsigned char) {
-  return "B";
-}
-template <> const char *GetPythonValueFormatString(short) { return "h"; }
-template <> const char *GetPythonValueFormatString(unsigned short) {
-  return "H";
-}
-template <> const char *GetPythonValueFormatString(int) { return "i"; }
-template <> const char *GetPythonValueFormatString(unsigned int) { return "I"; }
-template <> const char *GetPythonValueFormatString(long) { return "l"; }
-template <> const char *GetPythonValueFormatString(unsigned long) {
-  return "k";
-}
-template <> const char *GetPythonValueFormatString(long long) { return "L"; }
-template <> const char *GetPythonValueFormatString(unsigned long long) {
-  return "K";
-}
-template <> const char *GetPythonValueFormatString(float t) { return "f"; }
-template <> const char *GetPythonValueFormatString(double t) { return "d"; }
-
-StructuredData::StringSP
-ScriptInterpreterPythonImpl::OSPlugin_RegisterContextData(
-    StructuredData::ObjectSP os_plugin_object_sp, lldb::tid_t tid) {
-  Locker py_lock(this, Locker::AcquireLock | Locker::NoSTDIN, Locker::FreeLock);
-
-  static char callee_name[] = "get_register_data";
-  static char *param_format =
-      const_cast<char *>(GetPythonValueFormatString(tid));
-
-  if (!os_plugin_object_sp)
-    return StructuredData::StringSP();
-
-  StructuredData::Generic *generic = os_plugin_object_sp->GetAsGeneric();
-  if (!generic)
-    return nullptr;
-  PythonObject implementor(PyRefType::Borrowed,
-                           (PyObject *)generic->GetValue());
-
-  if (!implementor.IsAllocated())
-    return StructuredData::StringSP();
-
-  PythonObject pmeth(PyRefType::Owned,
-                     PyObject_GetAttrString(implementor.get(), callee_name));
-
-  if (PyErr_Occurred())
-    PyErr_Clear();
-
-  if (!pmeth.IsAllocated())
-    return StructuredData::StringSP();
-
-  if (PyCallable_Check(pmeth.get()) == 0) {
-    if (PyErr_Occurred())
-      PyErr_Clear();
-    return StructuredData::StringSP();
-  }
-
-  if (PyErr_Occurred())
-    PyErr_Clear();
-
-  // right now we know this function exists and is callable..
-  PythonObject py_return(
-      PyRefType::Owned,
-      PyObject_CallMethod(implementor.get(), callee_name, param_format, tid));
-
-  // if it fails, print the error but otherwise go on
-  if (PyErr_Occurred()) {
-    PyErr_Print();
-    PyErr_Clear();
-  }
-
-  if (py_return.get()) {
-    PythonBytes result(PyRefType::Borrowed, py_return.get());
-    return result.CreateStructuredString();
-  }
-  return StructuredData::StringSP();
-}
-
-StructuredData::DictionarySP ScriptInterpreterPythonImpl::OSPlugin_CreateThread(
-    StructuredData::ObjectSP os_plugin_object_sp, lldb::tid_t tid,
-    lldb::addr_t context) {
-  Locker py_lock(this, Locker::AcquireLock | Locker::NoSTDIN, Locker::FreeLock);
-
-  static char callee_name[] = "create_thread";
-  std::string param_format;
-  param_format += GetPythonValueFormatString(tid);
-  param_format += GetPythonValueFormatString(context);
-
-  if (!os_plugin_object_sp)
-    return StructuredData::DictionarySP();
-
-  StructuredData::Generic *generic = os_plugin_object_sp->GetAsGeneric();
-  if (!generic)
-    return nullptr;
-
-  PythonObject implementor(PyRefType::Borrowed,
-                           (PyObject *)generic->GetValue());
-
-  if (!implementor.IsAllocated())
-    return StructuredData::DictionarySP();
-
-  PythonObject pmeth(PyRefType::Owned,
-                     PyObject_GetAttrString(implementor.get(), callee_name));
-
-  if (PyErr_Occurred())
-    PyErr_Clear();
-
-  if (!pmeth.IsAllocated())
-    return StructuredData::DictionarySP();
-
-  if (PyCallable_Check(pmeth.get()) == 0) {
-    if (PyErr_Occurred())
-      PyErr_Clear();
-    return StructuredData::DictionarySP();
-  }
-
-  if (PyErr_Occurred())
-    PyErr_Clear();
-
-  // right now we know this function exists and is callable..
-  PythonObject py_return(PyRefType::Owned,
-                         PyObject_CallMethod(implementor.get(), callee_name,
-                                             &param_format[0], tid, context));
-
-  // if it fails, print the error but otherwise go on
-  if (PyErr_Occurred()) {
-    PyErr_Print();
-    PyErr_Clear();
-  }
-
-  if (py_return.get()) {
-    PythonDictionary result_dict(PyRefType::Borrowed, py_return.get());
-    return result_dict.CreateStructuredDictionary();
-  }
-  return StructuredData::DictionarySP();
+  return py_obj.CreateStructuredObject();
 }
 
 StructuredData::ObjectSP ScriptInterpreterPythonImpl::CreateScriptedThreadPlan(
-    const char *class_name, StructuredDataImpl *args_data,
+    const char *class_name, const StructuredDataImpl &args_data,
     std::string &error_str, lldb::ThreadPlanSP thread_plan_sp) {
   if (class_name == nullptr || class_name[0] == '\0')
     return StructuredData::ObjectSP();
@@ -1815,26 +1559,22 @@ StructuredData::ObjectSP ScriptInterpreterPythonImpl::CreateScriptedThreadPlan(
     return {};
 
   Debugger &debugger = thread_plan_sp->GetTarget().GetDebugger();
-  ScriptInterpreter *script_interpreter = debugger.GetScriptInterpreter();
   ScriptInterpreterPythonImpl *python_interpreter =
-      static_cast<ScriptInterpreterPythonImpl *>(script_interpreter);
+      GetPythonInterpreter(debugger);
 
-  if (!script_interpreter)
+  if (!python_interpreter)
     return {};
 
-  void *ret_val;
+  Locker py_lock(this,
+                 Locker::AcquireLock | Locker::InitSession | Locker::NoSTDIN);
+  PythonObject ret_val = SWIGBridge::LLDBSwigPythonCreateScriptedThreadPlan(
+      class_name, python_interpreter->m_dictionary_name.c_str(), args_data,
+      error_str, thread_plan_sp);
+  if (!ret_val)
+    return {};
 
-  {
-    Locker py_lock(this,
-                   Locker::AcquireLock | Locker::InitSession | Locker::NoSTDIN);
-    ret_val = LLDBSwigPythonCreateScriptedThreadPlan(
-        class_name, python_interpreter->m_dictionary_name.c_str(),
-        args_data, error_str, thread_plan_sp);
-    if (!ret_val)
-      return {};
-  }
-
-  return StructuredData::ObjectSP(new StructuredPythonObject(ret_val));
+  return StructuredData::ObjectSP(
+      new StructuredPythonObject(std::move(ret_val)));
 }
 
 bool ScriptInterpreterPythonImpl::ScriptedThreadPlanExplainsStop(
@@ -1846,7 +1586,7 @@ bool ScriptInterpreterPythonImpl::ScriptedThreadPlanExplainsStop(
   if (generic) {
     Locker py_lock(this,
                    Locker::AcquireLock | Locker::InitSession | Locker::NoSTDIN);
-    explains_stop = LLDBSWIGPythonCallThreadPlan(
+    explains_stop = SWIGBridge::LLDBSWIGPythonCallThreadPlan(
         generic->GetValue(), "explains_stop", event, script_error);
     if (script_error)
       return true;
@@ -1863,7 +1603,7 @@ bool ScriptInterpreterPythonImpl::ScriptedThreadPlanShouldStop(
   if (generic) {
     Locker py_lock(this,
                    Locker::AcquireLock | Locker::InitSession | Locker::NoSTDIN);
-    should_stop = LLDBSWIGPythonCallThreadPlan(
+    should_stop = SWIGBridge::LLDBSWIGPythonCallThreadPlan(
         generic->GetValue(), "should_stop", event, script_error);
     if (script_error)
       return true;
@@ -1880,8 +1620,8 @@ bool ScriptInterpreterPythonImpl::ScriptedThreadPlanIsStale(
   if (generic) {
     Locker py_lock(this,
                    Locker::AcquireLock | Locker::InitSession | Locker::NoSTDIN);
-    is_stale = LLDBSWIGPythonCallThreadPlan(generic->GetValue(), "is_stale",
-                                            nullptr, script_error);
+    is_stale = SWIGBridge::LLDBSWIGPythonCallThreadPlan(
+        generic->GetValue(), "is_stale", (Event *)nullptr, script_error);
     if (script_error)
       return true;
   }
@@ -1897,8 +1637,8 @@ lldb::StateType ScriptInterpreterPythonImpl::ScriptedThreadPlanGetRunState(
   if (generic) {
     Locker py_lock(this,
                    Locker::AcquireLock | Locker::InitSession | Locker::NoSTDIN);
-    should_step = LLDBSWIGPythonCallThreadPlan(
-        generic->GetValue(), "should_step", nullptr, script_error);
+    should_step = SWIGBridge::LLDBSWIGPythonCallThreadPlan(
+        generic->GetValue(), "should_step", (Event *)nullptr, script_error);
     if (script_error)
       should_step = true;
   }
@@ -1907,9 +1647,27 @@ lldb::StateType ScriptInterpreterPythonImpl::ScriptedThreadPlanGetRunState(
   return lldb::eStateRunning;
 }
 
+bool
+ScriptInterpreterPythonImpl::ScriptedThreadPlanGetStopDescription(
+    StructuredData::ObjectSP implementor_sp, lldb_private::Stream *stream,
+    bool &script_error) {
+  StructuredData::Generic *generic = nullptr;
+  if (implementor_sp)
+    generic = implementor_sp->GetAsGeneric();
+  if (!generic) {
+    script_error = true;
+    return false;
+  }
+  Locker py_lock(this,
+                   Locker::AcquireLock | Locker::InitSession | Locker::NoSTDIN);
+  return SWIGBridge::LLDBSWIGPythonCallThreadPlan(
+      generic->GetValue(), "stop_description", stream, script_error);
+}
+
+
 StructuredData::GenericSP
 ScriptInterpreterPythonImpl::CreateScriptedBreakpointResolver(
-    const char *class_name, StructuredDataImpl *args_data,
+    const char *class_name, const StructuredDataImpl &args_data,
     lldb::BreakpointSP &bkpt_sp) {
 
   if (class_name == nullptr || class_name[0] == '\0')
@@ -1919,25 +1677,22 @@ ScriptInterpreterPythonImpl::CreateScriptedBreakpointResolver(
     return StructuredData::GenericSP();
 
   Debugger &debugger = bkpt_sp->GetTarget().GetDebugger();
-  ScriptInterpreter *script_interpreter = debugger.GetScriptInterpreter();
   ScriptInterpreterPythonImpl *python_interpreter =
-      static_cast<ScriptInterpreterPythonImpl *>(script_interpreter);
+      GetPythonInterpreter(debugger);
 
-  if (!script_interpreter)
+  if (!python_interpreter)
     return StructuredData::GenericSP();
 
-  void *ret_val;
+  Locker py_lock(this,
+                 Locker::AcquireLock | Locker::InitSession | Locker::NoSTDIN);
 
-  {
-    Locker py_lock(this,
-                   Locker::AcquireLock | Locker::InitSession | Locker::NoSTDIN);
+  PythonObject ret_val =
+      SWIGBridge::LLDBSwigPythonCreateScriptedBreakpointResolver(
+          class_name, python_interpreter->m_dictionary_name.c_str(), args_data,
+          bkpt_sp);
 
-    ret_val = LLDBSwigPythonCreateScriptedBreakpointResolver(
-        class_name, python_interpreter->m_dictionary_name.c_str(), args_data,
-        bkpt_sp);
-  }
-
-  return StructuredData::GenericSP(new StructuredPythonObject(ret_val));
+  return StructuredData::GenericSP(
+      new StructuredPythonObject(std::move(ret_val)));
 }
 
 bool ScriptInterpreterPythonImpl::ScriptedBreakpointResolverSearchCallback(
@@ -1947,7 +1702,7 @@ bool ScriptInterpreterPythonImpl::ScriptedBreakpointResolverSearchCallback(
   if (implementor_sp) {
     Locker py_lock(this,
                    Locker::AcquireLock | Locker::InitSession | Locker::NoSTDIN);
-    should_continue = LLDBSwigPythonCallBreakpointResolver(
+    should_continue = SWIGBridge::LLDBSwigPythonCallBreakpointResolver(
         implementor_sp->GetValue(), "__callback__", sym_ctx);
     if (PyErr_Occurred()) {
       PyErr_Print();
@@ -1964,7 +1719,7 @@ ScriptInterpreterPythonImpl::ScriptedBreakpointResolverSearchDepth(
   if (implementor_sp) {
     Locker py_lock(this,
                    Locker::AcquireLock | Locker::InitSession | Locker::NoSTDIN);
-    depth_as_int = LLDBSwigPythonCallBreakpointResolver(
+    depth_as_int = SWIGBridge::LLDBSwigPythonCallBreakpointResolver(
         implementor_sp->GetValue(), "__get_depth__", nullptr);
     if (PyErr_Occurred()) {
       PyErr_Print();
@@ -1979,6 +1734,56 @@ ScriptInterpreterPythonImpl::ScriptedBreakpointResolverSearchDepth(
   return lldb::eSearchDepthModule;
 }
 
+StructuredData::GenericSP ScriptInterpreterPythonImpl::CreateScriptedStopHook(
+    TargetSP target_sp, const char *class_name,
+    const StructuredDataImpl &args_data, Status &error) {
+
+  if (!target_sp) {
+    error.SetErrorString("No target for scripted stop-hook.");
+    return StructuredData::GenericSP();
+  }
+
+  if (class_name == nullptr || class_name[0] == '\0') {
+    error.SetErrorString("No class name for scripted stop-hook.");
+    return StructuredData::GenericSP();
+  }
+
+  ScriptInterpreterPythonImpl *python_interpreter =
+      GetPythonInterpreter(m_debugger);
+
+  if (!python_interpreter) {
+    error.SetErrorString("No script interpreter for scripted stop-hook.");
+    return StructuredData::GenericSP();
+  }
+
+  Locker py_lock(this,
+                 Locker::AcquireLock | Locker::InitSession | Locker::NoSTDIN);
+
+  PythonObject ret_val = SWIGBridge::LLDBSwigPythonCreateScriptedStopHook(
+      target_sp, class_name, python_interpreter->m_dictionary_name.c_str(),
+      args_data, error);
+
+  return StructuredData::GenericSP(
+      new StructuredPythonObject(std::move(ret_val)));
+}
+
+bool ScriptInterpreterPythonImpl::ScriptedStopHookHandleStop(
+    StructuredData::GenericSP implementor_sp, ExecutionContext &exc_ctx,
+    lldb::StreamSP stream_sp) {
+  assert(implementor_sp &&
+         "can't call a stop hook with an invalid implementor");
+  assert(stream_sp && "can't call a stop hook with an invalid stream");
+
+  Locker py_lock(this,
+                 Locker::AcquireLock | Locker::InitSession | Locker::NoSTDIN);
+
+  lldb::ExecutionContextRefSP exc_ctx_ref_sp(new ExecutionContextRef(exc_ctx));
+
+  bool ret_val = SWIGBridge::LLDBSwigPythonStopHookCallHandleStop(
+      implementor_sp->GetValue(), exc_ctx_ref_sp, stream_sp);
+  return ret_val;
+}
+
 StructuredData::ObjectSP
 ScriptInterpreterPythonImpl::LoadPluginModule(const FileSpec &file_spec,
                                               lldb_private::Status &error) {
@@ -1989,7 +1794,10 @@ ScriptInterpreterPythonImpl::LoadPluginModule(const FileSpec &file_spec,
 
   StructuredData::ObjectSP module_sp;
 
-  if (LoadScriptingModule(file_spec.GetPath().c_str(), true, error, &module_sp))
+  LoadScriptOptions load_script_options =
+      LoadScriptOptions().SetInitSession(true).SetSilent(false);
+  if (LoadScriptingModule(file_spec.GetPath().c_str(), load_script_options,
+                          error, &module_sp))
     return module_sp;
 
   return StructuredData::ObjectSP();
@@ -2008,7 +1816,7 @@ StructuredData::DictionarySP ScriptInterpreterPythonImpl::GetDynamicSettings(
                  Locker::AcquireLock | Locker::InitSession | Locker::NoSTDIN);
   TargetSP target_sp(target->shared_from_this());
 
-  auto setting = (PyObject *)LLDBSWIGPython_GetDynamicSetting(
+  auto setting = (PyObject *)SWIGBridge::LLDBSWIGPython_GetDynamicSetting(
       generic->GetValue(), setting_name, target_sp);
 
   if (!setting)
@@ -2039,23 +1847,19 @@ ScriptInterpreterPythonImpl::CreateSyntheticScriptedProvider(
     return StructuredData::ObjectSP();
 
   Debugger &debugger = target->GetDebugger();
-  ScriptInterpreter *script_interpreter = debugger.GetScriptInterpreter();
   ScriptInterpreterPythonImpl *python_interpreter =
-      (ScriptInterpreterPythonImpl *)script_interpreter;
+      GetPythonInterpreter(debugger);
 
-  if (!script_interpreter)
+  if (!python_interpreter)
     return StructuredData::ObjectSP();
 
-  void *ret_val = nullptr;
+  Locker py_lock(this,
+                 Locker::AcquireLock | Locker::InitSession | Locker::NoSTDIN);
+  PythonObject ret_val = SWIGBridge::LLDBSwigPythonCreateSyntheticProvider(
+      class_name, python_interpreter->m_dictionary_name.c_str(), valobj);
 
-  {
-    Locker py_lock(this,
-                   Locker::AcquireLock | Locker::InitSession | Locker::NoSTDIN);
-    ret_val = LLDBSwigPythonCreateSyntheticProvider(
-        class_name, python_interpreter->m_dictionary_name.c_str(), valobj);
-  }
-
-  return StructuredData::ObjectSP(new StructuredPythonObject(ret_val));
+  return StructuredData::ObjectSP(
+      new StructuredPythonObject(std::move(ret_val)));
 }
 
 StructuredData::GenericSP
@@ -2068,16 +1872,16 @@ ScriptInterpreterPythonImpl::CreateScriptCommandObject(const char *class_name) {
   if (!debugger_sp.get())
     return StructuredData::GenericSP();
 
-  void *ret_val;
+  Locker py_lock(this,
+                 Locker::AcquireLock | Locker::InitSession | Locker::NoSTDIN);
+  PythonObject ret_val = SWIGBridge::LLDBSwigPythonCreateCommandObject(
+      class_name, m_dictionary_name.c_str(), debugger_sp);
 
-  {
-    Locker py_lock(this,
-                   Locker::AcquireLock | Locker::InitSession | Locker::NoSTDIN);
-    ret_val = LLDBSwigPythonCreateCommandObject(
-        class_name, m_dictionary_name.c_str(), debugger_sp);
-  }
-
-  return StructuredData::GenericSP(new StructuredPythonObject(ret_val));
+  if (ret_val.IsValid())
+    return StructuredData::GenericSP(
+        new StructuredPythonObject(std::move(ret_val)));
+  else
+    return {};
 }
 
 bool ScriptInterpreterPythonImpl::GenerateTypeScriptFunction(
@@ -2095,8 +1899,8 @@ bool ScriptInterpreterPythonImpl::GenerateTypeSynthClass(
 }
 
 Status ScriptInterpreterPythonImpl::GenerateBreakpointCommandCallbackData(
-    StringList &user_input, std::string &output,
-    bool has_extra_args) {
+    StringList &user_input, std::string &output, bool has_extra_args,
+    bool is_callback) {
   static uint32_t num_created_functions = 0;
   user_input.RemoveBlankLines();
   StreamString sstr;
@@ -2115,7 +1919,7 @@ Status ScriptInterpreterPythonImpl::GenerateBreakpointCommandCallbackData(
     sstr.Printf("def %s (frame, bp_loc, internal_dict):",
                 auto_generated_function_name.c_str());
 
-  error = GenerateFunction(sstr.GetData(), user_input);
+  error = GenerateFunction(sstr.GetData(), user_input, is_callback);
   if (!error.Success())
     return error;
 
@@ -2125,7 +1929,7 @@ Status ScriptInterpreterPythonImpl::GenerateBreakpointCommandCallbackData(
 }
 
 bool ScriptInterpreterPythonImpl::GenerateWatchpointCommandCallbackData(
-    StringList &user_input, std::string &output) {
+    StringList &user_input, std::string &output, bool is_callback) {
   static uint32_t num_created_functions = 0;
   user_input.RemoveBlankLines();
   StreamString sstr;
@@ -2138,7 +1942,7 @@ bool ScriptInterpreterPythonImpl::GenerateWatchpointCommandCallbackData(
   sstr.Printf("def %s (frame, wp, internal_dict):",
               auto_generated_function_name.c_str());
 
-  if (!GenerateFunction(sstr.GetData(), user_input).Success())
+  if (!GenerateFunction(sstr.GetData(), user_input, is_callback).Success())
     return false;
 
   // Store the name of the auto-generated function to be called.
@@ -2151,8 +1955,7 @@ bool ScriptInterpreterPythonImpl::GetScriptedSummary(
     StructuredData::ObjectSP &callee_wrapper_sp,
     const TypeSummaryOptions &options, std::string &retval) {
 
-  static Timer::Category func_cat(LLVM_PRETTY_FUNCTION);
-  Timer scoped_timer(func_cat, LLVM_PRETTY_FUNCTION);
+  LLDB_SCOPED_TIMER();
 
   if (!valobj.get()) {
     retval.assign("<no object>");
@@ -2178,7 +1981,7 @@ bool ScriptInterpreterPythonImpl::GetScriptedSummary(
 
         static Timer::Category func_cat("LLDBSwigPythonCallTypeScript");
         Timer scoped_timer(func_cat, "LLDBSwigPythonCallTypeScript");
-        ret_val = LLDBSwigPythonCallTypeScript(
+        ret_val = SWIGBridge::LLDBSwigPythonCallTypeScript(
             python_function_name, GetSessionDictionary().get(), valobj,
             &new_callee, options_sp, retval);
       }
@@ -2188,10 +1991,22 @@ bool ScriptInterpreterPythonImpl::GetScriptedSummary(
     return false;
   }
 
-  if (new_callee && old_callee != new_callee)
-    callee_wrapper_sp = std::make_shared<StructuredPythonObject>(new_callee);
+  if (new_callee && old_callee != new_callee) {
+    Locker py_lock(this,
+                   Locker::AcquireLock | Locker::InitSession | Locker::NoSTDIN);
+    callee_wrapper_sp = std::make_shared<StructuredPythonObject>(
+        PythonObject(PyRefType::Borrowed, static_cast<PyObject *>(new_callee)));
+  }
 
   return ret_val;
+}
+
+bool ScriptInterpreterPythonImpl::FormatterCallbackFunction(
+    const char *python_function_name, TypeImplSP type_impl_sp) {
+  Locker py_lock(this,
+                 Locker::AcquireLock | Locker::InitSession | Locker::NoSTDIN);
+  return SWIGBridge::LLDBSwigPythonFormatterCallbackFunction(
+      python_function_name, m_dictionary_name.c_str(), type_impl_sp);
 }
 
 bool ScriptInterpreterPythonImpl::BreakpointCallbackFunction(
@@ -2210,11 +2025,10 @@ bool ScriptInterpreterPythonImpl::BreakpointCallbackFunction(
     return true;
 
   Debugger &debugger = target->GetDebugger();
-  ScriptInterpreter *script_interpreter = debugger.GetScriptInterpreter();
   ScriptInterpreterPythonImpl *python_interpreter =
-      (ScriptInterpreterPythonImpl *)script_interpreter;
+      GetPythonInterpreter(debugger);
 
-  if (!script_interpreter)
+  if (!python_interpreter)
     return true;
 
   if (python_function_name && python_function_name[0]) {
@@ -2231,10 +2045,10 @@ bool ScriptInterpreterPythonImpl::BreakpointCallbackFunction(
                                                  Locker::InitSession |
                                                  Locker::NoSTDIN);
           Expected<bool> maybe_ret_val =
-              LLDBSwigPythonBreakpointCallbackFunction(
+              SWIGBridge::LLDBSwigPythonBreakpointCallbackFunction(
                   python_function_name,
                   python_interpreter->m_dictionary_name.c_str(), stop_frame_sp,
-                  bp_loc_sp, bp_option_data->m_extra_args_up.get());
+                  bp_loc_sp, bp_option_data->m_extra_args);
 
           if (!maybe_ret_val) {
 
@@ -2276,11 +2090,10 @@ bool ScriptInterpreterPythonImpl::WatchpointCallbackFunction(
     return true;
 
   Debugger &debugger = target->GetDebugger();
-  ScriptInterpreter *script_interpreter = debugger.GetScriptInterpreter();
   ScriptInterpreterPythonImpl *python_interpreter =
-      (ScriptInterpreterPythonImpl *)script_interpreter;
+      GetPythonInterpreter(debugger);
 
-  if (!script_interpreter)
+  if (!python_interpreter)
     return true;
 
   if (python_function_name && python_function_name[0]) {
@@ -2293,7 +2106,7 @@ bool ScriptInterpreterPythonImpl::WatchpointCallbackFunction(
           Locker py_lock(python_interpreter, Locker::AcquireLock |
                                                  Locker::InitSession |
                                                  Locker::NoSTDIN);
-          ret_val = LLDBSwigPythonWatchpointCallbackFunction(
+          ret_val = SWIGBridge::LLDBSwigPythonWatchpointCallbackFunction(
               python_function_name,
               python_interpreter->m_dictionary_name.c_str(), stop_frame_sp,
               wp_sp);
@@ -2314,7 +2127,7 @@ size_t ScriptInterpreterPythonImpl::CalculateNumChildren(
   StructuredData::Generic *generic = implementor_sp->GetAsGeneric();
   if (!generic)
     return 0;
-  void *implementor = generic->GetValue();
+  auto *implementor = static_cast<PyObject *>(generic->GetValue());
   if (!implementor)
     return 0;
 
@@ -2323,7 +2136,7 @@ size_t ScriptInterpreterPythonImpl::CalculateNumChildren(
   {
     Locker py_lock(this,
                    Locker::AcquireLock | Locker::InitSession | Locker::NoSTDIN);
-    ret_val = LLDBSwigPython_CalculateNumChildren(implementor, max);
+    ret_val = SWIGBridge::LLDBSwigPython_CalculateNumChildren(implementor, max);
   }
 
   return ret_val;
@@ -2337,7 +2150,7 @@ lldb::ValueObjectSP ScriptInterpreterPythonImpl::GetChildAtIndex(
   StructuredData::Generic *generic = implementor_sp->GetAsGeneric();
   if (!generic)
     return lldb::ValueObjectSP();
-  void *implementor = generic->GetValue();
+  auto *implementor = static_cast<PyObject *>(generic->GetValue());
   if (!implementor)
     return lldb::ValueObjectSP();
 
@@ -2345,14 +2158,16 @@ lldb::ValueObjectSP ScriptInterpreterPythonImpl::GetChildAtIndex(
   {
     Locker py_lock(this,
                    Locker::AcquireLock | Locker::InitSession | Locker::NoSTDIN);
-    void *child_ptr = LLDBSwigPython_GetChildAtIndex(implementor, idx);
+    PyObject *child_ptr =
+        SWIGBridge::LLDBSwigPython_GetChildAtIndex(implementor, idx);
     if (child_ptr != nullptr && child_ptr != Py_None) {
       lldb::SBValue *sb_value_ptr =
           (lldb::SBValue *)LLDBSWIGPython_CastPyObjectToSBValue(child_ptr);
       if (sb_value_ptr == nullptr)
         Py_XDECREF(child_ptr);
       else
-        ret_val = LLDBSWIGPython_GetValueObjectSPFromSBValue(sb_value_ptr);
+        ret_val = SWIGBridge::LLDBSWIGPython_GetValueObjectSPFromSBValue(
+            sb_value_ptr);
     } else {
       Py_XDECREF(child_ptr);
     }
@@ -2369,7 +2184,7 @@ int ScriptInterpreterPythonImpl::GetIndexOfChildWithName(
   StructuredData::Generic *generic = implementor_sp->GetAsGeneric();
   if (!generic)
     return UINT32_MAX;
-  void *implementor = generic->GetValue();
+  auto *implementor = static_cast<PyObject *>(generic->GetValue());
   if (!implementor)
     return UINT32_MAX;
 
@@ -2378,7 +2193,7 @@ int ScriptInterpreterPythonImpl::GetIndexOfChildWithName(
   {
     Locker py_lock(this,
                    Locker::AcquireLock | Locker::InitSession | Locker::NoSTDIN);
-    ret_val = LLDBSwigPython_GetIndexOfChildWithName(implementor, child_name);
+    ret_val = SWIGBridge::LLDBSwigPython_GetIndexOfChildWithName(implementor, child_name);
   }
 
   return ret_val;
@@ -2394,14 +2209,15 @@ bool ScriptInterpreterPythonImpl::UpdateSynthProviderInstance(
   StructuredData::Generic *generic = implementor_sp->GetAsGeneric();
   if (!generic)
     return ret_val;
-  void *implementor = generic->GetValue();
+  auto *implementor = static_cast<PyObject *>(generic->GetValue());
   if (!implementor)
     return ret_val;
 
   {
     Locker py_lock(this,
                    Locker::AcquireLock | Locker::InitSession | Locker::NoSTDIN);
-    ret_val = LLDBSwigPython_UpdateSynthProviderInstance(implementor);
+    ret_val =
+        SWIGBridge::LLDBSwigPython_UpdateSynthProviderInstance(implementor);
   }
 
   return ret_val;
@@ -2417,15 +2233,15 @@ bool ScriptInterpreterPythonImpl::MightHaveChildrenSynthProviderInstance(
   StructuredData::Generic *generic = implementor_sp->GetAsGeneric();
   if (!generic)
     return ret_val;
-  void *implementor = generic->GetValue();
+  auto *implementor = static_cast<PyObject *>(generic->GetValue());
   if (!implementor)
     return ret_val;
 
   {
     Locker py_lock(this,
                    Locker::AcquireLock | Locker::InitSession | Locker::NoSTDIN);
-    ret_val =
-        LLDBSwigPython_MightHaveChildrenSynthProviderInstance(implementor);
+    ret_val = SWIGBridge::LLDBSwigPython_MightHaveChildrenSynthProviderInstance(
+        implementor);
   }
 
   return ret_val;
@@ -2441,21 +2257,23 @@ lldb::ValueObjectSP ScriptInterpreterPythonImpl::GetSyntheticValue(
   StructuredData::Generic *generic = implementor_sp->GetAsGeneric();
   if (!generic)
     return ret_val;
-  void *implementor = generic->GetValue();
+  auto *implementor = static_cast<PyObject *>(generic->GetValue());
   if (!implementor)
     return ret_val;
 
   {
     Locker py_lock(this,
                    Locker::AcquireLock | Locker::InitSession | Locker::NoSTDIN);
-    void *child_ptr = LLDBSwigPython_GetValueSynthProviderInstance(implementor);
+    PyObject *child_ptr =
+        SWIGBridge::LLDBSwigPython_GetValueSynthProviderInstance(implementor);
     if (child_ptr != nullptr && child_ptr != Py_None) {
       lldb::SBValue *sb_value_ptr =
           (lldb::SBValue *)LLDBSWIGPython_CastPyObjectToSBValue(child_ptr);
       if (sb_value_ptr == nullptr)
         Py_XDECREF(child_ptr);
       else
-        ret_val = LLDBSWIGPython_GetValueObjectSPFromSBValue(sb_value_ptr);
+        ret_val = SWIGBridge::LLDBSWIGPython_GetValueObjectSPFromSBValue(
+            sb_value_ptr);
     } else {
       Py_XDECREF(child_ptr);
     }
@@ -2469,65 +2287,32 @@ ConstString ScriptInterpreterPythonImpl::GetSyntheticTypeName(
   Locker py_lock(this,
                  Locker::AcquireLock | Locker::InitSession | Locker::NoSTDIN);
 
-  static char callee_name[] = "get_type_name";
-
-  ConstString ret_val;
-  bool got_string = false;
-  std::string buffer;
-
   if (!implementor_sp)
-    return ret_val;
+    return {};
 
   StructuredData::Generic *generic = implementor_sp->GetAsGeneric();
   if (!generic)
-    return ret_val;
+    return {};
+
   PythonObject implementor(PyRefType::Borrowed,
                            (PyObject *)generic->GetValue());
   if (!implementor.IsAllocated())
-    return ret_val;
+    return {};
 
-  PythonObject pmeth(PyRefType::Owned,
-                     PyObject_GetAttrString(implementor.get(), callee_name));
+  llvm::Expected<PythonObject> expected_py_return =
+      implementor.CallMethod("get_type_name");
 
-  if (PyErr_Occurred())
-    PyErr_Clear();
-
-  if (!pmeth.IsAllocated())
-    return ret_val;
-
-  if (PyCallable_Check(pmeth.get()) == 0) {
-    if (PyErr_Occurred())
-      PyErr_Clear();
-    return ret_val;
+  if (!expected_py_return) {
+    llvm::consumeError(expected_py_return.takeError());
+    return {};
   }
 
-  if (PyErr_Occurred())
-    PyErr_Clear();
+  PythonObject py_return = std::move(expected_py_return.get());
+  if (!py_return.IsAllocated() || !PythonString::Check(py_return.get()))
+    return {};
 
-  // right now we know this function exists and is callable..
-  PythonObject py_return(
-      PyRefType::Owned,
-      PyObject_CallMethod(implementor.get(), callee_name, nullptr));
-
-  // if it fails, print the error but otherwise go on
-  if (PyErr_Occurred()) {
-    PyErr_Print();
-    PyErr_Clear();
-  }
-
-  if (py_return.IsAllocated() && PythonString::Check(py_return.get())) {
-    PythonString py_string(PyRefType::Borrowed, py_return.get());
-    llvm::StringRef return_data(py_string.GetString());
-    if (!return_data.empty()) {
-      buffer.assign(return_data.data(), return_data.size());
-      got_string = true;
-    }
-  }
-
-  if (got_string)
-    ret_val.SetCStringWithLength(buffer.c_str(), buffer.size());
-
-  return ret_val;
+  PythonString type_name(PyRefType::Borrowed, py_return.get());
+  return ConstString(type_name.GetString());
 }
 
 bool ScriptInterpreterPythonImpl::RunScriptFormatKeyword(
@@ -2544,11 +2329,11 @@ bool ScriptInterpreterPythonImpl::RunScriptFormatKeyword(
   }
 
   {
-    ProcessSP process_sp(process->shared_from_this());
     Locker py_lock(this,
                    Locker::AcquireLock | Locker::InitSession | Locker::NoSTDIN);
-    ret_val = LLDBSWIGPythonRunScriptKeywordProcess(
-        impl_function, m_dictionary_name.c_str(), process_sp, output);
+    ret_val = SWIGBridge::LLDBSWIGPythonRunScriptKeywordProcess(
+        impl_function, m_dictionary_name.c_str(), process->shared_from_this(),
+        output);
     if (!ret_val)
       error.SetErrorString("python script evaluation failed");
   }
@@ -2558,7 +2343,6 @@ bool ScriptInterpreterPythonImpl::RunScriptFormatKeyword(
 bool ScriptInterpreterPythonImpl::RunScriptFormatKeyword(
     const char *impl_function, Thread *thread, std::string &output,
     Status &error) {
-  bool ret_val;
   if (!thread) {
     error.SetErrorString("no thread");
     return false;
@@ -2568,16 +2352,17 @@ bool ScriptInterpreterPythonImpl::RunScriptFormatKeyword(
     return false;
   }
 
-  {
-    ThreadSP thread_sp(thread->shared_from_this());
-    Locker py_lock(this,
-                   Locker::AcquireLock | Locker::InitSession | Locker::NoSTDIN);
-    ret_val = LLDBSWIGPythonRunScriptKeywordThread(
-        impl_function, m_dictionary_name.c_str(), thread_sp, output);
-    if (!ret_val)
-      error.SetErrorString("python script evaluation failed");
+  Locker py_lock(this,
+                 Locker::AcquireLock | Locker::InitSession | Locker::NoSTDIN);
+  if (std::optional<std::string> result =
+          SWIGBridge::LLDBSWIGPythonRunScriptKeywordThread(
+              impl_function, m_dictionary_name.c_str(),
+              thread->shared_from_this())) {
+    output = std::move(*result);
+    return true;
   }
-  return ret_val;
+  error.SetErrorString("python script evaluation failed");
+  return false;
 }
 
 bool ScriptInterpreterPythonImpl::RunScriptFormatKeyword(
@@ -2597,7 +2382,7 @@ bool ScriptInterpreterPythonImpl::RunScriptFormatKeyword(
     TargetSP target_sp(target->shared_from_this());
     Locker py_lock(this,
                    Locker::AcquireLock | Locker::InitSession | Locker::NoSTDIN);
-    ret_val = LLDBSWIGPythonRunScriptKeywordTarget(
+    ret_val = SWIGBridge::LLDBSWIGPythonRunScriptKeywordTarget(
         impl_function, m_dictionary_name.c_str(), target_sp, output);
     if (!ret_val)
       error.SetErrorString("python script evaluation failed");
@@ -2608,7 +2393,6 @@ bool ScriptInterpreterPythonImpl::RunScriptFormatKeyword(
 bool ScriptInterpreterPythonImpl::RunScriptFormatKeyword(
     const char *impl_function, StackFrame *frame, std::string &output,
     Status &error) {
-  bool ret_val;
   if (!frame) {
     error.SetErrorString("no frame");
     return false;
@@ -2618,16 +2402,17 @@ bool ScriptInterpreterPythonImpl::RunScriptFormatKeyword(
     return false;
   }
 
-  {
-    StackFrameSP frame_sp(frame->shared_from_this());
-    Locker py_lock(this,
-                   Locker::AcquireLock | Locker::InitSession | Locker::NoSTDIN);
-    ret_val = LLDBSWIGPythonRunScriptKeywordFrame(
-        impl_function, m_dictionary_name.c_str(), frame_sp, output);
-    if (!ret_val)
-      error.SetErrorString("python script evaluation failed");
+  Locker py_lock(this,
+                 Locker::AcquireLock | Locker::InitSession | Locker::NoSTDIN);
+  if (std::optional<std::string> result =
+          SWIGBridge::LLDBSWIGPythonRunScriptKeywordFrame(
+              impl_function, m_dictionary_name.c_str(),
+              frame->shared_from_this())) {
+    output = std::move(*result);
+    return true;
   }
-  return ret_val;
+  error.SetErrorString("python script evaluation failed");
+  return false;
 }
 
 bool ScriptInterpreterPythonImpl::RunScriptFormatKeyword(
@@ -2644,11 +2429,10 @@ bool ScriptInterpreterPythonImpl::RunScriptFormatKeyword(
   }
 
   {
-    ValueObjectSP value_sp(value->GetSP());
     Locker py_lock(this,
                    Locker::AcquireLock | Locker::InitSession | Locker::NoSTDIN);
-    ret_val = LLDBSWIGPythonRunScriptKeywordValue(
-        impl_function, m_dictionary_name.c_str(), value_sp, output);
+    ret_val = SWIGBridge::LLDBSWIGPythonRunScriptKeywordValue(
+        impl_function, m_dictionary_name.c_str(), value->GetSP(), output);
     if (!ret_val)
       error.SetErrorString("python script evaluation failed");
   }
@@ -2668,33 +2452,80 @@ uint64_t replace_all(std::string &str, const std::string &oldStr,
 }
 
 bool ScriptInterpreterPythonImpl::LoadScriptingModule(
-    const char *pathname, bool init_session, lldb_private::Status &error,
-    StructuredData::ObjectSP *module_sp) {
+    const char *pathname, const LoadScriptOptions &options,
+    lldb_private::Status &error, StructuredData::ObjectSP *module_sp,
+    FileSpec extra_search_dir) {
+  namespace fs = llvm::sys::fs;
+  namespace path = llvm::sys::path;
+
+  ExecuteScriptOptions exc_options = ExecuteScriptOptions()
+                                         .SetEnableIO(!options.GetSilent())
+                                         .SetSetLLDBGlobals(false);
+
   if (!pathname || !pathname[0]) {
-    error.SetErrorString("invalid pathname");
+    error.SetErrorString("empty path");
     return false;
   }
 
-  lldb::DebuggerSP debugger_sp = m_debugger.shared_from_this();
+  llvm::Expected<std::unique_ptr<ScriptInterpreterIORedirect>>
+      io_redirect_or_error = ScriptInterpreterIORedirect::Create(
+          exc_options.GetEnableIO(), m_debugger, /*result=*/nullptr);
 
-  {
-    FileSpec target_file(pathname);
-    FileSystem::Instance().Resolve(target_file);
-    FileSystem::Instance().Collect(target_file);
-    std::string basename(target_file.GetFilename().GetCString());
+  if (!io_redirect_or_error) {
+    error = io_redirect_or_error.takeError();
+    return false;
+  }
 
+  ScriptInterpreterIORedirect &io_redirect = **io_redirect_or_error;
+
+  // Before executing Python code, lock the GIL.
+  Locker py_lock(this,
+                 Locker::AcquireLock |
+                     (options.GetInitSession() ? Locker::InitSession : 0) |
+                     Locker::NoSTDIN,
+                 Locker::FreeAcquiredLock |
+                     (options.GetInitSession() ? Locker::TearDownSession : 0),
+                 io_redirect.GetInputFile(), io_redirect.GetOutputFile(),
+                 io_redirect.GetErrorFile());
+
+  auto ExtendSysPath = [&](std::string directory) -> llvm::Error {
+    if (directory.empty()) {
+      return llvm::make_error<llvm::StringError>(
+          "invalid directory name", llvm::inconvertibleErrorCode());
+    }
+
+    replace_all(directory, "\\", "\\\\");
+    replace_all(directory, "'", "\\'");
+
+    // Make sure that Python has "directory" in the search path.
     StreamString command_stream;
+    command_stream.Printf("if not (sys.path.__contains__('%s')):\n    "
+                          "sys.path.insert(1,'%s');\n\n",
+                          directory.c_str(), directory.c_str());
+    bool syspath_retval =
+        ExecuteMultipleLines(command_stream.GetData(), exc_options).Success();
+    if (!syspath_retval) {
+      return llvm::make_error<llvm::StringError>(
+          "Python sys.path handling failed", llvm::inconvertibleErrorCode());
+    }
 
-    // Before executing Python code, lock the GIL.
-    Locker py_lock(this,
-                   Locker::AcquireLock |
-                       (init_session ? Locker::InitSession : 0) |
-                       Locker::NoSTDIN,
-                   Locker::FreeAcquiredLock |
-                       (init_session ? Locker::TearDownSession : 0));
-    namespace fs = llvm::sys::fs;
+    return llvm::Error::success();
+  };
+
+  std::string module_name(pathname);
+  bool possible_package = false;
+
+  if (extra_search_dir) {
+    if (llvm::Error e = ExtendSysPath(extra_search_dir.GetPath())) {
+      error = std::move(e);
+      return false;
+    }
+  } else {
+    FileSpec module_file(pathname);
+    FileSystem::Instance().Resolve(module_file);
+
     fs::file_status st;
-    std::error_code ec = status(target_file.GetPath(), st);
+    std::error_code ec = status(module_file.GetPath(), st);
 
     if (ec || st.type() == fs::file_type::status_error ||
         st.type() == fs::file_type::type_unknown ||
@@ -2702,116 +2533,106 @@ bool ScriptInterpreterPythonImpl::LoadScriptingModule(
       // if not a valid file of any sort, check if it might be a filename still
       // dot can't be used but / and \ can, and if either is found, reject
       if (strchr(pathname, '\\') || strchr(pathname, '/')) {
-        error.SetErrorString("invalid pathname");
+        error.SetErrorStringWithFormatv("invalid pathname '{0}'", pathname);
         return false;
       }
-      basename = pathname; // not a filename, probably a package of some sort,
-                           // let it go through
+      // Not a filename, probably a package of some sort, let it go through.
+      possible_package = true;
     } else if (is_directory(st) || is_regular_file(st)) {
-      if (target_file.GetDirectory().IsEmpty()) {
-        error.SetErrorString("invalid directory name");
+      if (module_file.GetDirectory().IsEmpty()) {
+        error.SetErrorStringWithFormatv("invalid directory name '{0}'", pathname);
         return false;
       }
-
-      std::string directory = target_file.GetDirectory().GetCString();
-      replace_all(directory, "\\", "\\\\");
-      replace_all(directory, "'", "\\'");
-
-      // now make sure that Python has "directory" in the search path
-      StreamString command_stream;
-      command_stream.Printf("if not (sys.path.__contains__('%s')):\n    "
-                            "sys.path.insert(1,'%s');\n\n",
-                            directory.c_str(), directory.c_str());
-      bool syspath_retval =
-          ExecuteMultipleLines(command_stream.GetData(),
-                               ScriptInterpreter::ExecuteScriptOptions()
-                                   .SetEnableIO(false)
-                                   .SetSetLLDBGlobals(false))
-              .Success();
-      if (!syspath_retval) {
-        error.SetErrorString("Python sys.path handling failed");
+      if (llvm::Error e =
+              ExtendSysPath(module_file.GetDirectory().GetCString())) {
+        error = std::move(e);
         return false;
       }
-
-      // strip .py or .pyc extension
-      ConstString extension = target_file.GetFileNameExtension();
-      if (extension) {
-        if (llvm::StringRef(extension.GetCString()) == ".py")
-          basename.resize(basename.length() - 3);
-        else if (llvm::StringRef(extension.GetCString()) == ".pyc")
-          basename.resize(basename.length() - 4);
-      }
+      module_name = module_file.GetFilename().GetCString();
     } else {
       error.SetErrorString("no known way to import this module specification");
       return false;
     }
-
-    // check if the module is already import-ed
-    command_stream.Clear();
-    command_stream.Printf("sys.modules.__contains__('%s')", basename.c_str());
-    bool does_contain = false;
-    // this call will succeed if the module was ever imported in any Debugger
-    // in the lifetime of the process in which this LLDB framework is living
-    bool was_imported_globally =
-        (ExecuteOneLineWithReturn(
-             command_stream.GetData(),
-             ScriptInterpreterPythonImpl::eScriptReturnTypeBool, &does_contain,
-             ScriptInterpreter::ExecuteScriptOptions()
-                 .SetEnableIO(false)
-                 .SetSetLLDBGlobals(false)) &&
-         does_contain);
-    // this call will fail if the module was not imported in this Debugger
-    // before
-    command_stream.Clear();
-    command_stream.Printf("sys.getrefcount(%s)", basename.c_str());
-    bool was_imported_locally = GetSessionDictionary()
-                                    .GetItemForKey(PythonString(basename))
-                                    .IsAllocated();
-
-    bool was_imported = (was_imported_globally || was_imported_locally);
-
-    // now actually do the import
-    command_stream.Clear();
-
-    if (was_imported) {
-      if (!was_imported_locally)
-        command_stream.Printf("import %s ; reload_module(%s)", basename.c_str(),
-                              basename.c_str());
-      else
-        command_stream.Printf("reload_module(%s)", basename.c_str());
-    } else
-      command_stream.Printf("import %s", basename.c_str());
-
-    error = ExecuteMultipleLines(command_stream.GetData(),
-                                 ScriptInterpreter::ExecuteScriptOptions()
-                                     .SetEnableIO(false)
-                                     .SetSetLLDBGlobals(false));
-    if (error.Fail())
-      return false;
-
-    // if we are here, everything worked
-    // call __lldb_init_module(debugger,dict)
-    if (!LLDBSwigPythonCallModuleInit(basename.c_str(),
-                                      m_dictionary_name.c_str(), debugger_sp)) {
-      error.SetErrorString("calling __lldb_init_module failed");
-      return false;
-    }
-
-    if (module_sp) {
-      // everything went just great, now set the module object
-      command_stream.Clear();
-      command_stream.Printf("%s", basename.c_str());
-      void *module_pyobj = nullptr;
-      if (ExecuteOneLineWithReturn(
-              command_stream.GetData(),
-              ScriptInterpreter::eScriptReturnTypeOpaqueObject,
-              &module_pyobj) &&
-          module_pyobj)
-        *module_sp = std::make_shared<StructuredPythonObject>(module_pyobj);
-    }
-
-    return true;
   }
+
+  // Strip .py or .pyc extension
+  llvm::StringRef extension = llvm::sys::path::extension(module_name);
+  if (!extension.empty()) {
+    if (extension == ".py")
+      module_name.resize(module_name.length() - 3);
+    else if (extension == ".pyc")
+      module_name.resize(module_name.length() - 4);
+  }
+
+  if (!possible_package && module_name.find('.') != llvm::StringRef::npos) {
+    error.SetErrorStringWithFormat(
+        "Python does not allow dots in module names: %s", module_name.c_str());
+    return false;
+  }
+
+  if (module_name.find('-') != llvm::StringRef::npos) {
+    error.SetErrorStringWithFormat(
+        "Python discourages dashes in module names: %s", module_name.c_str());
+    return false;
+  }
+
+  // Check if the module is already imported.
+  StreamString command_stream;
+  command_stream.Clear();
+  command_stream.Printf("sys.modules.__contains__('%s')", module_name.c_str());
+  bool does_contain = false;
+  // This call will succeed if the module was ever imported in any Debugger in
+  // the lifetime of the process in which this LLDB framework is living.
+  const bool does_contain_executed = ExecuteOneLineWithReturn(
+      command_stream.GetData(),
+      ScriptInterpreterPythonImpl::eScriptReturnTypeBool, &does_contain, exc_options);
+
+  const bool was_imported_globally = does_contain_executed && does_contain;
+  const bool was_imported_locally =
+      GetSessionDictionary()
+          .GetItemForKey(PythonString(module_name))
+          .IsAllocated();
+
+  // now actually do the import
+  command_stream.Clear();
+
+  if (was_imported_globally || was_imported_locally) {
+    if (!was_imported_locally)
+      command_stream.Printf("import %s ; reload_module(%s)",
+                            module_name.c_str(), module_name.c_str());
+    else
+      command_stream.Printf("reload_module(%s)", module_name.c_str());
+  } else
+    command_stream.Printf("import %s", module_name.c_str());
+
+  error = ExecuteMultipleLines(command_stream.GetData(), exc_options);
+  if (error.Fail())
+    return false;
+
+  // if we are here, everything worked
+  // call __lldb_init_module(debugger,dict)
+  if (!SWIGBridge::LLDBSwigPythonCallModuleInit(
+          module_name.c_str(), m_dictionary_name.c_str(),
+          m_debugger.shared_from_this())) {
+    error.SetErrorString("calling __lldb_init_module failed");
+    return false;
+  }
+
+  if (module_sp) {
+    // everything went just great, now set the module object
+    command_stream.Clear();
+    command_stream.Printf("%s", module_name.c_str());
+    void *module_pyobj = nullptr;
+    if (ExecuteOneLineWithReturn(
+            command_stream.GetData(),
+            ScriptInterpreter::eScriptReturnTypeOpaqueObject, &module_pyobj,
+            exc_options) &&
+        module_pyobj)
+      *module_sp = std::make_shared<StructuredPythonObject>(PythonObject(
+          PyRefType::Owned, static_cast<PyObject *>(module_pyobj)));
+  }
+
+  return true;
 }
 
 bool ScriptInterpreterPythonImpl::IsReservedWord(const char *word) {
@@ -2886,16 +2707,17 @@ bool ScriptInterpreterPythonImpl::RunScriptBasedCommand(
     SynchronicityHandler synch_handler(debugger_sp, synchronicity);
 
     std::string args_str = args.str();
-    ret_val = LLDBSwigPythonCallCommand(
+    ret_val = SWIGBridge::LLDBSwigPythonCallCommand(
         impl_function, m_dictionary_name.c_str(), debugger_sp, args_str.c_str(),
         cmd_retobj, exe_ctx_ref_sp);
   }
 
   if (!ret_val)
     error.SetErrorString("unable to execute script function");
-  else
-    error.Clear();
+  else if (cmd_retobj.GetStatus() == eReturnStatusFailed)
+    return false;
 
+  error.Clear();
   return ret_val;
 }
 
@@ -2930,16 +2752,17 @@ bool ScriptInterpreterPythonImpl::RunScriptBasedCommand(
     SynchronicityHandler synch_handler(debugger_sp, synchronicity);
 
     std::string args_str = args.str();
-    ret_val = LLDBSwigPythonCallCommandObject(impl_obj_sp->GetValue(),
-                                              debugger_sp, args_str.c_str(),
-                                              cmd_retobj, exe_ctx_ref_sp);
+    ret_val = SWIGBridge::LLDBSwigPythonCallCommandObject(
+        static_cast<PyObject *>(impl_obj_sp->GetValue()), debugger_sp,
+        args_str.c_str(), cmd_retobj, exe_ctx_ref_sp);
   }
 
   if (!ret_val)
     error.SetErrorString("unable to execute script function");
-  else
-    error.Clear();
+  else if (cmd_retobj.GetStatus() == eReturnStatusFailed)
+    return false;
 
+  error.Clear();
   return ret_val;
 }
 
@@ -2963,7 +2786,7 @@ bool ScriptInterpreterPythonImpl::GetDocumentationForItem(const char *item,
   if (ExecuteOneLineWithReturn(
           command, ScriptInterpreter::eScriptReturnTypeCharStrOrNone,
           &result_ptr,
-          ScriptInterpreter::ExecuteScriptOptions().SetEnableIO(false))) {
+          ExecuteScriptOptions().SetEnableIO(false))) {
     if (result_ptr)
       dest.assign(result_ptr);
     return true;
@@ -2983,8 +2806,6 @@ bool ScriptInterpreterPythonImpl::GetShortHelpForCommandObject(
 
   Locker py_lock(this, Locker::AcquireLock | Locker::NoSTDIN, Locker::FreeLock);
 
-  static char callee_name[] = "get_short_help";
-
   if (!cmd_obj_sp)
     return false;
 
@@ -2994,34 +2815,15 @@ bool ScriptInterpreterPythonImpl::GetShortHelpForCommandObject(
   if (!implementor.IsAllocated())
     return false;
 
-  PythonObject pmeth(PyRefType::Owned,
-                     PyObject_GetAttrString(implementor.get(), callee_name));
+  llvm::Expected<PythonObject> expected_py_return =
+      implementor.CallMethod("get_short_help");
 
-  if (PyErr_Occurred())
-    PyErr_Clear();
-
-  if (!pmeth.IsAllocated())
-    return false;
-
-  if (PyCallable_Check(pmeth.get()) == 0) {
-    if (PyErr_Occurred())
-      PyErr_Clear();
+  if (!expected_py_return) {
+    llvm::consumeError(expected_py_return.takeError());
     return false;
   }
 
-  if (PyErr_Occurred())
-    PyErr_Clear();
-
-  // Right now we know this function exists and is callable.
-  PythonObject py_return(
-      PyRefType::Owned,
-      PyObject_CallMethod(implementor.get(), callee_name, nullptr));
-
-  // If it fails, print the error but otherwise go on.
-  if (PyErr_Occurred()) {
-    PyErr_Print();
-    PyErr_Clear();
-  }
+  PythonObject py_return = std::move(expected_py_return.get());
 
   if (py_return.IsAllocated() && PythonString::Check(py_return.get())) {
     PythonString py_string(PyRefType::Borrowed, py_return.get());
@@ -3084,12 +2886,9 @@ uint32_t ScriptInterpreterPythonImpl::GetFlagsForCommandObject(
 
 bool ScriptInterpreterPythonImpl::GetLongHelpForCommandObject(
     StructuredData::GenericSP cmd_obj_sp, std::string &dest) {
-  bool got_string = false;
   dest.clear();
 
   Locker py_lock(this, Locker::AcquireLock | Locker::NoSTDIN, Locker::FreeLock);
-
-  static char callee_name[] = "get_long_help";
 
   if (!cmd_obj_sp)
     return false;
@@ -3100,36 +2899,17 @@ bool ScriptInterpreterPythonImpl::GetLongHelpForCommandObject(
   if (!implementor.IsAllocated())
     return false;
 
-  PythonObject pmeth(PyRefType::Owned,
-                     PyObject_GetAttrString(implementor.get(), callee_name));
+  llvm::Expected<PythonObject> expected_py_return =
+      implementor.CallMethod("get_long_help");
 
-  if (PyErr_Occurred())
-    PyErr_Clear();
-
-  if (!pmeth.IsAllocated())
-    return false;
-
-  if (PyCallable_Check(pmeth.get()) == 0) {
-    if (PyErr_Occurred())
-      PyErr_Clear();
-
+  if (!expected_py_return) {
+    llvm::consumeError(expected_py_return.takeError());
     return false;
   }
 
-  if (PyErr_Occurred())
-    PyErr_Clear();
+  PythonObject py_return = std::move(expected_py_return.get());
 
-  // right now we know this function exists and is callable..
-  PythonObject py_return(
-      PyRefType::Owned,
-      PyObject_CallMethod(implementor.get(), callee_name, nullptr));
-
-  // if it fails, print the error but otherwise go on
-  if (PyErr_Occurred()) {
-    PyErr_Print();
-    PyErr_Clear();
-  }
-
+  bool got_string = false;
   if (py_return.IsAllocated() && PythonString::Check(py_return.get())) {
     PythonString str(PyRefType::Borrowed, py_return.get());
     llvm::StringRef str_data(str.GetString());
@@ -3148,14 +2928,8 @@ ScriptInterpreterPythonImpl::AcquireInterpreterLock() {
   return py_lock;
 }
 
-void ScriptInterpreterPythonImpl::InitializePrivate() {
-  if (g_initialized)
-    return;
-
-  g_initialized = true;
-
-  static Timer::Category func_cat(LLVM_PRETTY_FUNCTION);
-  Timer scoped_timer(func_cat, LLVM_PRETTY_FUNCTION);
+void ScriptInterpreterPythonImpl::Initialize() {
+  LLDB_SCOPED_TIMER();
 
   // RAII-based initialization which correctly handles multiple-initialization,
   // version- specific differences among Python 2 and Python 3, and saving and
@@ -3184,6 +2958,25 @@ void ScriptInterpreterPythonImpl::InitializePrivate() {
                      "lldb.embedded_interpreter; from "
                      "lldb.embedded_interpreter import run_python_interpreter; "
                      "from lldb.embedded_interpreter import run_one_line");
+
+#if LLDB_USE_PYTHON_SET_INTERRUPT
+  // Python will not just overwrite its internal SIGINT handler but also the
+  // one from the process. Backup the current SIGINT handler to prevent that
+  // Python deletes it.
+  RestoreSignalHandlerScope save_sigint(SIGINT);
+
+  // Setup a default SIGINT signal handler that works the same way as the
+  // normal Python REPL signal handler which raises a KeyboardInterrupt.
+  // Also make sure to not pollute the user's REPL with the signal module nor
+  // our utility function.
+  PyRun_SimpleString("def lldb_setup_sigint_handler():\n"
+                     "  import signal;\n"
+                     "  def signal_handler(sig, frame):\n"
+                     "    raise KeyboardInterrupt()\n"
+                     "  signal.signal(signal.SIGINT, signal_handler);\n"
+                     "lldb_setup_sigint_handler();\n"
+                     "del lldb_setup_sigint_handler\n");
+#endif
 }
 
 void ScriptInterpreterPythonImpl::AddToSysPath(AddLocation location,

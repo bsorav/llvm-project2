@@ -43,9 +43,12 @@ macro(add_polly_library name)
   endif( LLVM_LINK_COMPONENTS )
   if (NOT LLVM_INSTALL_TOOLCHAIN_ONLY OR ${name} STREQUAL "LLVMPolly")
     install(TARGETS ${name}
+      COMPONENT ${name}
       EXPORT LLVMExports
       LIBRARY DESTINATION lib${LLVM_LIBDIR_SUFFIX}
       ARCHIVE DESTINATION lib${LLVM_LIBDIR_SUFFIX})
+    add_llvm_install_targets(install-${name}
+      COMPONENT ${name})
   endif()
   set_property(GLOBAL APPEND PROPERTY LLVM_EXPORTS ${name})
 endmacro(add_polly_library)
@@ -71,21 +74,6 @@ macro(add_polly_loadable_module name)
       LINK_FLAGS "-Wl,-flat_namespace -Wl,-undefined -Wl,suppress")
   endif()
 endmacro(add_polly_loadable_module)
-
-# Use C99-compatible compile mode for all C source files of a target.
-function(target_enable_c99 _target)
-  if(CMAKE_VERSION VERSION_GREATER "3.1")
-    set_target_properties("${_target}" PROPERTIES C_STANDARD 99)
-  elseif(CMAKE_COMPILER_IS_GNUCC)
-    get_target_property(_sources "${_target}" SOURCES)
-    foreach(_file IN LISTS _sources)
-      get_source_file_property(_lang "${_file}" LANGUAGE)
-      if(_lang STREQUAL "C")
-        set_source_files_properties(${_file} COMPILE_FLAGS "-std=gnu99")
-      endif()
-    endforeach()
-  endif()
-endfunction()
 
 # Recursive helper for setup_source_group. Traverse the file system and add
 # source files matching the glob_expr to the prefix, recursing into

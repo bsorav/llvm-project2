@@ -21,9 +21,9 @@
 #include <array>
 #include <utility>
 
-#include <inttypes.h>
-#include <stdint.h>
-#include <string.h>
+#include <cinttypes>
+#include <cstdint>
+#include <cstring>
 
 using namespace lldb_private;
 
@@ -98,7 +98,7 @@ public:
     return nullptr;
   }
 
-  const char *GetConstCStringWithStringRef(const llvm::StringRef &string_ref) {
+  const char *GetConstCStringWithStringRef(llvm::StringRef string_ref) {
     if (string_ref.data()) {
       const uint8_t h = hash(string_ref);
 
@@ -159,20 +159,19 @@ public:
     return nullptr;
   }
 
-  // Return the size in bytes that this object and any items in its collection
-  // of uniqued strings + data count values takes in memory.
-  size_t MemorySize() const {
-    size_t mem_size = sizeof(Pool);
+  ConstString::MemoryStats GetMemoryStats() const {
+    ConstString::MemoryStats stats;
     for (const auto &pool : m_string_pools) {
       llvm::sys::SmartScopedReader<false> rlock(pool.m_mutex);
-      for (const auto &entry : pool.m_string_map)
-        mem_size += sizeof(StringPoolEntryType) + entry.getKey().size();
+      const Allocator &alloc = pool.m_string_map.getAllocator();
+      stats.bytes_total += alloc.getTotalMemory();
+      stats.bytes_used += alloc.getBytesAllocated();
     }
-    return mem_size;
+    return stats;
   }
 
 protected:
-  uint8_t hash(const llvm::StringRef &s) const {
+  uint8_t hash(llvm::StringRef s) const {
     uint32_t h = llvm::djbHash(s);
     return ((h >> 24) ^ (h >> 16) ^ (h >> 8) ^ h) & 0xff;
   }
@@ -209,7 +208,7 @@ ConstString::ConstString(const char *cstr)
 ConstString::ConstString(const char *cstr, size_t cstr_len)
     : m_string(StringPool().GetConstCStringWithLength(cstr, cstr_len)) {}
 
-ConstString::ConstString(const llvm::StringRef &s)
+ConstString::ConstString(llvm::StringRef s)
     : m_string(StringPool().GetConstCStringWithStringRef(s)) {}
 
 bool ConstString::operator<(ConstString rhs) const {
@@ -253,7 +252,7 @@ bool ConstString::Equals(ConstString lhs, ConstString rhs,
   // perform case insensitive equality test
   llvm::StringRef lhs_string_ref(lhs.GetStringRef());
   llvm::StringRef rhs_string_ref(rhs.GetStringRef());
-  return lhs_string_ref.equals_lower(rhs_string_ref);
+  return lhs_string_ref.equals_insensitive(rhs_string_ref);
 }
 
 int ConstString::Compare(ConstString lhs, ConstString rhs,
@@ -270,7 +269,7 @@ int ConstString::Compare(ConstString lhs, ConstString rhs,
     if (case_sensitive) {
       return lhs_string_ref.compare(rhs_string_ref);
     } else {
-      return lhs_string_ref.compare_lower(rhs_string_ref);
+      return lhs_string_ref.compare_insensitive(rhs_string_ref);
     }
   }
 
@@ -303,8 +302,8 @@ void ConstString::SetCString(const char *cstr) {
   m_string = StringPool().GetConstCString(cstr);
 }
 
-void ConstString::SetString(const llvm::StringRef &s) {
-  m_string = StringPool().GetConstCStringWithLength(s.data(), s.size());
+void ConstString::SetString(llvm::StringRef s) {
+  m_string = StringPool().GetConstCStringWithStringRef(s);
 }
 
 void ConstString::SetStringWithMangledCounterpart(llvm::StringRef demangled,
@@ -327,25 +326,12 @@ void ConstString::SetTrimmedCStringWithLength(const char *cstr,
   m_string = StringPool().GetConstTrimmedCStringWithLength(cstr, cstr_len);
 }
 
-size_t ConstString::StaticMemorySize() {
-  // Get the size of the static string pool
-  return StringPool().MemorySize();
+ConstString::MemoryStats ConstString::GetMemoryStats() {
+  return StringPool().GetMemoryStats();
 }
 
 void llvm::format_provider<ConstString>::format(const ConstString &CS,
                                                 llvm::raw_ostream &OS,
                                                 llvm::StringRef Options) {
   format_provider<StringRef>::format(CS.GetStringRef(), OS, Options);
-}
-
-void llvm::yaml::ScalarTraits<ConstString>::output(const ConstString &Val,
-                                                   void *, raw_ostream &Out) {
-  Out << Val.GetStringRef();
-}
-
-llvm::StringRef
-llvm::yaml::ScalarTraits<ConstString>::input(llvm::StringRef Scalar, void *,
-                                             ConstString &Val) {
-  Val = ConstString(Scalar);
-  return {};
 }

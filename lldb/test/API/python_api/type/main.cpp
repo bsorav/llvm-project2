@@ -21,7 +21,12 @@ public:
     } my_type_is_nameless;
     struct name {
       int x;
+      enum E : int {} e;
+      enum E2 {} e2;
     } my_type_is_named;
+    enum E : unsigned char {} e;
+    union U {
+    } u;
     Task(int i, Task *n):
         id(i),
         next(n),
@@ -29,6 +34,9 @@ public:
     {}
 };
 
+enum EnumType {};
+enum class ScopedEnumType {};
+enum class EnumUChar : unsigned char {};
 
 int main (int argc, char const *argv[])
 {
@@ -55,6 +63,13 @@ int main (int argc, char const *argv[])
 
     // This corresponds to an empty task list.
     Task *empty_task_head = new Task(-1, NULL);
+
+    typedef int myint;
+    myint myint_arr[] = {1, 2, 3};
+
+    EnumType enum_type;
+    ScopedEnumType scoped_enum_type;
+    EnumUChar scoped_enum_type_uchar;
 
     return 0; // Break at this line
 }

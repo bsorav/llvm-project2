@@ -44,7 +44,7 @@ private:
     if (Entry)
       return Entry;
 
-    SmallVector<BasicBlock *, 32> PredCache(pred_begin(BB), pred_end(BB));
+    SmallVector<BasicBlock *, 32> PredCache(predecessors(BB));
     PredCache.push_back(nullptr); // null terminator.
 
     BlockToPredCountMap[BB] = PredCache.size() - 1;
@@ -58,13 +58,13 @@ private:
     auto Result = BlockToPredCountMap.find(BB);
     if (Result != BlockToPredCountMap.end())
       return Result->second;
-    return BlockToPredCountMap[BB] = std::distance(pred_begin(BB), pred_end(BB));
+    return BlockToPredCountMap[BB] = pred_size(BB);
   }
 
 public:
   size_t size(BasicBlock *BB) const { return GetNumPreds(BB); }
   ArrayRef<BasicBlock *> get(BasicBlock *BB) {
-    return makeArrayRef(GetPreds(BB), GetNumPreds(BB));
+    return ArrayRef(GetPreds(BB), GetNumPreds(BB));
   }
 
   /// clear - Remove all information.

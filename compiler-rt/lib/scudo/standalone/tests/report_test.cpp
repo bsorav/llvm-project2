@@ -10,13 +10,19 @@
 
 #include "report.h"
 
-TEST(ScudoReportTest, Generic) {
+TEST(ScudoReportDeathTest, Check) {
+  CHECK_LT(-1, 1);
+  EXPECT_DEATH(CHECK_GT(-1, 1),
+               "\\(-1\\) > \\(1\\) \\(\\(u64\\)op1=18446744073709551615, "
+               "\\(u64\\)op2=1");
+}
+
+TEST(ScudoReportDeathTest, Generic) {
   // Potentially unused if EXPECT_DEATH isn't defined.
   UNUSED void *P = reinterpret_cast<void *>(0x42424242U);
   EXPECT_DEATH(scudo::reportError("TEST123"), "Scudo ERROR.*TEST123");
   EXPECT_DEATH(scudo::reportInvalidFlag("ABC", "DEF"), "Scudo ERROR.*ABC.*DEF");
   EXPECT_DEATH(scudo::reportHeaderCorruption(P), "Scudo ERROR.*42424242");
-  EXPECT_DEATH(scudo::reportHeaderRace(P), "Scudo ERROR.*42424242");
   EXPECT_DEATH(scudo::reportSanityCheckError("XYZ"), "Scudo ERROR.*XYZ");
   EXPECT_DEATH(scudo::reportAlignmentTooBig(123, 456), "Scudo ERROR.*123.*456");
   EXPECT_DEATH(scudo::reportAllocationSizeTooBig(123, 456, 789),
@@ -38,7 +44,7 @@ TEST(ScudoReportTest, Generic) {
                "Scudo ERROR.*42424242.*123.*456");
 }
 
-TEST(ScudoReportTest, CSpecific) {
+TEST(ScudoReportDeathTest, CSpecific) {
   EXPECT_DEATH(scudo::reportAlignmentNotPowerOfTwo(123), "Scudo ERROR.*123");
   EXPECT_DEATH(scudo::reportCallocOverflow(123, 456), "Scudo ERROR.*123.*456");
   EXPECT_DEATH(scudo::reportInvalidPosixMemalignAlignment(789),

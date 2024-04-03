@@ -1,12 +1,12 @@
-; RUN: opt -basic-aa -gvn -S < %s | FileCheck %s
+; RUN: opt -passes=gvn -S < %s | FileCheck %s
 
 target datalayout = "e-p:64:64:64"
 
 ; CHECK-LABEL: @foo(
 ; CHECK: entry.end_crit_edge:
-; CHECK: %[[INDEX:[a-z0-9.]+]] = sext i32 %x to i64{{.*}} !dbg [[ZERO_LOC:![0-9]+]]
-; CHECK: %[[ADDRESS:[a-z0-9.]+]] = getelementptr [100 x i32], [100 x i32]* @G, i64 0, i64 %[[INDEX]]{{.*}} !dbg [[ZERO_LOC]]
-; CHECK:   %n.pre = load i32, i32* %[[ADDRESS]], align 4, !dbg [[N_LOC:![0-9]+]]
+; CHECK: %[[INDEX:[a-z0-9.]+]] = sext i32 %x to i64{{$}}
+; CHECK: %[[ADDRESS:[a-z0-9.]+]] = getelementptr [100 x i32], ptr @G, i64 0, i64 %[[INDEX]]{{$}}
+; CHECK:   %n.pre = load i32, ptr %[[ADDRESS]], align 4, !dbg [[N_LOC:![0-9]+]]
 ; CHECK: br label %end
 ; CHECK: then:
 ; CHECK:   store i32 %z
@@ -14,8 +14,7 @@ target datalayout = "e-p:64:64:64"
 ; CHECK:   %n = phi i32 [ %n.pre, %entry.end_crit_edge ], [ %z, %then ], !dbg [[N_LOC]]
 ; CHECK:   ret i32 %n
 
-; CHECK-DAG: [[N_LOC]] = !DILocation(line: 47, column: 1, scope: !{{.*}})
-; CHECK-DAG: [[ZERO_LOC]] = !DILocation(line: 0
+; CHECK: [[N_LOC]] = !DILocation(line: 47, column: 1, scope: !{{.*}})
 
 @G = external global [100 x i32]
 define i32 @foo(i32 %x, i32 %z) !dbg !6 {
@@ -25,14 +24,14 @@ entry:
 
 then:
   %i = sext i32 %x to i64, !dbg !8
-  %p = getelementptr [100 x i32], [100 x i32]* @G, i64 0, i64 %i, !dbg !8
-  store i32 %z, i32* %p, !dbg !8
+  %p = getelementptr [100 x i32], ptr @G, i64 0, i64 %i, !dbg !8
+  store i32 %z, ptr %p, !dbg !8
   br label %end, !dbg !8
 
 end:
   %j = sext i32 %x to i64, !dbg !9
-  %q = getelementptr [100 x i32], [100 x i32]* @G, i64 0, i64 %j, !dbg !10
-  %n = load i32, i32* %q, !dbg !11
+  %q = getelementptr [100 x i32], ptr @G, i64 0, i64 %j, !dbg !10
+  %n = load i32, ptr %q, !dbg !11
   ret i32 %n, !dbg !11
 }
 

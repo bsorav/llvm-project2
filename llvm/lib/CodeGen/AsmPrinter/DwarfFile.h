@@ -14,7 +14,6 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/CodeGen/DIE.h"
-#include "llvm/IR/Metadata.h"
 #include "llvm/Support/Allocator.h"
 #include <map>
 #include <memory>
@@ -26,10 +25,13 @@ class AsmPrinter;
 class DbgEntity;
 class DbgVariable;
 class DbgLabel;
+class DINode;
+class DILocalScope;
 class DwarfCompileUnit;
 class DwarfUnit;
 class LexicalScope;
 class MCSection;
+class MDNode;
 
 // Data structure to hold a range for range lists.
 struct RangeSpan {
@@ -86,7 +88,7 @@ class DwarfFile {
   DenseMap<LexicalScope *, LabelList> ScopeLabels;
 
   // Collection of abstract subprogram DIEs.
-  DenseMap<const MDNode *, DIE *> AbstractSPDies;
+  DenseMap<const DILocalScope *, DIE *> AbstractLocalScopeDIEs;
   DenseMap<const DINode *, std::unique_ptr<DbgEntity>> AbstractEntities;
 
   /// Maps MDNodes for type system with the corresponding DIEs. These DIEs can
@@ -148,8 +150,7 @@ public:
   MCSymbol *getRnglistsTableBaseSym() const { return RnglistsTableBaseSym; }
   void setRnglistsTableBaseSym(MCSymbol *Sym) { RnglistsTableBaseSym = Sym; }
 
-  /// \returns false if the variable was merged with a previous one.
-  bool addScopeVariable(LexicalScope *LS, DbgVariable *Var);
+  void addScopeVariable(LexicalScope *LS, DbgVariable *Var);
 
   void addScopeLabel(LexicalScope *LS, DbgLabel *Label);
 
@@ -161,8 +162,8 @@ public:
     return ScopeLabels;
   }
 
-  DenseMap<const MDNode *, DIE *> &getAbstractSPDies() {
-    return AbstractSPDies;
+  DenseMap<const DILocalScope *, DIE *> &getAbstractScopeDIEs() {
+    return AbstractLocalScopeDIEs;
   }
 
   DenseMap<const DINode *, std::unique_ptr<DbgEntity>> &getAbstractEntities() {

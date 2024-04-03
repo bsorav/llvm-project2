@@ -1,13 +1,38 @@
 add_mlir_dialect_library(MLIRLinalgTransforms
+  BubbleUpExtractSlice.cpp
+  BufferizableOpInterfaceImpl.cpp
+  Bufferize.cpp
+  ConstantFold.cpp
+  ConvertToDestinationStyle.cpp
+  ConvertConv2DToImg2Col.cpp
+  DataLayoutPropagation.cpp
+  DecomposeLinalgOps.cpp
+  Detensorize.cpp
   DropUnitDims.cpp
+  ElementwiseOpFusion.cpp
+  ElementwiseToLinalg.cpp
+  EliminateEmptyTensors.cpp
+  EraseUnusedOperandsAndResults.cpp
+  FusePadOpWithLinalgProducer.cpp
   Fusion.cpp
+  Generalization.cpp
   Hoisting.cpp
+  HoistPadding.cpp
+  InlineScalarOperands.cpp
   Interchange.cpp
   Loops.cpp
+  NamedOpConversions.cpp
+  Padding.cpp
   Promotion.cpp
-  TensorsToBuffers.cpp
+  Specialize.cpp
+  Split.cpp
+  SplitReduction.cpp
+  SubsetInsertionOpInterfaceImpl.cpp
+  SwapExtractSliceWithFillPatterns.cpp
   Tiling.cpp
+  TilingInterfaceImpl.cpp
   Transforms.cpp
+  TransposeConv2D.cpp
   Vectorization.cpp
 
   ADDITIONAL_HEADER_DIRS
@@ -17,19 +42,42 @@ add_mlir_dialect_library(MLIRLinalgTransforms
   MLIRLinalgPassIncGen
 
   LINK_LIBS PUBLIC
-  MLIRAffineOps
+  MLIRAffineDialect
+  MLIRAffineTransforms
+  MLIRAffineUtils
   MLIRAnalysis
-  MLIREDSC
+  MLIRArithDialect
+  MLIRArithTransforms
+  MLIRArithUtils
+  MLIRBufferizationDialect
+  MLIRBufferizationTransforms
+  MLIRComplexDialect
+  MLIRDestinationStyleOpInterface
+  MLIRDialectUtils
+  MLIRFuncDialect
+  MLIRFuncToLLVM
+  MLIRFuncTransforms
+  MLIRInferTypeOpInterface
   MLIRIR
-  MLIRLinalgAnalysis
-  MLIRLinalgEDSC
-  MLIRLinalgOps
+  MLIRMemRefDialect
+  MLIRMemRefTransforms
+  MLIRLinalgDialect
   MLIRLinalgUtils
-  MLIRSCF
+  MLIRSCFDialect
   MLIRSCFTransforms
+  MLIRSCFUtils
   MLIRPass
-  MLIRStandardOps
-  MLIRStandardToLLVM
+  MLIRSubsetOpInterface
+  MLIRSparseTensorDialect
+  MLIRTensorDialect
+  MLIRTensorTilingInterfaceImpl
+  MLIRTensorTransforms
+  MLIRTransforms
   MLIRTransformUtils
-  MLIRVector
-  )
+  MLIRValueBoundsOpInterface
+  MLIRVectorDialect
+  MLIRVectorTransforms
+  MLIRVectorUtils
+  MLIRX86VectorTransforms
+  MLIRVectorToSCF
+)

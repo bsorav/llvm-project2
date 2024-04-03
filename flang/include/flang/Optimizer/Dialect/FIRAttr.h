@@ -5,11 +5,15 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+//
+// Coding style: https://mlir.llvm.org/getting_started/DeveloperGuide/
+//
+//===----------------------------------------------------------------------===//
 
-#ifndef OPTIMIZER_DIALECT_FIRATTR_H
-#define OPTIMIZER_DIALECT_FIRATTR_H
+#ifndef FORTRAN_OPTIMIZER_DIALECT_FIRATTR_H
+#define FORTRAN_OPTIMIZER_DIALECT_FIRATTR_H
 
-#include "mlir/IR/Attributes.h"
+#include "mlir/IR/BuiltinAttributes.h"
 
 namespace mlir {
 class DialectAsmParser;
@@ -25,16 +29,7 @@ struct RealAttributeStorage;
 struct TypeAttributeStorage;
 } // namespace detail
 
-enum AttributeKind {
-  FIR_ATTR = mlir::Attribute::FIRST_FIR_ATTR,
-  FIR_EXACTTYPE, // instance_of, precise type relation
-  FIR_SUBCLASS,  // subsumed_by, is-a (subclass) relation
-  FIR_POINT,
-  FIR_CLOSEDCLOSED_INTERVAL,
-  FIR_OPENCLOSED_INTERVAL,
-  FIR_CLOSEDOPEN_INTERVAL,
-  FIR_REAL_ATTR,
-};
+using KindTy = unsigned;
 
 class ExactTypeAttr
     : public mlir::Attribute::AttrBase<ExactTypeAttr, mlir::Attribute,
@@ -43,13 +38,11 @@ public:
   using Base::Base;
   using ValueType = mlir::Type;
 
-  static constexpr llvm::StringRef getAttrName() { return "instance"; }
+  static constexpr llvm::StringLiteral name = "fir.type_is";
+  static constexpr llvm::StringRef getAttrName() { return "type_is"; }
   static ExactTypeAttr get(mlir::Type value);
 
   mlir::Type getType() const;
-
-  static constexpr bool kindof(unsigned kind) { return kind == getId(); }
-  static constexpr unsigned getId() { return AttributeKind::FIR_EXACTTYPE; }
 };
 
 class SubclassAttr
@@ -59,13 +52,21 @@ public:
   using Base::Base;
   using ValueType = mlir::Type;
 
-  static constexpr llvm::StringRef getAttrName() { return "subsumed"; }
+  static constexpr llvm::StringLiteral name = "fir.class_is";
+  static constexpr llvm::StringRef getAttrName() { return "class_is"; }
   static SubclassAttr get(mlir::Type value);
 
   mlir::Type getType() const;
+};
 
-  static constexpr bool kindof(unsigned kind) { return kind == getId(); }
-  static constexpr unsigned getId() { return AttributeKind::FIR_SUBCLASS; }
+/// Attribute which can be applied to a fir.allocmem operation, specifying that
+/// the allocation may not be moved to the heap by passes
+class MustBeHeapAttr : public mlir::BoolAttr {
+public:
+  using BoolAttr::BoolAttr;
+
+  static constexpr llvm::StringLiteral name = "fir.must_be_heap";
+  static constexpr llvm::StringRef getAttrName() { return "fir.must_be_heap"; }
 };
 
 // Attributes for building SELECT CASE multiway branches
@@ -80,12 +81,9 @@ class ClosedIntervalAttr
 public:
   using Base::Base;
 
+  static constexpr llvm::StringLiteral name = "fir.interval";
   static constexpr llvm::StringRef getAttrName() { return "interval"; }
   static ClosedIntervalAttr get(mlir::MLIRContext *ctxt);
-  static constexpr bool kindof(unsigned kind) { return kind == getId(); }
-  static constexpr unsigned getId() {
-    return AttributeKind::FIR_CLOSEDCLOSED_INTERVAL;
-  }
 };
 
 /// An upper bound is an open interval (including the bound value) as given as
@@ -98,12 +96,9 @@ class UpperBoundAttr
 public:
   using Base::Base;
 
+  static constexpr llvm::StringLiteral name = "fir.upper";
   static constexpr llvm::StringRef getAttrName() { return "upper"; }
   static UpperBoundAttr get(mlir::MLIRContext *ctxt);
-  static constexpr bool kindof(unsigned kind) { return kind == getId(); }
-  static constexpr unsigned getId() {
-    return AttributeKind::FIR_OPENCLOSED_INTERVAL;
-  }
 };
 
 /// A lower bound is an open interval (including the bound value) as given as
@@ -116,12 +111,9 @@ class LowerBoundAttr
 public:
   using Base::Base;
 
+  static constexpr llvm::StringLiteral name = "fir.lower";
   static constexpr llvm::StringRef getAttrName() { return "lower"; }
   static LowerBoundAttr get(mlir::MLIRContext *ctxt);
-  static constexpr bool kindof(unsigned kind) { return kind == getId(); }
-  static constexpr unsigned getId() {
-    return AttributeKind::FIR_CLOSEDOPEN_INTERVAL;
-  }
 };
 
 /// A pointer interval is a closed interval as given as an ssa-value. The
@@ -134,10 +126,9 @@ class PointIntervalAttr
 public:
   using Base::Base;
 
+  static constexpr llvm::StringLiteral name = "fir.point";
   static constexpr llvm::StringRef getAttrName() { return "point"; }
   static PointIntervalAttr get(mlir::MLIRContext *ctxt);
-  static constexpr bool kindof(unsigned kind) { return kind == getId(); }
-  static constexpr unsigned getId() { return AttributeKind::FIR_POINT; }
 };
 
 /// A real attribute is used to workaround MLIR's default parsing of a real
@@ -151,14 +142,12 @@ public:
   using Base::Base;
   using ValueType = std::pair<int, llvm::APFloat>;
 
+  static constexpr llvm::StringLiteral name = "fir.real";
   static constexpr llvm::StringRef getAttrName() { return "real"; }
   static RealAttr get(mlir::MLIRContext *ctxt, const ValueType &key);
 
-  int getFKind() const;
+  KindTy getFKind() const;
   llvm::APFloat getValue() const;
-
-  static constexpr bool kindof(unsigned kind) { return kind == getId(); }
-  static constexpr unsigned getId() { return AttributeKind::FIR_REAL_ATTR; }
 };
 
 mlir::Attribute parseFirAttribute(FIROpsDialect *dialect,
@@ -170,4 +159,9 @@ void printFirAttribute(FIROpsDialect *dialect, mlir::Attribute attr,
 
 } // namespace fir
 
-#endif // OPTIMIZER_DIALECT_FIRATTR_H
+#include "flang/Optimizer/Dialect/FIREnumAttr.h.inc"
+
+#define GET_ATTRDEF_CLASSES
+#include "flang/Optimizer/Dialect/FIRAttr.h.inc"
+
+#endif // FORTRAN_OPTIMIZER_DIALECT_FIRATTR_H

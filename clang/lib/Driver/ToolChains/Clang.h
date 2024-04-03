@@ -6,17 +6,17 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_CLANG_LIB_DRIVER_TOOLCHAINS_Clang_H
-#define LLVM_CLANG_LIB_DRIVER_TOOLCHAINS_Clang_H
+#ifndef LLVM_CLANG_LIB_DRIVER_TOOLCHAINS_CLANG_H
+#define LLVM_CLANG_LIB_DRIVER_TOOLCHAINS_CLANG_H
 
 #include "MSVC.h"
-#include "clang/Basic/DebugInfoOptions.h"
 #include "clang/Driver/Driver.h"
 #include "clang/Driver/Tool.h"
 #include "clang/Driver/Types.h"
-#include "llvm/ADT/Triple.h"
+#include "llvm/Frontend/Debug/Options.h"
 #include "llvm/Option/Option.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/TargetParser/Triple.h"
 
 namespace clang {
 class ObjCRuntime;
@@ -26,6 +26,10 @@ namespace tools {
 
 /// Clang compiler tool.
 class LLVM_LIBRARY_VISIBILITY Clang : public Tool {
+  // Indicates whether this instance has integrated backend using
+  // internal LLVM infrastructure.
+  bool HasBackend;
+
 public:
   static const char *getBaseInputName(const llvm::opt::ArgList &Args,
                                       const InputInfo &Input);
@@ -53,6 +57,8 @@ private:
                         bool KernelOrKext) const;
   void AddARM64TargetArgs(const llvm::opt::ArgList &Args,
                           llvm::opt::ArgStringList &CmdArgs) const;
+  void AddLoongArchTargetArgs(const llvm::opt::ArgList &Args,
+                              llvm::opt::ArgStringList &CmdArgs) const;
   void AddMIPSTargetArgs(const llvm::opt::ArgList &Args,
                          llvm::opt::ArgStringList &CmdArgs) const;
   void AddPPCTargetArgs(const llvm::opt::ArgList &Args,
@@ -84,13 +90,7 @@ private:
                                  RewriteKind rewrite) const;
 
   void AddClangCLArgs(const llvm::opt::ArgList &Args, types::ID InputType,
-                      llvm::opt::ArgStringList &CmdArgs,
-                      codegenoptions::DebugInfoKind *DebugInfoKind,
-                      bool *EmitCodeView) const;
-
-  visualstudio::Compiler *getCLFallback() const;
-
-  mutable std::unique_ptr<visualstudio::Compiler> CLFallback;
+                      llvm::opt::ArgStringList &CmdArgs) const;
 
   mutable std::unique_ptr<llvm::raw_fd_ostream> CompilationDatabase = nullptr;
   void DumpCompilationDatabase(Compilation &C, StringRef Filename,
@@ -103,11 +103,12 @@ private:
       const InputInfo &Input, const llvm::opt::ArgList &Args) const;
 
 public:
-  Clang(const ToolChain &TC);
+  Clang(const ToolChain &TC, bool HasIntegratedBackend = true);
   ~Clang() override;
 
   bool hasGoodDiagnostics() const override { return true; }
   bool hasIntegratedAssembler() const override { return true; }
+  bool hasIntegratedBackend() const override { return HasBackend; }
   bool hasIntegratedCPP() const override { return true; }
   bool canEmitIR() const override { return true; }
 
@@ -127,6 +128,8 @@ class LLVM_LIBRARY_VISIBILITY ClangAs : public Tool {
 public:
   ClangAs(const ToolChain &TC)
       : Tool("clang::as", "clang integrated assembler", TC) {}
+  void AddLoongArchTargetArgs(const llvm::opt::ArgList &Args,
+                              llvm::opt::ArgStringList &CmdArgs) const;
   void AddMIPSTargetArgs(const llvm::opt::ArgList &Args,
                          llvm::opt::ArgStringList &CmdArgs) const;
   void AddX86TargetArgs(const llvm::opt::ArgList &Args,
@@ -161,11 +164,11 @@ public:
                                    const char *LinkingOutput) const override;
 };
 
-/// Offload wrapper tool.
-class LLVM_LIBRARY_VISIBILITY OffloadWrapper final : public Tool {
+/// Offload binary tool.
+class LLVM_LIBRARY_VISIBILITY OffloadPackager final : public Tool {
 public:
-  OffloadWrapper(const ToolChain &TC)
-      : Tool("offload wrapper", "clang-offload-wrapper", TC) {}
+  OffloadPackager(const ToolChain &TC)
+      : Tool("Offload::Packager", "clang-offload-packager", TC) {}
 
   bool hasIntegratedCPP() const override { return false; }
   void ConstructJob(Compilation &C, const JobAction &JA,
@@ -174,93 +177,26 @@ public:
                     const char *LinkingOutput) const override;
 };
 
-/// Qcc tool
-class LLVM_LIBRARY_VISIBILITY Qcc : public Tool {
-private:
-  Clang m_clang;
-public:
-  //static const char *getBaseInputName(const llvm::opt::ArgList &Args,
-  //                                    const InputInfo &Input);
-  //static const char *getBaseInputStem(const llvm::opt::ArgList &Args,
-  //                                    const InputInfoList &Inputs);
-  //static const char *getDependencyFileName(const llvm::opt::ArgList &Args,
-  //                                         const InputInfoList &Inputs);
-
-private:
-  //void AddPreprocessingOptions(Compilation &C, const JobAction &JA,
-  //                             const Driver &D, const llvm::opt::ArgList &Args,
-  //                             llvm::opt::ArgStringList &CmdArgs,
-  //                             const InputInfo &Output,
-  //                             const InputInfoList &Inputs) const;
-
-  //void RenderTargetOptions(const llvm::Triple &EffectiveTriple,
-  //                         const llvm::opt::ArgList &Args, bool KernelOrKext,
-  //                         llvm::opt::ArgStringList &CmdArgs) const;
-
-  //void AddAArch64TargetArgs(const llvm::opt::ArgList &Args,
-  //                          llvm::opt::ArgStringList &CmdArgs) const;
-  //void AddARMTargetArgs(const llvm::Triple &Triple,
-  //                      const llvm::opt::ArgList &Args,
-  //                      llvm::opt::ArgStringList &CmdArgs,
-  //                      bool KernelOrKext) const;
-  //void AddARM64TargetArgs(const llvm::opt::ArgList &Args,
-  //                        llvm::opt::ArgStringList &CmdArgs) const;
-  //void AddMIPSTargetArgs(const llvm::opt::ArgList &Args,
-  //                       llvm::opt::ArgStringList &CmdArgs) const;
-  //void AddPPCTargetArgs(const llvm::opt::ArgList &Args,
-  //                      llvm::opt::ArgStringList &CmdArgs) const;
-  //void AddR600TargetArgs(const llvm::opt::ArgList &Args,
-  //                       llvm::opt::ArgStringList &CmdArgs) const;
-  //void AddRISCVTargetArgs(const llvm::opt::ArgList &Args,
-  //                        llvm::opt::ArgStringList &CmdArgs) const;
-  //void AddSparcTargetArgs(const llvm::opt::ArgList &Args,
-  //                        llvm::opt::ArgStringList &CmdArgs) const;
-  //void AddSystemZTargetArgs(const llvm::opt::ArgList &Args,
-  //                          llvm::opt::ArgStringList &CmdArgs) const;
-  //void AddX86TargetArgs(const llvm::opt::ArgList &Args,
-  //                      llvm::opt::ArgStringList &CmdArgs) const;
-  //void AddHexagonTargetArgs(const llvm::opt::ArgList &Args,
-  //                          llvm::opt::ArgStringList &CmdArgs) const;
-  //void AddLanaiTargetArgs(const llvm::opt::ArgList &Args,
-  //                        llvm::opt::ArgStringList &CmdArgs) const;
-  //void AddWebAssemblyTargetArgs(const llvm::opt::ArgList &Args,
-  //                              llvm::opt::ArgStringList &CmdArgs) const;
-
-  //enum RewriteKind { RK_None, RK_Fragile, RK_NonFragile };
-
-  //ObjCRuntime AddObjCRuntimeArgs(const llvm::opt::ArgList &args,
-  //                               llvm::opt::ArgStringList &cmdArgs,
-  //                               RewriteKind rewrite) const;
-
-  //void AddClangCLArgs(const llvm::opt::ArgList &Args, types::ID InputType,
-  //                    llvm::opt::ArgStringList &CmdArgs,
-  //                    codegenoptions::DebugInfoKind *DebugInfoKind,
-  //                    bool *EmitCodeView) const;
-
-  //visualstudio::Compiler *getCLFallback() const;
-
-  //mutable std::unique_ptr<visualstudio::Compiler> CLFallback;
-
-  //mutable std::unique_ptr<llvm::raw_fd_ostream> CompilationDatabase = nullptr;
-  //void DumpCompilationDatabase(Compilation &C, StringRef Filename,
-  //                             StringRef Target,
-  //                             const InputInfo &Output, const InputInfo &Input,
-  //                             const llvm::opt::ArgList &Args) const;
+/// Linker wrapper tool.
+class LLVM_LIBRARY_VISIBILITY LinkerWrapper final : public Tool {
+  const Tool *Linker;
 
 public:
-  Qcc(const ToolChain &TC);
-  ~Qcc() override;
+  LinkerWrapper(const ToolChain &TC, const Tool *Linker)
+      : Tool("Offload::Linker", "linker", TC), Linker(Linker) {}
 
-  bool hasGoodDiagnostics() const override { return true; }
-  bool hasIntegratedAssembler() const override { return true; }
-  bool hasIntegratedCPP() const override { return true; }
-  bool canEmitIR() const override { return true; }
-
+  bool hasIntegratedCPP() const override { return false; }
   void ConstructJob(Compilation &C, const JobAction &JA,
                     const InputInfo &Output, const InputInfoList &Inputs,
                     const llvm::opt::ArgList &TCArgs,
                     const char *LinkingOutput) const override;
 };
+
+enum class DwarfFissionKind { None, Split, Single };
+
+DwarfFissionKind getDebugFissionKind(const Driver &D,
+                                     const llvm::opt::ArgList &Args,
+                                     llvm::opt::Arg *&Arg);
 
 } // end namespace tools
 

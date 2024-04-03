@@ -18,11 +18,12 @@
 #include "clang/Lex/Lexer.h"
 #include "llvm/ADT/StringSet.h"
 #include "llvm/Support/MemoryBuffer.h"
+#include <optional>
 
 using namespace lldb_private;
 
 bool ClangHighlighter::isKeyword(llvm::StringRef token) const {
-  return keywords.find(token) != keywords.end();
+  return keywords.contains(token);
 }
 
 ClangHighlighter::ClangHighlighter() {
@@ -131,7 +132,7 @@ determineClangStyle(const ClangHighlighter &highlighter,
 
 void ClangHighlighter::Highlight(const HighlightStyle &options,
                                  llvm::StringRef line,
-                                 llvm::Optional<size_t> cursor_pos,
+                                 std::optional<size_t> cursor_pos,
                                  llvm::StringRef previous_lines,
                                  Stream &result) const {
   using namespace clang;
@@ -168,7 +169,7 @@ void ClangHighlighter::Highlight(const HighlightStyle &options,
   clang::SourceManager SM(diags, file_mgr);
   auto buf = llvm::MemoryBuffer::getMemBuffer(full_source);
 
-  FileID FID = SM.createFileID(clang::SourceManager::Unowned, buf.get());
+  FileID FID = SM.createFileID(buf->getMemBufferRef());
 
   // Let's just enable the latest ObjC and C++ which should get most tokens
   // right.
@@ -178,7 +179,7 @@ void ClangHighlighter::Highlight(const HighlightStyle &options,
   Opts.CPlusPlus17 = true;
   Opts.LineComment = true;
 
-  Lexer lex(FID, buf.get(), SM, Opts);
+  Lexer lex(FID, buf->getMemBufferRef(), SM, Opts);
   // The lexer should keep whitespace around.
   lex.SetKeepWhitespaceMode(true);
 

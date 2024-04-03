@@ -7,16 +7,16 @@
 //===----------------------------------------------------------------------===//
 
 #include "src/ctype/isupper.h"
+#include "src/__support/ctype_utils.h"
 
 #include "src/__support/common.h"
 
-namespace __llvm_libc {
+namespace LIBC_NAMESPACE {
 
 // TODO: Currently restricted to default locale.
 // These should be extended using locale information.
-int LLVM_LIBC_ENTRYPOINT(isupper)(int c) {
-  const unsigned ch = c;
-  return (ch - 'A') < 26;
+LLVM_LIBC_FUNCTION(int, isupper, (int c)) {
+  return static_cast<int>(internal::isupper(static_cast<unsigned>(c)));
 }
 
-} // namespace __llvm_libc
+} // namespace LIBC_NAMESPACE

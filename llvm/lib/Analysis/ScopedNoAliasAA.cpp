@@ -32,9 +32,10 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/Analysis/ScopedNoAliasAA.h"
+#include "llvm/ADT/SetOperations.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/Analysis/MemoryLocation.h"
-#include "llvm/IR/Instruction.h"
+#include "llvm/IR/InstrTypes.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Metadata.h"
 #include "llvm/InitializePasses.h"
@@ -52,38 +53,12 @@ using namespace llvm;
 static cl::opt<bool> EnableScopedNoAlias("enable-scoped-noalias",
                                          cl::init(true), cl::Hidden);
 
-namespace {
-
-/// This is a simple wrapper around an MDNode which provides a higher-level
-/// interface by hiding the details of how alias analysis information is encoded
-/// in its operands.
-class AliasScopeNode {
-  const MDNode *Node = nullptr;
-
-public:
-  AliasScopeNode() = default;
-  explicit AliasScopeNode(const MDNode *N) : Node(N) {}
-
-  /// Get the MDNode for this AliasScopeNode.
-  const MDNode *getNode() const { return Node; }
-
-  /// Get the MDNode for this AliasScopeNode's domain.
-  const MDNode *getDomain() const {
-    if (Node->getNumOperands() < 2)
-      return nullptr;
-    return dyn_cast_or_null<MDNode>(Node->getOperand(1));
-  }
-};
-
-} // end anonymous namespace
-
 AliasResult ScopedNoAliasAAResult::alias(const MemoryLocation &LocA,
                                          const MemoryLocation &LocB,
-                                         AAQueryInfo &AAQI) {
-  DYN_DEBUG2(aliasAnalysis, std::cout << "ScopedNoAliasAAResult::" << __func__ << " " << __LINE__ << ": LocA = " << sym_exec_common::get_value_name_using_srcdst_keyword(*LocA.Ptr, G_SRC_KEYWORD) << "\n");
-  DYN_DEBUG2(aliasAnalysis, std::cout << "ScopedNoAliasAAResult::" << __func__ << " " << __LINE__ << ": LocB = " << sym_exec_common::get_value_name_using_srcdst_keyword(*LocB.Ptr, G_SRC_KEYWORD) << "\n");
+                                         AAQueryInfo &AAQI,
+                                         const Instruction *) {
   if (!EnableScopedNoAlias)
-    return AAResultBase::alias(LocA, LocB, AAQI);
+    return AliasResult::MayAlias;
 
   // Get the attached MDNodes.
   const MDNode *AScopes = LocA.AATags.Scope, *BScopes = LocB.AATags.Scope;
@@ -91,20 +66,19 @@ AliasResult ScopedNoAliasAAResult::alias(const MemoryLocation &LocA,
   const MDNode *ANoAlias = LocA.AATags.NoAlias, *BNoAlias = LocB.AATags.NoAlias;
 
   if (!mayAliasInScopes(AScopes, BNoAlias))
-    return NoAlias;
+    return AliasResult::NoAlias;
 
   if (!mayAliasInScopes(BScopes, ANoAlias))
-    return NoAlias;
+    return AliasResult::NoAlias;
 
-  // If they may alias, chain to the next AliasAnalysis.
-  return AAResultBase::alias(LocA, LocB, AAQI);
+  return AliasResult::MayAlias;
 }
 
 ModRefInfo ScopedNoAliasAAResult::getModRefInfo(const CallBase *Call,
                                                 const MemoryLocation &Loc,
                                                 AAQueryInfo &AAQI) {
   if (!EnableScopedNoAlias)
-    return AAResultBase::getModRefInfo(Call, Loc, AAQI);
+    return ModRefInfo::ModRef;
 
   if (!mayAliasInScopes(Loc.AATags.Scope,
                         Call->getMetadata(LLVMContext::MD_noalias)))
@@ -114,14 +88,14 @@ ModRefInfo ScopedNoAliasAAResult::getModRefInfo(const CallBase *Call,
                         Loc.AATags.NoAlias))
     return ModRefInfo::NoModRef;
 
-  return AAResultBase::getModRefInfo(Call, Loc, AAQI);
+  return ModRefInfo::ModRef;
 }
 
 ModRefInfo ScopedNoAliasAAResult::getModRefInfo(const CallBase *Call1,
                                                 const CallBase *Call2,
                                                 AAQueryInfo &AAQI) {
   if (!EnableScopedNoAlias)
-    return AAResultBase::getModRefInfo(Call1, Call2, AAQI);
+    return ModRefInfo::ModRef;
 
   if (!mayAliasInScopes(Call1->getMetadata(LLVMContext::MD_alias_scope),
                         Call2->getMetadata(LLVMContext::MD_noalias)))
@@ -131,7 +105,7 @@ ModRefInfo ScopedNoAliasAAResult::getModRefInfo(const CallBase *Call1,
                         Call1->getMetadata(LLVMContext::MD_noalias)))
     return ModRefInfo::NoModRef;
 
-  return AAResultBase::getModRefInfo(Call1, Call2, AAQI);
+  return ModRefInfo::ModRef;
 }
 
 static void collectMDInDomain(const MDNode *List, const MDNode *Domain,
@@ -166,14 +140,7 @@ bool ScopedNoAliasAAResult::mayAliasInScopes(const MDNode *Scopes,
     collectMDInDomain(NoAlias, Domain, NANodes);
 
     // To not alias, all of the nodes in ScopeNodes must be in NANodes.
-    bool FoundAll = true;
-    for (const MDNode *SMD : ScopeNodes)
-      if (!NANodes.count(SMD)) {
-        FoundAll = false;
-        break;
-      }
-
-    if (FoundAll)
+    if (llvm::set_is_subset(ScopeNodes, NANodes))
       return false;
   }
 

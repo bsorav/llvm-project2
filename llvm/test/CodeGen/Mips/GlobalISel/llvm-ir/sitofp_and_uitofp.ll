@@ -143,10 +143,10 @@ define float @u32tof32(i32 zeroext %a) {
 ; FP32-NEXT:    lui $1, 17200
 ; FP32-NEXT:    mtc1 $4, $f0
 ; FP32-NEXT:    mtc1 $1, $f1
-; FP32-NEXT:    lui $1, 17200
-; FP32-NEXT:    ori $2, $zero, 0
-; FP32-NEXT:    mtc1 $2, $f2
-; FP32-NEXT:    mtc1 $1, $f3
+; FP32-NEXT:    lui $2, 17200
+; FP32-NEXT:    ori $1, $zero, 0
+; FP32-NEXT:    mtc1 $1, $f2
+; FP32-NEXT:    mtc1 $2, $f3
 ; FP32-NEXT:    sub.d $f0, $f0, $f2
 ; FP32-NEXT:    cvt.s.d $f0, $f0
 ; FP32-NEXT:    jr $ra
@@ -157,10 +157,10 @@ define float @u32tof32(i32 zeroext %a) {
 ; FP64-NEXT:    lui $1, 17200
 ; FP64-NEXT:    mtc1 $4, $f0
 ; FP64-NEXT:    mthc1 $1, $f0
-; FP64-NEXT:    lui $1, 17200
-; FP64-NEXT:    ori $2, $zero, 0
-; FP64-NEXT:    mtc1 $2, $f1
-; FP64-NEXT:    mthc1 $1, $f1
+; FP64-NEXT:    lui $2, 17200
+; FP64-NEXT:    ori $1, $zero, 0
+; FP64-NEXT:    mtc1 $1, $f1
+; FP64-NEXT:    mthc1 $2, $f1
 ; FP64-NEXT:    sub.d $f0, $f0, $f1
 ; FP64-NEXT:    cvt.s.d $f0, $f0
 ; FP64-NEXT:    jr $ra
@@ -173,14 +173,13 @@ entry:
 define float @u16tof32(i16 zeroext %a) {
 ; FP32-LABEL: u16tof32:
 ; FP32:       # %bb.0: # %entry
-; FP32-NEXT:    andi $1, $4, 65535
-; FP32-NEXT:    lui $2, 17200
-; FP32-NEXT:    mtc1 $1, $f0
-; FP32-NEXT:    mtc1 $2, $f1
 ; FP32-NEXT:    lui $1, 17200
-; FP32-NEXT:    ori $2, $zero, 0
-; FP32-NEXT:    mtc1 $2, $f2
-; FP32-NEXT:    mtc1 $1, $f3
+; FP32-NEXT:    mtc1 $4, $f0
+; FP32-NEXT:    mtc1 $1, $f1
+; FP32-NEXT:    lui $2, 17200
+; FP32-NEXT:    ori $1, $zero, 0
+; FP32-NEXT:    mtc1 $1, $f2
+; FP32-NEXT:    mtc1 $2, $f3
 ; FP32-NEXT:    sub.d $f0, $f0, $f2
 ; FP32-NEXT:    cvt.s.d $f0, $f0
 ; FP32-NEXT:    jr $ra
@@ -188,14 +187,13 @@ define float @u16tof32(i16 zeroext %a) {
 ;
 ; FP64-LABEL: u16tof32:
 ; FP64:       # %bb.0: # %entry
-; FP64-NEXT:    andi $1, $4, 65535
-; FP64-NEXT:    lui $2, 17200
-; FP64-NEXT:    mtc1 $1, $f0
-; FP64-NEXT:    mthc1 $2, $f0
 ; FP64-NEXT:    lui $1, 17200
-; FP64-NEXT:    ori $2, $zero, 0
-; FP64-NEXT:    mtc1 $2, $f1
-; FP64-NEXT:    mthc1 $1, $f1
+; FP64-NEXT:    mtc1 $4, $f0
+; FP64-NEXT:    mthc1 $1, $f0
+; FP64-NEXT:    lui $2, 17200
+; FP64-NEXT:    ori $1, $zero, 0
+; FP64-NEXT:    mtc1 $1, $f1
+; FP64-NEXT:    mthc1 $2, $f1
 ; FP64-NEXT:    sub.d $f0, $f0, $f1
 ; FP64-NEXT:    cvt.s.d $f0, $f0
 ; FP64-NEXT:    jr $ra
@@ -208,14 +206,13 @@ entry:
 define float @u8tof32(i8 zeroext %a) {
 ; FP32-LABEL: u8tof32:
 ; FP32:       # %bb.0: # %entry
-; FP32-NEXT:    andi $1, $4, 255
-; FP32-NEXT:    lui $2, 17200
-; FP32-NEXT:    mtc1 $1, $f0
-; FP32-NEXT:    mtc1 $2, $f1
 ; FP32-NEXT:    lui $1, 17200
-; FP32-NEXT:    ori $2, $zero, 0
-; FP32-NEXT:    mtc1 $2, $f2
-; FP32-NEXT:    mtc1 $1, $f3
+; FP32-NEXT:    mtc1 $4, $f0
+; FP32-NEXT:    mtc1 $1, $f1
+; FP32-NEXT:    lui $2, 17200
+; FP32-NEXT:    ori $1, $zero, 0
+; FP32-NEXT:    mtc1 $1, $f2
+; FP32-NEXT:    mtc1 $2, $f3
 ; FP32-NEXT:    sub.d $f0, $f0, $f2
 ; FP32-NEXT:    cvt.s.d $f0, $f0
 ; FP32-NEXT:    jr $ra
@@ -223,14 +220,13 @@ define float @u8tof32(i8 zeroext %a) {
 ;
 ; FP64-LABEL: u8tof32:
 ; FP64:       # %bb.0: # %entry
-; FP64-NEXT:    andi $1, $4, 255
-; FP64-NEXT:    lui $2, 17200
-; FP64-NEXT:    mtc1 $1, $f0
-; FP64-NEXT:    mthc1 $2, $f0
 ; FP64-NEXT:    lui $1, 17200
-; FP64-NEXT:    ori $2, $zero, 0
-; FP64-NEXT:    mtc1 $2, $f1
-; FP64-NEXT:    mthc1 $1, $f1
+; FP64-NEXT:    mtc1 $4, $f0
+; FP64-NEXT:    mthc1 $1, $f0
+; FP64-NEXT:    lui $2, 17200
+; FP64-NEXT:    ori $1, $zero, 0
+; FP64-NEXT:    mtc1 $1, $f1
+; FP64-NEXT:    mthc1 $2, $f1
 ; FP64-NEXT:    sub.d $f0, $f0, $f1
 ; FP64-NEXT:    cvt.s.d $f0, $f0
 ; FP64-NEXT:    jr $ra
@@ -264,10 +260,10 @@ define double @u32tof64(i32 zeroext %a) {
 ; FP32-NEXT:    lui $1, 17200
 ; FP32-NEXT:    mtc1 $4, $f0
 ; FP32-NEXT:    mtc1 $1, $f1
-; FP32-NEXT:    lui $1, 17200
-; FP32-NEXT:    ori $2, $zero, 0
-; FP32-NEXT:    mtc1 $2, $f2
-; FP32-NEXT:    mtc1 $1, $f3
+; FP32-NEXT:    lui $2, 17200
+; FP32-NEXT:    ori $1, $zero, 0
+; FP32-NEXT:    mtc1 $1, $f2
+; FP32-NEXT:    mtc1 $2, $f3
 ; FP32-NEXT:    sub.d $f0, $f0, $f2
 ; FP32-NEXT:    jr $ra
 ; FP32-NEXT:    nop
@@ -277,10 +273,10 @@ define double @u32tof64(i32 zeroext %a) {
 ; FP64-NEXT:    lui $1, 17200
 ; FP64-NEXT:    mtc1 $4, $f0
 ; FP64-NEXT:    mthc1 $1, $f0
-; FP64-NEXT:    lui $1, 17200
-; FP64-NEXT:    ori $2, $zero, 0
-; FP64-NEXT:    mtc1 $2, $f1
-; FP64-NEXT:    mthc1 $1, $f1
+; FP64-NEXT:    lui $2, 17200
+; FP64-NEXT:    ori $1, $zero, 0
+; FP64-NEXT:    mtc1 $1, $f1
+; FP64-NEXT:    mthc1 $2, $f1
 ; FP64-NEXT:    sub.d $f0, $f0, $f1
 ; FP64-NEXT:    jr $ra
 ; FP64-NEXT:    nop
@@ -292,28 +288,26 @@ entry:
 define double @u16tof64(i16 zeroext %a) {
 ; FP32-LABEL: u16tof64:
 ; FP32:       # %bb.0: # %entry
-; FP32-NEXT:    andi $1, $4, 65535
-; FP32-NEXT:    lui $2, 17200
-; FP32-NEXT:    mtc1 $1, $f0
-; FP32-NEXT:    mtc1 $2, $f1
 ; FP32-NEXT:    lui $1, 17200
-; FP32-NEXT:    ori $2, $zero, 0
-; FP32-NEXT:    mtc1 $2, $f2
-; FP32-NEXT:    mtc1 $1, $f3
+; FP32-NEXT:    mtc1 $4, $f0
+; FP32-NEXT:    mtc1 $1, $f1
+; FP32-NEXT:    lui $2, 17200
+; FP32-NEXT:    ori $1, $zero, 0
+; FP32-NEXT:    mtc1 $1, $f2
+; FP32-NEXT:    mtc1 $2, $f3
 ; FP32-NEXT:    sub.d $f0, $f0, $f2
 ; FP32-NEXT:    jr $ra
 ; FP32-NEXT:    nop
 ;
 ; FP64-LABEL: u16tof64:
 ; FP64:       # %bb.0: # %entry
-; FP64-NEXT:    andi $1, $4, 65535
-; FP64-NEXT:    lui $2, 17200
-; FP64-NEXT:    mtc1 $1, $f0
-; FP64-NEXT:    mthc1 $2, $f0
 ; FP64-NEXT:    lui $1, 17200
-; FP64-NEXT:    ori $2, $zero, 0
-; FP64-NEXT:    mtc1 $2, $f1
-; FP64-NEXT:    mthc1 $1, $f1
+; FP64-NEXT:    mtc1 $4, $f0
+; FP64-NEXT:    mthc1 $1, $f0
+; FP64-NEXT:    lui $2, 17200
+; FP64-NEXT:    ori $1, $zero, 0
+; FP64-NEXT:    mtc1 $1, $f1
+; FP64-NEXT:    mthc1 $2, $f1
 ; FP64-NEXT:    sub.d $f0, $f0, $f1
 ; FP64-NEXT:    jr $ra
 ; FP64-NEXT:    nop
@@ -325,28 +319,26 @@ entry:
 define double @u8tof64(i8 zeroext %a) {
 ; FP32-LABEL: u8tof64:
 ; FP32:       # %bb.0: # %entry
-; FP32-NEXT:    andi $1, $4, 255
-; FP32-NEXT:    lui $2, 17200
-; FP32-NEXT:    mtc1 $1, $f0
-; FP32-NEXT:    mtc1 $2, $f1
 ; FP32-NEXT:    lui $1, 17200
-; FP32-NEXT:    ori $2, $zero, 0
-; FP32-NEXT:    mtc1 $2, $f2
-; FP32-NEXT:    mtc1 $1, $f3
+; FP32-NEXT:    mtc1 $4, $f0
+; FP32-NEXT:    mtc1 $1, $f1
+; FP32-NEXT:    lui $2, 17200
+; FP32-NEXT:    ori $1, $zero, 0
+; FP32-NEXT:    mtc1 $1, $f2
+; FP32-NEXT:    mtc1 $2, $f3
 ; FP32-NEXT:    sub.d $f0, $f0, $f2
 ; FP32-NEXT:    jr $ra
 ; FP32-NEXT:    nop
 ;
 ; FP64-LABEL: u8tof64:
 ; FP64:       # %bb.0: # %entry
-; FP64-NEXT:    andi $1, $4, 255
-; FP64-NEXT:    lui $2, 17200
-; FP64-NEXT:    mtc1 $1, $f0
-; FP64-NEXT:    mthc1 $2, $f0
 ; FP64-NEXT:    lui $1, 17200
-; FP64-NEXT:    ori $2, $zero, 0
-; FP64-NEXT:    mtc1 $2, $f1
-; FP64-NEXT:    mthc1 $1, $f1
+; FP64-NEXT:    mtc1 $4, $f0
+; FP64-NEXT:    mthc1 $1, $f0
+; FP64-NEXT:    lui $2, 17200
+; FP64-NEXT:    ori $1, $zero, 0
+; FP64-NEXT:    mtc1 $1, $f1
+; FP64-NEXT:    mthc1 $2, $f1
 ; FP64-NEXT:    sub.d $f0, $f0, $f1
 ; FP64-NEXT:    jr $ra
 ; FP64-NEXT:    nop

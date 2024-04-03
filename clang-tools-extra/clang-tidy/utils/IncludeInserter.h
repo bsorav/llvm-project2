@@ -13,11 +13,11 @@
 #include "clang/Basic/Diagnostic.h"
 #include "llvm/ADT/StringSet.h"
 #include <memory>
+#include <optional>
 
 namespace clang {
 class Preprocessor;
-namespace tidy {
-namespace utils {
+namespace tidy::utils {
 
 /// Produces fixes to insert specified includes to source files, if not
 /// yet present.
@@ -34,7 +34,7 @@ namespace utils {
 ///  public:
 ///   void registerPPCallbacks(const SourceManager &SM, Preprocessor *PP,
 ///                            Preprocessor *ModuleExpanderPP) override {
-///     Inserter.registerPreprocessor();
+///     Inserter.registerPreprocessor(PP);
 ///   }
 ///
 ///   void registerMatchers(ast_matchers::MatchFinder* Finder) override { ... }
@@ -42,8 +42,7 @@ namespace utils {
 ///   void check(
 ///       const ast_matchers::MatchFinder::MatchResult& Result) override {
 ///     ...
-///     Inserter.createMainFileIncludeInsertion("path/to/Header.h",
-///                                             /*IsAngled=*/false);
+///     Inserter.createMainFileIncludeInsertion("path/to/Header.h");
 ///     ...
 ///   }
 ///
@@ -60,23 +59,28 @@ public:
   /// using \code
   ///   Options.getLocalOrGlobal("IncludeStyle", <DefaultStyle>)
   /// \endcode
-  explicit IncludeInserter(IncludeSorter::IncludeStyle Style);
+  explicit IncludeInserter(IncludeSorter::IncludeStyle Style,
+                           bool SelfContainedDiags);
 
   /// Registers this with the Preprocessor \p PP, must be called before this
   /// class is used.
   void registerPreprocessor(Preprocessor *PP);
 
   /// Creates a \p Header inclusion directive fixit in the File \p FileID.
-  /// Returns ``llvm::None`` on error or if the inclusion directive already
+  /// When \p Header is enclosed in angle brackets, uses angle brackets in the
+  /// inclusion directive, otherwise uses quotes.
+  /// Returns ``std::nullopt`` on error or if the inclusion directive already
   /// exists.
-  llvm::Optional<FixItHint>
-  createIncludeInsertion(FileID FileID, llvm::StringRef Header, bool IsAngled);
+  std::optional<FixItHint> createIncludeInsertion(FileID FileID,
+                                                  llvm::StringRef Header);
 
   /// Creates a \p Header inclusion directive fixit in the main file.
-  /// Returns``llvm::None`` on error or if the inclusion directive already
+  /// When \p Header is enclosed in angle brackets, uses angle brackets in the
+  /// inclusion directive, otherwise uses quotes.
+  /// Returns ``std::nullopt`` on error or if the inclusion directive already
   /// exists.
-  llvm::Optional<FixItHint>
-  createMainFileIncludeInsertion(llvm::StringRef Header, bool IsAngled);
+  std::optional<FixItHint>
+  createMainFileIncludeInsertion(llvm::StringRef Header);
 
   IncludeSorter::IncludeStyle getStyle() const { return Style; }
 
@@ -90,10 +94,10 @@ private:
   llvm::DenseMap<FileID, llvm::StringSet<>> InsertedHeaders;
   const SourceManager *SourceMgr{nullptr};
   const IncludeSorter::IncludeStyle Style;
+  const bool SelfContainedDiags;
   friend class IncludeInserterCallback;
 };
 
-} // namespace utils
-} // namespace tidy
+} // namespace tidy::utils
 } // namespace clang
 #endif // LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_INCLUDEINSERTER_H

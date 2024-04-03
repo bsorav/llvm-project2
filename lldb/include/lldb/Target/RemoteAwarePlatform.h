@@ -10,6 +10,7 @@
 #define LLDB_TARGET_REMOTEAWAREPLATFORM_H
 
 #include "lldb/Target/Platform.h"
+#include <optional>
 
 namespace lldb_private {
 
@@ -64,13 +65,18 @@ public:
                          FileSpec &local_file) override;
 
   bool GetRemoteOSVersion() override;
-  bool GetRemoteOSBuildString(std::string &s) override;
-  bool GetRemoteOSKernelDescription(std::string &s) override;
+  std::optional<std::string> GetRemoteOSBuildString() override;
+  std::optional<std::string> GetRemoteOSKernelDescription() override;
   ArchSpec GetRemoteSystemArchitecture() override;
 
-  Status RunShellCommand(const char *command, const FileSpec &working_dir,
+  Status RunShellCommand(llvm::StringRef command, const FileSpec &working_dir,
                          int *status_ptr, int *signo_ptr,
                          std::string *command_output,
+                         const Timeout<std::micro> &timeout) override;
+
+  Status RunShellCommand(llvm::StringRef interpreter, llvm::StringRef command,
+                         const FileSpec &working_dir, int *status_ptr,
+                         int *signo_ptr, std::string *command_output,
                          const Timeout<std::micro> &timeout) override;
 
   const char *GetHostname() override;
@@ -91,6 +97,9 @@ public:
   Status LaunchProcess(ProcessLaunchInfo &launch_info) override;
 
   Status KillProcess(const lldb::pid_t pid) override;
+
+  size_t ConnectToWaitingProcesses(Debugger &debugger,
+                                   Status &error) override;
 
 protected:
   lldb::PlatformSP m_remote_platform_sp;

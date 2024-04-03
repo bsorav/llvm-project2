@@ -16,7 +16,7 @@
 #include "clang/StaticAnalyzer/Core/CheckerManager.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/CallEvent.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/CheckerContext.h"
-#include "clang/StaticAnalyzer/Core/PathSensitive/DynamicSize.h"
+#include "clang/StaticAnalyzer/Core/PathSensitive/DynamicExtent.h"
 
 using namespace clang;
 using namespace ento;
@@ -66,7 +66,8 @@ bool BuiltinFunctionChecker::evalCall(const CallEvent &Call,
   case Builtin::BI__builtin_expect:
   case Builtin::BI__builtin_expect_with_probability:
   case Builtin::BI__builtin_assume_aligned:
-  case Builtin::BI__builtin_addressof: {
+  case Builtin::BI__builtin_addressof:
+  case Builtin::BI__builtin_function_start: {
     // For __builtin_unpredictable, __builtin_expect,
     // __builtin_expect_with_probability and __builtin_assume_aligned,
     // just return the value of the subexpression.
@@ -80,26 +81,20 @@ bool BuiltinFunctionChecker::evalCall(const CallEvent &Call,
 
   case Builtin::BI__builtin_alloca_with_align:
   case Builtin::BI__builtin_alloca: {
-    // FIXME: Refactor into StoreManager itself?
-    MemRegionManager& RM = C.getStoreManager().getRegionManager();
-    const AllocaRegion* R =
-      RM.getAllocaRegion(CE, C.blockCount(), C.getLocationContext());
+    SValBuilder &SVB = C.getSValBuilder();
+    const loc::MemRegionVal R =
+        SVB.getAllocaRegionVal(CE, C.getLocationContext(), C.blockCount());
 
-    // Set the extent of the region in bytes. This enables us to use the
-    // SVal of the argument directly. If we save the extent in bits, we
-    // cannot represent values like symbol*8.
+    // Set the extent of the region in bytes. This enables us to use the SVal
+    // of the argument directly. If we saved the extent in bits, it'd be more
+    // difficult to reason about values like symbol*8.
     auto Size = Call.getArgSVal(0);
-    if (Size.isUndef())
-      return true; // Return true to model purity.
-
-    SValBuilder& svalBuilder = C.getSValBuilder();
-    DefinedOrUnknownSVal DynSize = getDynamicSize(state, R, svalBuilder);
-    DefinedOrUnknownSVal DynSizeMatchesSizeArg =
-        svalBuilder.evalEQ(state, DynSize, Size.castAs<DefinedOrUnknownSVal>());
-    state = state->assume(DynSizeMatchesSizeArg, true);
-    assert(state && "The region should not have any previous constraints");
-
-    C.addTransition(state->BindExpr(CE, LCtx, loc::MemRegionVal(R)));
+    if (auto DefSize = Size.getAs<DefinedOrUnknownSVal>()) {
+      // This `getAs()` is mostly paranoia, because core.CallAndMessage reports
+      // undefined function arguments (unless it's disabled somehow).
+      state = setDynamicExtent(state, R.getRegion(), *DefSize, SVB);
+    }
+    C.addTransition(state->BindExpr(CE, LCtx, R));
     return true;
   }
 

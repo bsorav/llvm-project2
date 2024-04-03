@@ -27,8 +27,8 @@
 #include <mutex>
 #include <string>
 
-#include <inttypes.h>
-#include <string.h>
+#include <cinttypes>
+#include <cstring>
 
 namespace lldb_private {
 class Address;
@@ -228,11 +228,7 @@ void SearchFilter::SearchInModuleList(Searcher &searcher, ModuleList &modules) {
     return;
   }
 
-  std::lock_guard<std::recursive_mutex> guard(modules.GetMutex());
-  const size_t numModules = modules.GetSize();
-
-  for (size_t i = 0; i < numModules; i++) {
-    ModuleSP module_sp(modules.GetModuleAtIndexUnlocked(i));
+  for (ModuleSP module_sp : modules.Modules()) {
     if (!ModulePasses(module_sp))
       continue;
     if (DoModuleIteration(module_sp, searcher) == Searcher::eCallbackReturnStop)
@@ -262,14 +258,9 @@ SearchFilter::DoModuleIteration(const SymbolContext &context,
     return Searcher::eCallbackReturnContinue;
   }
 
-  const ModuleList &target_images = m_target_sp->GetImages();
-  std::lock_guard<std::recursive_mutex> guard(target_images.GetMutex());
-
-  size_t n_modules = target_images.GetSize();
-  for (size_t i = 0; i < n_modules; i++) {
+  for (ModuleSP module_sp : m_target_sp->GetImages().Modules()) {
     // If this is the last level supplied, then call the callback directly,
     // otherwise descend.
-    ModuleSP module_sp(target_images.GetModuleAtIndexUnlocked(i));
     if (!ModulePasses(module_sp))
       continue;
 
@@ -434,11 +425,9 @@ void SearchFilterByModule::Search(Searcher &searcher) {
   const ModuleList &target_modules = m_target_sp->GetImages();
   std::lock_guard<std::recursive_mutex> guard(target_modules.GetMutex());
 
-  const size_t num_modules = target_modules.GetSize();
-  for (size_t i = 0; i < num_modules; i++) {
-    Module *module = target_modules.GetModulePointerAtIndexUnlocked(i);
-    if (FileSpec::Match(m_module_spec, module->GetFileSpec())) {
-      SymbolContext matchingContext(m_target_sp, module->shared_from_this());
+  for (ModuleSP module_sp : m_target_sp->GetImages().Modules()) {
+    if (FileSpec::Match(m_module_spec, module_sp->GetFileSpec())) {
+      SymbolContext matchingContext(m_target_sp, module_sp);
       Searcher::CallbackReturn shouldContinue;
 
       shouldContinue = DoModuleIteration(matchingContext, searcher);
@@ -482,13 +471,13 @@ SearchFilterSP SearchFilterByModule::CreateFromStructuredData(
     return nullptr;
   }
 
-  llvm::StringRef module;
-  success = modules_array->GetItemAtIndexAsString(0, module);
-  if (!success) {
+  std::optional<llvm::StringRef> maybe_module =
+      modules_array->GetItemAtIndexAsString(0);
+  if (!maybe_module) {
     error.SetErrorString("SFBM::CFSD: filter module item not a string.");
     return nullptr;
   }
-  FileSpec module_spec(module);
+  FileSpec module_spec(*maybe_module);
 
   return std::make_shared<SearchFilterByModule>(target_sp, module_spec);
 }
@@ -550,17 +539,11 @@ void SearchFilterByModuleList::Search(Searcher &searcher) {
   // If the module file spec is a full path, then we can just find the one
   // filespec that passes.  Otherwise, we need to go through all modules and
   // find the ones that match the file name.
-
-  const ModuleList &target_modules = m_target_sp->GetImages();
-  std::lock_guard<std::recursive_mutex> guard(target_modules.GetMutex());
-
-  const size_t num_modules = target_modules.GetSize();
-  for (size_t i = 0; i < num_modules; i++) {
-    Module *module = target_modules.GetModulePointerAtIndexUnlocked(i);
-    if (m_module_spec_list.FindFileIndex(0, module->GetFileSpec(), false) ==
+  for (ModuleSP module_sp : m_target_sp->GetImages().Modules()) {
+    if (m_module_spec_list.FindFileIndex(0, module_sp->GetFileSpec(), false) ==
         UINT32_MAX)
       continue;
-    SymbolContext matchingContext(m_target_sp, module->shared_from_this());
+    SymbolContext matchingContext(m_target_sp, module_sp);
     Searcher::CallbackReturn shouldContinue;
 
     shouldContinue = DoModuleIteration(matchingContext, searcher);
@@ -613,14 +596,14 @@ SearchFilterSP SearchFilterByModuleList::CreateFromStructuredData(
   FileSpecList modules;
   size_t num_modules = modules_array->GetSize();
   for (size_t i = 0; i < num_modules; i++) {
-    llvm::StringRef module;
-    success = modules_array->GetItemAtIndexAsString(i, module);
-    if (!success) {
+    std::optional<llvm::StringRef> maybe_module =
+        modules_array->GetItemAtIndexAsString(i);
+    if (!maybe_module) {
       error.SetErrorStringWithFormat(
           "SFBM::CFSD: filter module item %zu not a string.", i);
       return nullptr;
     }
-    modules.EmplaceBack(module);
+    modules.EmplaceBack(*maybe_module);
   }
   return std::make_shared<SearchFilterByModuleList>(target_sp, modules);
 }
@@ -661,14 +644,14 @@ lldb::SearchFilterSP SearchFilterByModuleListAndCU::CreateFromStructuredData(
   if (success) {
     size_t num_modules = modules_array->GetSize();
     for (size_t i = 0; i < num_modules; i++) {
-      llvm::StringRef module;
-      success = modules_array->GetItemAtIndexAsString(i, module);
-      if (!success) {
+      std::optional<llvm::StringRef> maybe_module =
+          modules_array->GetItemAtIndexAsString(i);
+      if (!maybe_module) {
         error.SetErrorStringWithFormat(
             "SFBM::CFSD: filter module item %zu not a string.", i);
         return result_sp;
       }
-      modules.EmplaceBack(module);
+      modules.EmplaceBack(*maybe_module);
     }
   }
 
@@ -683,14 +666,14 @@ lldb::SearchFilterSP SearchFilterByModuleListAndCU::CreateFromStructuredData(
   size_t num_cus = cus_array->GetSize();
   FileSpecList cus;
   for (size_t i = 0; i < num_cus; i++) {
-    llvm::StringRef cu;
-    success = cus_array->GetItemAtIndexAsString(i, cu);
-    if (!success) {
+    std::optional<llvm::StringRef> maybe_cu =
+        cus_array->GetItemAtIndexAsString(i);
+    if (!maybe_cu) {
       error.SetErrorStringWithFormat(
           "SFBM::CFSD: filter CU item %zu not a string.", i);
       return nullptr;
     }
-    cus.EmplaceBack(cu);
+    cus.EmplaceBack(*maybe_cu);
   }
 
   return std::make_shared<SearchFilterByModuleListAndCU>(
@@ -752,13 +735,9 @@ void SearchFilterByModuleListAndCU::Search(Searcher &searcher) {
   // find the ones that match the file name.
 
   ModuleList matching_modules;
-  const ModuleList &target_images = m_target_sp->GetImages();
-  std::lock_guard<std::recursive_mutex> guard(target_images.GetMutex());
 
-  const size_t num_modules = target_images.GetSize();
   bool no_modules_in_filter = m_module_spec_list.GetSize() == 0;
-  for (size_t i = 0; i < num_modules; i++) {
-    lldb::ModuleSP module_sp = target_images.GetModuleAtIndexUnlocked(i);
+  for (ModuleSP module_sp : m_target_sp->GetImages().Modules()) {
     if (!no_modules_in_filter &&
         m_module_spec_list.FindFileIndex(0, module_sp->GetFileSpec(), false) ==
             UINT32_MAX)

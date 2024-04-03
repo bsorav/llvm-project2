@@ -5,6 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+
 #ifndef EXPERIMENTAL_ANY_HELPERS_H
 #define EXPERIMENTAL_ANY_HELPERS_H
 
@@ -14,12 +15,6 @@
 #include <cassert>
 
 #include "test_macros.h"
-
-#if !defined(TEST_HAS_NO_RTTI)
-#define RTTI_ASSERT(X) assert(X)
-#else
-#define RTTI_ASSERT(X)
-#endif
 
 template <class T>
   struct IsSmallObject

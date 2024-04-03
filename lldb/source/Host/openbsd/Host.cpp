@@ -15,7 +15,7 @@
 #include <sys/sysctl.h>
 #include <sys/user.h>
 
-#include <stdio.h>
+#include <cstdio>
 
 #include "lldb/Host/Host.h"
 #include "lldb/Host/HostInfo.h"
@@ -28,7 +28,7 @@
 #include "lldb/Utility/Status.h"
 #include "lldb/Utility/StreamString.h"
 
-#include "llvm/Support/Host.h"
+#include "llvm/TargetParser/Host.h"
 
 extern "C" {
 extern char **environ;

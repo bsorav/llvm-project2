@@ -20,7 +20,7 @@ class MurMur2HashBuilder {
   static const u32 R = 24;
   u32 H;
 
- public:
+public:
   explicit MurMur2HashBuilder(u32 Init = 0) { H = Seed ^ Init; }
   void add(u32 K) {
     K *= M;
@@ -40,7 +40,7 @@ class MurMur2HashBuilder {
 
 class StackDepot {
   HybridMutex RingEndMu;
-  u32 RingEnd;
+  u32 RingEnd = 0;
 
   // This data structure stores a stack trace for each allocation and
   // deallocation when stack trace recording is enabled, that may be looked up
@@ -62,24 +62,23 @@ class StackDepot {
   // This is achieved by re-checking the hash of the stack trace before
   // returning the trace.
 
-#ifdef SCUDO_FUZZ
-  // Use smaller table sizes for fuzzing in order to reduce input size.
+#if SCUDO_SMALL_STACK_DEPOT
   static const uptr TabBits = 4;
 #else
   static const uptr TabBits = 16;
 #endif
   static const uptr TabSize = 1 << TabBits;
   static const uptr TabMask = TabSize - 1;
-  atomic_u32 Tab[TabSize];
+  atomic_u32 Tab[TabSize] = {};
 
-#ifdef SCUDO_FUZZ
+#if SCUDO_SMALL_STACK_DEPOT
   static const uptr RingBits = 4;
 #else
   static const uptr RingBits = 19;
 #endif
   static const uptr RingSize = 1 << RingBits;
   static const uptr RingMask = RingSize - 1;
-  atomic_u64 Ring[RingSize];
+  atomic_u64 Ring[RingSize] = {};
 
 public:
   // Insert hash of the stack trace [Begin, End) into the stack depot, and
