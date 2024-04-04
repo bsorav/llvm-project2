@@ -1,6 +1,7 @@
 #include <llvm/Support/ToolOutputFile.h>
 #include <llvm/IR/InstIterator.h>
 #include <llvm/IR/DebugInfoMetadata.h>
+#include <llvm/IR/IntrinsicInst.h>
 #include "llvm/Analysis/ScalarEvolution.h"
 #include "llvm/Analysis/ScalarEvolutionExpressions.h"
 #include "llvm/Analysis/LoopInfo.h"
@@ -2777,24 +2778,24 @@ sym_exec_llvm::get_scev(ScalarEvolution& SE, SCEV const* scev, string const& src
       string ret;
       raw_string_ostream ss(ret);
       string name;
-      if (U->isSizeOf(AllocTy)) {
-        ss << "sizeof(" << *AllocTy << ")";
-        name = ss.str();
-      } else if (U->isAlignOf(AllocTy)) {
-        ss << "alignof(" << *AllocTy << ")";
-        name = ss.str();
-      } else {
-        Type *CTy;
-        Constant *FieldNo;
-        if (U->isOffsetOf(CTy, FieldNo)) {
-          ss << "offsetof(" << *CTy << ", ";
-          FieldNo->printAsOperand(ss, false);
-          ss << ")";
-          name = ss.str();
-        }
-      }
+      //if (U->isSizeOf(AllocTy)) {
+      //  ss << "sizeof(" << *AllocTy << ")";
+      //  name = ss.str();
+      //} else if (U->isAlignOf(AllocTy)) {
+      //  ss << "alignof(" << *AllocTy << ")";
+      //  name = ss.str();
+      //} else {
+      //  Type *CTy;
+      //  Constant *FieldNo;
+      //  if (U->isOffsetOf(CTy, FieldNo)) {
+      //    ss << "offsetof(" << *CTy << ", ";
+      //    FieldNo->printAsOperand(ss, false);
+      //    ss << ")";
+      //    name = ss.str();
+      //  }
+      //}
 
-      if (name == "") {
+      /*if (name == "") */{
         U->getValue()->printAsOperand(ss, false);
         name = string(G_INPUT_KEYWORD ".") + srcdst_keyword + ("." G_LLVM_PREFIX "-") + ss.str();
       }
@@ -3231,7 +3232,7 @@ sym_exec_llvm::parse_stackrestore_intrinsic(Instruction const& I, tfg& t, pc con
   const CallInst& CI = cast<CallInst>(I);
   state state_in, state_out;
 
-  Value* v = *CI.arg_operands().begin();
+  Value* v = *CI.args().begin();
   if (!v) {
     return state_in;
   } else if (const auto *CI = dyn_cast<Constant>(v)) {
@@ -3296,7 +3297,7 @@ sym_exec_llvm::add_edges(const llvm::BasicBlock& B, dshared_ptr<tfg_llvm_t const
       continue;
     }
     if (   false
-        || (isa<CallInst>(I) && cast<CallInst>(I).getIntrinsicID() == Intrinsic::dbg_addr)
+        || (isa<CallInst>(I) && cast<CallInst>(I).getIntrinsicID() == Intrinsic::dbg_assign)
         || (isa<CallInst>(I) && cast<CallInst>(I).getIntrinsicID() == Intrinsic::dbg_label)
        ) {
       if (ll_filename_parsed) {
@@ -3445,7 +3446,7 @@ sym_exec_llvm::process_phi_nodes(tfg &t, map<llvm_value_id_t, string_ref>* value
   //pc_to_phi_node = pc_to_phi_start_node;
 
 
-  DYN_DEBUG2(llvm2tfg, cout << __func__ << " " << __LINE__ << " " << get_timestamp(as1, sizeof as1) << ": B_to->getInstList().size() = " << B_to->getInstList().size() << endl);
+  DYN_DEBUG2(llvm2tfg, cout << __func__ << " " << __LINE__ << " " << get_timestamp(as1, sizeof as1) << ": B_to->size() = " << B_to->size() << endl);
   map<string, sort_ref> changed_varnames;
   map<string, string> phi_tmpvarname;
   map<string, string> phi_tmpvarname_poison;
@@ -3789,7 +3790,7 @@ sym_exec_common::get_symbol_map_and_string_contents(Module const *M, list<pair<s
   map<symbol_id_t, graph_symbol_t> smap;
   map<pair<symbol_id_t, offset_t>, vector<char>> scontents;
   symbol_id_t symbol_id = 1;
-  for (auto &g : M->getGlobalList()) {
+  for (auto &g : M->globals()) {
     const DataLayout &dl = M->getDataLayout();
     Type *ElTy = g.getType()->getElementType();
     /*if (   ElTy->getTypeID() == Type::FunctionTyID
@@ -3927,7 +3928,7 @@ sym_exec_common::get_num_insn(const Function& f)
 {
   unsigned ret = 0;
   for(const BasicBlock& B : f)
-    ret += B.getInstList().size();
+    ret += B.size();
 
   return ret;
 }
