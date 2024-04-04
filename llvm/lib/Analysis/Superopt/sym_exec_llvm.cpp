@@ -3812,7 +3812,7 @@ sym_exec_common::get_symbol_map_and_string_contents(Module const *M, list<pair<s
     const GlobalVariable *cv = dyn_cast<const GlobalVariable>(&g);
     ASSERT(cv);
     symbol_size = dl.getTypeAllocSize(ElTy);
-    symbol_alignment = dl.getPreferredAlignment(cv);
+    symbol_alignment = dl.getPreferredAlign(cv).value();
     symbol_is_constant = cv->isConstant();
     symbol_id = get_symbol_id_for_name(name, src_llvm_tfg, symbol_id);
     //cout << __func__ << " " << __LINE__ << ": symbol_is_constant = " << symbol_is_constant << endl;
@@ -3882,7 +3882,8 @@ sym_exec_common::get_constant_bytes(Constant const* c)
     return v;
   } else if ((Zero = dyn_cast<ConstantAggregateZero>(c))) {
     //dbgs() << "zero element\n";
-    unsigned elemNum = Zero->getNumElements();
+    //unsigned elemNum = Zero->getNumElements();
+    unsigned elemNum = Zero->getElementCount().getKnownMinValue();
     vector<char> v;
     for (size_t i = 0; i < elemNum; i++) {
       Constant* ZSeq = Zero->getSequentialElement();

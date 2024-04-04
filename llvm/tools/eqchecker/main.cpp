@@ -309,17 +309,17 @@ main(int argc, char **argv)
   //function_tfg_map->ftmap_add_store_uninit_at_alloc_of_locals_for_each_tfg();
   //function_tfg_map->ftmap_add_store_uninit_at_dealloc_of_contiguous_locals_for_each_tfg();
 
-  string llvm_header = M1->get_llvm_header_as_string();
-  list<string> type_decls = M1->get_type_declarations_as_string();
-  list<string> globals_with_initializers = M1->get_globals_with_initializers_as_string();
-  list<string> function_decls = M1->get_function_declarations_as_string();
-  map<string, function_signature_t> fname_signature_map = M1->get_function_signature_map();
-  pair<map<string, llvm_fn_attribute_id_t>, map<llvm_fn_attribute_id_t, string>> fname_attributes_map = M1->get_function_attributes_map();
-  map<string, link_status_t> fname_linker_status_map = M1->get_function_link_status_map();
-  list<string> llvm_metadata = M1->get_metadata_as_string();
+  //string llvm_header = M1->get_llvm_header_as_string();
+  //list<string> type_decls = M1->get_type_declarations_as_string();
+  //list<string> globals_with_initializers = M1->get_globals_with_initializers_as_string();
+  //list<string> function_decls = M1->get_function_declarations_as_string();
+  //map<string, function_signature_t> fname_signature_map = M1->get_function_signature_map();
+  //pair<map<string, llvm_fn_attribute_id_t>, map<llvm_fn_attribute_id_t, string>> fname_attributes_map = M1->get_function_attributes_map();
+  //map<string, link_status_t> fname_linker_status_map = M1->get_function_link_status_map();
+  //list<string> llvm_metadata = M1->get_metadata_as_string();
 
   autostop_timer func2_timer(string(__func__) + ".2");
-  llptfg_t llptfg(llvm_header, type_decls, globals_with_initializers, function_decls, *function_tfg_map, fname_signature_map, fname_attributes_map.first, fname_linker_status_map, fname_attributes_map.second, llvm_metadata);
+  llptfg_t llptfg(/*llvm_header, type_decls, globals_with_initializers, function_decls, */*function_tfg_map/*, fname_signature_map, fname_attributes_map.first, fname_linker_status_map, fname_attributes_map.second, llvm_metadata*/);
   llptfg.print(outputStream);
   autostop_timer func3_timer(string(__func__) + ".3");
   outputStream.close();

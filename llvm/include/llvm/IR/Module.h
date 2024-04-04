@@ -1039,14 +1039,14 @@ public:
   void setPartialSampleProfileRatio(const ModuleSummaryIndex &Index);
 
   //sorav
-  std::string get_llvm_header_as_string() const;
-  std::list<std::string> get_type_declarations_as_string() const;
-  std::list<std::string> get_globals_with_initializers_as_string() const;
-  std::list<std::string> get_function_declarations_as_string() const;
-  std::map<std::string, eqspace::function_signature_t> get_function_signature_map() const;
-  std::pair<std::map<std::string, llvm_fn_attribute_id_t>, std::map<llvm_fn_attribute_id_t, std::string>> get_function_attributes_map() const;
-  std::map<std::string, link_status_t> get_function_link_status_map() const;
-  std::list<std::string> get_metadata_as_string() const;
+  //std::string get_llvm_header_as_string() const;
+  //std::list<std::string> get_type_declarations_as_string() const;
+  //std::list<std::string> get_globals_with_initializers_as_string() const;
+  //std::list<std::string> get_function_declarations_as_string() const;
+  //std::map<std::string, eqspace::function_signature_t> get_function_signature_map() const;
+  //std::pair<std::map<std::string, llvm_fn_attribute_id_t>, std::map<llvm_fn_attribute_id_t, std::string>> get_function_attributes_map() const;
+  //std::map<std::string, link_status_t> get_function_link_status_map() const;
+  //std::list<std::string> get_metadata_as_string() const;
   //std::map<llvm_fn_attribute_id_t, std::string> get_attributes() const;
   //std::string get_llvm_identifier() const;
   //std::string get_llvm_module_flags() const;
