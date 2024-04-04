@@ -2538,7 +2538,7 @@ sym_exec_llvm::exec_gen_expr(const llvm::Instruction& I, string const& Iname, co
 
         if (inbounds) { // gep calculation can have undefined result only if it is inbounds
           // scaling cannot have signed overflow
-          bool index_is_positive = itype.isBoundedSequential(); // if base is array then index must be positive
+          bool index_is_positive = true/*itype.isBoundedSequential()*/; // if base is array then index must be positive
           expr_ref overflow_expr = gen_no_mul_overflow_assume_expr(index, size_expr, index_is_positive);
           expr_ref assume = m_ctx->mk_isindexforsize(overflow_expr, size);
           add_state_assume(Iname, assume, state_in, assumes, from_node, model_llvm_semantics, t, value_to_name_map);
