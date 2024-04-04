@@ -61,6 +61,7 @@
 #include "llvm/TargetParser/LoongArchTargetParser.h"
 #include "llvm/TargetParser/RISCVTargetParser.h"
 #include <cctype>
+#include "support/dyn_debug.h"
 
 using namespace clang::driver;
 using namespace clang::driver::tools;
@@ -4756,9 +4757,9 @@ Clang::ConstructCommand(Compilation & C, const JobAction &JA,
   CmdArgs.push_back("-triple");
   CmdArgs.push_back(Args.MakeArgString(TripleStr));
 
-  if (C.getDriver().CCCIsQCC()) { //for QCC, Clang should disable all optimizations
-    CmdArgs.push_back("-disable-O0-optnone");
-  }
+  //if (C.getDriver().CCCIsQCC()) { //for QCC, Clang should disable all optimizations
+  //  CmdArgs.push_back("-disable-O0-optnone");
+  //}
 
   if (const Arg *MJ = Args.getLastArg(options::OPT_MJ)) {
     DumpCompilationDatabase(C, MJ->getValue(), TripleStr, Output, Input, Args);
@@ -5154,7 +5155,7 @@ Clang::ConstructCommand(Compilation & C, const JobAction &JA,
 
     // Optimization level for CodeGen.
     if (const Arg *A = Args.getLastArg(options::OPT_O_Group)) {
-      if (!C.getDriver().CCCIsQCC()) { //for QCC, Clang should disable all optimizations
+      /*if (!C.getDriver().CCCIsQCC()) */{ //for QCC, Clang should disable all optimizations
         if (A->getOption().matches(options::OPT_O4)) {
           CmdArgs.push_back("-O3");
           D.Diag(diag::warn_O4_is_O3);
@@ -5182,10 +5183,9 @@ Clang::ConstructCommand(Compilation & C, const JobAction &JA,
         II.getInputArg().renderAsInput(Args, CmdArgs);
     }
 
-    C.addCommand(std::make_unique<Command>(
+    return std::make_unique<Command>(
         JA, *this, ResponseFileSupport::AtFileUTF8(), D.getClangProgramPath(),
-        CmdArgs, Inputs, Output, D.getPrependArg()));
-    return;
+        CmdArgs, Inputs, Output, D.getPrependArg());
   }
 
   if (C.getDriver().embedBitcodeMarkerOnly() && !IsUsingLTO)
@@ -6079,7 +6079,7 @@ Clang::ConstructCommand(Compilation & C, const JobAction &JA,
   // Manually translate -O4 to -O3; let clang reject others.
 
   if (Arg *A = Args.getLastArg(options::OPT_O_Group)) {
-    if (!C.getDriver().CCCIsQCC()) { //for QCC, Clang should disable all optimizations
+    /*if (!C.getDriver().CCCIsQCC()) */{ //for QCC, Clang should disable all optimizations
       if (A->getOption().matches(options::OPT_O4)) {
         CmdArgs.push_back("-O3");
         D.Diag(diag::warn_O4_is_O3);
@@ -7215,7 +7215,7 @@ Clang::ConstructCommand(Compilation & C, const JobAction &JA,
   // Enable vectorization per default according to the optimization level
   // selected. For optimization levels that want vectorization we use the alias
   // option to simplify the hasFlag logic.
-  bool EnableVec = !C.getDriver().CCCIsQCC() && shouldEnableVectorizerAtOLevel(Args, false);
+  bool EnableVec = /*!C.getDriver().CCCIsQCC() && */shouldEnableVectorizerAtOLevel(Args, false);
   OptSpecifier VectorizeAliasOption =
       EnableVec ? options::OPT_O_Group : options::OPT_fvectorize;
   if (Args.hasFlag(options::OPT_fvectorize, VectorizeAliasOption,
@@ -7639,7 +7639,7 @@ Clang::ConstructCommand(Compilation & C, const JobAction &JA,
       bool IsOptLevelSupported = false;
 
       Arg *A = Args.getLastArg(options::OPT_O_Group);
-      if (!C.getDriver().CCCIsQCC() && Triple.getArch() == llvm::Triple::aarch64) {
+      if (/*!C.getDriver().CCCIsQCC() && */Triple.getArch() == llvm::Triple::aarch64) {
         if (!A || A->getOption().matches(options::OPT_O0))
           IsOptLevelSupported = true;
       }
@@ -7771,15 +7771,16 @@ Clang::ConstructCommand(Compilation & C, const JobAction &JA,
       Input.getInputArg().renderAsInput(Args, CmdArgs);
   }
 
+  std::unique_ptr<Command> ret;
   if (D.CC1Main && !D.CCGenDiagnostics) {
     // Invoke the CC1 directly in this process
-    C.addCommand(std::make_unique<CC1Command>(
+    ret = std::make_unique<CC1Command>(
         JA, *this, ResponseFileSupport::AtFileUTF8(), Exec, CmdArgs, Inputs,
-        Output, D.getPrependArg()));
+        Output, D.getPrependArg());
   } else {
-    C.addCommand(std::make_unique<Command>(
+    ret = std::make_unique<Command>(
         JA, *this, ResponseFileSupport::AtFileUTF8(), Exec, CmdArgs, Inputs,
-        Output, D.getPrependArg()));
+        Output, D.getPrependArg());
   }
 
   // Make the compile command echo its inputs for /showFilenames.
@@ -8933,61 +8934,59 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
   LinkCommand->replaceArguments(CmdArgs);
 }
 
-Qcc::Qcc(const ToolChain &TC)
-    : Tool("clang", "clang frontend", TC), m_clang(TC)
-{}
+//Qcc::Qcc(const ToolChain &TC)
+//    : Tool("clang", "clang frontend", TC), m_clang(TC)
+//{}
+//
+//Qcc::~Qcc()
+//{}
 
-Qcc::~Qcc()
-{}
-
-void
-Qcc::ConstructJob(Compilation &C, const JobAction &JA,
-                  const InputInfo &Output, const InputInfoList &Inputs,
-                  const llvm::opt::ArgList &TCArgs,
-                  const char *LinkingOutput) const
-{
-  DYN_DEBUG(clang_driver, llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": JA.getKind() = " <<
-                        Action::getClassName(JA.getKind()) << "\n");
-  const auto &TC = getToolChain();
-  const llvm::Triple &RawTriple = TC.getTriple();
-  const llvm::Triple &Triple = TC.getEffectiveTriple();
-  const std::string &TripleStr = Triple.getTriple();
-  DYN_DEBUG(clang_driver, llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": entry. TripleStr = " << TripleStr << "\n");
-  const Driver &D = TC.getDriver();
-  // Check number of inputs for sanity. We need at least one input.
-  assert(Inputs.size() >= 1 && "Must have at least one input.");
- 
-  //llvm::errs() << "TCArgs:\n";
-  //for (auto Arg : TCArgs) {
-  //  llvm::errs() << "  " << Arg->getValue() << "\n";
-  //}
-
-  llvm::errs() << "Inputs:\n";
-  for (auto const& Input : Inputs) {
-    llvm::errs() << "  " << Input.getAsString() << "\n";
-  }
-
-  llvm::errs() << "Output:\n";
-  llvm::errs() << "  " << Output.getAsString() << "\n";
-
-
-  auto *JAQCC = dyn_cast<QCCCodegenAction>(&JA);
-  assert(JAQCC);
-  JobAction JAbackend = JAQCC->getBackendAction();
-  std::unique_ptr<Command> Cmd = m_clang.ConstructCommand(C, JAbackend, Output, Inputs, TCArgs, LinkingOutput);
-
-  llvm::opt::ArgStringList CmdArgs = Cmd->getArguments();
-  if (const Arg *A = TCArgs.getLastArg(options::OPT_O_Group)) {
-    if (A->getOption().matches(options::OPT_O4)) {
-      CmdArgs.push_back("-O3");
-    } else {
-      A->render(TCArgs, CmdArgs);
-    }
-  }
-
-  C.addCommand(std::make_unique<Command>(JA, *this, ResponseFileSupport::AtFileUTF8(), TCArgs.MakeArgString(getToolChain().GetProgramPath("qcc-codegen")), CmdArgs, Inputs));
-
-  //m_clang.ConstructJob(C, JA, Output, Inputs, TCArgs, LinkingOutput);
-}
-
-
+//void
+//Qcc::ConstructJob(Compilation &C, const JobAction &JA,
+//                  const InputInfo &Output, const InputInfoList &Inputs,
+//                  const llvm::opt::ArgList &TCArgs,
+//                  const char *LinkingOutput) const
+//{
+//  DYN_DEBUG(clang_driver, llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": JA.getKind() = " <<
+//                        Action::getClassName(JA.getKind()) << "\n");
+//  const auto &TC = getToolChain();
+//  const llvm::Triple &RawTriple = TC.getTriple();
+//  const llvm::Triple &Triple = TC.getEffectiveTriple();
+//  const std::string &TripleStr = Triple.getTriple();
+//  DYN_DEBUG(clang_driver, llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": entry. TripleStr = " << TripleStr << "\n");
+//  const Driver &D = TC.getDriver();
+//  // Check number of inputs for sanity. We need at least one input.
+//  assert(Inputs.size() >= 1 && "Must have at least one input.");
+// 
+//  //llvm::errs() << "TCArgs:\n";
+//  //for (auto Arg : TCArgs) {
+//  //  llvm::errs() << "  " << Arg->getValue() << "\n";
+//  //}
+//
+//  llvm::errs() << "Inputs:\n";
+//  for (auto const& Input : Inputs) {
+//    llvm::errs() << "  " << Input.getAsString() << "\n";
+//  }
+//
+//  llvm::errs() << "Output:\n";
+//  llvm::errs() << "  " << Output.getAsString() << "\n";
+//
+//
+//  auto *JAQCC = dyn_cast<QCCCodegenAction>(&JA);
+//  assert(JAQCC);
+//  JobAction JAbackend = JAQCC->getBackendAction();
+//  std::unique_ptr<Command> Cmd = m_clang.ConstructCommand(C, JAbackend, Output, Inputs, TCArgs, LinkingOutput);
+//
+//  llvm::opt::ArgStringList CmdArgs = Cmd->getArguments();
+//  if (const Arg *A = TCArgs.getLastArg(options::OPT_O_Group)) {
+//    if (A->getOption().matches(options::OPT_O4)) {
+//      CmdArgs.push_back("-O3");
+//    } else {
+//      A->render(TCArgs, CmdArgs);
+//    }
+//  }
+//
+//  C.addCommand(std::make_unique<Command>(JA, *this, ResponseFileSupport::AtFileUTF8(), TCArgs.MakeArgString(getToolChain().GetProgramPath("qcc-codegen")), CmdArgs, Inputs));
+//
+//  //m_clang.ConstructJob(C, JA, Output, Inputs, TCArgs, LinkingOutput);
+//}

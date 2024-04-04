@@ -1400,7 +1400,7 @@ sym_exec_llvm::apply_general_function(const CallInst* c, expr_ref fun_name_expr,
 
   int argnum = 0;
   unordered_set<expr_ref> assumes = state_assumes;
-  for (const auto& arg : c->arg_operands()) {
+  for (const auto& arg : c->args()) {
     expr_ref expr;
     tie(expr, assumes) = get_expr_adding_edges_for_intermediate_vals(*arg, "", state_in, assumes, from_node, model_llvm_semantics, t, value_to_name_map);
     args.push_back(expr);
@@ -1692,9 +1692,9 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     string const iname = get_value_name(*a);
     Type *ElTy = a->getAllocatedType();
     Value const* ArraySize = a->getArraySize();
-    unsigned const align = a->getAlignment();
+    unsigned const align = a->getAlign().value();
     auto const op_alloc_size_bits = a->getAllocationSizeInBits(dl);
-    bool const is_varsize = !(op_alloc_size_bits.hasValue());
+    bool const is_varsize = !(op_alloc_size_bits.has_value());
     bool const is_alloca = alloca_instruction_is_alloca_operator_in_src(this->m_module, I);
 
     uint64_t const local_type_alloc_size = dl.getTypeAllocSize(ElTy);
@@ -1702,7 +1702,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     if (const ConstantInt* constArraySize = dyn_cast<const ConstantInt>(ArraySize)) {
       local_size *= constArraySize->getZExtValue();
       ASSERT(!is_varsize);
-      ASSERT(local_size == op_alloc_size_bits.getValue()/8);
+      ASSERT(local_size == op_alloc_size_bits.value()/8);
     }
 
     allocsite_t const local_id(from_node->get_pc());
@@ -1805,7 +1805,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     //memlabel_t::keyword_to_memlabel(&ml_top, G_MEMLABEL_TOP_SYMBOL, MEMSIZE_MAX);
     Value const *Addr = s->getPointerOperand();
     Value const *Val = s->getValueOperand();
-    size_t align = s->getAlignment();
+    size_t align = s->getAlign().value();
 
     //if (   Val->getType()->getTypeID() == Type::FloatTyID
     //    || Val->getType()->getTypeID() == Type::DoubleTyID) {
@@ -1913,7 +1913,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     //assumes.insert(p1);
     //t.add_assume_pred(from_node->get_pc(), p1);
 
-    size_t align = l->getAlignment();
+    size_t align = l->getAlign().value();
     if (align != 0) {
       // alignment restriction for the load value type
       add_state_assume(lname, gen_is_aligned_assume_expr(addr, align), state_in, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map); //state_assumes.insert(isaligned_assume);

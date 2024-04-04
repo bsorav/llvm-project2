@@ -389,18 +389,18 @@ int clang_main(int Argc, char **Argv, const llvm::ToolContext &ToolContext) {
 
   {
     std::string dyn_debug_prefix = "--dyn_debug=";
-    auto iter = llvm::find_if(argv, [&dyn_debug_prefix](const char *F) {
+    auto iter = llvm::find_if(Args, [&dyn_debug_prefix](const char *F) {
             return F && std::string(F).substr(0, dyn_debug_prefix.size()) == dyn_debug_prefix;
           });
-    if (iter != argv.end()) {
+    if (iter != Args.end()) {
       init_dyn_debug_from_string(std::string(*iter).substr(dyn_debug_prefix.size()));
       CPP_DBG_EXEC(DYN_DEBUG, print_debug_class_levels());
     }
   }
 
   CPP_DBG_EXEC(ARGV_PRINT,
-      for (size_t i = 0; i < argv.size(); i++) {
-        llvm::errs() << "argv[" << i << "] = " << argv[i] << "\n";
+      for (size_t i = 0; i < Args.size(); i++) {
+        llvm::errs() << "argv[" << i << "] = " << Args[i] << "\n";
       }
       llvm::errs() << "\n";
   );
