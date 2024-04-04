@@ -3792,7 +3792,8 @@ sym_exec_common::get_symbol_map_and_string_contents(Module const *M, list<pair<s
   symbol_id_t symbol_id = 1;
   for (auto &g : M->globals()) {
     const DataLayout &dl = M->getDataLayout();
-    Type *ElTy = g.getType()->getElementType();
+    //Type *ElTy = g.getType()->getElementType();
+    Type *ElTy = g.getValueType();
     /*if (   ElTy->getTypeID() == Type::FunctionTyID
         || (   ElTy->getTypeID() == Type::PointerTyID
             && cast<PointerType>(ElTy)->getElementType()->getTypeID() == Type::FunctionTyID)) {
