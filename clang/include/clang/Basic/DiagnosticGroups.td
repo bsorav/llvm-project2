@@ -1492,4 +1492,4 @@ def ReadOnlyPlacementChecks : DiagGroup<"read-only-types">;
 def UnsafeBufferUsageInContainer : DiagGroup<"unsafe-buffer-usage-in-container">;
 def UnsafeBufferUsage : DiagGroup<"unsafe-buffer-usage", [UnsafeBufferUsageInContainer]>;
 
-def MisraC20CommaInIncludeFilename : DiagGroup<"misra-c20-comma-in-include-filename">;
+def MisraC20ImproperIncludeFilename : DiagGroup<"misra-c20-improper-include-filename">;

@@ -873,9 +873,13 @@ void Preprocessor::Lex(Token &Result) {
     char const* filename = Result.getLiteralData();
     unsigned filename_len = Result.getLength();
     if (memchr(filename, ',', filename_len)) {
-      Diag(Result, diag::ext_misra_c20_comma_in_include_filename) << std::string(filename, filename_len);
-
-      llvm::errs() << __func__ << " " << __LINE__ << ": Found a comma!\n";
+      Diag(Result, diag::ext_misra_c20_comma_in_include_filename);
+    }
+    if (memchr(filename, '\\', filename_len)) {
+      Diag(Result, diag::ext_misra_c20_backslash_in_include_filename);
+    }
+    if (memmem(filename, filename_len, "/*", 2) || memmem(filename, filename_len, "//", 2)) {
+      Diag(Result, diag::ext_misra_c20_comment_in_include_filename);
     }
   }
 
