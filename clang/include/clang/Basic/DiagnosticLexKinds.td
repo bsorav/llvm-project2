@@ -85,6 +85,9 @@ def warn_c99_keyword : Warning<"'%0' is a keyword in C99">,
 def warn_c23_keyword : Warning<"'%0' is a keyword in C23">,
   InGroup<C23Compat>, DefaultIgnore;
 
+def ext_misra_c20_comma_in_include_filename : ExtWarn<
+  "MISRA-C20: comma not permitted in include filename.">, InGroup<MisraC20CommaInIncludeFilename>;
+
 def ext_unterminated_char_or_string : ExtWarn<
   "missing terminating %select{'|'\"'}0 character">, InGroup<InvalidPPToken>;
 def ext_empty_character : ExtWarn<"empty character constant">,

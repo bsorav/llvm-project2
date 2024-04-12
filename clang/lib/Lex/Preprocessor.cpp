@@ -869,6 +869,16 @@ void Preprocessor::Lex(Token &Result) {
   while (!CurLexerCallback(*this, Result))
     ;
 
+  if (CurLexer && CurLexer->ParsingFilename && Result.isLiteral()) {
+    char const* filename = Result.getLiteralData();
+    unsigned filename_len = Result.getLength();
+    if (memchr(filename, ',', filename_len)) {
+      Diag(Result, diag::ext_misra_c20_comma_in_include_filename) << std::string(filename, filename_len);
+
+      llvm::errs() << __func__ << " " << __LINE__ << ": Found a comma!\n";
+    }
+  }
+
   if (Result.is(tok::unknown) && TheModuleLoader.HadFatalFailure)
     return;
 
