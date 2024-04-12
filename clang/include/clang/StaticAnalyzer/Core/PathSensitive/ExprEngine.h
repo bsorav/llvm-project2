@@ -187,6 +187,7 @@ public:
 
   /// Returns true if there is still simulation state on the worklist.
   bool ExecuteWorkList(const LocationContext *L, unsigned Steps = 150000) {
+    llvm::errs() << __func__ << " " << __LINE__ << ": Path-sensitive ExprEngine: executing the worklist algorithm>.\n";
     return Engine.ExecuteWorkList(L, Steps, nullptr);
   }
 

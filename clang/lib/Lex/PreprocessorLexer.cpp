@@ -36,11 +36,15 @@ void PreprocessorLexer::LexIncludeFilename(Token &FilenameTok) {
   ParsingFilename = true;
 
   // Lex the filename.
-  if (LexingRawMode)
+  if (LexingRawMode) {
+    llvm::errs() << __func__ << " " << __LINE__ << ": calling IndirectLex().\n";
     IndirectLex(FilenameTok);
-  else
+    llvm::errs() << __func__ << " " << __LINE__ << ": done calling IndirectLex().\n";
+  } else {
+    llvm::errs() << __func__ << " " << __LINE__ << ": calling Lex().\n";
     PP->Lex(FilenameTok);
-
+    llvm::errs() << __func__ << " " << __LINE__ << ": done calling Lex().\n";
+  }
   // We should have obtained the filename now.
   ParsingFilename = false;
 }

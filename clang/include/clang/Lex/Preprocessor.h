@@ -1737,10 +1737,15 @@ public:
   /// \returns true on success, false if a error diagnostic has been generated.
   bool LexStringLiteral(Token &Result, std::string &String,
                         const char *DiagnosticTag, bool AllowMacroExpansion) {
-    if (AllowMacroExpansion)
+    if (AllowMacroExpansion) {
+      llvm::errs() << __func__ << " " << __LINE__ << ": calling Lex()\n";
       Lex(Result);
-    else
+      llvm::errs() << __func__ << " " << __LINE__ << ": done calling Lex()\n";
+    } else {
+      llvm::errs() << __func__ << " " << __LINE__ << ": calling LexUnexpandedToken()\n";
       LexUnexpandedToken(Result);
+      llvm::errs() << __func__ << " " << __LINE__ << ": done calling LexUnexpandedToken()\n";
+    }
     return FinishLexStringLiteral(Result, String, DiagnosticTag,
                                   AllowMacroExpansion);
   }
@@ -1757,9 +1762,11 @@ public:
   /// This is useful in -E -C mode where comments would foul up preprocessor
   /// directive handling.
   void LexNonComment(Token &Result) {
-    do
+    do {
+      llvm::errs() << __func__ << " " << __LINE__ << ": calling Lex()\n";
       Lex(Result);
-    while (Result.getKind() == tok::comment);
+      llvm::errs() << __func__ << " " << __LINE__ << ": done calling Lex()\n";
+    } while (Result.getKind() == tok::comment);
   }
 
   /// Just like Lex, but disables macro expansion of identifier tokens.
@@ -1768,7 +1775,9 @@ public:
     bool OldVal = DisableMacroExpansion;
     DisableMacroExpansion = true;
     // Lex the token.
+    llvm::errs() << __func__ << " " << __LINE__ << ": calling Lex()\n";
     Lex(Result);
+    llvm::errs() << __func__ << " " << __LINE__ << ": done calling Lex()\n";
 
     // Reenable it.
     DisableMacroExpansion = OldVal;
@@ -2911,12 +2920,15 @@ private:
   /// Helper functions to forward lexing to the actual lexer. They all share the
   /// same signature.
   static bool CLK_Lexer(Preprocessor &P, Token &Result) {
+    llvm::errs() << __func__ << " " << __LINE__ << ": forwarding to the actual lexer.\n";
     return P.CurLexer->Lex(Result);
   }
   static bool CLK_TokenLexer(Preprocessor &P, Token &Result) {
+    llvm::errs() << __func__ << " " << __LINE__ << ": forwarding to the actual token lexer.\n";
     return P.CurTokenLexer->Lex(Result);
   }
   static bool CLK_CachingLexer(Preprocessor &P, Token &Result) {
+    llvm::errs() << __func__ << " " << __LINE__ << ": forwarding to the caching lexer.\n";
     P.CachingLex(Result);
     return true;
   }

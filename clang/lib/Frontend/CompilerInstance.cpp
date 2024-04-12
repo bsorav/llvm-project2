@@ -1054,11 +1054,18 @@ bool CompilerInstance::ExecuteAction(FrontendAction &Act) {
     if (hasSourceManager() && !Act.isModelParsingAction())
       getSourceManager().clearIDTables();
 
+    llvm::errs() << __func__ << " " << __LINE__ << ": FIF = " << FIF.getFile().str() << "\n";
+
     if (Act.BeginSourceFile(*this, FIF)) {
+      llvm::errs() << __func__ << " " << __LINE__ << ": BeginSourceFile() called on " << FIF.getFile().str() << "\n";
       if (llvm::Error Err = Act.Execute()) {
+        llvm::errs() << __func__ << " " << __LINE__ << ": calling consumeError() on " << FIF.getFile().str() << "\n";
         consumeError(std::move(Err)); // FIXME this drops errors on the floor.
+        llvm::errs() << __func__ << " " << __LINE__ << ": consumeError() called on " << FIF.getFile().str() << "\n";
       }
+      llvm::errs() << __func__ << " " << __LINE__ << ": calling EndSourceFile() on " << FIF.getFile().str() << "\n";
       Act.EndSourceFile();
+      llvm::errs() << __func__ << " " << __LINE__ << ": EndSourceFile() called on " << FIF.getFile().str() << "\n";
     }
   }
 

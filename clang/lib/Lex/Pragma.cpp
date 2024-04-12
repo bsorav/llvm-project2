@@ -514,9 +514,11 @@ void Preprocessor::HandlePragmaSystemHeader(Token &SysHeaderTok) {
 
 /// HandlePragmaDependency - Handle \#pragma GCC dependency "foo" blah.
 void Preprocessor::HandlePragmaDependency(Token &DependencyTok) {
+  llvm::errs() << __func__ << " " << __LINE__ << ": calling LexHeaderName().\n";
   Token FilenameTok;
   if (LexHeaderName(FilenameTok, /*AllowConcatenation*/false))
     return;
+  llvm::errs() << __func__ << " " << __LINE__ << ": done calling LexHeaderName().\n";
 
   // If the next token wasn't a header-name, diagnose the error.
   if (FilenameTok.isNot(tok::header_name)) {
@@ -694,11 +696,16 @@ void Preprocessor::HandlePragmaIncludeAlias(Token &Tok) {
     Diag(Tok, diag::warn_pragma_include_alias_expected) << "(";
     return;
   }
+  llvm::errs() << __func__ << " " << __LINE__ << ": calling LexHeaderName().\n";
 
   // We expect either a quoted string literal, or a bracketed name
   Token SourceFilenameTok;
-  if (LexHeaderName(SourceFilenameTok))
+  if (LexHeaderName(SourceFilenameTok)) {
+    llvm::errs() << __func__ << " " << __LINE__ << ": LexHeaderName() returned true.\n";
     return;
+  }
+
+  llvm::errs() << __func__ << " " << __LINE__ << ": done calling LexHeaderName().\n";
 
   StringRef SourceFileName;
   SmallString<128> FileNameBuffer;
@@ -718,8 +725,12 @@ void Preprocessor::HandlePragmaIncludeAlias(Token &Tok) {
   }
 
   Token ReplaceFilenameTok;
-  if (LexHeaderName(ReplaceFilenameTok))
+  llvm::errs() << __func__ << " " << __LINE__ << ": calling LexHeaderName().\n";
+  if (LexHeaderName(ReplaceFilenameTok)) {
+    llvm::errs() << __func__ << " " << __LINE__ << ": LexHeaderName() returned true.\n";
     return;
+  }
+  llvm::errs() << __func__ << " " << __LINE__ << ": done calling LexHeaderName().\n";
 
   StringRef ReplaceFileName;
   if (ReplaceFilenameTok.is(tok::header_name)) {
@@ -883,6 +894,7 @@ void Preprocessor::HandlePragmaHdrstop(Token &Tok) {
   if (Tok.is(tok::l_paren)) {
     Diag(Tok.getLocation(), diag::warn_pp_hdrstop_filename_ignored);
 
+    llvm::errs() << __func__ << " " << __LINE__ << ": calling LexStringLiteral()\n";
     std::string FileName;
     if (!LexStringLiteral(Tok, FileName, "pragma hdrstop", false))
       return;

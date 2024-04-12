@@ -489,8 +489,12 @@ Parser::~Parser() {
 void Parser::Initialize() {
   // Create the translation unit scope.  Install it as the current scope.
   assert(getCurScope() == nullptr && "A scope is already active?");
+  llvm::errs() << __func__ << " " << __LINE__ << ": calling EnterScope().\n";
   EnterScope(Scope::DeclScope);
+  llvm::errs() << __func__ << " " << __LINE__ << ": done calling EnterScope().\n";
+  llvm::errs() << __func__ << " " << __LINE__ << ": calling ActOnTranslationUnitScope().\n";
   Actions.ActOnTranslationUnitScope(getCurScope());
+  llvm::errs() << __func__ << " " << __LINE__ << ": done calling ActOnTranslationUnitScope().\n";
 
   // Initialization for Objective-C context sensitive keywords recognition.
   // Referenced in Parser::ParseObjCTypeQualifierList.
@@ -575,10 +579,14 @@ void Parser::Initialize() {
     Ident_module = PP.getIdentifierInfo("module");
   }
 
+  llvm::errs() << __func__ << " " << __LINE__ << ": calling Actions.Initialize().\n";
   Actions.Initialize();
+  llvm::errs() << __func__ << " " << __LINE__ << ": done calling Actions.Initialize().\n";
 
+  llvm::errs() << __func__ << " " << __LINE__ << ": calling ConsumeToken().\n";
   // Prime the lexer look-ahead.
   ConsumeToken();
+  llvm::errs() << __func__ << " " << __LINE__ << ": done calling ConsumeToken().\n";
 }
 
 void Parser::DestroyTemplateIds() {

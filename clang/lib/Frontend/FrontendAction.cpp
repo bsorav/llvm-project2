@@ -812,15 +812,22 @@ bool FrontendAction::BeginSourceFile(CompilerInstance &CI,
     }
   }
 
+  llvm::errs() << __func__ << " " << __LINE__ << ": checking if condition to call createPreprocessor()\n";
   // Set up the preprocessor if needed. When parsing model files the
   // preprocessor of the original source is reused.
-  if (!isModelParsingAction())
+  if (!isModelParsingAction()) {
+    llvm::errs() << __func__ << " " << __LINE__ << ": calling createPreprocessor()\n";
     CI.createPreprocessor(getTranslationUnitKind());
+    llvm::errs() << __func__ << " " << __LINE__ << ": done calling createPreprocessor()\n";
+  }
 
+  llvm::errs() << __func__ << " " << __LINE__ << ": calling BeginSourceFile()\n";
   // Inform the diagnostic client we are processing a source file.
   CI.getDiagnosticClient().BeginSourceFile(CI.getLangOpts(),
                                            &CI.getPreprocessor());
   HasBegunSourceFile = true;
+
+  llvm::errs() << __func__ << " " << __LINE__ << ": done calling BeginSourceFile()\n";
 
   // Handle C++20 header units.
   // Here, the user has the option to specify that the header name should be
@@ -862,8 +869,10 @@ bool FrontendAction::BeginSourceFile(CompilerInstance &CI,
     CI.getLangOpts().CurrentModule = CI.getLangOpts().ModuleName;
   }
 
+  llvm::errs() << __func__ << " " << __LINE__ << ": done calling initializeSourceManager()\n";
   if (!CI.InitializeSourceManager(Input))
     return false;
+  llvm::errs() << __func__ << " " << __LINE__ << ": done calling initializeSourceManager()\n";
 
   if (CI.getLangOpts().CPlusPlusModules && Input.getKind().isHeaderUnit() &&
       Input.getKind().isPreprocessed() && !usesPreprocessorOnly()) {
@@ -916,9 +925,13 @@ bool FrontendAction::BeginSourceFile(CompilerInstance &CI,
     }
   }
 
+  llvm::errs() << __func__ << " " << __LINE__ << ": calling BeginSourceFileAction()\n";
+
   // Initialize the action.
   if (!BeginSourceFileAction(CI))
     return false;
+
+  llvm::errs() << __func__ << " " << __LINE__ << ": done calling BeginSourceFileAction()\n";
 
   // If we were asked to load any module map files, do so now.
   for (const auto &Filename : CI.getFrontendOpts().ModuleMapFiles) {
@@ -932,6 +945,8 @@ bool FrontendAction::BeginSourceFile(CompilerInstance &CI,
   // If compiling implementation of a module, load its module map file now.
   (void)CI.getPreprocessor().getCurrentModuleImplementation();
 
+  llvm::errs() << __func__ << " " << __LINE__ << ": calling finishModuleDeclarationScope()\n";
+
   // Add a module declaration scope so that modules from -fmodule-map-file
   // arguments may shadow modules found implicitly in search paths.
   CI.getPreprocessor()
@@ -939,9 +954,12 @@ bool FrontendAction::BeginSourceFile(CompilerInstance &CI,
       .getModuleMap()
       .finishModuleDeclarationScope();
 
+  llvm::errs() << __func__ << " " << __LINE__ << ": done calling finishModuleDeclarationScope()\n";
+
   // Create the AST context and consumer unless this is a preprocessor only
   // action.
   if (!usesPreprocessorOnly()) {
+    llvm::errs() << __func__ << " " << __LINE__ << ": usesPreprocessorOnly() is false\n";
     // Parsing a model file should reuse the existing ASTContext.
     if (!isModelParsingAction())
       CI.createASTContext();
@@ -1018,8 +1036,10 @@ bool FrontendAction::BeginSourceFile(CompilerInstance &CI,
   if (CI.getLangOpts().Modules || !CI.hasASTContext() ||
       !CI.getASTContext().getExternalSource()) {
     Preprocessor &PP = CI.getPreprocessor();
+    llvm::errs() << __func__ << " " << __LINE__ << ": calling initializeBuiltins()\n";
     PP.getBuiltinInfo().initializeBuiltins(PP.getIdentifierTable(),
                                            PP.getLangOpts());
+    llvm::errs() << __func__ << " " << __LINE__ << ": done calling initializeBuiltins()\n";
   } else {
     // FIXME: If this is a problem, recover from it by creating a multiplex
     // source.
@@ -1187,8 +1207,10 @@ void ASTFrontendAction::ExecuteAction() {
   if (!CI.hasSema())
     CI.createSema(getTranslationUnitKind(), CompletionConsumer);
 
+  llvm::errs() << __func__ << " " << __LINE__ << ": calling ParseAST()\n";
   ParseAST(CI.getSema(), CI.getFrontendOpts().ShowStats,
            CI.getFrontendOpts().SkipFunctionBodies);
+  llvm::errs() << __func__ << " " << __LINE__ << ": done calling ParseAST()\n";
 }
 
 void PluginASTAction::anchor() { }

@@ -1968,9 +1968,11 @@ void Preprocessor::HandleIncludeDirective(SourceLocation HashLoc,
                                           Token &IncludeTok,
                                           ConstSearchDirIterator LookupFrom,
                                           const FileEntry *LookupFromFile) {
+  llvm::errs() << __func__ << " " << __LINE__ << ": calling LexHeaderName().\n";
   Token FilenameTok;
   if (LexHeaderName(FilenameTok))
     return;
+  llvm::errs() << __func__ << " " << __LINE__ << ": done calling LexHeaderName().\n";
 
   if (FilenameTok.isNot(tok::header_name)) {
     Diag(FilenameTok.getLocation(), diag::err_pp_expects_filename);

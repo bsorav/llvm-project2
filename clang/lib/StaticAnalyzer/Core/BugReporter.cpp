@@ -2898,6 +2898,7 @@ PathSensitiveBugReporter::generatePathDiagnostics(
 }
 
 void BugReporter::emitReport(std::unique_ptr<BugReport> R) {
+  llvm::errs() << __func__ << " " << __LINE__ << ": emitReport called\n";
   bool ValidSourceLoc = R->getLocation().isValid();
   assert(ValidSourceLoc);
   // If we mess up in a release build, we'd still prefer to just drop the bug

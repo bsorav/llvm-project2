@@ -2310,6 +2310,7 @@ void PragmaClangSectionHandler::HandlePragma(Preprocessor &PP,
       return;
     }
 
+    llvm::errs() << __func__ << " " << __LINE__ << ": calling LexStringLiteral()\n";
     std::string SecName;
     if (!PP.LexStringLiteral(Tok, SecName, "pragma clang section", false))
       return;
@@ -3113,6 +3114,7 @@ void PragmaDetectMismatchHandler::HandlePragma(Preprocessor &PP,
     return;
   }
 
+  llvm::errs() << __func__ << " " << __LINE__ << ": calling LexStringLiteral()\n";
   // Read the name to embed, which must be a string literal.
   std::string NameString;
   if (!PP.LexStringLiteral(Tok, NameString,
@@ -3127,6 +3129,7 @@ void PragmaDetectMismatchHandler::HandlePragma(Preprocessor &PP,
     return;
   }
 
+  llvm::errs() << __func__ << " " << __LINE__ << ": calling LexStringLiteral()\n";
   if (!PP.LexStringLiteral(Tok, ValueString, "pragma detect_mismatch",
                            /*AllowMacroExpansion=*/true))
     return;
@@ -3199,6 +3202,7 @@ void PragmaCommentHandler::HandlePragma(Preprocessor &PP,
 
   // Read the optional string if present.
   PP.Lex(Tok);
+  llvm::errs() << __func__ << " " << __LINE__ << ": calling LexStringLiteral()\n";
   std::string ArgumentString;
   if (Tok.is(tok::comma) && !PP.LexStringLiteral(Tok, ArgumentString,
                                                  "pragma comment",

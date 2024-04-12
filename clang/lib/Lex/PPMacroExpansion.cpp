@@ -1198,8 +1198,10 @@ static bool EvaluateHasIncludeCommon(Token &Tok, IdentifierInfo *II,
 
   // Get '('. If we don't have a '(', try to form a header-name token.
   do {
+    llvm::errs() << __func__ << " " << __LINE__ << ": calling LexHeaderName().\n";
     if (PP.LexHeaderName(Tok))
       return false;
+    llvm::errs() << __func__ << " " << __LINE__ << ": done calling LexHeaderName().\n";
   } while (Tok.getKind() == tok::comment);
 
   // Ensure we have a '('.

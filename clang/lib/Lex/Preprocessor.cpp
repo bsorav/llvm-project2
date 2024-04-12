@@ -865,9 +865,24 @@ bool Preprocessor::HandleIdentifier(Token &Identifier) {
 void Preprocessor::Lex(Token &Result) {
   ++LexLevel;
 
+  llvm::errs() << __func__ << " " << __LINE__ << ": entered Lex().\n";
+
+  llvm::errs() << __func__ << " " << __LINE__ << ": calling CurLexerCallback().\n";
   // We loop here until a lex function returns a token; this avoids recursion.
   while (!CurLexerCallback(*this, Result))
     ;
+
+  llvm::errs() << __func__ << " " << __LINE__ << ": done calling CurLexerCallback(). Result.getLiteralData() = " << (Result.isLiteral() ? Result.getLiteralData() : "not-a-literal") << "\n";
+  if (CurLexer && CurLexer->ParsingFilename && Result.isLiteral()) {
+    char const* filename = Result.getLiteralData();
+    unsigned filename_len = Result.getLength();
+    if (memchr(filename, ',', filename_len)) {
+      //Diag(Result, diag::ext_misra_c20_comma_in_include_filename);
+
+      llvm::errs() << __func__ << " " << __LINE__ << ": Found a comma! filename = " << filename << "\n";
+      
+    }
+  }
 
   if (Result.is(tok::unknown) && TheModuleLoader.HadFatalFailure)
     return;
@@ -888,42 +903,52 @@ void Preprocessor::Lex(Token &Result) {
   // depends on the prevailing StdCXXImportSeq state in two cases.
   if (getLangOpts().CPlusPlusModules && LexLevel == 1 &&
       !Result.getFlag(Token::IsReinjected)) {
+    llvm::errs() << __func__ << " " << __LINE__ << ": calling switch().\n";
     switch (Result.getKind()) {
     case tok::l_paren: case tok::l_square: case tok::l_brace:
+      llvm::errs() << __func__ << " " << __LINE__ << ": calling handleOpenBracket().\n";
       StdCXXImportSeqState.handleOpenBracket();
       break;
     case tok::r_paren: case tok::r_square:
+      llvm::errs() << __func__ << " " << __LINE__ << ": calling handleCloseBracket().\n";
       StdCXXImportSeqState.handleCloseBracket();
       break;
     case tok::r_brace:
+      llvm::errs() << __func__ << " " << __LINE__ << ": calling handleCloseBrace().\n";
       StdCXXImportSeqState.handleCloseBrace();
       break;
     // This token is injected to represent the translation of '#include "a.h"'
     // into "import a.h;". Mimic the notional ';'.
     case tok::annot_module_include:
     case tok::semi:
+      llvm::errs() << __func__ << " " << __LINE__ << ": calling handleSemi().\n";
       TrackGMFState.handleSemi();
       StdCXXImportSeqState.handleSemi();
       ModuleDeclState.handleSemi();
       break;
     case tok::header_name:
     case tok::annot_header_unit:
+      llvm::errs() << __func__ << " " << __LINE__ << ": calling handleHeaderName().\n";
       StdCXXImportSeqState.handleHeaderName();
       break;
     case tok::kw_export:
+      llvm::errs() << __func__ << " " << __LINE__ << ": calling handleExport().\n";
       TrackGMFState.handleExport();
       StdCXXImportSeqState.handleExport();
       ModuleDeclState.handleExport();
       break;
     case tok::colon:
+      llvm::errs() << __func__ << " " << __LINE__ << ": calling handleColon().\n";
       ModuleDeclState.handleColon();
       break;
     case tok::period:
+      llvm::errs() << __func__ << " " << __LINE__ << ": calling handlePeriod().\n";
       ModuleDeclState.handlePeriod();
       break;
     case tok::identifier:
       // Check "import" and "module" when there is no open bracket. The two
       // identifiers are not meaningful with open brackets.
+      llvm::errs() << __func__ << " " << __LINE__ << ": in tok::identifier.\n";
       if (StdCXXImportSeqState.atTopLevel()) {
         if (Result.getIdentifierInfo()->isModulesImport()) {
           TrackGMFState.handleImport(StdCXXImportSeqState.afterTopLevelSeq());
@@ -952,24 +977,32 @@ void Preprocessor::Lex(Token &Result) {
       ModuleDeclState.handleMisc();
       break;
     }
+    llvm::errs() << __func__ << " " << __LINE__ << ": done calling switch().\n";
   }
 
+  llvm::errs() << __func__ << " " << __LINE__ << ": calling Result.is().\n";
   LastTokenWasAt = Result.is(tok::at);
   --LexLevel;
 
+  llvm::errs() << __func__ << " " << __LINE__ << ": done calling Result.is().\n";
   if ((LexLevel == 0 || PreprocessToken) &&
       !Result.getFlag(Token::IsReinjected)) {
     if (LexLevel == 0)
       ++TokenCount;
-    if (OnToken)
+    if (OnToken) {
+      llvm::errs() << __func__ << " " << __LINE__ << ": calling onToken().\n";
       OnToken(Result);
+      llvm::errs() << __func__ << " " << __LINE__ << ": done calling onToken().\n";
+    }
   }
 }
 
 void Preprocessor::LexTokensUntilEOF(std::vector<Token> *Tokens) {
   while (1) {
     Token Tok;
+    llvm::errs() << __func__ << " " << __LINE__ << ": calling Lex().\n";
     Lex(Tok);
+    llvm::errs() << __func__ << " " << __LINE__ << ": done calling Lex().\n";
     if (Tok.isOneOf(tok::unknown, tok::eof, tok::eod,
                     tok::annot_repl_input_end))
       break;
@@ -990,13 +1023,18 @@ void Preprocessor::LexTokensUntilEOF(std::vector<Token> *Tokens) {
 /// \return \c true if we reached EOD or EOF while looking for a > token in
 ///         a concatenated header name and diagnosed it. \c false otherwise.
 bool Preprocessor::LexHeaderName(Token &FilenameTok, bool AllowMacroExpansion) {
+  llvm::errs() << __func__ << " " << __LINE__ << ": entered LexHeaderName().\n";
   // Lex using header-name tokenization rules if tokens are being lexed from
   // a file. Just grab a token normally if we're in a macro expansion.
-  if (CurPPLexer)
+  if (CurPPLexer) {
+    llvm::errs() << __func__ << " " << __LINE__ << ": calling LexIncludeFilename().\n";
     CurPPLexer->LexIncludeFilename(FilenameTok);
-  else
+    llvm::errs() << __func__ << " " << __LINE__ << ": done calling LexIncludeFilename().\n";
+  } else {
+    llvm::errs() << __func__ << " " << __LINE__ << ": calling Lex().\n";
     Lex(FilenameTok);
-
+    llvm::errs() << __func__ << " " << __LINE__ << ": done calling Lex().\n";
+  }
   // This could be a <foo/bar.h> file coming from a macro expansion.  In this
   // case, glue the tokens together into an angle_string_literal token.
   SmallString<128> FilenameBuffer;
@@ -1014,10 +1052,13 @@ bool Preprocessor::LexHeaderName(Token &FilenameTok, bool AllowMacroExpansion) {
     // alternative token. It's not clear whether that's ill-formed in all
     // cases.
     while (FilenameTok.isNot(tok::greater)) {
+      llvm::errs() << __func__ << " " << __LINE__ << ": calling Lex().\n";
       Lex(FilenameTok);
+      llvm::errs() << __func__ << " " << __LINE__ << ": done calling Lex().\n";
       if (FilenameTok.isOneOf(tok::eod, tok::eof)) {
         Diag(FilenameTok.getLocation(), diag::err_expected) << tok::greater;
         Diag(Start, diag::note_matching) << tok::less;
+        llvm::errs() << __func__ << " " << __LINE__ << ": exiting LexHeaderName().\n";
         return true;
       }
 
@@ -1026,7 +1067,9 @@ bool Preprocessor::LexHeaderName(Token &FilenameTok, bool AllowMacroExpansion) {
       // FIXME: Provide code completion for #includes.
       if (FilenameTok.is(tok::code_completion)) {
         setCodeCompletionReached();
+        llvm::errs() << __func__ << " " << __LINE__ << ": calling Lex().\n";
         Lex(FilenameTok);
+        llvm::errs() << __func__ << " " << __LINE__ << ": done calling Lex().\n";
         continue;
       }
 
@@ -1074,6 +1117,7 @@ bool Preprocessor::LexHeaderName(Token &FilenameTok, bool AllowMacroExpansion) {
       FilenameTok.setKind(tok::header_name);
   }
 
+  llvm::errs() << __func__ << " " << __LINE__ << ": exiting LexHeaderName().\n";
   return false;
 }
 
@@ -1085,7 +1129,9 @@ void Preprocessor::CollectPpImportSuffix(SmallVectorImpl<Token> &Toks) {
   unsigned BracketDepth = 0;
   while (true) {
     Toks.emplace_back();
+    llvm::errs() << __func__ << " " << __LINE__ << ": calling Lex().\n";
     Lex(Toks.back());
+    llvm::errs() << __func__ << " " << __LINE__ << ": done calling Lex().\n";
 
     switch (Toks.back().getKind()) {
     case tok::l_paren: case tok::l_square: case tok::l_brace:
@@ -1143,8 +1189,10 @@ bool Preprocessor::LexAfterModuleImport(Token &Result) {
   // FIXME: Should we allow this in all language modes that support an import
   // declaration as an extension?
   if (NamedModuleImportPath.empty() && getLangOpts().CPlusPlusModules) {
+    llvm::errs() << __func__ << " " << __LINE__ << ": calling LexHeaderName().\n";
     if (LexHeaderName(Result))
       return true;
+    llvm::errs() << __func__ << " " << __LINE__ << ": done calling LexHeaderName().\n";
 
     if (Result.is(tok::colon) && ModuleDeclState.isNamedModule()) {
       std::string Name = ModuleDeclState.getPrimaryName().str();
@@ -1155,7 +1203,9 @@ bool Preprocessor::LexAfterModuleImport(Token &Result) {
       return true;
     }
   } else {
+    llvm::errs() << __func__ << " " << __LINE__ << ": calling Lex().\n";
     Lex(Result);
+    llvm::errs() << __func__ << " " << __LINE__ << ": done calling Lex().\n";
   }
 
   // Allocate a holding buffer for a sequence of tokens and introduce it into
@@ -1356,9 +1406,11 @@ bool Preprocessor::FinishLexStringLiteral(Token &Result, std::string &String,
     if (Result.hasUDSuffix())
       Diag(Result, diag::err_invalid_string_udl);
 
-    if (AllowMacroExpansion)
+    if (AllowMacroExpansion) {
+      llvm::errs() << __func__ << " " << __LINE__ << ": calling Lex().\n";
       Lex(Result);
-    else
+      llvm::errs() << __func__ << " " << __LINE__ << ": done calling Lex().\n";
+    } else
       LexUnexpandedToken(Result);
   } while (Result.is(tok::string_literal));
 
@@ -1394,7 +1446,9 @@ bool Preprocessor::parseSimpleIntegerLiteral(Token &Tok, uint64_t &Value) {
   llvm::APInt APVal(64, 0);
   if (Literal.GetIntegerValue(APVal))
     return false;
+  llvm::errs() << __func__ << " " << __LINE__ << ": calling Lex().\n";
   Lex(Tok);
+  llvm::errs() << __func__ << " " << __LINE__ << ": done calling Lex().\n";
   Value = APVal.getLimitedValue();
   return true;
 }
@@ -1423,7 +1477,9 @@ bool Preprocessor::HandleComment(Token &result, SourceRange Comment) {
   }
   if (!AnyPendingTokens || getCommentRetentionState())
     return false;
+  llvm::errs() << __func__ << " " << __LINE__ << ": calling Lex().\n";
   Lex(result);
+  llvm::errs() << __func__ << " " << __LINE__ << ": done calling Lex().\n";
   return true;
 }
 

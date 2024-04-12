@@ -2149,6 +2149,8 @@ bool Lexer::LexStringLiteral(Token &Result, const char *CurPtr,
   // Does this string contain the \0 character?
   const char *NulCharacter = nullptr;
 
+  llvm::errs() << __func__ << " " << __LINE__ << ": CurPtr = " << (CurPtr) << "\n";
+
   if (!isLexingRawMode() &&
       (Kind == tok::utf8_string_literal ||
        Kind == tok::utf16_string_literal ||
@@ -2173,10 +2175,12 @@ bool Lexer::LexStringLiteral(Token &Result, const char *CurPtr,
 
     if (C == 0) {
       if (isCodeCompletionPoint(CurPtr-1)) {
-        if (ParsingFilename)
+        if (ParsingFilename) {
+          llvm::errs() << __func__ << " " << __LINE__ << ": CurPtr - 1 = " << (CurPtr - 1) << "\n";
           codeCompleteIncludedFile(AfterQuote, CurPtr - 1, /*IsAngled=*/false);
-        else
+        } else
           PP->CodeCompleteNaturalLanguage();
+        llvm::errs() << __func__ << " " << __LINE__ << ": CurPtr - 1 = " << (CurPtr - 1) << "\n";
         FormTokenWithChars(Result, CurPtr - 1, tok::unknown);
         cutOffLexing();
         return true;
@@ -2356,6 +2360,7 @@ void Lexer::codeCompleteIncludedFile(const char *PathStart,
   PP->setCodeCompletionTokenRange(
       FileLoc.getLocWithOffset(StartOfFilename - BufferStart),
       FileLoc.getLocWithOffset(CompletionPoint - BufferStart));
+  llvm::errs() << __func__ << " " << __LINE__ << ": Dir = " << Dir.str() << "\n";
   PP->CodeCompleteIncludedFile(Dir, IsAngled);
 }
 
@@ -3645,6 +3650,7 @@ bool Lexer::Lex(Token &Result) {
   IsAtPhysicalStartOfLine = false;
   bool isRawLex = isLexingRawMode();
   (void) isRawLex;
+  llvm::errs() << __func__ << " " << __LINE__ << ": calling LexTokenInternal()\n";
   bool returnedToken = LexTokenInternal(Result, atPhysicalStartOfLine);
   // (After the LexTokenInternal call, the lexer might be destroyed.)
   assert((returnedToken || !isRawLex) && "Raw lex must succeed");
@@ -3810,10 +3816,11 @@ LexStart:
       Char = getCharAndSize(CurPtr, SizeTmp);
 
       // UTF-16 string literal
-      if (Char == '"')
+      if (Char == '"') {
+        llvm::errs() << __func__ << " " << __LINE__ << ": calling LexStringLiteral()\n";
         return LexStringLiteral(Result, ConsumeChar(CurPtr, SizeTmp, Result),
                                 tok::utf16_string_literal);
-
+      }
       // UTF-16 character constant
       if (Char == '\'')
         return LexCharConstant(Result, ConsumeChar(CurPtr, SizeTmp, Result),
@@ -3831,11 +3838,13 @@ LexStart:
         char Char2 = getCharAndSize(CurPtr + SizeTmp, SizeTmp2);
 
         // UTF-8 string literal
-        if (Char2 == '"')
+        if (Char2 == '"') {
+          llvm::errs() << __func__ << " " << __LINE__ << ": calling LexStringLiteral()\n";
           return LexStringLiteral(Result,
                                ConsumeChar(ConsumeChar(CurPtr, SizeTmp, Result),
                                            SizeTmp2, Result),
                                tok::utf8_string_literal);
+        }
         if (Char2 == '\'' && (LangOpts.CPlusPlus17 || LangOpts.C23))
           return LexCharConstant(
               Result, ConsumeChar(ConsumeChar(CurPtr, SizeTmp, Result),
@@ -3868,10 +3877,11 @@ LexStart:
       Char = getCharAndSize(CurPtr, SizeTmp);
 
       // UTF-32 string literal
-      if (Char == '"')
+      if (Char == '"') {
+        llvm::errs() << __func__ << " " << __LINE__ << ": calling LexStringLiteral()\n";
         return LexStringLiteral(Result, ConsumeChar(CurPtr, SizeTmp, Result),
                                 tok::utf32_string_literal);
-
+      }
       // UTF-32 character constant
       if (Char == '\'')
         return LexCharConstant(Result, ConsumeChar(CurPtr, SizeTmp, Result),
@@ -3911,10 +3921,11 @@ LexStart:
     Char = getCharAndSize(CurPtr, SizeTmp);
 
     // Wide string literal.
-    if (Char == '"')
+    if (Char == '"') {
+      llvm::errs() << __func__ << " " << __LINE__ << ": calling LexStringLiteral()\n";
       return LexStringLiteral(Result, ConsumeChar(CurPtr, SizeTmp, Result),
                               tok::wide_string_literal);
-
+    }
     // Wide raw string literal.
     if (LangOpts.CPlusPlus11 && Char == 'R' &&
         getCharAndSize(CurPtr + SizeTmp, SizeTmp2) == '"')
@@ -3966,6 +3977,7 @@ LexStart:
   case '"':
     // Notify MIOpt that we read a non-whitespace/non-comment token.
     MIOpt.ReadToken();
+    llvm::errs() << __func__ << " " << __LINE__ << ": calling LexStringLiteral()\n";
     return LexStringLiteral(Result, CurPtr,
                             ParsingFilename ? tok::header_name
                                             : tok::string_literal);

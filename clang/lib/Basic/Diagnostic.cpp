@@ -562,10 +562,14 @@ void DiagnosticConsumer::HandleDiagnostic(DiagnosticsEngine::Level DiagLevel,
   if (!IncludeInDiagnosticCounts())
     return;
 
-  if (DiagLevel == DiagnosticsEngine::Warning)
+  if (DiagLevel == DiagnosticsEngine::Warning) {
+    llvm::errs() << __func__ << " " << __LINE__ << ": warning seen\n";
     ++NumWarnings;
-  else if (DiagLevel >= DiagnosticsEngine::Error)
+  }
+  else if (DiagLevel >= DiagnosticsEngine::Error) {
+    llvm::errs() << __func__ << " " << __LINE__ << ": error seen\n";
     ++NumErrors;
+  }
 }
 
 /// ModifierIs - Return true if the specified modifier matches specified string.

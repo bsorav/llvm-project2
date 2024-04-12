@@ -820,6 +820,7 @@ void DiagnosticIDs::EmitDiag(DiagnosticsEngine &Diag, Level DiagLevel) const {
   Diagnostic Info(&Diag);
   assert(DiagLevel != DiagnosticIDs::Ignored && "Cannot emit ignored diagnostics!");
 
+  llvm::errs() << __func__ << " " << __LINE__ << ": DiagnosticIDs::EmitDiag() called\n";
   Diag.Client->HandleDiagnostic((DiagnosticsEngine::Level)DiagLevel, Info);
   if (Diag.Client->IncludeInDiagnosticCounts()) {
     if (DiagLevel == DiagnosticIDs::Warning)

@@ -87,6 +87,7 @@ void CoreEngine::setBlockCounter(BlockCounter C) {
 /// ExecuteWorkList - Run the worklist algorithm for a maximum number of steps.
 bool CoreEngine::ExecuteWorkList(const LocationContext *L, unsigned MaxSteps,
                                  ProgramStateRef InitState) {
+  llvm::errs() << __func__ << " " << __LINE__ << ": CoreEngine: executing the worklist algorithm>.\n";
   if (G.num_roots() == 0) { // Initialize the analysis by constructing
     // the root if none exists.
 

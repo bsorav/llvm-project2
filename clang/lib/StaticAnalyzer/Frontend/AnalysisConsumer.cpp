@@ -530,7 +530,9 @@ void AnalysisConsumer::runAnalysisOnTranslationUnit(ASTContext &C) {
   TranslationUnitDecl *TU = C.getTranslationUnitDecl();
   if (SyntaxCheckTimer)
     SyntaxCheckTimer->startTimer();
+  llvm::errs() << __func__ << " " << __LINE__ << ": calling runCheckersOnASTDecl\n";
   checkerMgr->runCheckersOnASTDecl(TU, *Mgr, BR);
+  llvm::errs() << __func__ << " " << __LINE__ << ": done calling runCheckersOnASTDecl\n";
   if (SyntaxCheckTimer)
     SyntaxCheckTimer->stopTimer();
 
@@ -550,14 +552,23 @@ void AnalysisConsumer::runAnalysisOnTranslationUnit(ASTContext &C) {
   // possibly being invalidated, although this is a bit slower.
   const unsigned LocalTUDeclsSize = LocalTUDecls.size();
   for (unsigned i = 0 ; i < LocalTUDeclsSize ; ++i) {
+    llvm::errs() << __func__ << " " << __LINE__ << ": calling TraverseDecl()\n";
     TraverseDecl(LocalTUDecls[i]);
+    llvm::errs() << __func__ << " " << __LINE__ << ": done calling TraverseDecl()\n";
   }
 
-  if (Mgr->shouldInlineCall())
-    HandleDeclsCallGraph(LocalTUDeclsSize);
+  llvm::errs() << __func__ << " " << __LINE__ << ": Mgr->shouldInlineCall = " << Mgr->shouldInlineCall() << "\n";
 
+  if (Mgr->shouldInlineCall()) {
+    llvm::errs() << __func__ << " " << __LINE__ << ": calling HandleDeclsCallGraph\n";
+    HandleDeclsCallGraph(LocalTUDeclsSize);
+    llvm::errs() << __func__ << " " << __LINE__ << ": done calling HandleDeclsCallGraph\n";
+  }
+
+  llvm::errs() << __func__ << " " << __LINE__ << ": calling runCheckersOnEndOfTranslationUnit\n";
   // After all decls handled, run checkers on the entire TranslationUnit.
   checkerMgr->runCheckersOnEndOfTranslationUnit(TU, *Mgr, BR);
+  llvm::errs() << __func__ << " " << __LINE__ << ": done calling runCheckersOnEndOfTranslationUnit\n";
 
   BR.FlushReports();
   RecVisitorBR = nullptr;
@@ -577,6 +588,7 @@ void AnalysisConsumer::reportAnalyzerProgress(StringRef S) {
 }
 
 void AnalysisConsumer::HandleTranslationUnit(ASTContext &C) {
+  llvm::errs() << __func__ << " " << __LINE__ << ": HandleTranslationUnit() called.\n";
   // Don't run the actions if an error has occurred with parsing the file.
   DiagnosticsEngine &Diags = PP.getDiagnostics();
   if (Diags.hasErrorOccurred() || Diags.hasFatalErrorOccurred())
@@ -608,8 +620,11 @@ void AnalysisConsumer::HandleTranslationUnit(ASTContext &C) {
     return;
   }
 
+  llvm::errs() << __func__ << " " << __LINE__ << ": calling runAnalysisOnTranslationUnit().\n";
   // Otherwise, just run the analysis.
   runAnalysisOnTranslationUnit(C);
+
+  llvm::errs() << __func__ << " " << __LINE__ << ": done calling runAnalysisOnTranslationUnit().\n";
 
   // Count how many basic blocks we have not covered.
   NumBlocksInAnalyzedFunctions = FunctionSummaries.getTotalNumBasicBlocks();
@@ -677,23 +692,29 @@ void AnalysisConsumer::HandleCode(Decl *D, AnalysisMode Mode,
   BugReporter BR(*Mgr);
 
   if (Mode & AM_Syntax) {
+    llvm::errs() << "Mode & AM_Syntax evaluates to true\n";
     llvm::TimeRecord CheckerStartTime;
     if (SyntaxCheckTimer) {
       CheckerStartTime = SyntaxCheckTimer->getTotalTime();
       SyntaxCheckTimer->startTimer();
     }
+    llvm::errs() << "calling runCheckersOnASTBody\n";
     checkerMgr->runCheckersOnASTBody(D, *Mgr, BR);
+    llvm::errs() << "done calling runCheckersOnASTBody\n";
     if (SyntaxCheckTimer) {
       SyntaxCheckTimer->stopTimer();
       llvm::TimeRecord CheckerEndTime = SyntaxCheckTimer->getTotalTime();
       CheckerEndTime -= CheckerStartTime;
       DisplayTime(CheckerEndTime);
     }
+  } else {
+    llvm::errs() << "Mode & AM_Syntax evaluates to false\n";
   }
 
   BR.FlushReports();
 
   if ((Mode & AM_Path) && checkerMgr->hasPathSensitiveCheckers()) {
+    llvm::errs() << "Mode & AM_Path evaluates to true, and have path-sensitive checkers\n";
     RunPathSensitiveChecks(D, IMode, VisitedCallees);
     if (IMode != ExprEngine::Inline_Minimal)
       NumFunctionsAnalyzed++;
@@ -707,15 +728,20 @@ void AnalysisConsumer::HandleCode(Decl *D, AnalysisMode Mode,
 void AnalysisConsumer::RunPathSensitiveChecks(Decl *D,
                                               ExprEngine::InliningModes IMode,
                                               SetOfConstDecls *VisitedCallees) {
+  llvm::errs() << __func__ << " " << __LINE__ << ": RunPathSensitiveChecks() called.\n";
+  llvm::errs() << __func__ << " " << __LINE__ << ": calling getCFG().\n";
   // Construct the analysis engine.  First check if the CFG is valid.
   // FIXME: Inter-procedural analysis will need to handle invalid CFGs.
-  if (!Mgr->getCFG(D))
+  if (!Mgr->getCFG(D)) {
+    llvm::errs() << __func__ << " " << __LINE__ << ": getCFG() failed.\n";
     return;
-
+  }
+  llvm::errs() << __func__ << " " << __LINE__ << ": calling getAnalysis<RelaxedLiveVariables>.\n";
   // See if the LiveVariables analysis scales.
-  if (!Mgr->getAnalysisDeclContext(D)->getAnalysis<RelaxedLiveVariables>())
+  if (!Mgr->getAnalysisDeclContext(D)->getAnalysis<RelaxedLiveVariables>()) {
+    llvm::errs() << __func__ << " " << __LINE__ << ": getAnalysis<RelaxedLiveVariables> failed.\n";
     return;
-
+  }
   ExprEngine Eng(CTU, *Mgr, VisitedCallees, &FunctionSummaries, IMode);
 
   // Execute the worklist algorithm.
@@ -724,8 +750,10 @@ void AnalysisConsumer::RunPathSensitiveChecks(Decl *D,
     ExprEngineStartTime = ExprEngineTimer->getTotalTime();
     ExprEngineTimer->startTimer();
   }
+  llvm::errs() << __func__ << " " << __LINE__ << ": executing the worklist algorithm>.\n";
   Eng.ExecuteWorkList(Mgr->getAnalysisDeclContextManager().getStackFrame(D),
                       Mgr->options.MaxNodesPerTopLevelFunction);
+  llvm::errs() << __func__ << " " << __LINE__ << ": done executing the worklist algorithm>.\n";
   if (ExprEngineTimer) {
     ExprEngineTimer->stopTimer();
     llvm::TimeRecord ExprEngineEndTime = ExprEngineTimer->getTotalTime();

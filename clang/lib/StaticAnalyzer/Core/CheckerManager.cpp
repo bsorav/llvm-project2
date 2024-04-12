@@ -89,8 +89,13 @@ void CheckerManager::runCheckersOnASTDecl(const Decl *D, AnalysisManager& mgr,
   }
 
   assert(checkers);
-  for (const auto &checker : *checkers)
+  std::size_t i = 0;
+  for (const auto &checker : *checkers) {
+    llvm::errs() << __func__ << " " << __LINE__ << ": calling checker #" << i << "().\n";
     checker(D, mgr, BR);
+    llvm::errs() << __func__ << " " << __LINE__ << ": done calling checker #" << i << "().\n";
+  }
+  llvm::errs() << __func__ << " " << __LINE__ << ": done calling all checkers.\n";
 }
 
 void CheckerManager::runCheckersOnASTBody(const Decl *D, AnalysisManager& mgr,

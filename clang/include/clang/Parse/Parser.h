@@ -514,8 +514,12 @@ public:
   SourceLocation ConsumeToken() {
     assert(!isTokenSpecial() &&
            "Should consume special tokens with Consume*Token");
+    llvm::errs() << __func__ << " " << __LINE__ << ": calling getLocation().\n";
     PrevTokLocation = Tok.getLocation();
+    llvm::errs() << __func__ << " " << __LINE__ << ": done calling getLocation().\n";
+    llvm::errs() << __func__ << " " << __LINE__ << ": calling Lex().\n";
     PP.Lex(Tok);
+    llvm::errs() << __func__ << " " << __LINE__ << ": done calling Lex().\n";
     return PrevTokLocation;
   }
 
@@ -525,7 +529,9 @@ public:
     assert(!isTokenSpecial() &&
            "Should consume special tokens with Consume*Token");
     PrevTokLocation = Tok.getLocation();
+    llvm::errs() << __func__ << " " << __LINE__ << ": calling Lex().\n";
     PP.Lex(Tok);
+    llvm::errs() << __func__ << " " << __LINE__ << ": done calling Lex().\n";
     return true;
   }
 
@@ -603,7 +609,9 @@ private:
   void UnconsumeToken(Token &Consumed) {
       Token Next = Tok;
       PP.EnterToken(Consumed, /*IsReinject*/true);
+      llvm::errs() << __func__ << " " << __LINE__ << ": calling Lex().\n";
       PP.Lex(Tok);
+      llvm::errs() << __func__ << " " << __LINE__ << ": done calling Lex().\n";
       PP.EnterToken(Next, /*IsReinject*/true);
   }
 
@@ -611,7 +619,9 @@ private:
     assert(Tok.isAnnotation() && "wrong consume method");
     SourceLocation Loc = Tok.getLocation();
     PrevTokLocation = Tok.getAnnotationEndLoc();
+    llvm::errs() << __func__ << " " << __LINE__ << ": calling Lex().\n";
     PP.Lex(Tok);
+    llvm::errs() << __func__ << " " << __LINE__ << ": done calling Lex().\n";
     return Loc;
   }
 
@@ -626,7 +636,9 @@ private:
       --ParenCount;       // Don't let unbalanced )'s drive the count negative.
     }
     PrevTokLocation = Tok.getLocation();
+    llvm::errs() << __func__ << " " << __LINE__ << ": calling Lex().\n";
     PP.Lex(Tok);
+    llvm::errs() << __func__ << " " << __LINE__ << ": done calling Lex().\n";
     return PrevTokLocation;
   }
 
@@ -642,7 +654,9 @@ private:
     }
 
     PrevTokLocation = Tok.getLocation();
+    llvm::errs() << __func__ << " " << __LINE__ << ": calling Lex().\n";
     PP.Lex(Tok);
+    llvm::errs() << __func__ << " " << __LINE__ << ": done calling Lex().\n";
     return PrevTokLocation;
   }
 
@@ -658,7 +672,9 @@ private:
     }
 
     PrevTokLocation = Tok.getLocation();
+    llvm::errs() << __func__ << " " << __LINE__ << ": calling Lex().\n";
     PP.Lex(Tok);
+    llvm::errs() << __func__ << " " << __LINE__ << ": done calling Lex().\n";
     return PrevTokLocation;
   }
 
@@ -670,7 +686,9 @@ private:
     assert(isTokenStringLiteral() &&
            "Should only consume string literals with this method");
     PrevTokLocation = Tok.getLocation();
+    llvm::errs() << __func__ << " " << __LINE__ << ": calling Lex().\n";
     PP.Lex(Tok);
+    llvm::errs() << __func__ << " " << __LINE__ << ": done calling Lex().\n";
     return PrevTokLocation;
   }
 
@@ -682,7 +700,9 @@ private:
   SourceLocation ConsumeCodeCompletionToken() {
     assert(Tok.is(tok::code_completion));
     PrevTokLocation = Tok.getLocation();
+    llvm::errs() << __func__ << " " << __LINE__ << ": calling Lex().\n";
     PP.Lex(Tok);
+    llvm::errs() << __func__ << " " << __LINE__ << ": done calling Lex().\n";
     return PrevTokLocation;
   }
 
