@@ -2663,6 +2663,8 @@ sym_exec_llvm::get_scev_op_from_scev_type(SCEVTypes scevtype)
 {
   switch (scevtype) {
     case scConstant: return scev_op_constant;
+    case scVScale: return scev_op_vscale;
+    case scPtrToInt: return scev_op_ptr_to_int;
     case scTruncate: return scev_op_truncate;
     case scZeroExtend: return scev_op_zeroext;
     case scSignExtend: return scev_op_signext;
@@ -2673,6 +2675,7 @@ sym_exec_llvm::get_scev_op_from_scev_type(SCEVTypes scevtype)
     case scSMaxExpr: return scev_op_smax;
     case scUMinExpr: return scev_op_umin;
     case scSMinExpr: return scev_op_smin;
+    case scSequentialUMinExpr: return scev_op_umin_seq;
     case scUDivExpr: return scev_op_udiv;
     case scUnknown: return scev_op_unknown;
     case scCouldNotCompute: return scev_op_couldnotcompute;
@@ -2689,12 +2692,22 @@ sym_exec_llvm::get_scev(ScalarEvolution& SE, SCEV const* scev, string const& src
       APInt const& apint = cast<SCEVConstant>(scev)->getAPInt();
       return mk_scev(scev_op_constant, get_mybitset_from_apint(apint, apint.getBitWidth(), false), {});
     }
+    case scVScale: {
+      return mk_scev(scev_op_vscale);
+    }
     case scTruncate: {
       const SCEVTruncateExpr *Trunc = cast<SCEVTruncateExpr>(scev);
       const SCEV *Op = Trunc->getOperand();
       //OS << "(trunc " << *Op->getType() << " " << *Op << " to "
       //   << *Trunc->getType() << ")";
       return mk_scev(scev_op_truncate, mybitset(), { get_scev(SE, Op, srcdst_keyword, word_length) });
+    }
+    case scPtrToInt: {
+      const SCEVPtrToIntExpr *PtrToInt = cast<SCEVPtrToIntExpr>(scev);
+      const SCEV *Op = PtrToInt->getOperand();
+      //OS << "(trunc " << *Op->getType() << " " << *Op << " to "
+      //   << *Trunc->getType() << ")";
+      return mk_scev(scev_op_ptr_to_int, mybitset(), { get_scev(SE, Op, srcdst_keyword, word_length) });
     }
     case scZeroExtend: {
       const SCEVZeroExtendExpr *ZExt = cast<SCEVZeroExtendExpr>(scev);
@@ -2744,7 +2757,8 @@ sym_exec_llvm::get_scev(ScalarEvolution& SE, SCEV const* scev, string const& src
     case scUMaxExpr:
     case scSMaxExpr:
     case scUMinExpr:
-    case scSMinExpr: {
+    case scSMinExpr:
+    case scSequentialUMinExpr: {
       const SCEVNAryExpr *NAry = cast<SCEVNAryExpr>(scev);
       vector<scev_ref> scev_args;
       for (int i = 0; i < NAry->getNumOperands(); i++) {
@@ -2814,9 +2828,9 @@ sym_exec_llvm::get_scev(ScalarEvolution& SE, SCEV const* scev, string const& src
     case scCouldNotCompute: {
       return mk_scev(scev_op_couldnotcompute, mybitset(), {});
     }
-    //default: {
-    //  NOT_REACHED();
-    //}
+    default: {
+      llvm::errs() << __func__ << " " << __LINE__ << ": scevtype = ";
+    }
   }
   NOT_REACHED();
 }
