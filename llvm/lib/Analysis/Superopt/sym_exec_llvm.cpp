@@ -2510,9 +2510,12 @@ sym_exec_llvm::exec_gen_expr(const llvm::Instruction& I, string const& Iname, co
         cout << _FNLN_ << ": index =\n" << m_ctx->expr_to_string_table(index) << endl;
         cout << _FNLN_ << ": get_word_length() = " << get_word_length() << endl;
       }
-      assert(index->get_sort()->get_size() <= get_word_length());
+      //assert(index->get_sort()->get_size() <= get_word_length());
       if (index->get_sort()->get_size() < get_word_length()) {
         index = m_ctx->mk_bvzero_ext(index, get_word_length() - index->get_sort()->get_size());
+        index = m_ctx->expr_do_simplify(index);
+      } else if (index->get_sort()->get_size() > get_word_length()) {
+        index = m_ctx->mk_bvextract(index, get_word_length() - 1, 0);
         index = m_ctx->expr_do_simplify(index);
       }
       ASSERT(index->get_sort()->get_size() == get_word_length());
