@@ -712,6 +712,7 @@ static inline void AdjustStackOffset(MachineFrameInfo &MFI, int FrameIdx,
                                      bool StackGrowsDown, int64_t &Offset,
                                      Align &MaxAlign,
                                      std::string const& FnName = "") {
+  //errs() << __func__ << " " << __LINE__ << ": PrologEpilogInserter AdjustStackOffset() called.\n";
   // If the stack grows down, add the object size to find the lowest address.
   auto ObjSz = MFI.getObjectSize(FrameIdx);
   if (StackGrowsDown)
@@ -1124,7 +1125,7 @@ void PEI::calculateFrameObjectOffsets(MachineFunction &MF) {
   for (auto &Object : ObjectsToAllocate)
     if (!scavengeStackSlot(MFI, Object, StackGrowsDown, MaxAlign,
                            StackBytesFree))
-      AdjustStackOffset(MFI, Object, StackGrowsDown, Offset, MaxAlign);
+      AdjustStackOffset(MFI, Object, StackGrowsDown, Offset, MaxAlign, FnName);
 
   // Make sure the special register scavenging spill slot is closest to the
   // stack pointer.
