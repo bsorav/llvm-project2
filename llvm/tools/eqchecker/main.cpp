@@ -112,6 +112,11 @@ points_to_algo("points-to-algo", cl::desc("[" POINTS_TO_ALGO_ANDERSEN "|" POINTS
 static cl::opt<bool>
 dst_tfg_is_llvm("dst-tfg-is-llvm", cl::desc("Is the DST TFG LLVM? If not, rodata memlabel is used for all ro symbols"), cl::init(false));
 
+static cl::opt<std::string>
+calling_conventions("calling-conventions", cl::desc("[eq specific] calling conventions assumed while generating LLVM IR.  Valid values: linux-i386"), cl::init("linux-i386"));
+
+static cl::opt<std::string>
+dst_compiler("dst-compiler", cl::desc("[eq specific] Compiler used for generating target assembly.  Valid values: gcc, clang, icc, unknown."), cl::init("unknown"));
 
 //static cl::opt<bool>
 //NoCollapse("no-collapse", cl::desc("<no-collapse. Do not collapse basic blocks into single edges>"), cl::init(false));
@@ -301,8 +306,14 @@ main(int argc, char **argv)
   }
 
   auto points_to_algo_val = points_to_algo_t::points_to_algo_from_string(points_to_algo);
+  auto const opt_cc = calling_conventions_from_string(calling_conventions);
+  auto const opt_dst_compiler = dst_compiler_from_string(dst_compiler);
+  ASSERT(opt_cc.has_value());
+  ASSERT(opt_dst_compiler.has_value());
+
   MSG("Symbolic execution to obtain the Transfer Function Graph (TFG)...");
-  dshared_ptr<ftmap_t> function_tfg_map = sym_exec_llvm::sym_exec_get_function_tfg_map(M1.get(), FunNamesVec, ctx, src_llptfg, !NoGenScev, llvmSemantics, always_use_call_context_any, ll_filename, points_to_algo_val, nullptr, xml_output_format);
+
+  dshared_ptr<ftmap_t> function_tfg_map = sym_exec_llvm::sym_exec_get_function_tfg_map(M1.get(), FunNamesVec, ctx, src_llptfg, !NoGenScev, llvmSemantics, always_use_call_context_any, ll_filename, points_to_algo_val, nullptr, xml_output_format, opt_cc.value(), opt_dst_compiler.value());
   MSG("Points-to analysis on the Transfer Function Graph (TFG)...");
   function_tfg_map->ftmap_run_pointsto_analysis(points_to_algo_val, nullopt, call_context_depth, always_use_call_context_any, true, !dst_tfg_is_llvm, xml_output_format);
   function_tfg_map->ftmap_add_start_pc_preconditions_for_each_tfg((src_llptfg != nullptr));
