@@ -2048,12 +2048,12 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
       break;
     }
 
-    if (fun_name == LLVM_FUNCTION_NAME_PREFIX G_LLVM_STACKSAVE_FUNCTION) {
+    if (string_has_prefix(fun_name, LLVM_FUNCTION_NAME_PREFIX G_LLVM_STACKSAVE_FUNCTION)) {
       //cast<CallInst>(I).getIntrinsicID() == Intrinsic::stacksave
       state_out = this->parse_stacksave_intrinsic(I, t, from_node->get_pc());
       break;
     }
-    if (fun_name == LLVM_FUNCTION_NAME_PREFIX G_LLVM_STACKRESTORE_FUNCTION) {
+    if (string_has_prefix(fun_name, LLVM_FUNCTION_NAME_PREFIX G_LLVM_STACKRESTORE_FUNCTION)) {
       //cast<CallInst>(I).getIntrinsicID() == Intrinsic::stackrestore
       state_out = this->parse_stackrestore_intrinsic(I, t, from_node->get_pc());
       break;
