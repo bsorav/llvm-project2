@@ -537,6 +537,13 @@ sym_exec_llvm::llvm_instruction_get_md5sum_name(Instruction const& I) const
 }
 
 string
+sym_exec_llvm::float_fcall_arg_get_name(CallInst const& I, int argnum) const
+{
+  string base_name = llvm_instruction_get_md5sum_name(I);
+  return base_name + ".arg." + std::to_string(argnum) + ".float";
+}
+
+string
 sym_exec_llvm::constexpr_instruction_get_name(Instruction const& I) const
 {
   string base_name = llvm_instruction_get_md5sum_name(I);
@@ -1432,6 +1439,23 @@ sym_exec_llvm::apply_general_function(const CallInst* c, expr_ref fun_name_expr,
   for (const auto& arg : c->args()) {
     expr_ref expr;
     tie(expr, assumes) = get_expr_adding_edges_for_intermediate_vals(*arg, "", state_in, assumes, from_node, model_llvm_semantics, t, value_to_name_map);
+    if (expr->is_float_sort() || expr->is_floatx_sort()) {
+      state state_to_intermediate_val;
+      expr_ref bv_expr;
+      if (expr->is_float_sort()) {
+        bv_expr = m_ctx->mk_float_to_ieee_bv(expr);
+      } else if (expr->is_floatx_sort()) {
+        bv_expr = m_ctx->mk_floatx_to_ieee_bv(expr);
+      } else NOT_REACHED();
+      string float_fcall_arg_name = float_fcall_arg_get_name(*c, argnum);
+      state_set_expr(state_to_intermediate_val, float_fcall_arg_name, bv_expr);
+      dshared_ptr<tfg_node> intermediate_node = get_next_intermediate_subsubindex_pc_node(t, from_node);
+      pc from_pc = from_node->get_pc();
+      shared_ptr<tfg_edge const> e = mk_tfg_edge(from_pc, intermediate_node->get_pc(), expr_true(m_ctx), state_to_intermediate_val, {}, {}, te_comment_t(false, from_pc.get_subindex(), TE_COMMENT_CONVERT_FLOAT_TO_BV_FOR_FCALL_ARG));
+      t.add_edge(e);
+      from_node = intermediate_node;
+      expr = m_ctx->get_input_expr_for_key(mk_string_ref(float_fcall_arg_name), bv_expr->get_sort());
+    }
     args.push_back(expr);
     args_type.push_back(expr->get_sort());
     argnum++;

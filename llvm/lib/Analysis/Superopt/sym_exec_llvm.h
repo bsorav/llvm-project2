@@ -141,6 +141,7 @@ private:
 
   string gep_instruction_get_intermediate_value_name(llvm::Instruction const& I/*string base_name*/, unsigned index_counter, int intermediate_value_num) const;
   string constexpr_instruction_get_name(llvm::Instruction const& I) const;
+  string float_fcall_arg_get_name(llvm::CallInst const& I, int argnum) const;
 
   //llvm::BasicBlock const *get_basic_block_for_pc(const llvm::Function& F, pc const &p);
 
