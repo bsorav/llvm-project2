@@ -54,6 +54,7 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <unordered_set>
 
 namespace llvm {
 
@@ -126,6 +127,8 @@ enum MacroUse {
 /// know anything about preprocessor-level issues like the \#include stack,
 /// token expansion, etc.
 class Preprocessor {
+  std::unordered_set<std::string> IncludedHeaderFileNames;
+
   friend class VAOptDefinitionContext;
   friend class VariadicMacroScopeGuard;
 

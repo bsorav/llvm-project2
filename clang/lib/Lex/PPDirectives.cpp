@@ -1971,6 +1971,26 @@ void Preprocessor::HandleIncludeDirective(SourceLocation HashLoc,
   Token FilenameTok;
   if (LexHeaderName(FilenameTok))
     return;
+    
+  SourceLocation FilenameLoc = FilenameTok.getLocation();
+
+  // Get the file entry associated with the source location
+  const FileEntry *File = SourceMgr.getFileEntryForID(SourceMgr.getFileID(FilenameLoc));
+
+  if (File) {
+      // Extract the filename from the file entry
+      StringRef FilenameRef = File->getName();
+      std::string Filename=FilenameRef.str();
+
+      // Check if the filename is already included
+      if (IncludedHeaderFileNames.find(Filename) != IncludedHeaderFileNames.end()) {
+          // Handle repeated inclusion warning
+          Diag(FilenameLoc, diag::ext_misra_c20_repeated_include_filename) << Filename;
+      } else {
+          // Add the filename to the set of included header files
+          IncludedHeaderFileNames.insert(Filename);
+      }
+  }
 
   if (FilenameTok.isNot(tok::header_name)) {
     Diag(FilenameTok.getLocation(), diag::err_pp_expects_filename);
