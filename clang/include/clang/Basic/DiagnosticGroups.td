@@ -1493,3 +1493,4 @@ def UnsafeBufferUsageInContainer : DiagGroup<"unsafe-buffer-usage-in-container">
 def UnsafeBufferUsage : DiagGroup<"unsafe-buffer-usage", [UnsafeBufferUsageInContainer]>;
 
 def MisraC20ImproperIncludeFilename : DiagGroup<"misra-c20-improper-include-filename">;
+def MisraC20ImproperArrayParameterDeclaration : DiagGroup<"misra-c20-improper-array-parameter-declaration">;
