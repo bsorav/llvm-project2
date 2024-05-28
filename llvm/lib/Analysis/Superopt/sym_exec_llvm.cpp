@@ -2329,8 +2329,8 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     expr_ref e0;
     tie(e0, state_assumes) = get_expr_adding_edges_for_intermediate_vals(op0, iname, state(), state_assumes, from_node, model_llvm_semantics, t, value_to_name_map);
 
-    float_max_t max_limit = powl((float_max_t)2, target_size);
-    float_max_t min_limit = 0;
+    float_max_t max_limit = LLVM_FP_TO_UI_MAX_LIMIT;
+    float_max_t min_limit = LLVM_FP_TO_UI_MIN_LIMIT;
 
     if (e0->is_floatx_sort()) {
       e0 = m_ctx->mk_floatx_to_float(e0);
@@ -2366,8 +2366,8 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     expr_ref e0;
     tie(e0, state_assumes) = get_expr_adding_edges_for_intermediate_vals(op0, iname, state(), state_assumes, from_node, model_llvm_semantics, t, value_to_name_map);
 
-    float_max_t max_limit = powl((float_max_t)2, target_size - 1);
-    float_max_t min_limit = powl((float_max_t)-2, target_size - 1);
+    float_max_t max_limit = LLVM_FP_TO_SI_MAX_LIMIT;
+    float_max_t min_limit = LLVM_FP_TO_SI_MIN_LIMIT;
 
     expr_ref min_limit_expr = m_ctx->mk_float_const(e0->get_sort()->get_size(), min_limit);
     expr_ref max_limit_expr = m_ctx->mk_float_const(e0->get_sort()->get_size(), max_limit);
