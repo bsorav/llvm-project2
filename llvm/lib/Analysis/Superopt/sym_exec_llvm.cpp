@@ -3018,7 +3018,8 @@ sym_exec_llvm::parameter_alloca_should_be_replaced_with_parameter_address(Alloca
       && *op_alloc_sz == DWORD_LEN)
     return true;
 
-  // otherwise the alloca is retained
+  // otherwise the alloca is retained because the parameters are passed separately
+  // and the agg is constructed in the prologue of the generated assembly
   return false;
 }
 
