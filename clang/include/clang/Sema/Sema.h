@@ -6660,6 +6660,7 @@ public:
   /// invocation.
   ExprResult CheckForImmediateInvocation(ExprResult E, FunctionDecl *Decl);
 
+  bool checkForBreakOrReturn(Stmt *S, bool CheckForOnlyReturnStmt);
   bool CheckImmediateEscalatingFunctionDefinition(
       FunctionDecl *FD, const sema::FunctionScopeInfo *FSI);
 

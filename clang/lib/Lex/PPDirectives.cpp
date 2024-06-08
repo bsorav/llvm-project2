@@ -1237,6 +1237,7 @@ void Preprocessor::HandleDirective(Token &Result) {
     // C99 6.10.2 - Source File Inclusion.
     case tok::pp_include:
       // Handle #include.
+      
       return HandleIncludeDirective(SavedHash.getLocation(), Result);
     case tok::pp___include_macros:
       // Handle -imacros.
@@ -1971,34 +1972,23 @@ void Preprocessor::HandleIncludeDirective(SourceLocation HashLoc,
   Token FilenameTok;
   if (LexHeaderName(FilenameTok))
     return;
-    
-  SourceLocation FilenameLoc = FilenameTok.getLocation();
-
-  // Get the file entry associated with the source location
-  const FileEntry *File = SourceMgr.getFileEntryForID(SourceMgr.getFileID(FilenameLoc));
-
-  if (File) {
-      // Extract the filename from the file entry
-      StringRef FilenameRef = File->getName();
-      std::string Filename=FilenameRef.str();
-
-      // Check if the filename is already included
-      if (IncludedHeaderFileNames.find(Filename) != IncludedHeaderFileNames.end()) {
-          // Handle repeated inclusion warning
-          Diag(FilenameLoc, diag::ext_misra_c20_repeated_include_filename) << Filename;
-      } else {
-          // Add the filename to the set of included header files
-          IncludedHeaderFileNames.insert(Filename);
-      }
-  }
-
   if (FilenameTok.isNot(tok::header_name)) {
     Diag(FilenameTok.getLocation(), diag::err_pp_expects_filename);
     if (FilenameTok.isNot(tok::eod))
       DiscardUntilEndOfDirective();
     return;
   }
-
+  //Get the filename from the token's source location
+  StringRef FilenameRef =getSpelling(FilenameTok);
+  std::string Filename=FilenameRef.str();
+  // Check if the filename has already been included
+  if (IncludedHeaderFileNames.count(Filename) > 0) {
+    // Handle repeated inclusion warning
+    Diag(IncludeTok.getLocation(), diag::ext_misra_c20_repeated_include_filename) << Filename;
+  } else {
+    // Add the filename to the set of included header files
+    IncludedHeaderFileNames.insert(Filename);
+  }
   // Verify that there is nothing after the filename, other than EOD.  Note
   // that we allow macros that expand to nothing after the filename, because
   // this falls into the category of "#include pp-tokens new-line" specified

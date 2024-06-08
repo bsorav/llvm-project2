@@ -1218,6 +1218,28 @@ static void checkEnumTypesInSwitchStmt(Sema &S, const Expr *Cond,
       << Case->getSourceRange();
 }
 
+bool Sema::checkForBreakOrReturn(Stmt *S, bool CheckForOnlyReturnStmt) {
+  if (!S) return false;
+  if ((!CheckForOnlyReturnStmt && isa<BreakStmt>(S)) || isa<ReturnStmt>(S)) {
+    return true;
+  }
+  if (isa<CompoundStmt>(S)) {
+    for (Stmt *InnerStmt : cast<CompoundStmt>(S)->body()) {
+      if (checkForBreakOrReturn(InnerStmt,CheckForOnlyReturnStmt)) {
+        return true;
+      }
+    }
+  } else if (isa<IfStmt>(S)) {
+    IfStmt *If = cast<IfStmt>(S);
+    return checkForBreakOrReturn(If->getThen(),CheckForOnlyReturnStmt) && 
+          (If->getElse() && checkForBreakOrReturn(If->getElse(),CheckForOnlyReturnStmt));
+  } else if (isa<ForStmt>(S) || isa<WhileStmt>(S) || isa<DoStmt>(S) || isa<SwitchStmt>(S)) {
+    // Loops might not break, need more complex analysis
+    return checkForBreakOrReturn(S,true);
+  }
+  return false;
+}
+
 StmtResult
 Sema::ActOnFinishSwitchStmt(SourceLocation SwitchLoc, Stmt *Switch,
                             Stmt *BodyStmt) {
@@ -1298,6 +1320,22 @@ Sema::ActOnFinishSwitchStmt(SourceLocation SwitchLoc, Stmt *Switch,
 
     } else {
       CaseStmt *CS = cast<CaseStmt>(SC);
+
+      // MISRA rule check for fallthrough in  switch statements.
+      bool hasBreak=false;
+      bool empty=true;
+      for (CaseStmt::child_iterator it = ++CS->child_begin(); it != CS->child_end(); ++it) {
+        Stmt *SubStmt = *it;
+        if(SubStmt && !isa<CaseStmt>(SubStmt)) {
+          empty=false;
+          if(checkForBreakOrReturn(SubStmt,false)) {
+            hasBreak=true;
+          }
+        }
+      }
+      if(!empty && !hasBreak){
+        Diag(CS->getBeginLoc(), diag::ext_misra_c20_fallthrough_switch_case);
+      }
 
       Expr *Lo = CS->getLHS();
 
