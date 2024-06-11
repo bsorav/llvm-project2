@@ -1735,5 +1735,6 @@ def ext_hlsl_access_specifiers : ExtWarn<
 // MISRA C warnings
 def ext_misra_warn_comment_contains_comment : ExtWarn<
   "Comment is not permitted inside a comment">, InGroup<MisraC3ImproperCommentSyntax>;
-
+def ext_misra_warn_inline_comments_line_sliced : ExtWarn<
+  "MISRA-R.3.2: Line-splicing is not permitted in // comments.">, InGroup<MisraC3ImproperCommentSyntax>;
 } // end of Parser diagnostics

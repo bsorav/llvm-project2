@@ -53,6 +53,13 @@ public:
           S.Diag(Comment.getBegin().getLocWithOffset(CommentText.find("/*", CommentText.find("//") + 1)), diag::ext_misra_warn_comment_contains_comment);
         }
     }
+    if (CommentText.find("//") == 0){
+      int index_of_next_line_char = CommentText.find("\n");
+      int index_of_backslash = CommentText.rfind('\\', index_of_next_line_char);
+      if (index_of_next_line_char != -1){
+        S.Diag(Comment.getBegin().getLocWithOffset(index_of_backslash), diag::ext_misra_warn_inline_comments_line_sliced);
+      }
+    }
     S.ActOnComment(Comment);
     return false;
   }
