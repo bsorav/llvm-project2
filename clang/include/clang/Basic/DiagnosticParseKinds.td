@@ -1732,4 +1732,8 @@ def ext_hlsl_access_specifiers : ExtWarn<
   "access specifiers are a clang HLSL extension">,
   InGroup<HLSLExtension>;
 
+// MISRA C warnings
+def ext_misra_warn_comment_contains_comment : ExtWarn<
+  "Comment is not permitted inside a comment">, InGroup<MisraC3ImproperCommentSyntax>;
+
 } // end of Parser diagnostics

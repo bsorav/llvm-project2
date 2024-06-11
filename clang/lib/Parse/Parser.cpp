@@ -36,6 +36,23 @@ public:
   explicit ActionCommentHandler(Sema &S) : S(S) { }
 
   bool HandleComment(Preprocessor &PP, SourceRange Comment) override {
+    StringRef CommentText = Lexer::getSourceText(CharSourceRange::getTokenRange(Comment), PP.getSourceManager(), PP.getLangOpts());
+    if (CommentText.find("/*") != StringRef::npos){
+      if (CommentText.find("/*", CommentText.find("/*") + 1) != StringRef::npos){
+        S.Diag(Comment.getBegin().getLocWithOffset(CommentText.find("/*", CommentText.find("/*") + 1)), diag::ext_misra_warn_comment_contains_comment);
+      }
+      if (CommentText.find("//", CommentText.find("/*") + 1) != StringRef::npos){
+        S.Diag(Comment.getBegin().getLocWithOffset(CommentText.find("//", CommentText.find("/*") + 1)), diag::ext_misra_warn_comment_contains_comment);
+      }
+    }
+    if (CommentText.find("//") != StringRef::npos){
+        if (CommentText.find("//", CommentText.find("//") + 1) != StringRef::npos){
+          S.Diag(Comment.getBegin().getLocWithOffset(CommentText.find("//", CommentText.find("//") + 1)), diag::ext_misra_warn_comment_contains_comment);
+        }
+        if (CommentText.find("/*", CommentText.find("//") + 1) != StringRef::npos){
+          S.Diag(Comment.getBegin().getLocWithOffset(CommentText.find("/*", CommentText.find("//") + 1)), diag::ext_misra_warn_comment_contains_comment);
+        }
+    }
     S.ActOnComment(Comment);
     return false;
   }
