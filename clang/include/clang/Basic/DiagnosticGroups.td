@@ -1496,3 +1496,4 @@ def MisraC20ImproperIncludeFilename : DiagGroup<"misra-c20-improper-include-file
 def MisraC20ImproperArrayParameterDeclaration : DiagGroup<"misra-c20-improper-array-parameter-declaration">;
 def MisraC20ImproperIdentifierDeclaration : DiagGroup<"misra-c20-improper-identifier-declaration">;
 def MisraC20ImproperSwitchStmt : DiagGroup<"misra-c20-improper-switch-stmt">;
+def MisraC20ImproperLogicalRHS : DiagGroup<"misra-c20-improper-logical-rhs">;

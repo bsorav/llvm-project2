@@ -16065,6 +16065,13 @@ ExprResult Sema::ActOnBinOp(Scope *S, SourceLocation TokLoc,
   assert(LHSExpr && "ActOnBinOp(): missing left expression");
   assert(RHSExpr && "ActOnBinOp(): missing right expression");
 
+  // Check if the operator is logical AND (&&) or logical OR (||)
+  if (Opc == BO_LAnd || Opc == BO_LOr) {
+    // Check if RHSExpr contains persistent side effects
+    if (RHSExpr->HasSideEffects(Context, /*IncludePossibleEffects=*/true)) {
+      Diag(RHSExpr->getExprLoc(), diag::warn_misra_side_effects_logical_rhs);
+    }
+  }
   // Emit warnings for tricky precedence issues, e.g. "bitfield & 0x4 == 0"
   DiagnoseBinOpPrecedence(*this, Opc, TokLoc, LHSExpr, RHSExpr);
 
