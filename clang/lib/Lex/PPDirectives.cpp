@@ -1983,7 +1983,7 @@ void Preprocessor::HandleIncludeDirective(SourceLocation HashLoc,
   std::string Filename=FilenameRef.str();
   // llvm::errs()<<"Filename: "<<Filename<<"\n";
   // Check if the filename is "setjmp.h"
-  if (Filename=="<setjmp.h>") {
+  if (Filename=="<setjmp.h>" or Filename=="<signal.h>") {
     Diag(IncludeTok.getLocation(), diag::ext_misra_c20_header_filename_not_to_be_used)<<Filename;
   }
   
