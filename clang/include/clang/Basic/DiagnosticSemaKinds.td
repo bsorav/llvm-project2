@@ -10121,9 +10121,12 @@ def warn_switch_default : Warning<"'switch' missing 'default' label">,
 
 def ext_misra_c20_fallthrough_switch_case : ExtWarn<
   "MISRA_C20: Not allowed fallthrough in switch case statement">, InGroup<MisraC20ImproperSwitchStmt>;
-def warn_misra_side_effects_logical_rhs : Warning<
-  "RHS of logical operator contains persistent side effects">,
+def ext_misra_c20_side_effects_logical_rhs : ExtWarn<
+  "MISRA_C20: RHS of logical operator contains persistent side effects">,
   InGroup<MisraC20ImproperLogicalRHS>;
+def ext_misra_c20_partial_array_initialization : ExtWarn<
+  "MISRA_C20: Array is partially initialized">,
+  InGroup<MisraC20ImproperArrayInitialization>;
 
 def warn_unannotated_fallthrough : Warning<
   "unannotated fall-through between switch labels">,

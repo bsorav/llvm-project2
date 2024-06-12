@@ -16069,7 +16069,7 @@ ExprResult Sema::ActOnBinOp(Scope *S, SourceLocation TokLoc,
   if (Opc == BO_LAnd || Opc == BO_LOr) {
     // Check if RHSExpr contains persistent side effects
     if (RHSExpr->HasSideEffects(Context, /*IncludePossibleEffects=*/true)) {
-      Diag(RHSExpr->getExprLoc(), diag::warn_misra_side_effects_logical_rhs);
+      Diag(RHSExpr->getExprLoc(), diag::ext_misra_c20_side_effects_logical_rhs);
     }
   }
   // Emit warnings for tricky precedence issues, e.g. "bitfield & 0x4 == 0"

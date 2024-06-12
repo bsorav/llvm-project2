@@ -1497,3 +1497,4 @@ def MisraC20ImproperArrayParameterDeclaration : DiagGroup<"misra-c20-improper-ar
 def MisraC20ImproperIdentifierDeclaration : DiagGroup<"misra-c20-improper-identifier-declaration">;
 def MisraC20ImproperSwitchStmt : DiagGroup<"misra-c20-improper-switch-stmt">;
 def MisraC20ImproperLogicalRHS : DiagGroup<"misra-c20-improper-logical-rhs">;
+def MisraC20ImproperArrayInitialization: DiagGroup<"misra-c20-improper-array-initialization">;
