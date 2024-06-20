@@ -1986,6 +1986,11 @@ public:
     Private
   };
 
+  // Declaration for ExtractCalledFunctions
+  void ExtractCalledFunctions(Sema &S, FunctionDecl *FD, llvm::DenseMap<FunctionDecl *, std::set<FunctionDecl *>> &CallGraph);
+  // Declaration for DetectCyclesInCallGraph
+  void DetectCyclesInCallGraph(llvm::DenseMap<FunctionDecl *, std::set<FunctionDecl *>> &CallGraph, Sema &S);
+
   void ActOnStartOfTranslationUnit();
   void ActOnEndOfTranslationUnit();
   void ActOnEndOfTranslationUnitFragment(TUFragmentKind Kind);

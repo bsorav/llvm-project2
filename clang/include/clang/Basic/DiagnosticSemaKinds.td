@@ -10127,6 +10127,9 @@ def ext_misra_c20_side_effects_logical_rhs : ExtWarn<
 def ext_misra_c20_partial_array_initialization : ExtWarn<
   "MISRA_C20: Array is partially initialized">,
   InGroup<MisraC20ImproperArrayInitialization>;
+def ext_misra_c20_recursive_function_call : ExtWarn<
+  "MISRA_C20: Recursive function call direclty or indirectly">,
+  InGroup<MisraC20ImproperFuntionCall>;
 
 def warn_unannotated_fallthrough : Warning<
   "unannotated fall-through between switch labels">,
