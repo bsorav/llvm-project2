@@ -3095,6 +3095,15 @@ void Preprocessor::HandleDefineDirective(
       !isConfigurationPattern(MacroNameTok, MI, getLangOpts())) {
     Diag(MacroNameTok, diag::warn_pp_macro_hides_keyword);
   }
+  // if starts with '__' or '_[A-Z]' warn about hiding keywords
+  if (II->getName().starts_with("__") || (II->getName().starts_with("_") &&
+                                         II->getName().size() > 1 &&
+                                         isUppercase(II->getName()[1]))) {
+    // if name is __GCC_HAVE_DWARF2_CFI_ASM do not raise warning
+    if (!II->getName().starts_with("__GCC_HAVE_DWARF2_CFI_ASM")) {
+      Diag(MacroNameTok, diag::warn_pp_macro_hides_keyword);
+    }
+  }
   // Check that there is no paste (##) operator at the beginning or end of the
   // replacement list.
   unsigned NumTokens = MI->getNumTokens();
@@ -3120,6 +3129,12 @@ void Preprocessor::HandleDefineDirective(
     if (!LangOpts.MicrosoftExt)
       return;
   }
+  // ********************** S_N0 -> 104 ********** MISRA_C RULE : R.20.7 ********************************** //
+  if(MI->checkMacroParams(*this)) {
+      Diag(MI->getDefinitionLoc(), diag::warn_missing_macro_parenthesis)
+          << MacroNameTok.getIdentifierInfo();
+  }
+  // ********************** S_N0 -> 104 ********** MISRA_C RULE : R.20.7 ********************************** //
 
   // Finally, if this identifier already had a macro defined for it, verify that
   // the macro bodies are identical, and issue diagnostics if they are not.

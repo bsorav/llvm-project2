@@ -392,7 +392,7 @@ def note_pp_ambiguous_macro_chosen : Note<
   "expanding this definition of %0">;
 def note_pp_ambiguous_macro_other : Note<
   "other definition of %0">;
-def warn_pp_macro_hides_keyword : Extension<
+def warn_pp_macro_hides_keyword : Warning<
   "keyword is hidden by macro definition">, InGroup<KeywordAsMacro>;
 def warn_pp_macro_is_reserved_id : Warning<
   "macro name is a reserved identifier">, DefaultIgnore,
@@ -986,4 +986,27 @@ Error<"'#pragma unsafe_buffer_usage' was not ended">;
 
 def err_pp_pragma_unsafe_buffer_usage_syntax :
 Error<"Expected 'begin' or 'end'">;
+
+// MISRA C WARNINGS
+def warn_forbidden_function_usage : Warning<
+  "Usage of %0 is forbidden">,
+  InGroup<ForbiddenFunctionUsage>;
+
+def ext_misra_c215_include_signal_h : ExtWarn<
+  "MISRA-C21.5: signal.h is not permitted to use.">, InGroup<MisraC20ImproperIncludeFilename>;
+
+def ext_misra_c214_include_setjmp_h : ExtWarn<
+  "MISRA-C21.4: setjmp.h is not permitted to use.">, InGroup<MisraC20ImproperIncludeFilename>;
+
+def err_warn_octal_literal : Warning<
+  "use of octal constants is not permitted">;
+
+def err_delimited_Hex_escape_sequence : Warning<
+  "use of Hex escape sequence is not permitted">, InGroup<OctalHexaEscSeqNotPermitted>;
+
+def err_delimited_octal_escape_sequence : Warning<
+  "use of octal escape sequence is not permitted">, InGroup<OctalHexaEscSeqNotPermitted>;
+
+def warn_missing_macro_parenthesis : Warning<"doesn't have parameters enclosed in parenthesis">, InGroup<MacroParenthesis>;
+
 }

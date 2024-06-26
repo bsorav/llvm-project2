@@ -1494,3 +1494,6 @@ def UnsafeBufferUsage : DiagGroup<"unsafe-buffer-usage", [UnsafeBufferUsageInCon
 
 def MisraC20ImproperIncludeFilename : DiagGroup<"misra-c20-improper-include-filename">;
 def MisraC3ImproperCommentSyntax : DiagGroup<"misra-c3-improper-comment-syntax">;
+def ForbiddenFunctionUsage : DiagGroup<"misra-c-r-21-3-rule">;
+def OctalHexaEscSeqNotPermitted : DiagGroup<"mistra-c-octal-hex-rules">;
+def MacroParenthesis : DiagGroup<"no-parenthesis-around-parameters">;

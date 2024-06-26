@@ -872,6 +872,15 @@ void Preprocessor::Lex(Token &Result) {
   if (CurLexer && CurLexer->ParsingFilename && Result.isLiteral()) {
     char const* filename = Result.getLiteralData();
     unsigned filename_len = Result.getLength();
+    // RESTRICTED FILENAMES
+    if (filename_len > 2 && filename[0] == '<' && filename[filename_len - 1] == '>') {
+      if (strncmp(filename, "<signal.h>", filename_len) == 0) {
+        Diag(Result, diag::ext_misra_c215_include_signal_h);
+      }
+      if (strncmp(filename, "<setjmp.h>", filename_len) == 0) {
+        Diag(Result, diag::ext_misra_c214_include_setjmp_h);
+      }
+    }
     if (memchr(filename, ',', filename_len)) {
       Diag(Result, diag::ext_misra_c20_comma_in_include_filename);
     }
@@ -894,6 +903,18 @@ void Preprocessor::Lex(Token &Result) {
     // identifiers and completion tokens.
     Result.setIdentifierInfo(nullptr);
   }
+
+  // ********* S_NO -> 113  ********************* MISRA_C RULE : R.21.3    ************************** //
+  if(Result.is(tok::identifier)){
+    IdentifierInfo &II2 = *Result.getIdentifierInfo();
+    StringRef Text2 = II2.getName();
+    if(Text2.equals("malloc") || Text2.equals("free")) {
+      auto TokSpelling = getSpelling(Result);
+      Diag(Result, diag::warn_forbidden_function_usage) << TokSpelling;
+    }
+  }
+  // ********* S_NO -> 113  ********************* MISRA_C RULE : R.21.3    ************************** //
+  
 
   // Update StdCXXImportSeqState to track our position within a C++20 import-seq
   // if this token is being produced as a result of phase 4 of translation.

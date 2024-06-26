@@ -136,7 +136,7 @@ public:
       return DefinitionLength;
     return getDefinitionLengthSlow(SM);
   }
-
+  bool checkMacroParams(Preprocessor &PP) const;
   /// Return true if the specified macro definition is equal to
   /// this macro in spelling, arguments, and whitespace.
   ///

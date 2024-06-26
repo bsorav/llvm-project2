@@ -264,3 +264,30 @@ ModuleMacro *ModuleMacro::create(Preprocessor &PP, Module *OwningModule,
       alignof(ModuleMacro));
   return new (Mem) ModuleMacro(OwningModule, II, Macro, Overrides);
 }
+
+bool MacroInfo::checkMacroParams(Preprocessor &PP) const {
+  for(unsigned i = 0; i != NumReplacementTokens; ++i) {
+    const Token &tokA = ReplacementTokens[i];
+    int AArgNum = getParameterNum(tokA.getIdentifierInfo());
+    if(AArgNum != -1) {
+      if(i == 0) {
+        return true;
+      }
+      const Token &tokPrev = ReplacementTokens[i - 1];
+      if(i == NumReplacementTokens - 1) {
+        if(tokPrev.getKind() != tok::hash) return true;
+      }
+      if(tokPrev.getKind() != tok::hash) {
+        if(i == NumReplacementTokens - 1) {
+          return true;
+        } else {
+          const Token &tokNext = ReplacementTokens[i + 1];
+          if(tokPrev.getKind() != tok::l_paren || tokNext.getKind() != tok::r_paren) {
+            return true;
+          }
+        }
+      }
+    }
+  }
+  return false;
+}
