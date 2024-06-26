@@ -3090,6 +3090,12 @@ void Preprocessor::HandleDefineDirective(
       MacroNameTok, ImmediatelyAfterHeaderGuard);
 
   if (!MI) return;
+ 
+  //*********************** S_NO -> 107 ********** MISRA_C R.20.11 **********************//
+  if(MI->CheckForHash(*this)) {
+    Diag(MacroNameTok, diag::warn_hashash_after_hash);
+  }
+  //*********************** S_NO -> 107 ********** MISRA_C R.20.11 **********************//
 
   if (MacroShadowsKeyword &&
       !isConfigurationPattern(MacroNameTok, MI, getLangOpts())) {

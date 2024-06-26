@@ -136,6 +136,8 @@ public:
       return DefinitionLength;
     return getDefinitionLengthSlow(SM);
   }
+  void getStuffs(Preprocessor &PP);
+  bool CheckForHash(Preprocessor &PP);
   bool checkMacroParams(Preprocessor &PP) const;
   /// Return true if the specified macro definition is equal to
   /// this macro in spelling, arguments, and whitespace.

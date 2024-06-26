@@ -1492,8 +1492,12 @@ def ReadOnlyPlacementChecks : DiagGroup<"read-only-types">;
 def UnsafeBufferUsageInContainer : DiagGroup<"unsafe-buffer-usage-in-container">;
 def UnsafeBufferUsage : DiagGroup<"unsafe-buffer-usage", [UnsafeBufferUsageInContainer]>;
 
+// Warnings of MISRA C RULES
 def MisraC20ImproperIncludeFilename : DiagGroup<"misra-c20-improper-include-filename">;
 def MisraC3ImproperCommentSyntax : DiagGroup<"misra-c3-improper-comment-syntax">;
 def ForbiddenFunctionUsage : DiagGroup<"misra-c-r-21-3-rule">;
 def OctalHexaEscSeqNotPermitted : DiagGroup<"mistra-c-octal-hex-rules">;
 def MacroParenthesis : DiagGroup<"no-parenthesis-around-parameters">;
+
+def HashGroup : DiagGroup<"hashash-after-hash">;
+def NonBinConditional : DiagGroup<"didnt-evaluate-to-one-or-zero">;

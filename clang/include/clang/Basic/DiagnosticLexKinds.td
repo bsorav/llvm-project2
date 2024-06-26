@@ -382,7 +382,7 @@ def pp_macro_not_used : Warning<"macro is not used">, DefaultIgnore,
   InGroup<DiagGroup<"unused-macros">>;
 def warn_pp_undef_identifier : Warning<
   "%0 is not defined, evaluates to 0">,
-  InGroup<DiagGroup<"undef">>, DefaultIgnore;
+  InGroup<DiagGroup<"undef">>;
 def warn_pp_undef_prefix : Warning<
   "%0 is not defined, evaluates to 0">,
   InGroup<DiagGroup<"undef-prefix">>, DefaultIgnore;
@@ -1009,4 +1009,7 @@ def err_delimited_octal_escape_sequence : Warning<
 
 def warn_missing_macro_parenthesis : Warning<"doesn't have parameters enclosed in parenthesis">, InGroup<MacroParenthesis>;
 
+def warn_hashash_after_hash : Warning<"hashash used after hash">, InGroup<HashGroup>;
+
+def warn_macro_if_elif_non_binary : Warning<"The conditional didn't evaluate to one or zero">, InGroup<NonBinConditional>;
 }
