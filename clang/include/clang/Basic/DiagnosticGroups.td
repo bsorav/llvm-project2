@@ -1501,3 +1501,5 @@ def MacroParenthesis : DiagGroup<"no-parenthesis-around-parameters">;
 
 def HashGroup : DiagGroup<"hashash-after-hash">;
 def NonBinConditional : DiagGroup<"didnt-evaluate-to-one-or-zero">;
+def MISRA : DiagGroup<"ONE-OF-THE-MISRA-RULE">;
+def BitFieldsIssues : DiagGroup<"misra-c-r-bit-field-issues">;

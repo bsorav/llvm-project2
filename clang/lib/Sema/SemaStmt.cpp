@@ -906,6 +906,12 @@ StmtResult Sema::ActOnIfStmt(SourceLocation IfLoc,
   if (!ConstevalOrNegatedConsteval && !elseStmt)
     DiagnoseEmptyStmtBody(RParenLoc, thenStmt, diag::warn_empty_if_body);
 
+  // ***************************** MISRA_C R.15.7 *************************************** 
+  if(!elseStmt) {
+    Diags.Report(IfLoc, diag::warn_else_not_found);
+  }
+  // ***************************** MISRA_C R.15.7 *************************************** 
+ 
   if (ConstevalOrNegatedConsteval ||
       StatementKind == IfStatementKind::Constexpr) {
     auto DiagnoseLikelihood = [&](const Stmt *S) {
@@ -1276,14 +1282,21 @@ Sema::ActOnFinishSwitchStmt(SourceLocation SwitchLoc, Stmt *Switch,
   DefaultStmt *TheDefaultStmt = nullptr;
 
   bool CaseListIsErroneous = false;
-
+  // We have to check , does the following happen ? 
+  // case --> default --> case
+  // denote cnd1 and cnd2.
+  bool cnd1 = false, cnd2 = false;
+  bool hasCase = false;
+  bool hasRaised = false;
+  int total = 0;
   // FIXME: We'd better diagnose missing or duplicate default labels even
   // in the dependent case. Because default labels themselves are never
   // dependent.
   for (SwitchCase *SC = SS->getSwitchCaseList(); SC && !HasDependentValue;
        SC = SC->getNextSwitchCase()) {
-
+    total++;
     if (DefaultStmt *DS = dyn_cast<DefaultStmt>(SC)) {
+      if(hasCase) cnd1 = true; // default comes after a case.
       if (TheDefaultStmt) {
         Diag(DS->getDefaultLoc(), diag::err_multiple_default_labels_defined);
         Diag(TheDefaultStmt->getDefaultLoc(), diag::note_duplicate_case_prev);
@@ -1297,6 +1310,18 @@ Sema::ActOnFinishSwitchStmt(SourceLocation SwitchLoc, Stmt *Switch,
       TheDefaultStmt = DS;
 
     } else {
+
+      // **************************** MISRA_C 16.5 ********************************************//
+      hasCase = true;
+      if (TheDefaultStmt) { 
+        cnd2 = true;// case comes after a default.
+      }
+      if(cnd1 && cnd2 && !hasRaised) {
+        Diag(TheDefaultStmt->getDefaultLoc(), diag::warn_switch_default_not_at_extreme);  
+        hasRaised = true;
+      }
+      // **************************** MISRA_C 16.5 ********************************************//
+
       CaseStmt *CS = cast<CaseStmt>(SC);
 
       Expr *Lo = CS->getLHS();
@@ -1334,6 +1359,10 @@ Sema::ActOnFinishSwitchStmt(SourceLocation SwitchLoc, Stmt *Switch,
       } else
         CaseVals.push_back(std::make_pair(LoVal, CS));
     }
+  }
+  // less than 2 clauses :: MISRA_C R.16.6
+  if(total < 2) {
+    Diag(SwitchLoc, diag::warn_switch_not_enough_clauses);
   }
 
   if (!HasDependentValue) {
@@ -1708,7 +1737,12 @@ StmtResult Sema::ActOnWhileStmt(SourceLocation WhileLoc,
 
   if (isa<NullStmt>(Body))
     getCurCompoundScope().setHasEmptyLoopBodies();
-
+  // ************************ 15.6 MISRA : S_NO : 82 ************************************ 
+  if (Body && !isa<CompoundStmt>(Body)) {
+    Diag(Body->getBeginLoc(), diag::warn_misra_iteration_or_selection_body_not_compound)
+        << "The body of a while loop statement shall be a compound statement";
+  }
+  // ************************ 15.6 MISRA : S_NO : 82 ************************************ 
   return WhileStmt::Create(Context, CondVal.first, CondVal.second, Body,
                            WhileLoc, LParenLoc, RParenLoc);
 }
@@ -1734,6 +1768,12 @@ Sema::ActOnDoStmt(SourceLocation DoLoc, Stmt *Body,
   if (Cond && !getLangOpts().C99 && !getLangOpts().CPlusPlus &&
       !Diags.isIgnored(diag::warn_comma_operator, Cond->getExprLoc()))
     CommaVisitor(*this).Visit(Cond);
+  // ************************ 15.6 MISRA : S_NO : 82 ************************************ 
+  if (Body && !isa<CompoundStmt>(Body)) {
+    Diag(Body->getBeginLoc(), diag::warn_misra_iteration_or_selection_body_not_compound)
+        << "The body of a do-while statement shall be a compound statement";
+  }
+  // ************************ 15.6 MISRA : S_NO : 82 ************************************ 
 
   return new (Context) DoStmt(Body, Cond, DoLoc, WhileLoc, CondRParen);
 }
@@ -2190,6 +2230,13 @@ StmtResult Sema::ActOnForStmt(SourceLocation ForLoc, SourceLocation LParenLoc,
   Expr *Third  = third.release().getAs<Expr>();
   if (isa<NullStmt>(Body))
     getCurCompoundScope().setHasEmptyLoopBodies();
+
+  // ************************ 15.6 MISRA : S_NO : 82 ************************************ 
+  if (Body && !isa<CompoundStmt>(Body)) {
+    Diag(Body->getBeginLoc(), diag::warn_misra_iteration_or_selection_body_not_compound)
+        << "The body of a for-loop statement shall be a compound statement";
+  }
+  // ************************ 15.6 MISRA : S_NO : 82 ************************************ 
 
   return new (Context)
       ForStmt(Context, First, Second.get().second, Second.get().first, Third,
@@ -3294,6 +3341,9 @@ StmtResult Sema::ActOnGotoStmt(SourceLocation GotoLoc,
                                LabelDecl *TheDecl) {
   setFunctionHasBranchIntoScope();
   TheDecl->markUsed(Context);
+  if(TheDecl->getStmt()) {
+      Diag(TheDecl->getStmt()->getBeginLoc(), diag::warn_label_before_goto) << "Label declared before goto";
+  } 
   return new (Context) GotoStmt(TheDecl, GotoLoc, LabelLoc);
 }
 

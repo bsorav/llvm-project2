@@ -30,7 +30,7 @@ def note_loop_iteration_here : Note<"%select{decremented|incremented}0 here">;
 
 def warn_duplicate_enum_values : Warning<
   "element %0 has been implicitly assigned %1 which another element has "
-  "been assigned">, InGroup<DiagGroup<"duplicate-enum">>, DefaultIgnore;
+  "been assigned">, InGroup<DiagGroup<"duplicate-enum">>;
 def note_duplicate_element : Note<"element %0 also has value %1">;
 
 // Absolute value functions
@@ -10115,7 +10115,7 @@ def warn_missing_case : Warning<"%plural{"
   ":%0 enumeration values not handled in switch: %1, %2, %3...}0">,
   InGroup<Switch>;
 def warn_switch_default : Warning<"'switch' missing 'default' label">,
-  InGroup<SwitchDefault>, DefaultIgnore;
+  InGroup<SwitchDefault>;
 
 def warn_unannotated_fallthrough : Warning<
   "unannotated fall-through between switch labels">,
@@ -12164,4 +12164,53 @@ def err_wasm_builtin_arg_must_match_table_element_type : Error <
   "%ordinal0 argument must match the element type of the WebAssembly table in the %ordinal1 argument">;
 def err_wasm_builtin_arg_must_be_integer_type : Error <
   "%ordinal0 argument must be an integer">;
+
+// MISRA RULES warnings
+// One generic function to handle all.
+def warn_misra_iteration_or_selection_body_not_compound : Warning<
+  "MISRA C Rule 15.6 : The body of an iteration-statement or a selection-statement shall be a compound statement">,
+InGroup<MISRA>;
+
+def warn_non_const_char_pointer : Warning<
+  "MISRA C Rule 7.4 : A string literal shall not be assigned to an object unless the object's type is pointer to const-qualified char">,
+InGroup<MISRA>;
+
+def warn_label_before_goto : Warning<
+  "MISRA C Rule R.15.2 : goto jumps to label declared before it">,
+InGroup<MISRA>;
+
+def warn_char_type_in_arithmetic : Warning<
+  "MISRA C RULE 10.2 : You can't add a char with another char">,
+InGroup<MISRA>;
+
+def warn_inline_not_static : Warning<
+  "inline function '%0' should be declared static to comply with MISRA C Rule 8.10">,
+  InGroup<MISRA>;
+
+def warn_misra_restrict_qualifier : Warning<
+  "MISRA C Rule 8.14: The restrict type qualifier shall not be used for '%0'">,
+  InGroup<MISRA>;
+
+def warn_else_not_found : Warning<
+  "MISRA C Rule 15.7 : All if . . else if constructs shall be terminated with an else statement">,
+  InGroup<MISRA>;
+
+def warn_switch_default_not_at_extreme : Warning<
+  "MISRA C Rule 16.5: Default shall be either at the start or end of switch">,
+  InGroup<MISRA>;
+
+def warn_switch_not_enough_clauses : Warning<
+  "MISRA C Rule 16.6: Every switch statement shall have at least two switch-clauses">,
+  InGroup<MISRA>;
+
+// MISRA_C 6.1 , 6.2 : 38 , 39.
+
+def warn_bit_fields_of_signed_must_be_greater : Warning<"Signed bit fields must have atleast length of 2">, InGroup<BitFieldsIssues>;
+def warn_bit_fields_must_be_signed_or_unsigned : Warning<"bit fields must be either signed or unsigned">, InGroup<BitFieldsIssues>;
+
+def warn_cast_function_to_non_function_pointer : Warning<
+  "Conversion is not allowed between pointer to a function and any other type">;
+def warn_cast_pointer_to_incomplete : Warning<
+  "Conversion is not allowed between pointer to a incomplete and any other type">;
+
 } // end of sema component.

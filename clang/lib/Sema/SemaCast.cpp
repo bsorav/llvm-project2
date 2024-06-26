@@ -3117,7 +3117,53 @@ void CastOperation::CheckCStyleCast() {
     }
     return;
   }
-
+  // is src a pointer to void or not 
+  if (SrcType->isVoidPointerType()) {
+    printf("SrcType is a void pointer\n");
+  }
+  // if dest a pointer to arithmetic type or not
+  if (DestType->isArithmeticType()) {
+    printf("DestType is an arithmetic type\n");
+  }
+  if (DestType->isVoidPointerType()) {
+    printf("DestType is a void pointer\n");
+  }
+  // if dest a pointer to arithmetic type or not
+  if (SrcType->isArithmeticType()) {
+    printf("SrcType is an arithmetic type\n");
+  }
+  if (SrcType->isFunctionPointerType()) {
+    if (!DestType->isFunctionPointerType()) {
+      // raise a warning here
+      Self.Diag(SrcExpr.get()->getBeginLoc(),
+                diag::warn_cast_function_to_non_function_pointer)
+          << SrcType << DestType << SrcExpr.get()->getSourceRange();
+    }
+  }
+  if (!SrcType->isFunctionPointerType()) {
+    if (DestType->isFunctionPointerType()) {
+      Self.Diag(SrcExpr.get()->getBeginLoc(),
+                diag::warn_cast_function_to_non_function_pointer)
+          << SrcType << DestType << SrcExpr.get()->getSourceRange();
+    }
+  }
+  
+  if (SrcType->getPointeeType()->isIncompleteType()) {
+    if (!DestType->getPointeeType()->isIncompleteType()) {
+      Self.Diag(SrcExpr.get()->getExprLoc(),
+                diag::warn_cast_pointer_to_incomplete)
+          << SrcType << DestType << SrcExpr.get()->getSourceRange();
+    }
+  }
+  if (DestType->getPointeeType()->isIncompleteType()) {
+    if (!SrcType->getPointeeType()->isIncompleteType()) {
+      Self.Diag(SrcExpr.get()->getExprLoc(),
+                diag::warn_cast_pointer_to_incomplete)
+          << SrcType << DestType << SrcExpr.get()->getSourceRange();
+    }
+  }
+  
+ 
   if (SrcType->isVectorType()) {
     if (Self.CheckVectorCast(OpRange, SrcType, DestType, Kind))
       SrcExpr = ExprError();

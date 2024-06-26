@@ -10118,6 +10118,20 @@ Sema::CheckAssignmentConstraints(QualType LHSType, ExprResult &RHS,
   QualType RHSType = RHS.get()->getType();
   QualType OrigLHSType = LHSType;
 
+  if(const PointerType *PTR_RHS = RHSType->getAs<PointerType>()) {
+    QualType RHS_PointeeType = PTR_RHS->getPointeeType();
+    if (RHS_PointeeType->isCharType()) {
+      if(const PointerType *PTR_LHS = LHSType->getAs<PointerType>()) {
+        QualType LHS_PointeeType = PTR_LHS->getPointeeType();
+        if (LHS_PointeeType->isCharType() && LHS_PointeeType.isConstQualified()) {
+        } else {
+            Diag(RHS.get()->getExprLoc(), diag::warn_non_const_char_pointer)
+              << RHSType << LHSType;
+        } 
+      }
+    }
+  }
+
   // Get canonical types.  We're not formatting these types, just comparing
   // them.
   LHSType = Context.getCanonicalType(LHSType).getUnqualifiedType();
@@ -12113,6 +12127,7 @@ static void DiagnoseBadShiftValues(Sema& S, ExprResult &LHS, ExprResult &RHS,
   if (RHS.get()->isValueDependent() ||
       !RHS.get()->EvaluateAsInt(RHSResult, S.Context))
     return;
+  RHS.get()->EvaluateAsInt(RHSResult, S.Context);
   llvm::APSInt Right = RHSResult.Val.getInt();
 
   if (Right.isNegative()) {
@@ -16265,6 +16280,16 @@ ExprResult Sema::BuildBinOp(Scope *S, SourceLocation OpLoc,
   }
 
   // Build a built-in binary operation.
+  // ************************** MISRA_C R.10.2 :: S_NO 59 ************************ //
+  // We cant add a char with another char.
+  QualType LHSType = LHSExpr->getType();
+  QualType RHSType = RHSExpr->getType();
+  if (Opc == BO_Add) {
+    if (LHSType->isCharType() && RHSType->isCharType()) {
+      Diag(OpLoc, diag::warn_char_type_in_arithmetic) << LHSType << RHSType;
+    }
+  }
+  // ************************** MISRA_C R.10.2 :: S_NO 59 ************************ //
   return CreateBuiltinBinOp(OpLoc, Opc, LHSExpr, RHSExpr);
 }
 

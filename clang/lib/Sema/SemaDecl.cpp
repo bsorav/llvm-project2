@@ -7560,7 +7560,17 @@ NamedDecl *Sema::ActOnVariableDeclarator(
   QualType R = TInfo->getType();
   DeclarationName Name = GetNameForDeclarator(D).getName();
 
-  IdentifierInfo *II = Name.getAsIdentifierInfo();
+  IdentifierInfo *II = Name.getAsIdentifierInfo();  
+
+  QualType varDeclType2 = TInfo->getType();
+  const DeclSpec &DS1 = D.getDeclSpec();
+  // *************************MISRA_C R.8.14 :: S_N0 -> 53**************************** //
+  if(varDeclType2.isRestrictQualified()) {
+          Diag(DS1.getTypeSpecTypeLoc(), diag::warn_misra_restrict_qualifier)
+            << D.getIdentifier()->getName();
+  }
+  // *************************MISRA_C R.8.14 :: S_N0 -> 53**************************** //
+
   bool IsPlaceholderVariable = false;
 
   if (D.isDecompositionDeclarator()) {
@@ -9836,6 +9846,16 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
   FunctionDecl *NewFD = CreateNewFunctionDecl(*this, D, DC, R, TInfo, SC,
                                               isVirtualOkay);
   if (!NewFD) return nullptr;
+
+  // ******************* MISRA_C Rule 8.10 S_N0 -> 51 ***************** // 
+  bool isInline_C_lang = D.getDeclSpec().isInlineSpecified();
+  if(isInline_C_lang) {
+      if(SC != SC_Static) {
+        Diag(D.getIdentifierLoc(), diag::warn_inline_not_static)
+        << D.getIdentifier()->getName();
+      }
+  }
+  // ******************* MISRA_C Rule 8.10 S_N0 -> 51 ***************** // 
 
   if (OriginalLexicalContext && OriginalLexicalContext->isObjCContainer())
     NewFD->setTopLevelDeclInObjCContainer();
@@ -15125,6 +15145,13 @@ Decl *Sema::ActOnParamDeclarator(Scope *S, Declarator &D,
 
   // Check for redeclaration of parameters, e.g. int foo(int x, int x);
   IdentifierInfo *II = D.getIdentifier();
+  // *************************MISRA_C R.8.14 :: S_N0 -> 53**************************** //
+  if(parmDeclType.isRestrictQualified()) {
+          Diag(DS.getTypeSpecTypeLoc(), diag::warn_misra_restrict_qualifier)
+            << D.getIdentifier()->getName();
+  }
+  // *************************MISRA_C R.8.14 :: S_N0 -> 53**************************** //
+
   if (II) {
     LookupResult R(*this, II, D.getIdentifierLoc(), LookupOrdinaryName,
                    ForVisibleRedeclaration);
@@ -19395,6 +19422,23 @@ void Sema::ActOnFields(Scope *S, SourceLocation RecLoc, Decl *EnclosingDecl,
     // Keep track of the number of named members.
     if (FD->getIdentifier())
       ++NumNamedMembers;
+    // *************************  MISRA_C R.6.1/2  ***************  S_NO -> 38 , 39 **************************************************** //
+    if(FD->isBitField()) {
+      clang::QualType FT_B_Field = FD->getType();
+      // check if it's length >= 2?
+      if (FT_B_Field->isSpecificBuiltinType(clang::BuiltinType::Int)) {
+        ASTContext &Context_new = EnclosingDecl->getASTContext();
+        unsigned int bit_field_length = FD->getBitWidthValue(Context_new);
+        if(bit_field_length < 2) {
+          Diag(FD->getLocation(), diag::warn_bit_fields_of_signed_must_be_greater) << FD->getDeclName();        
+        }
+      }
+      else if(!(FT_B_Field->isSpecificBuiltinType(clang::BuiltinType::UInt))) {
+        Diag(FD->getLocation(), diag::warn_bit_fields_must_be_signed_or_unsigned) << FD->getDeclName();
+      }
+    }
+    // *************************  MISRA_C R.6.1/2  ***************  S_NO -> 38 , 39 **************************************************** //
+
   }
 
   // Okay, we successfully defined 'Record'.
