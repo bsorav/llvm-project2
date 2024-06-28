@@ -1484,17 +1484,26 @@ void Sema::ActOnEndOfTranslationUnit() {
   DetectCyclesInCallGraph(CallGraph, *this);
 }
 
-void Sema::ExtractCalledFunctions(Sema &S, FunctionDecl *FD, llvm::DenseMap<FunctionDecl *, std::set<FunctionDecl *>> &CallGraph) {
-  for (auto *Child : FD->getBody()->children()) {
-    if (auto *Call = llvm::dyn_cast<CallExpr>(Child)) {
-      if (auto *Callee = Call->getDirectCallee()) {
+void Sema::ExtractCallsFromStmt(Sema &S, Stmt *Statement, FunctionDecl *FD, llvm::DenseMap<FunctionDecl *, std::set<FunctionDecl *>> &CallGraph) {
+  if (!Statement)
+    return;
+
+  for (Stmt *Child : Statement->children()) {
+    if (auto *Call = dyn_cast<CallExpr>(Child)) {
+      if (FunctionDecl *Callee = Call->getDirectCallee()) {
         CallGraph[FD->getCanonicalDecl()].insert(Callee->getCanonicalDecl());
-        if(!CallGraph.count(Callee->getCanonicalDecl())){
-          CallGraph[Callee->getCanonicalDecl()]={};
+        if (!CallGraph.count(Callee->getCanonicalDecl())) {
+          CallGraph[Callee->getCanonicalDecl()] = {};
         }
       }
     }
+    // Recursively extract calls from the child statement
+    ExtractCallsFromStmt(S, Child, FD, CallGraph);
   }
+}
+
+void Sema::ExtractCalledFunctions(Sema &S, FunctionDecl *FD, llvm::DenseMap<FunctionDecl *, std::set<FunctionDecl *>> &CallGraph) {
+  ExtractCallsFromStmt(S, FD->getBody(), FD, CallGraph);
 }
 
 void Sema::DetectCyclesInCallGraph(llvm::DenseMap<FunctionDecl *, std::set<FunctionDecl *>> &CallGraph, Sema &S) {

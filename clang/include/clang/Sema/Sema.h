@@ -1990,6 +1990,8 @@ public:
   void ExtractCalledFunctions(Sema &S, FunctionDecl *FD, llvm::DenseMap<FunctionDecl *, std::set<FunctionDecl *>> &CallGraph);
   // Declaration for DetectCyclesInCallGraph
   void DetectCyclesInCallGraph(llvm::DenseMap<FunctionDecl *, std::set<FunctionDecl *>> &CallGraph, Sema &S);
+  // Declaration for ExtractCallsFromStmt
+  void ExtractCallsFromStmt(Sema &S, Stmt *Statement, FunctionDecl *FD, llvm::DenseMap<FunctionDecl *, std::set<FunctionDecl *>> &CallGraph);
 
   void ActOnStartOfTranslationUnit();
   void ActOnEndOfTranslationUnit();
