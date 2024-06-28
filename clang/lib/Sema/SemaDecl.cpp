@@ -6219,8 +6219,12 @@ Decl *Sema::ActOnDeclarator(Scope *S, Declarator &D) {
         S, D, MultiTemplateParamsArg(), Bases);
 
   Decl *Dcl = HandleDeclarator(S, D, MultiTemplateParamsArg());
-  // Check for hiding of outer scope identifiers by inner scope identifiers.
-  CheckForOuterScopeIdentifierHiding(S, D);
+  //If the declarator has no identifier, no need to check.
+  auto *ND=dyn_cast<NamedDecl>(Dcl);
+  if (ND->getIdentifier()) {
+    // Check for hiding of outer scope identifiers by inner scope identifiers.
+    CheckForOuterScopeIdentifierHiding(S, ND);
+  }
 
   if (OriginalLexicalContext && OriginalLexicalContext->isObjCContainer() &&
       Dcl && Dcl->getDeclContext()->isFileContext())
@@ -6232,19 +6236,17 @@ Decl *Sema::ActOnDeclarator(Scope *S, Declarator &D) {
   return Dcl;
 }
 
-void Sema::CheckForOuterScopeIdentifierHiding(Scope *S, Declarator &D) {
-  if (!D.getIdentifier()) {
-    return; // If the declarator has no identifier, no need to check.
-  }
+void Sema::CheckForOuterScopeIdentifierHiding(Scope *S, NamedDecl* CND) {
+  
   // Traverse through the scopes up to the translation unit scope.
   Scope *CurrentScope = S->getParent();
   while(CurrentScope) {
     // Iterate through all declarations in the current scope.
     for (auto *Dcl : CurrentScope->decls()) {
       if (auto *ND = dyn_cast<NamedDecl>(Dcl)) {
-        if (ND->getIdentifier() == D.getIdentifier()) {
-          Diag(D.getIdentifierLoc(), diag::ext_misra_c20_hiding_outer_scope_identifier)
-              << D.getIdentifier();
+        if (ND->getIdentifier() == CND->getIdentifier()) {
+          Diag(CND->getLocation(), diag::ext_misra_c20_hiding_outer_scope_identifier)
+              <<CND->getIdentifier();
           Diag(ND->getLocation(), diag::note_previous_declaration_as)<<ND->getIdentifier();
           // return; // Once found, return.
         }
@@ -15558,7 +15560,7 @@ Sema::CheckForFunctionRedefinition(FunctionDecl *FD,
   if (canRedefineFunction(Definition, getLangOpts()))
     return;
 
-  // Don't emit an error when this is  a typo-corrected
+  // Don't emit an error when this is redefinition of a typo-corrected
   // definition.
   if (TypoCorrectedFunctionDefinitions.count(Definition))
     return;
@@ -15789,7 +15791,6 @@ Decl *Sema::ActOnStartOfFunctionDef(Scope *FnBodyScope, Decl *D,
         continue;
       assert(!isa<ParmVarDecl>(NonParmDecl) &&
              "parameters should not be in newly created FD yet");
-
       // If the decl has a name, make it accessible in the current scope.
       if (NonParmDecl->getDeclName())
         PushOnScopeChains(NonParmDecl, FnBodyScope, /*AddToContext=*/false);
@@ -15800,6 +15801,11 @@ Decl *Sema::ActOnStartOfFunctionDef(Scope *FnBodyScope, Decl *D,
         for (auto *EI : ED->enumerators())
           PushOnScopeChains(EI, FnBodyScope, /*AddToContext=*/false);
       }
+    }
+    for (ParmVarDecl *Param : FD->parameters()) {
+      // Get the declarator of the parameter
+      auto *ND=dyn_cast<NamedDecl>(Param);
+      CheckForOuterScopeIdentifierHiding(FnBodyScope, ND);
     }
   }
 
