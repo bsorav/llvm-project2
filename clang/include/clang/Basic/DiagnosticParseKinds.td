@@ -31,6 +31,8 @@ def err_asm_duplicate_qual : Error<"duplicate asm qualifier '%0'">;
 
 let CategoryName = "Parse Issue" in {
 
+def ext_misra_c20_static_keyword_in_array_parameter_declaration : ExtWarn<
+  "MISRA_C20: static keyword not permitted in array parameter decaration.">, InGroup<MisraC20ImproperArrayParameterDeclaration>;
 def ext_empty_translation_unit : Extension<
   "ISO C requires a translation unit to contain at least one declaration">,
   InGroup<DiagGroup<"empty-translation-unit">>;

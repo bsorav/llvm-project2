@@ -6219,6 +6219,8 @@ Decl *Sema::ActOnDeclarator(Scope *S, Declarator &D) {
         S, D, MultiTemplateParamsArg(), Bases);
 
   Decl *Dcl = HandleDeclarator(S, D, MultiTemplateParamsArg());
+  // Check for hiding of outer scope identifiers by inner scope identifiers.
+  CheckForOuterScopeIdentifierHiding(S, D);
 
   if (OriginalLexicalContext && OriginalLexicalContext->isObjCContainer() &&
       Dcl && Dcl->getDeclContext()->isFileContext())
@@ -6228,6 +6230,28 @@ Decl *Sema::ActOnDeclarator(Scope *S, Declarator &D) {
     ActOnFinishedFunctionDefinitionInOpenMPDeclareVariantScope(Dcl, Bases);
 
   return Dcl;
+}
+
+void Sema::CheckForOuterScopeIdentifierHiding(Scope *S, Declarator &D) {
+  if (!D.getIdentifier()) {
+    return; // If the declarator has no identifier, no need to check.
+  }
+  // Traverse through the scopes up to the translation unit scope.
+  Scope *CurrentScope = S->getParent();
+  while(CurrentScope) {
+    // Iterate through all declarations in the current scope.
+    for (auto *Dcl : CurrentScope->decls()) {
+      if (auto *ND = dyn_cast<NamedDecl>(Dcl)) {
+        if (ND->getIdentifier() == D.getIdentifier()) {
+          Diag(D.getIdentifierLoc(), diag::ext_misra_c20_hiding_outer_scope_identifier)
+              << D.getIdentifier();
+          Diag(ND->getLocation(), diag::note_previous_declaration_as)<<ND->getIdentifier();
+          // return; // Once found, return.
+        }
+      }
+    }
+    CurrentScope = CurrentScope->getParent();
+  }
 }
 
 /// DiagnoseClassNameShadow - Implement C++ [class.mem]p13:
@@ -15561,7 +15585,7 @@ Sema::CheckForFunctionRedefinition(FunctionDecl *FD,
   if (canRedefineFunction(Definition, getLangOpts()))
     return;
 
-  // Don't emit an error when this is redefinition of a typo-corrected
+  // Don't emit an error when this is  a typo-corrected
   // definition.
   if (TypoCorrectedFunctionDefinitions.count(Definition))
     return;
