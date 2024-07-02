@@ -16065,6 +16065,17 @@ ExprResult Sema::ActOnBinOp(Scope *S, SourceLocation TokLoc,
   assert(LHSExpr && "ActOnBinOp(): missing left expression");
   assert(RHSExpr && "ActOnBinOp(): missing right expression");
 
+  // Check if the operator is Bitwise AND (&&) or Bitwise OR (||) or Bitwise XOR (^)
+  if (Opc == BO_And || Opc == BO_Or || Opc == BO_Xor || Opc == BO_AndAssign || Opc == BO_OrAssign || Opc == BO_XorAssign) {
+    // Check if LHSExpr or RHSExpr is bool
+    if (RHSExpr && RHSExpr->getType()->isBooleanType()) {
+      Diag(RHSExpr->getExprLoc(), diag::ext_misra_c20_bool_operand_for_bitwise_operator);
+    }
+    if (LHSExpr && LHSExpr->getType()->isBooleanType()) {
+      Diag(LHSExpr->getExprLoc(), diag::ext_misra_c20_bool_operand_for_bitwise_operator);
+    }
+  }
+
   // Check if the operator is logical AND (&&) or logical OR (||)
   if (Opc == BO_LAnd || Opc == BO_LOr) {
     // Check if RHSExpr contains persistent side effects

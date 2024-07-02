@@ -10130,6 +10130,9 @@ def ext_misra_c20_partial_array_initialization : ExtWarn<
 def ext_misra_c20_recursive_function_call : ExtWarn<
   "MISRA_C20: Recursive function call direclty or indirectly">,
   InGroup<MisraC20ImproperFuntionCall>;
+def ext_misra_c20_bool_operand_for_bitwise_operator: ExtWarn<
+  "MISRA_C20: Bool operand for bitwise operator">,
+  InGroup<MisraC20ImproperOperands>;
 
 def warn_unannotated_fallthrough : Warning<
   "unannotated fall-through between switch labels">,
