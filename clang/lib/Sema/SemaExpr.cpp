@@ -10118,19 +10118,19 @@ Sema::CheckAssignmentConstraints(QualType LHSType, ExprResult &RHS,
   QualType RHSType = RHS.get()->getType();
   QualType OrigLHSType = LHSType;
 
-  if(const PointerType *PTR_RHS = RHSType->getAs<PointerType>()) {
-    QualType RHS_PointeeType = PTR_RHS->getPointeeType();
-    if (RHS_PointeeType->isCharType()) {
-      if(const PointerType *PTR_LHS = LHSType->getAs<PointerType>()) {
-        QualType LHS_PointeeType = PTR_LHS->getPointeeType();
-        if (LHS_PointeeType->isCharType() && LHS_PointeeType.isConstQualified()) {
-        } else {
-            Diag(RHS.get()->getExprLoc(), diag::warn_non_const_char_pointer)
-              << RHSType << LHSType;
-        } 
-      }
-    }
-  }
+  // if(const PointerType *PTR_RHS = RHSType->getAs<PointerType>()) {
+  //   QualType RHS_PointeeType = PTR_RHS->getPointeeType();
+  //   if (RHS_PointeeType->isCharType()) {
+  //     if(const PointerType *PTR_LHS = LHSType->getAs<PointerType>()) {
+  //       QualType LHS_PointeeType = PTR_LHS->getPointeeType();
+  //       if (LHS_PointeeType->isCharType() && LHS_PointeeType.isConstQualified()) {
+  //       } else {
+  //           Diag(RHS.get()->getExprLoc(), diag::warn_non_const_char_pointer)
+  //             << RHSType << LHSType;
+  //       } 
+  //     }
+  //   }
+  // }
 
   // Get canonical types.  We're not formatting these types, just comparing
   // them.
@@ -17681,6 +17681,12 @@ bool Sema::DiagnoseAssignmentResult(AssignConvertType ConvTy,
                                     bool *Complained) {
   if (Complained)
     *Complained = false;
+  
+  if (IsStringLiteralToNonConstPointerConversion(SrcExpr, DstType) ) {
+    Diag(SrcExpr->getExprLoc(), diag::warn_non_const_char_pointer) << DstType << SrcType;
+  }
+
+
 
   // Decode the result (notice that AST's are still created for extensions).
   bool CheckInferredResultType = false;
