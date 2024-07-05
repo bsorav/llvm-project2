@@ -1494,7 +1494,6 @@ def UnsafeBufferUsage : DiagGroup<"unsafe-buffer-usage", [UnsafeBufferUsageInCon
 
 // Warnings of MISRA C RULES
 def MisraC20ImproperIncludeFilename : DiagGroup<"misra-c20-improper-include-filename">;
-<<<<<<< HEAD
 def MisraC3ImproperCommentSyntax : DiagGroup<"misra-c3-improper-comment-syntax">;
 def ForbiddenFunctionUsage : DiagGroup<"misra-c-r-21-3-rule">;
 def OctalHexaEscSeqNotPermitted : DiagGroup<"mistra-c-octal-hex-rules">;
@@ -1504,7 +1503,6 @@ def HashGroup : DiagGroup<"hashash-after-hash">;
 def NonBinConditional : DiagGroup<"didnt-evaluate-to-one-or-zero">;
 def MISRA : DiagGroup<"ONE-OF-THE-MISRA-RULE">;
 def BitFieldsIssues : DiagGroup<"misra-c-r-bit-field-issues">;
-=======
 def MisraC20ImproperArrayParameterDeclaration : DiagGroup<"misra-c20-improper-array-parameter-declaration">;
 def MisraC20ImproperIdentifierDeclaration : DiagGroup<"misra-c20-improper-identifier-declaration">;
 def MisraC20ImproperSwitchStmt : DiagGroup<"misra-c20-improper-switch-stmt">;
@@ -1512,4 +1510,3 @@ def MisraC20ImproperLogicalRHS : DiagGroup<"misra-c20-improper-logical-rhs">;
 def MisraC20ImproperArrayInitialization: DiagGroup<"misra-c20-improper-array-initialization">;
 def MisraC20ImproperFuntionCall: DiagGroup<"misra-c20-improper-function-call">;
 def MisraC20ImproperOperands: DiagGroup<"misra-c20-operands">;
->>>>>>> misrarules
