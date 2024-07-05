@@ -248,6 +248,8 @@ def ext_designated_init_brace_elision : ExtWarn<
   InGroup<C99Designator>, SFINAEFailure;
 
 // Declarations.
+def ext_misra_c20_hiding_outer_scope_identifier : ExtWarn<
+  "MISRA_C20: declaration of %0 hides identifier from an outer scope">, InGroup<MisraC20ImproperIdentifierDeclaration>;
 def ext_plain_complex : ExtWarn<
   "plain '_Complex' requires a type specifier; assuming '_Complex double'">;
 def ext_imaginary_constant : Extension<
@@ -10116,6 +10118,24 @@ def warn_missing_case : Warning<"%plural{"
   InGroup<Switch>;
 def warn_switch_default : Warning<"'switch' missing 'default' label">,
   InGroup<SwitchDefault>;
+
+def ext_misra_c20_fallthrough_switch_case : ExtWarn<
+  "MISRA_C20: Not allowed fallthrough in switch case statement">, InGroup<MisraC20ImproperSwitchStmt>;
+def ext_misra_c20_side_effects_logical_rhs : ExtWarn<
+  "MISRA_C20: RHS of logical operator contains persistent side effects">,
+  InGroup<MisraC20ImproperLogicalRHS>;
+def ext_misra_c20_partial_array_initialization : ExtWarn<
+  "MISRA_C20: Array is partially initialized">,
+  InGroup<MisraC20ImproperArrayInitialization>;
+def ext_misra_c20_recursive_function_call : ExtWarn<
+  "MISRA_C20: Recursive function call direclty or indirectly">,
+  InGroup<MisraC20ImproperFuntionCall>;
+def ext_misra_c20_bool_operand_for_bitwise_operator: ExtWarn<
+  "MISRA_C20: Bool operand for bitwise operator">,
+  InGroup<MisraC20ImproperOperands>;
+def ext_misra_c20_array_designated_initialization_without_specified_size_explicitly: ExtWarn<
+  "MISRA_C20: Array is designated initialized without specified size explicitly:">,
+  InGroup<MisraC20ImproperArrayInitialization>;
 
 def warn_unannotated_fallthrough : Warning<
   "unannotated fall-through between switch labels">,

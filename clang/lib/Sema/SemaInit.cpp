@@ -973,7 +973,6 @@ InitListChecker::InitListChecker(
     if (!VerifyOnly)
       FullyStructuredList->setSyntacticForm(IL);
   }
-
   CheckExplicitInitList(Entity, IL, T, FullyStructuredList,
                         /*TopLevelObject=*/true);
 
@@ -1073,7 +1072,6 @@ void InitListChecker::CheckImplicitInitList(const InitializedEntity &Entity,
                                             InitListExpr *StructuredList,
                                             unsigned &StructuredIndex) {
   int maxElements = 0;
-
   if (T->isArrayType())
     maxElements = numArrayElements(T);
   else if (T->isRecordType())
@@ -1098,7 +1096,6 @@ void InitListChecker::CheckImplicitInitList(const InitializedEntity &Entity,
       SourceRange(ParentIList->getInit(Index)->getBeginLoc(),
                   ParentIList->getSourceRange().getEnd()));
   unsigned StructuredSubobjectInitIndex = 0;
-
   // Check the element types and build the structural subobject.
   unsigned StartIndex = Index;
   CheckListElementTypes(Entity, ParentIList, T,
@@ -1222,6 +1219,30 @@ void InitListChecker::CheckExplicitInitList(const InitializedEntity &Entity,
   unsigned Index = 0, StructuredIndex = 0;
   CheckListElementTypes(Entity, IList, T, /*SubobjectIsDesignatorContext=*/true,
                         Index, StructuredList, StructuredIndex, TopLevelObject);
+  if (T->isArrayType() && StructuredList) {
+    // Get the array size
+    if (const ConstantArrayType *CAT = dyn_cast<ConstantArrayType>(T)) {
+      unsigned ArraySize = CAT->getSize().getZExtValue();
+      // Check if the number of initializers is less than the array size
+      if (IList->getNumInits() < ArraySize) {
+          // Emit a warning for partial initialization
+        SemaRef.Diag(IList->getBeginLoc(), diag::ext_misra_c20_partial_array_initialization);
+      }
+    }
+    if(const IncompleteArrayType *DAT=dyn_cast<IncompleteArrayType>(T)){
+      unsigned Designated_flag=0;
+      for (Expr *Init : IList->inits()) {
+        if (auto *DI = dyn_cast<DesignatedInitExpr>(Init)) {
+          Designated_flag=1;
+          break;
+        }
+      }
+      if(Designated_flag ){
+        // Emit a diagnostic indicating the array size is not specified
+        SemaRef.Diag(IList->getBeginLoc(), diag::ext_misra_c20_array_designated_initialization_without_specified_size_explicitly);
+      }
+    }
+  }
   if (StructuredList) {
     QualType ExprTy = T;
     if (!ExprTy->isArrayType())
