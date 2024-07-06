@@ -1219,8 +1219,7 @@ void InitListChecker::CheckExplicitInitList(const InitializedEntity &Entity,
   unsigned Index = 0, StructuredIndex = 0;
   CheckListElementTypes(Entity, IList, T, /*SubobjectIsDesignatorContext=*/true,
                         Index, StructuredList, StructuredIndex, TopLevelObject);
-  if (T->isArrayType() && StructuredList) {
-    // Get the array size
+  if (T->isArrayType() && StructuredList && T->getPointeeOrArrayElementType()->getTypeClass() ==IList->inits()[0]->getType()->getTypeClass()) {
     if (const ConstantArrayType *CAT = dyn_cast<ConstantArrayType>(T)) {
       unsigned ArraySize = CAT->getSize().getZExtValue();
       // Check if the number of initializers is less than the array size
