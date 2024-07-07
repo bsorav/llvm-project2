@@ -12212,5 +12212,10 @@ def warn_cast_function_to_non_function_pointer : Warning<
   "Conversion is not allowed between pointer to a function and any other type">;
 def warn_cast_pointer_to_incomplete : Warning<
   "Conversion is not allowed between pointer to a incomplete and any other type">;
-
+def ext_misra_c_1_4_emergent_feature_not_allowed_in_sema : ExtWarn<
+  "Emergent feature is not permitted.">;
+def warn_cast_pointer_to_void_and_arithmetic : Warning<
+  "Cast between pointer to void and arithmetic type is not permitted">;
+def warn_cast_pointer_to_pointer_of_diff_obj : Warning<
+  "Conversion is not allowed between pointer to object type and pointer to another object type">;
 } // end of sema component.

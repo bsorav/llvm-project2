@@ -880,6 +880,9 @@ void Preprocessor::Lex(Token &Result) {
       if (strncmp(filename, "<setjmp.h>", filename_len) == 0) {
         Diag(Result, diag::ext_misra_c214_include_setjmp_h);
       }
+      if ((strncmp(filename, "<stdnoreturn.h>", filename_len) == 0) || (strncmp(filename, "<stdatomic.h>", filename_len) == 0) || (strncmp(filename, "<thread.h>", filename_len) == 0) || (strncmp(filename, "<stdalign.h>", filename_len) == 0)) {
+        Diag(Result, diag::ext_misra_c_1_4_emergent_feature_not_allowed);
+      }
     }
     if (memchr(filename, ',', filename_len)) {
       Diag(Result, diag::ext_misra_c20_comma_in_include_filename);

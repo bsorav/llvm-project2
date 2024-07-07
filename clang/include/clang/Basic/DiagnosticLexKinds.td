@@ -998,6 +998,9 @@ def ext_misra_c215_include_signal_h : ExtWarn<
 def ext_misra_c214_include_setjmp_h : ExtWarn<
   "MISRA-C21.4: setjmp.h is not permitted to use.">, InGroup<MisraC20ImproperIncludeFilename>;
 
+def ext_misra_c_1_4_emergent_feature_not_allowed : ExtWarn<
+  "Emergent feature is not permitted.">;
+
 def err_warn_octal_literal : Warning<
   "use of octal constants is not permitted">;
 

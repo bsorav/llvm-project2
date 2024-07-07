@@ -3132,6 +3132,22 @@ void CastOperation::CheckCStyleCast() {
   if (SrcType->isArithmeticType()) {
     printf("SrcType is an arithmetic type\n");
   }
+  // A cast shall not be performed between pointer to void and an arithmetic type
+  if ((SrcType->isArithmeticType() && DestType->isVoidPointerType()) || (SrcType->isVoidPointerType() && DestType->isArithmeticType())) {
+    Self.Diag(SrcExpr.get()->getBeginLoc(),
+              diag::warn_cast_pointer_to_void_and_arithmetic)
+          << SrcType << DestType << SrcExpr.get()->getSourceRange();
+    return;
+  }
+  // A cast shall not be performed between a pointer to object type and a pointer to a different object type
+  if ((SrcType->isPointerType() && DestType->isPointerType()) && (!SrcType->isVoidPointerType() && !DestType->isVoidPointerType())) {
+    if (SrcType->getPointeeType()!= DestType->getPointeeType()) {
+      Self.Diag(SrcExpr.get()->getBeginLoc(),
+              diag::warn_cast_pointer_to_pointer_of_diff_obj)
+          << SrcType << DestType << SrcExpr.get()->getSourceRange();
+      return;
+    }
+  }
   if (SrcType->isFunctionPointerType()) {
     if (!DestType->isFunctionPointerType()) {
       // raise a warning here

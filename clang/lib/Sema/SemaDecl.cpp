@@ -10374,9 +10374,13 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
   NewFD->setParams(Params);
 
   if (D.getDeclSpec().isNoreturnSpecified())
+  {
+    // raise a warning 
+    Diag(D.getDeclSpec().getNoreturnSpecLoc(), diag::ext_misra_c_1_4_emergent_feature_not_allowed_in_sema);
     NewFD->addAttr(
         C11NoReturnAttr::Create(Context, D.getDeclSpec().getNoreturnSpecLoc()));
 
+  }
   // Functions returning a variably modified type violate C99 6.7.5.2p2
   // because all functions have linkage.
   if (!NewFD->isInvalidDecl() &&
