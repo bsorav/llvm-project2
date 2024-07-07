@@ -12238,4 +12238,10 @@ def warn_cast_pointer_to_void_and_arithmetic : Warning<
   "Cast between pointer to void and arithmetic type is not permitted">;
 def warn_cast_pointer_to_pointer_of_diff_obj : Warning<
   "Conversion is not allowed between pointer to object type and pointer to another object type">;
+def warn_cast_non_int_arithmetic_to_obj_pointer : Warning<
+  "Cast between pointer to object and non-integer arithmetic type is not allowed">;
+def warn_cast_pointer_to_pointer_remove_const : Warning<
+  "Conversion is not allowed between pointer to const-qualified object type and pointer to non-const-qualified object type">, InGroup<MISRARule11>;
+def warn_cast_pointer_to_pointer_remove_volatile : Warning<
+  "Conversion is not allowed between pointer to volatile-qualified object type and pointer to non-volatile-qualified object type">,InGroup<MISRARule11>;
 } // end of sema component.

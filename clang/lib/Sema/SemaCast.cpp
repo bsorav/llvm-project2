@@ -3132,6 +3132,39 @@ void CastOperation::CheckCStyleCast() {
   if (SrcType->isArithmeticType()) {
     printf("SrcType is an arithmetic type\n");
   }
+
+  // A cast shall not remove any const or volatile qualification from the type pointed to by a pointer
+  if (SrcType->isPointerType() && DestType->isPointerType()) {
+    if (SrcType->getPointeeType().isConstQualified() ^ DestType->getPointeeType().isConstQualified()) {
+      Self.Diag(SrcExpr.get()->getBeginLoc(),
+                diag::warn_cast_pointer_to_pointer_remove_const)
+          << SrcType << DestType << SrcExpr.get()->getSourceRange();
+      return;
+    }
+    if (SrcType->getPointeeType().isVolatileQualified() ^ DestType->getPointeeType().isVolatileQualified()) {
+      Self.Diag(SrcExpr.get()->getBeginLoc(),
+                diag::warn_cast_pointer_to_pointer_remove_volatile)
+          << SrcType << DestType << SrcExpr.get()->getSourceRange();
+      return;
+    }
+  }
+
+
+
+  // A cast shall not be performed between pointer to object and a non-integer arithmetic type
+  if ((SrcType->isPointerType() && DestType->isArithmeticType()) && (!SrcType->isVoidPointerType()) && (!DestType->isIntegerType())) {
+    Self.Diag(SrcExpr.get()->getBeginLoc(),
+              diag::warn_cast_non_int_arithmetic_to_obj_pointer)
+          << SrcType << DestType << SrcExpr.get()->getSourceRange();
+    return;
+  }
+  if ((SrcType->isArithmeticType() && DestType->isPointerType()) && (!SrcType->isIntegerType()) && (!DestType->isVoidPointerType())) {
+    Self.Diag(SrcExpr.get()->getBeginLoc(),
+              diag::warn_cast_non_int_arithmetic_to_obj_pointer)
+          << SrcType << DestType << SrcExpr.get()->getSourceRange();
+    return;
+  }
+
   // A cast shall not be performed between pointer to void and an arithmetic type
   if ((SrcType->isArithmeticType() && DestType->isVoidPointerType()) || (SrcType->isVoidPointerType() && DestType->isArithmeticType())) {
     Self.Diag(SrcExpr.get()->getBeginLoc(),
