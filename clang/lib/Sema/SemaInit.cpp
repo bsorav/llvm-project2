@@ -1219,6 +1219,17 @@ void InitListChecker::CheckExplicitInitList(const InitializedEntity &Entity,
   unsigned Index = 0, StructuredIndex = 0;
   CheckListElementTypes(Entity, IList, T, /*SubobjectIsDesignatorContext=*/true,
                         Index, StructuredList, StructuredIndex, TopLevelObject);
+  //Check for persistent side effect in Initlizer list
+  if(StructuredList){
+  ASTContext &Context = SemaRef.Context;
+    for (Expr *Init : IList->inits()) {
+      if (Init->HasSideEffects(Context, /*IncludePossibleEffects=*/true)) {
+        SemaRef.Diag(Init->getBeginLoc(), diag::ext_misra_c20_initializer_list_contain_persistent_side_effects);
+        // break;
+      }
+    }
+  }
+
   if (T->isArrayType() && StructuredList && T->getPointeeOrArrayElementType()->getTypeClass() ==IList->inits()[0]->getType()->getTypeClass()) {
     if (const ConstantArrayType *CAT = dyn_cast<ConstantArrayType>(T)) {
       unsigned ArraySize = CAT->getSize().getZExtValue();
