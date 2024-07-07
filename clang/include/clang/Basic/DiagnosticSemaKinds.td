@@ -10142,7 +10142,9 @@ def ext_misra_c20_array_designated_initialization_without_specified_size_explici
 def ext_misra_c20_initializer_list_contain_persistent_side_effects: ExtWarn<
   "MISRA_C20: Initializer contain persistent side effects:">,
   InGroup<MisraC20ImproperArrayInitialization>;
-
+def ext_misra_c20_variable_array_type: ExtWarn<
+  "MISRA_C20: Variable Array Type">,
+  InGroup<MisraC20ImproperDeclaration>;
 
 def warn_unannotated_fallthrough : Warning<
   "unannotated fall-through between switch labels">,
