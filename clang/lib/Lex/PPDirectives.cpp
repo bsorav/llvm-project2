@@ -2706,7 +2706,7 @@ void Preprocessor::HandleIncludeMacrosDirective(SourceLocation HashLoc,
 /// parsing the param list.
 bool Preprocessor::ReadMacroParameterList(MacroInfo *MI, Token &Tok) {
   SmallVector<IdentifierInfo*, 32> Parameters;
-
+  std::set<llvm::StringRef> PreprocessingDirectiveToken={"define","ifdef","undef","include","ifndef","endif","if","else","error","warning","region","endregion"};
   while (true) {
     LexUnexpandedNonComment(Tok);
     switch (Tok.getKind()) {
@@ -2761,6 +2761,12 @@ bool Preprocessor::ReadMacroParameterList(MacroInfo *MI, Token &Tok) {
 
       // Add the parameter to the macro info.
       Parameters.push_back(II);
+
+      //Checking paramete is preprocessing directive token
+      StringRef MacroParamName=II->getName();
+      if(MacroParamName == "define" || PreprocessingDirectiveToken.find(MacroParamName)!=PreprocessingDirectiveToken.end()){
+        Diag(Tok,diag::ext_misra_c20_preprocessing_directive_token_within_macro_argument);
+      }
 
       // Lex the token after the identifier.
       LexUnexpandedNonComment(Tok);
