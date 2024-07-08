@@ -10145,6 +10145,9 @@ def ext_misra_c20_initializer_list_contain_persistent_side_effects: ExtWarn<
 def ext_misra_c20_variable_array_type: ExtWarn<
   "MISRA_C20: Variable Array Type">,
   InGroup<MisraC20ImproperDeclaration>;
+def ext_misra_c20_flexible_array_type: ExtWarn<
+  "MISRA_C20: Flexible Array Type">,
+  InGroup<MisraC20ImproperDeclaration>;
 
 def warn_unannotated_fallthrough : Warning<
   "unannotated fall-through between switch labels">,

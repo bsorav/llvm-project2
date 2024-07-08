@@ -18287,9 +18287,30 @@ void Sema::ActOnStartCXXMemberDeclarations(Scope *S, Decl *TagD,
   assert(InjectedClassName->isInjectedClassName() &&
          "Broken injected-class-name");
 }
+static bool HasFlexibleArrayMember(const RecordDecl *RD) {
+    for (const auto *Field : RD->fields()) {
+        if (const auto *AT = dyn_cast<ArrayType>(Field->getType().getTypePtr())) {
+            if (AT->isIncompleteArrayType()) {
+                return true;
+            }
+            if (const auto *CAT = dyn_cast<ConstantArrayType>(AT)) {
+                if (CAT->getSize().getZExtValue() == 1) {
+                    return true;
+                }
+            }
+        }
+    }
+    return false;
+}
+
 
 void Sema::ActOnTagFinishDefinition(Scope *S, Decl *TagD,
                                     SourceRange BraceRange) {
+  if (RecordDecl *RD = dyn_cast_or_null<RecordDecl>(TagD)) {
+      if (HasFlexibleArrayMember(RD)) {
+          Diag(RD->getLocation(), diag::ext_misra_c20_flexible_array_type);
+      }
+  }
   AdjustDeclIfTemplate(TagD);
   TagDecl *Tag = cast<TagDecl>(TagD);
   Tag->setBraceRange(BraceRange);
