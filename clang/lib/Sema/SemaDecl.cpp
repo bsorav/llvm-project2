@@ -6233,6 +6233,13 @@ Decl *Sema::ActOnDeclarator(Scope *S, Declarator &D) {
   if (!Bases.empty())
     ActOnFinishedFunctionDefinitionInOpenMPDeclareVariantScope(Dcl, Bases);
 
+  // Check for variable array type
+  if (VarDecl *VD = dyn_cast<VarDecl>(Dcl)) {
+    // Check if the variable declaration has a variable-length array type
+    if (VD->getType()->isVariableArrayType()) {
+        Diag(Dcl->getBeginLoc(),diag::ext_misra_c20_variable_array_type);
+    }
+  }
   return Dcl;
 }
 

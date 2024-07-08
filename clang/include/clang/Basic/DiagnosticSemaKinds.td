@@ -10133,9 +10133,18 @@ def ext_misra_c20_recursive_function_call : ExtWarn<
 def ext_misra_c20_bool_operand_for_bitwise_operator: ExtWarn<
   "MISRA_C20: Bool operand for bitwise operator">,
   InGroup<MisraC20ImproperOperands>;
+def ext_misra_c20_distinct_operand_type_in_usual_airhtmatic_conversatons: ExtWarn<
+  "MISRA_C20: Distict Operand type in usual airthmatic expression">,
+  InGroup<MisraC20ImproperOperands>;
 def ext_misra_c20_array_designated_initialization_without_specified_size_explicitly: ExtWarn<
   "MISRA_C20: Array is designated initialized without specified size explicitly:">,
   InGroup<MisraC20ImproperArrayInitialization>;
+def ext_misra_c20_initializer_list_contain_persistent_side_effects: ExtWarn<
+  "MISRA_C20: Initializer contain persistent side effects:">,
+  InGroup<MisraC20ImproperArrayInitialization>;
+def ext_misra_c20_variable_array_type: ExtWarn<
+  "MISRA_C20: Variable Array Type">,
+  InGroup<MisraC20ImproperDeclaration>;
 
 def warn_unannotated_fallthrough : Warning<
   "unannotated fall-through between switch labels">,

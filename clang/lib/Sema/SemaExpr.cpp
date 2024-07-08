@@ -16098,6 +16098,16 @@ ExprResult Sema::ActOnBinOp(Scope *S, SourceLocation TokLoc,
       Diag(RHSExpr->getExprLoc(), diag::ext_misra_c20_side_effects_logical_rhs);
     }
   }
+
+  // Check if the LHS and RHS have same essential type in usual airthmatic conversations
+  std::unordered_set<BinaryOperatorKind> AirthmaticOperatorSet={BO_Mul,BO_Div,BO_Rem,BO_Add,BO_Sub,BO_MulAssign,BO_DivAssign,BO_RemAssign,BO_AddAssign,BO_SubAssign};
+  if( AirthmaticOperatorSet.find(Opc)!=AirthmaticOperatorSet.end() && LHSExpr && RHSExpr && LHSExpr->getType() != RHSExpr->getType()){
+    bool LHSFlag=LHSExpr->getType()->isAnyCharacterType();
+    bool RHSFlag=(RHSExpr->getType()->isIntegralOrEnumerationType() || RHSExpr->getType()->isUnsignedIntegerType());
+    if(!( LHSFlag && RHSFlag && (Opc == BO_Add || Opc == BO_AddAssign || Opc == BO_Sub || Opc == BO_SubAssign))){
+      Diag(TokLoc,diag::ext_misra_c20_distinct_operand_type_in_usual_airhtmatic_conversatons);
+    }
+  }
   // Emit warnings for tricky precedence issues, e.g. "bitfield & 0x4 == 0"
   DiagnoseBinOpPrecedence(*this, Opc, TokLoc, LHSExpr, RHSExpr);
 

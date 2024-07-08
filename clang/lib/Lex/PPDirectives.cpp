@@ -1982,9 +1982,10 @@ void Preprocessor::HandleIncludeDirective(SourceLocation HashLoc,
   StringRef FilenameRef =getSpelling(FilenameTok);
   std::string Filename=FilenameRef.str();
   // llvm::errs()<<"Filename: "<<Filename<<"\n";
-  // Check if the filename is "setjmp.h"
-  if (Filename=="<setjmp.h>" or Filename=="<signal.h>") {
-    Diag(IncludeTok.getLocation(), diag::ext_misra_c20_header_filename_not_to_be_used)<<Filename;
+  // Check if the filename is "setjmp.h" or "signal.h" or "stdarg.h"
+  if (Filename=="<setjmp.h>" or Filename=="<signal.h>" or Filename == "<stdarg.h>") {
+    Diag(HashLoc, diag::ext_misra_c20_header_filename_not_to_be_used)<<Filename;
+    // return;
   }
   
   // Check if the filename has already been included

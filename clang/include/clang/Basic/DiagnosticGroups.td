@@ -1511,3 +1511,4 @@ def MisraC20ImproperArrayInitialization: DiagGroup<"misra-c20-improper-array-ini
 def MisraC20ImproperFuntionCall: DiagGroup<"misra-c20-improper-function-call">;
 def MisraC20ImproperOperands: DiagGroup<"misra-c20-operands">;
 def MISRARule11 : DiagGroup<"misra-c-r-11-8-rule">;
+def MisraC20ImproperDeclaration: DiagGroup<"misra-c20-improper-declaration">;
