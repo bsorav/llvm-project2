@@ -10118,19 +10118,19 @@ Sema::CheckAssignmentConstraints(QualType LHSType, ExprResult &RHS,
   QualType RHSType = RHS.get()->getType();
   QualType OrigLHSType = LHSType;
 
-  if(const PointerType *PTR_RHS = RHSType->getAs<PointerType>()) {
-    QualType RHS_PointeeType = PTR_RHS->getPointeeType();
-    if (RHS_PointeeType->isCharType()) {
-      if(const PointerType *PTR_LHS = LHSType->getAs<PointerType>()) {
-        QualType LHS_PointeeType = PTR_LHS->getPointeeType();
-        if (LHS_PointeeType->isCharType() && LHS_PointeeType.isConstQualified()) {
-        } else {
-            Diag(RHS.get()->getExprLoc(), diag::warn_non_const_char_pointer)
-              << RHSType << LHSType;
-        } 
-      }
-    }
-  }
+  // if(const PointerType *PTR_RHS = RHSType->getAs<PointerType>()) {
+  //   QualType RHS_PointeeType = PTR_RHS->getPointeeType();
+  //   if (RHS_PointeeType->isCharType()) {
+  //     if(const PointerType *PTR_LHS = LHSType->getAs<PointerType>()) {
+  //       QualType LHS_PointeeType = PTR_LHS->getPointeeType();
+  //       if (LHS_PointeeType->isCharType() && LHS_PointeeType.isConstQualified()) {
+  //       } else {
+  //           Diag(RHS.get()->getExprLoc(), diag::warn_non_const_char_pointer)
+  //             << RHSType << LHSType;
+  //       } 
+  //     }
+  //   }
+  // }
 
   // Get canonical types.  We're not formatting these types, just comparing
   // them.
@@ -16080,6 +16080,17 @@ ExprResult Sema::ActOnBinOp(Scope *S, SourceLocation TokLoc,
   assert(LHSExpr && "ActOnBinOp(): missing left expression");
   assert(RHSExpr && "ActOnBinOp(): missing right expression");
 
+  // Check if the operator is Bitwise AND (&&) or Bitwise OR (||) or Bitwise XOR (^)
+  if (Opc == BO_And || Opc == BO_Or || Opc == BO_Xor || Opc == BO_AndAssign || Opc == BO_OrAssign || Opc == BO_XorAssign) {
+    // Check if LHSExpr or RHSExpr is bool
+    if (RHSExpr && RHSExpr->getType()->isBooleanType()) {
+      Diag(RHSExpr->getExprLoc(), diag::ext_misra_c20_bool_operand_for_bitwise_operator);
+    }
+    if (LHSExpr && LHSExpr->getType()->isBooleanType()) {
+      Diag(LHSExpr->getExprLoc(), diag::ext_misra_c20_bool_operand_for_bitwise_operator);
+    }
+  }
+
   // Check if the operator is logical AND (&&) or logical OR (||)
   if (Opc == BO_LAnd || Opc == BO_LOr) {
     // Check if RHSExpr contains persistent side effects
@@ -17688,6 +17699,12 @@ bool Sema::DiagnoseAssignmentResult(AssignConvertType ConvTy,
                                     bool *Complained) {
   if (Complained)
     *Complained = false;
+  
+  if (IsStringLiteralToNonConstPointerConversion(SrcExpr, DstType) ) {
+    Diag(SrcExpr->getExprLoc(), diag::warn_non_const_char_pointer) << DstType << SrcType;
+  }
+
+
 
   // Decode the result (notice that AST's are still created for extensions).
   bool CheckInferredResultType = false;

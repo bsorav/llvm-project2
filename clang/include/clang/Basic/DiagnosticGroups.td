@@ -1508,3 +1508,6 @@ def MisraC20ImproperIdentifierDeclaration : DiagGroup<"misra-c20-improper-identi
 def MisraC20ImproperSwitchStmt : DiagGroup<"misra-c20-improper-switch-stmt">;
 def MisraC20ImproperLogicalRHS : DiagGroup<"misra-c20-improper-logical-rhs">;
 def MisraC20ImproperArrayInitialization: DiagGroup<"misra-c20-improper-array-initialization">;
+def MisraC20ImproperFuntionCall: DiagGroup<"misra-c20-improper-function-call">;
+def MisraC20ImproperOperands: DiagGroup<"misra-c20-operands">;
+def MISRARule11 : DiagGroup<"misra-c-r-11-8-rule">;

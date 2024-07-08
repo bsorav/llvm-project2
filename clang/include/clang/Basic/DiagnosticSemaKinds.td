@@ -10127,6 +10127,15 @@ def ext_misra_c20_side_effects_logical_rhs : ExtWarn<
 def ext_misra_c20_partial_array_initialization : ExtWarn<
   "MISRA_C20: Array is partially initialized">,
   InGroup<MisraC20ImproperArrayInitialization>;
+def ext_misra_c20_recursive_function_call : ExtWarn<
+  "MISRA_C20: Recursive function call direclty or indirectly">,
+  InGroup<MisraC20ImproperFuntionCall>;
+def ext_misra_c20_bool_operand_for_bitwise_operator: ExtWarn<
+  "MISRA_C20: Bool operand for bitwise operator">,
+  InGroup<MisraC20ImproperOperands>;
+def ext_misra_c20_array_designated_initialization_without_specified_size_explicitly: ExtWarn<
+  "MISRA_C20: Array is designated initialized without specified size explicitly:">,
+  InGroup<MisraC20ImproperArrayInitialization>;
 
 def warn_unannotated_fallthrough : Warning<
   "unannotated fall-through between switch labels">,
@@ -12223,5 +12232,16 @@ def warn_cast_function_to_non_function_pointer : Warning<
   "Conversion is not allowed between pointer to a function and any other type">;
 def warn_cast_pointer_to_incomplete : Warning<
   "Conversion is not allowed between pointer to a incomplete and any other type">;
-
+def ext_misra_c_1_4_emergent_feature_not_allowed_in_sema : ExtWarn<
+  "Emergent feature is not permitted.">;
+def warn_cast_pointer_to_void_and_arithmetic : Warning<
+  "Cast between pointer to void and arithmetic type is not permitted">;
+def warn_cast_pointer_to_pointer_of_diff_obj : Warning<
+  "Conversion is not allowed between pointer to object type and pointer to another object type">;
+def warn_cast_non_int_arithmetic_to_obj_pointer : Warning<
+  "Cast between pointer to object and non-integer arithmetic type is not allowed">;
+def warn_cast_pointer_to_pointer_remove_const : Warning<
+  "Conversion is not allowed between pointer to const-qualified object type and pointer to non-const-qualified object type">, InGroup<MISRARule11>;
+def warn_cast_pointer_to_pointer_remove_volatile : Warning<
+  "Conversion is not allowed between pointer to volatile-qualified object type and pointer to non-volatile-qualified object type">,InGroup<MISRARule11>;
 } // end of sema component.

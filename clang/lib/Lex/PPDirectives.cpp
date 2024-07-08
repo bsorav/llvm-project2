@@ -1981,6 +1981,12 @@ void Preprocessor::HandleIncludeDirective(SourceLocation HashLoc,
   //Get the filename from the token's source location
   StringRef FilenameRef =getSpelling(FilenameTok);
   std::string Filename=FilenameRef.str();
+  // llvm::errs()<<"Filename: "<<Filename<<"\n";
+  // Check if the filename is "setjmp.h"
+  if (Filename=="<setjmp.h>" or Filename=="<signal.h>") {
+    Diag(IncludeTok.getLocation(), diag::ext_misra_c20_header_filename_not_to_be_used)<<Filename;
+  }
+  
   // Check if the filename has already been included
   if (IncludedHeaderFileNames.count(Filename) > 0) {
     // Handle repeated inclusion warning

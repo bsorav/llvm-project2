@@ -1229,6 +1229,19 @@ void InitListChecker::CheckExplicitInitList(const InitializedEntity &Entity,
         SemaRef.Diag(IList->getBeginLoc(), diag::ext_misra_c20_partial_array_initialization);
       }
     }
+    if(const IncompleteArrayType *DAT=dyn_cast<IncompleteArrayType>(T)){
+      unsigned Designated_flag=0;
+      for (Expr *Init : IList->inits()) {
+        if (auto *DI = dyn_cast<DesignatedInitExpr>(Init)) {
+          Designated_flag=1;
+          break;
+        }
+      }
+      if(Designated_flag ){
+        // Emit a diagnostic indicating the array size is not specified
+        SemaRef.Diag(IList->getBeginLoc(), diag::ext_misra_c20_array_designated_initialization_without_specified_size_explicitly);
+      }
+    }
   }
   if (StructuredList) {
     QualType ExprTy = T;
