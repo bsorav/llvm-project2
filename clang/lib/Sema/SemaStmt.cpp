@@ -906,12 +906,24 @@ StmtResult Sema::ActOnIfStmt(SourceLocation IfLoc,
   if (!ConstevalOrNegatedConsteval && !elseStmt)
     DiagnoseEmptyStmtBody(RParenLoc, thenStmt, diag::warn_empty_if_body);
 
-  // ***************************** MISRA_C R.15.7 *************************************** 
-  if(!elseStmt) {
-    Diags.Report(IfLoc, diag::warn_else_not_found);
+  // // ************************ 15.6 MISRA : S_NO : 82 ************************************ 
+  if ( (!thenStmt || !isa<CompoundStmt>(thenStmt)) ) {
+    llvm::errs() << "The body of a if statement shall be a compound statement \n\n";
+    Diag(thenStmt->getBeginLoc(), diag::warn_misra_iteration_or_selection_body_not_compound);
   }
+  if ( (elseStmt && !isa<IfStmt>(elseStmt)) ) {
+    if (!isa<CompoundStmt>(elseStmt) ) {
+      llvm::errs() << "The body of an else statement shall be a compound statement \n\n";
+      Diag(elseStmt->getBeginLoc(), diag::warn_misra_iteration_or_selection_body_not_compound);
+    }
+  }
+  // ************************ 15.6 MISRA : S_NO : 82 ************************************ 
+  // Commenting it for the time being.
   // ***************************** MISRA_C R.15.7 *************************************** 
- 
+  // if(!elseStmt) {
+  //   Diags.Report(IfLoc, diag::warn_else_not_found);
+  // }
+  // ***************************** MISRA_C R.15.7 ***************************************
   if (ConstevalOrNegatedConsteval ||
       StatementKind == IfStatementKind::Constexpr) {
     auto DiagnoseLikelihood = [&](const Stmt *S) {
@@ -1241,6 +1253,15 @@ Sema::ActOnFinishSwitchStmt(SourceLocation SwitchLoc, Stmt *Switch,
   if (!CondExpr) return StmtError();
 
   QualType CondType = CondExpr->getType();
+
+
+  // ************************ 15.6 MISRA : S_NO : 82 ************************************ 
+  if (BodyStmt && !isa<CompoundStmt>(BodyStmt)) {
+    llvm::errs() << "Braces not found in switch\n";
+    Diag(BodyStmt->getBeginLoc(), diag::warn_misra_iteration_or_selection_body_not_compound)
+    << "The body of a selection statement shall be a compound statement";
+  }
+  // ************************ 15.6 MISRA : S_NO : 82 ************************************
 
   // C++ 6.4.2.p2:
   // Integral promotions are performed (on the switch condition).
@@ -2233,6 +2254,7 @@ StmtResult Sema::ActOnForStmt(SourceLocation ForLoc, SourceLocation LParenLoc,
 
   // ************************ 15.6 MISRA : S_NO : 82 ************************************ 
   if (Body && !isa<CompoundStmt>(Body)) {
+    llvm::errs() << "Braces not found\n";
     Diag(Body->getBeginLoc(), diag::warn_misra_iteration_or_selection_body_not_compound)
         << "The body of a for-loop statement shall be a compound statement";
   }
