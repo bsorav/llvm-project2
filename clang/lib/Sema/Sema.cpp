@@ -1483,7 +1483,6 @@ void Sema::ActOnEndOfTranslationUnit() {
   }
   DetectCyclesInCallGraph(CallGraph, *this);
 }
-
 void Sema::ExtractCallsFromStmt(Sema &S, Stmt *Statement, FunctionDecl *FD, llvm::DenseMap<FunctionDecl *, std::set<FunctionDecl *>> &CallGraph) {
   if (!Statement)
     return;
