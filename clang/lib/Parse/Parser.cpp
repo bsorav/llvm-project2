@@ -36,6 +36,30 @@ public:
   explicit ActionCommentHandler(Sema &S) : S(S) { }
 
   bool HandleComment(Preprocessor &PP, SourceRange Comment) override {
+    StringRef CommentText = Lexer::getSourceText(CharSourceRange::getTokenRange(Comment), PP.getSourceManager(), PP.getLangOpts());
+    if (CommentText.find("/*") != StringRef::npos){
+      if (CommentText.find("/*", CommentText.find("/*") + 1) != StringRef::npos){
+        S.Diag(Comment.getBegin().getLocWithOffset(CommentText.find("/*", CommentText.find("/*") + 1)), diag::ext_misra_warn_comment_contains_comment);
+      }
+      if (CommentText.find("//", CommentText.find("/*") + 1) != StringRef::npos){
+        S.Diag(Comment.getBegin().getLocWithOffset(CommentText.find("//", CommentText.find("/*") + 1)), diag::ext_misra_warn_comment_contains_comment);
+      }
+    }
+    if (CommentText.find("//") != StringRef::npos){
+        if (CommentText.find("//", CommentText.find("//") + 1) != StringRef::npos){
+          S.Diag(Comment.getBegin().getLocWithOffset(CommentText.find("//", CommentText.find("//") + 1)), diag::ext_misra_warn_comment_contains_comment);
+        }
+        if (CommentText.find("/*", CommentText.find("//") + 1) != StringRef::npos){
+          S.Diag(Comment.getBegin().getLocWithOffset(CommentText.find("/*", CommentText.find("//") + 1)), diag::ext_misra_warn_comment_contains_comment);
+        }
+    }
+    if (CommentText.find("//") == 0){
+      int index_of_next_line_char = CommentText.find("\n");
+      int index_of_backslash = CommentText.rfind('\\', index_of_next_line_char);
+      if (index_of_next_line_char != -1){
+        S.Diag(Comment.getBegin().getLocWithOffset(index_of_backslash), diag::ext_misra_warn_inline_comments_line_sliced);
+      }
+    }
     S.ActOnComment(Comment);
     return false;
   }
@@ -1588,6 +1612,21 @@ void Parser::ParseKNRParamDeclarations(Declarator &D) {
 
     // Handle the full declarator list.
     while (true) {
+      // Check if the declarator represents an array.
+      for (unsigned int i = 0; i < ParmDeclarator.getNumTypeObjects(); ++i) {
+          const DeclaratorChunk &TypeChunk = ParmDeclarator.getTypeObject(i);
+          if (TypeChunk.Kind == DeclaratorChunk::Array) {
+              const DeclaratorChunk::ArrayTypeInfo &ArrayInfo = TypeChunk.Arr;
+            if (ArrayInfo.hasStatic){
+              // Issue a diagnostic error indicating that 'static' is not allowed
+              // within the square brackets of an array parameter declaration.
+              Diag(ParmDeclarator.getIdentifierLoc(), diag::ext_misra_c20_static_keyword_in_array_parameter_declaration);
+            }
+            // Break the loop as we found the array type.
+            break;
+          }
+      }
+
       // If attributes are present, parse them.
       MaybeParseGNUAttributes(ParmDeclarator);
 

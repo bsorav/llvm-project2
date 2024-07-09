@@ -10118,6 +10118,20 @@ Sema::CheckAssignmentConstraints(QualType LHSType, ExprResult &RHS,
   QualType RHSType = RHS.get()->getType();
   QualType OrigLHSType = LHSType;
 
+  // if(const PointerType *PTR_RHS = RHSType->getAs<PointerType>()) {
+  //   QualType RHS_PointeeType = PTR_RHS->getPointeeType();
+  //   if (RHS_PointeeType->isCharType()) {
+  //     if(const PointerType *PTR_LHS = LHSType->getAs<PointerType>()) {
+  //       QualType LHS_PointeeType = PTR_LHS->getPointeeType();
+  //       if (LHS_PointeeType->isCharType() && LHS_PointeeType.isConstQualified()) {
+  //       } else {
+  //           Diag(RHS.get()->getExprLoc(), diag::warn_non_const_char_pointer)
+  //             << RHSType << LHSType;
+  //       } 
+  //     }
+  //   }
+  // }
+
   // Get canonical types.  We're not formatting these types, just comparing
   // them.
   LHSType = Context.getCanonicalType(LHSType).getUnqualifiedType();
@@ -12113,6 +12127,7 @@ static void DiagnoseBadShiftValues(Sema& S, ExprResult &LHS, ExprResult &RHS,
   if (RHS.get()->isValueDependent() ||
       !RHS.get()->EvaluateAsInt(RHSResult, S.Context))
     return;
+  RHS.get()->EvaluateAsInt(RHSResult, S.Context);
   llvm::APSInt Right = RHSResult.Val.getInt();
 
   if (Right.isNegative()) {
@@ -16065,6 +16080,34 @@ ExprResult Sema::ActOnBinOp(Scope *S, SourceLocation TokLoc,
   assert(LHSExpr && "ActOnBinOp(): missing left expression");
   assert(RHSExpr && "ActOnBinOp(): missing right expression");
 
+  // Check if the operator is Bitwise AND (&&) or Bitwise OR (||) or Bitwise XOR (^)
+  if (Opc == BO_And || Opc == BO_Or || Opc == BO_Xor || Opc == BO_AndAssign || Opc == BO_OrAssign || Opc == BO_XorAssign) {
+    // Check if LHSExpr or RHSExpr is bool
+    if (RHSExpr && RHSExpr->getType()->isBooleanType()) {
+      Diag(RHSExpr->getExprLoc(), diag::ext_misra_c20_bool_operand_for_bitwise_operator);
+    }
+    if (LHSExpr && LHSExpr->getType()->isBooleanType()) {
+      Diag(LHSExpr->getExprLoc(), diag::ext_misra_c20_bool_operand_for_bitwise_operator);
+    }
+  }
+
+  // Check if the operator is logical AND (&&) or logical OR (||)
+  if (Opc == BO_LAnd || Opc == BO_LOr) {
+    // Check if RHSExpr contains persistent side effects
+    if (RHSExpr->HasSideEffects(Context, /*IncludePossibleEffects=*/true)) {
+      Diag(RHSExpr->getExprLoc(), diag::ext_misra_c20_side_effects_logical_rhs);
+    }
+  }
+
+  // Check if the LHS and RHS have same essential type in usual airthmatic conversations
+  std::unordered_set<BinaryOperatorKind> AirthmaticOperatorSet={BO_Mul,BO_Div,BO_Rem,BO_Add,BO_Sub,BO_MulAssign,BO_DivAssign,BO_RemAssign,BO_AddAssign,BO_SubAssign};
+  if( AirthmaticOperatorSet.find(Opc)!=AirthmaticOperatorSet.end() && LHSExpr && RHSExpr && LHSExpr->getType() != RHSExpr->getType()){
+    bool LHSFlag=LHSExpr->getType()->isAnyCharacterType();
+    bool RHSFlag=(RHSExpr->getType()->isIntegralOrEnumerationType() || RHSExpr->getType()->isUnsignedIntegerType());
+    if(!( LHSFlag && RHSFlag && (Opc == BO_Add || Opc == BO_AddAssign || Opc == BO_Sub || Opc == BO_SubAssign))){
+      Diag(TokLoc,diag::ext_misra_c20_distinct_operand_type_in_usual_airhtmatic_conversatons);
+    }
+  }
   // Emit warnings for tricky precedence issues, e.g. "bitfield & 0x4 == 0"
   DiagnoseBinOpPrecedence(*this, Opc, TokLoc, LHSExpr, RHSExpr);
 
@@ -16265,6 +16308,16 @@ ExprResult Sema::BuildBinOp(Scope *S, SourceLocation OpLoc,
   }
 
   // Build a built-in binary operation.
+  // ************************** MISRA_C R.10.2 :: S_NO 59 ************************ //
+  // We cant add a char with another char.
+  QualType LHSType = LHSExpr->getType();
+  QualType RHSType = RHSExpr->getType();
+  if (Opc == BO_Add) {
+    if (LHSType->isCharType() && RHSType->isCharType()) {
+      Diag(OpLoc, diag::warn_char_type_in_arithmetic) << LHSType << RHSType;
+    }
+  }
+  // ************************** MISRA_C R.10.2 :: S_NO 59 ************************ //
   return CreateBuiltinBinOp(OpLoc, Opc, LHSExpr, RHSExpr);
 }
 
@@ -17656,6 +17709,12 @@ bool Sema::DiagnoseAssignmentResult(AssignConvertType ConvTy,
                                     bool *Complained) {
   if (Complained)
     *Complained = false;
+  
+  if (IsStringLiteralToNonConstPointerConversion(SrcExpr, DstType) ) {
+    Diag(SrcExpr->getExprLoc(), diag::warn_non_const_char_pointer) << DstType << SrcType;
+  }
+
+
 
   // Decode the result (notice that AST's are still created for extensions).
   bool CheckInferredResultType = false;

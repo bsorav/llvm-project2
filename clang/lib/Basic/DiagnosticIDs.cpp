@@ -755,7 +755,6 @@ bool DiagnosticIDs::ProcessDiag(DiagnosticsEngine &Diag) const {
 
   if (Diag.SuppressAllDiagnostics)
     return false;
-
   if (DiagLevel != DiagnosticIDs::Note) {
     // Record that a fatal error occurred only when we see a second
     // non-note diagnostic. This allows notes to be attached to the

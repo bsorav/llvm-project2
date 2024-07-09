@@ -91,6 +91,12 @@ def ext_misra_c20_backslash_in_include_filename : ExtWarn<
   "MISRA-C20: backslash not permitted in include filename.">, InGroup<MisraC20ImproperIncludeFilename>;
 def ext_misra_c20_comment_in_include_filename : ExtWarn<
   "MISRA-C20: comment not permitted in include filename.">, InGroup<MisraC20ImproperIncludeFilename>;
+def ext_misra_c20_repeated_include_filename : ExtWarn<
+  "MISRA-C20: repeated filename %0 not permitted in include filename.">, InGroup<MisraC20ImproperIncludeFilename>;
+def ext_misra_c20_header_filename_not_to_be_used : ExtWarn<
+  "MISRA-C20: The header file %0 should not be used.">, InGroup<MisraC20ImproperIncludeFilename>;
+def ext_misra_c20_preprocessing_directive_token_within_macro_argument : ExtWarn<
+  "MISRA_C20: Preprocessing Directive Token within Macro Argument.">, InGroup<MisraC20ImproperMacro>;
 
 def ext_unterminated_char_or_string : ExtWarn<
   "missing terminating %select{'|'\"'}0 character">, InGroup<InvalidPPToken>;
@@ -382,7 +388,7 @@ def pp_macro_not_used : Warning<"macro is not used">, DefaultIgnore,
   InGroup<DiagGroup<"unused-macros">>;
 def warn_pp_undef_identifier : Warning<
   "%0 is not defined, evaluates to 0">,
-  InGroup<DiagGroup<"undef">>, DefaultIgnore;
+  InGroup<DiagGroup<"undef">>;
 def warn_pp_undef_prefix : Warning<
   "%0 is not defined, evaluates to 0">,
   InGroup<DiagGroup<"undef-prefix">>, DefaultIgnore;
@@ -392,7 +398,7 @@ def note_pp_ambiguous_macro_chosen : Note<
   "expanding this definition of %0">;
 def note_pp_ambiguous_macro_other : Note<
   "other definition of %0">;
-def warn_pp_macro_hides_keyword : Extension<
+def warn_pp_macro_hides_keyword : Warning<
   "keyword is hidden by macro definition">, InGroup<KeywordAsMacro>;
 def warn_pp_macro_is_reserved_id : Warning<
   "macro name is a reserved identifier">, DefaultIgnore,
@@ -986,4 +992,33 @@ Error<"'#pragma unsafe_buffer_usage' was not ended">;
 
 def err_pp_pragma_unsafe_buffer_usage_syntax :
 Error<"Expected 'begin' or 'end'">;
+
+// MISRA C WARNINGS
+def warn_forbidden_function_usage : Warning<
+  "Usage of %0 is forbidden">,
+  InGroup<ForbiddenFunctionUsage>;
+
+def ext_misra_c215_include_signal_h : ExtWarn<
+  "MISRA-C21.5: signal.h is not permitted to use.">, InGroup<MisraC20ImproperIncludeFilename>;
+
+def ext_misra_c214_include_setjmp_h : ExtWarn<
+  "MISRA-C21.4: setjmp.h is not permitted to use.">, InGroup<MisraC20ImproperIncludeFilename>;
+
+def ext_misra_c_1_4_emergent_feature_not_allowed : ExtWarn<
+  "Emergent feature is not permitted.">;
+
+def err_warn_octal_literal : Warning<
+  "use of octal constants is not permitted">;
+
+def err_delimited_Hex_escape_sequence : Warning<
+  "use of Hex escape sequence is not permitted">, InGroup<OctalHexaEscSeqNotPermitted>;
+
+def err_delimited_octal_escape_sequence : Warning<
+  "use of octal escape sequence is not permitted">, InGroup<OctalHexaEscSeqNotPermitted>;
+
+def warn_missing_macro_parenthesis : Warning<"doesn't have parameters enclosed in parenthesis">, InGroup<MacroParenthesis>;
+
+def warn_hashash_after_hash : Warning<"hashash used after hash">, InGroup<HashGroup>;
+
+def warn_macro_if_elif_non_binary : Warning<"The conditional didn't evaluate to one or zero">, InGroup<NonBinConditional>;
 }

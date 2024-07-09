@@ -264,3 +264,58 @@ ModuleMacro *ModuleMacro::create(Preprocessor &PP, Module *OwningModule,
       alignof(ModuleMacro));
   return new (Mem) ModuleMacro(OwningModule, II, Macro, Overrides);
 }
+
+void MacroInfo::getStuffs(Preprocessor &PP) {
+  llvm::errs() << "Getting the tokens of macro \n\n";
+  for (unsigned i = 0; i != NumReplacementTokens; ++i) { 
+    const Token &A = ReplacementTokens[i];
+    PP.DumpToken(A, true);
+  }
+  llvm::errs() << "\n";
+}
+
+//*********************** S_NO -> 107 ********** MISRA_C R.20.11 **********************//
+// PP was passed as argument just for debugging process.
+bool MacroInfo::CheckForHash(Preprocessor &PP) {
+  for (unsigned i = 0; i != NumReplacementTokens; ++i) { 
+    const Token &A = ReplacementTokens[i];
+    if(A.is(tok::identifier) && i != 0 && i != NumReplacementTokens - 1) {
+      const Token &prev_tok = ReplacementTokens[i - 1];
+      const Token &next_tok = ReplacementTokens[i + 1];
+      if(prev_tok.is(tok::hash) && next_tok.is(tok::hashhash)) {
+        llvm::errs() << "You are not allowed ## after #\n";
+        return true;
+      }
+    }
+  }
+  return false;
+}
+//*********************** S_NO -> 107 ********** MISRA_C R.20.11 **********************//
+
+
+bool MacroInfo::checkMacroParams(Preprocessor &PP) const {
+  for(unsigned i = 0; i != NumReplacementTokens; ++i) {
+    const Token &tokA = ReplacementTokens[i];
+    int AArgNum = getParameterNum(tokA.getIdentifierInfo());
+    if(AArgNum != -1) {
+      if(i == 0) {
+        return true;
+      }
+      const Token &tokPrev = ReplacementTokens[i - 1];
+      if(i == NumReplacementTokens - 1) {
+        if(tokPrev.getKind() != tok::hash) return true;
+      }
+      if(tokPrev.getKind() != tok::hash) {
+        if(i == NumReplacementTokens - 1) {
+          return true;
+        } else {
+          const Token &tokNext = ReplacementTokens[i + 1];
+          if(tokPrev.getKind() != tok::l_paren || tokNext.getKind() != tok::r_paren) {
+            return true;
+          }
+        }
+      }
+    }
+  }
+  return false;
+}

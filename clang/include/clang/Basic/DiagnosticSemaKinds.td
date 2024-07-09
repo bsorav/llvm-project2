@@ -30,7 +30,7 @@ def note_loop_iteration_here : Note<"%select{decremented|incremented}0 here">;
 
 def warn_duplicate_enum_values : Warning<
   "element %0 has been implicitly assigned %1 which another element has "
-  "been assigned">, InGroup<DiagGroup<"duplicate-enum">>, DefaultIgnore;
+  "been assigned">, InGroup<DiagGroup<"duplicate-enum">>;
 def note_duplicate_element : Note<"element %0 also has value %1">;
 
 // Absolute value functions
@@ -248,6 +248,8 @@ def ext_designated_init_brace_elision : ExtWarn<
   InGroup<C99Designator>, SFINAEFailure;
 
 // Declarations.
+def ext_misra_c20_hiding_outer_scope_identifier : ExtWarn<
+  "MISRA_C20: declaration of %0 hides identifier from an outer scope">, InGroup<MisraC20ImproperIdentifierDeclaration>;
 def ext_plain_complex : ExtWarn<
   "plain '_Complex' requires a type specifier; assuming '_Complex double'">;
 def ext_imaginary_constant : Extension<
@@ -4018,10 +4020,10 @@ def err_impcast_complex_scalar : Error<
   "implicit conversion from %0 to %1 is not permitted in C++">;
 def warn_impcast_float_precision : Warning<
   "implicit conversion loses floating-point precision: %0 to %1">,
-  InGroup<ImplicitFloatConversion>, DefaultIgnore;
+  InGroup<ImplicitFloatConversion>;
 def warn_impcast_float_result_precision : Warning<
   "implicit conversion when assigning computation result loses floating-point precision: %0 to %1">,
-  InGroup<ImplicitFloatConversion>, DefaultIgnore;
+  InGroup<ImplicitFloatConversion>;
 def warn_impcast_double_promotion : Warning<
   "implicit conversion increases floating-point precision: %0 to %1">,
   InGroup<DoublePromotion>, DefaultIgnore;
@@ -4033,7 +4035,7 @@ def warn_impcast_integer_sign_conditional : Warning<
   InGroup<SignConversion>, DefaultIgnore;
 def warn_impcast_integer_precision : Warning<
   "implicit conversion loses integer precision: %0 to %1">,
-  InGroup<ImplicitIntConversion>, DefaultIgnore;
+  InGroup<ImplicitIntConversion>;
 def warn_impcast_high_order_zero_bits : Warning<
   "higher order bits are zeroes after implicit conversion">,
   InGroup<ImplicitIntConversion>, DefaultIgnore;
@@ -4042,7 +4044,7 @@ def warn_impcast_nonnegative_result : Warning<
   InGroup<SignConversion>, DefaultIgnore;
 def warn_impcast_integer_64_32 : Warning<
   "implicit conversion loses integer precision: %0 to %1">,
-  InGroup<Shorten64To32>, DefaultIgnore;
+  InGroup<Shorten64To32>;
 def warn_impcast_integer_precision_constant : Warning<
   "implicit conversion from %2 to %3 changes value from %0 to %1">,
   InGroup<ConstantConversion>;
@@ -4069,7 +4071,7 @@ def warn_impcast_literal_float_to_integer_out_of_range : Warning<
   InGroup<LiteralConversion>;
 def warn_impcast_float_integer : Warning<
   "implicit conversion turns floating-point number into integer: %0 to %1">,
-  InGroup<FloatConversion>, DefaultIgnore;
+  InGroup<FloatConversion>;
 def warn_impcast_float_to_objc_signed_char_bool : Warning<
   "implicit conversion from floating-point type %0 to 'BOOL'">,
   InGroup<ObjCSignedCharBoolImplicitFloatConversion>;
@@ -4080,14 +4082,14 @@ def warn_impcast_int_to_objc_signed_char_bool : Warning<
 // Implicit int -> float conversion precision loss warnings.
 def warn_impcast_integer_float_precision : Warning<
   "implicit conversion from %0 to %1 may lose precision">,
-  InGroup<ImplicitIntFloatConversion>, DefaultIgnore;
+  InGroup<ImplicitIntFloatConversion>;
 def warn_impcast_integer_float_precision_constant : Warning<
   "implicit conversion from %2 to %3 changes value from %0 to %1">,
   InGroup<ImplicitConstIntFloatConversion>;
 
 def warn_impcast_float_to_integer : Warning<
   "implicit conversion from %0 to %1 changes value from %2 to %3">,
-  InGroup<FloatOverflowConversion>, DefaultIgnore;
+  InGroup<FloatOverflowConversion>;
 def warn_impcast_float_to_integer_out_of_range : Warning<
   "implicit conversion of out of range value from %0 to %1 is undefined">,
   InGroup<FloatOverflowConversion>, DefaultIgnore;
@@ -10115,14 +10117,44 @@ def warn_missing_case : Warning<"%plural{"
   ":%0 enumeration values not handled in switch: %1, %2, %3...}0">,
   InGroup<Switch>;
 def warn_switch_default : Warning<"'switch' missing 'default' label">,
-  InGroup<SwitchDefault>, DefaultIgnore;
+  InGroup<SwitchDefault>;
+
+def ext_misra_c20_fallthrough_switch_case : ExtWarn<
+  "MISRA_C20: Not allowed fallthrough in switch case statement">,DefaultIgnore, InGroup<MisraC20ImproperSwitchStmt>;
+def ext_misra_c20_side_effects_logical_rhs : ExtWarn<
+  "MISRA_C20: RHS of logical operator contains persistent side effects">,
+  InGroup<MisraC20ImproperLogicalRHS>;
+def ext_misra_c20_partial_array_initialization : ExtWarn<
+  "MISRA_C20: Array is partially initialized">,
+  InGroup<MisraC20ImproperArrayInitialization>;
+def ext_misra_c20_recursive_function_call : ExtWarn<
+  "MISRA_C20: Recursive function call direclty or indirectly">,
+  InGroup<MisraC20ImproperFuntionCall>;
+def ext_misra_c20_bool_operand_for_bitwise_operator: ExtWarn<
+  "MISRA_C20: Bool operand for bitwise operator">,
+  InGroup<MisraC20ImproperOperands>;
+def ext_misra_c20_distinct_operand_type_in_usual_airhtmatic_conversatons: ExtWarn<
+  "MISRA_C20: Distict Operand type in usual airthmatic expression">,
+  InGroup<MisraC20ImproperOperands>;
+def ext_misra_c20_array_designated_initialization_without_specified_size_explicitly: ExtWarn<
+  "MISRA_C20: Array is designated initialized without specified size explicitly:">,
+  InGroup<MisraC20ImproperArrayInitialization>;
+def ext_misra_c20_initializer_list_contain_persistent_side_effects: ExtWarn<
+  "MISRA_C20: Initializer contain persistent side effects:">,
+  InGroup<MisraC20ImproperArrayInitialization>;
+def ext_misra_c20_variable_array_type: ExtWarn<
+  "MISRA_C20: Variable Array Type">,
+  InGroup<MisraC20ImproperDeclaration>;
+def ext_misra_c20_flexible_array_type: ExtWarn<
+  "MISRA_C20: Flexible Array Type">,
+  InGroup<MisraC20ImproperDeclaration>;
 
 def warn_unannotated_fallthrough : Warning<
   "unannotated fall-through between switch labels">,
-  InGroup<ImplicitFallthrough>, DefaultIgnore;
+  InGroup<ImplicitFallthrough>;
 def warn_unannotated_fallthrough_per_function : Warning<
   "unannotated fall-through between switch labels in partly-annotated "
-  "function">, InGroup<ImplicitFallthroughPerFunction>, DefaultIgnore;
+  "function">, InGroup<ImplicitFallthroughPerFunction>;
 def note_insert_fallthrough_fixit : Note<
   "insert '%0;' to silence this warning">;
 def note_insert_break_fixit : Note<
@@ -12164,4 +12196,69 @@ def err_wasm_builtin_arg_must_match_table_element_type : Error <
   "%ordinal0 argument must match the element type of the WebAssembly table in the %ordinal1 argument">;
 def err_wasm_builtin_arg_must_be_integer_type : Error <
   "%ordinal0 argument must be an integer">;
+
+// MISRA RULES warnings
+// One generic function to handle all.
+
+def misra_c_r_14_4_warn_bool_if_condition : Warning<
+"MISRA C Rule 14.4 : The The controlling expression of an if statement and the controlling expression of an iteration-statement shall have essentially Boolean type">,
+InGroup<MISRA>;
+
+def warn_misra_iteration_or_selection_body_not_compound : Warning<
+  "MISRA C Rule 15.6 : The body of an iteration-statement or a selection-statement shall be a compound statement">,
+InGroup<MISRA>;
+
+def warn_non_const_char_pointer : Warning<
+  "MISRA C Rule 7.4 : A string literal shall not be assigned to an object unless the object's type is pointer to const-qualified char">,
+InGroup<MISRA>;
+
+def warn_label_before_goto : Warning<
+  "MISRA C Rule R.15.2 : goto jumps to label declared before it">,
+InGroup<MISRA>;
+
+def warn_char_type_in_arithmetic : Warning<
+  "MISRA C RULE 10.2 : You can't add a char with another char">,
+InGroup<MISRA>;
+
+def warn_inline_not_static : Warning<
+  "inline function '%0' should be declared static to comply with MISRA C Rule 8.10">,
+  InGroup<MISRA>;
+
+def warn_misra_restrict_qualifier : Warning<
+  "MISRA C Rule 8.14: The restrict type qualifier shall not be used for '%0'">,
+  InGroup<MISRA>;
+
+def warn_else_not_found : Warning<
+  "MISRA C Rule 15.7 : All if . . else if constructs shall be terminated with an else statement">,
+  InGroup<MISRA>;
+
+def warn_switch_default_not_at_extreme : Warning<
+  "MISRA C Rule 16.5: Default shall be either at the start or end of switch">,
+  InGroup<MISRA>;
+
+def warn_switch_not_enough_clauses : Warning<
+  "MISRA C Rule 16.6: Every switch statement shall have at least two switch-clauses">,
+  InGroup<MISRA>;
+
+// MISRA_C 6.1 , 6.2 : 38 , 39.
+
+def warn_bit_fields_of_signed_must_be_greater : Warning<"Signed bit fields must have atleast length of 2">, InGroup<BitFieldsIssues>;
+def warn_bit_fields_must_be_signed_or_unsigned : Warning<"bit fields must be either signed or unsigned">, InGroup<BitFieldsIssues>;
+
+def warn_cast_function_to_non_function_pointer : Warning<
+  "Conversion is not allowed between pointer to a function and any other type">;
+def warn_cast_pointer_to_incomplete : Warning<
+  "Conversion is not allowed between pointer to a incomplete and any other type">;
+def ext_misra_c_1_4_emergent_feature_not_allowed_in_sema : ExtWarn<
+  "Emergent feature is not permitted.">;
+def warn_cast_pointer_to_void_and_arithmetic : Warning<
+  "Cast between pointer to void and arithmetic type is not permitted">;
+def warn_cast_pointer_to_pointer_of_diff_obj : Warning<
+  "Conversion is not allowed between pointer to object type and pointer to another object type">;
+def warn_cast_non_int_arithmetic_to_obj_pointer : Warning<
+  "Cast between pointer to object and non-integer arithmetic type is not allowed">;
+def warn_cast_pointer_to_pointer_remove_const : Warning<
+  "Conversion is not allowed between pointer to const-qualified object type and pointer to non-const-qualified object type">, InGroup<MISRARule11>;
+def warn_cast_pointer_to_pointer_remove_volatile : Warning<
+  "Conversion is not allowed between pointer to volatile-qualified object type and pointer to non-volatile-qualified object type">,InGroup<MISRARule11>;
 } // end of sema component.

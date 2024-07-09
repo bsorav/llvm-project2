@@ -1237,6 +1237,7 @@ void Preprocessor::HandleDirective(Token &Result) {
     // C99 6.10.2 - Source File Inclusion.
     case tok::pp_include:
       // Handle #include.
+      
       return HandleIncludeDirective(SavedHash.getLocation(), Result);
     case tok::pp___include_macros:
       // Handle -imacros.
@@ -1971,14 +1972,30 @@ void Preprocessor::HandleIncludeDirective(SourceLocation HashLoc,
   Token FilenameTok;
   if (LexHeaderName(FilenameTok))
     return;
-
   if (FilenameTok.isNot(tok::header_name)) {
     Diag(FilenameTok.getLocation(), diag::err_pp_expects_filename);
     if (FilenameTok.isNot(tok::eod))
       DiscardUntilEndOfDirective();
     return;
   }
-
+  //Get the filename from the token's source location
+  StringRef FilenameRef =getSpelling(FilenameTok);
+  std::string Filename=FilenameRef.str();
+  // llvm::errs()<<"Filename: "<<Filename<<"\n";
+  // Check if the filename is "setjmp.h" or "signal.h" or "stdarg.h"
+  if (Filename=="<setjmp.h>" or Filename=="<signal.h>" or Filename == "<stdarg.h>") {
+    Diag(HashLoc, diag::ext_misra_c20_header_filename_not_to_be_used)<<Filename;
+    // return;
+  }
+  
+  // Check if the filename has already been included
+  if (IncludedHeaderFileNames.count(Filename) > 0) {
+    // Handle repeated inclusion warning
+    Diag(IncludeTok.getLocation(), diag::ext_misra_c20_repeated_include_filename) << Filename;
+  } else {
+    // Add the filename to the set of included header files
+    IncludedHeaderFileNames.insert(Filename);
+  }
   // Verify that there is nothing after the filename, other than EOD.  Note
   // that we allow macros that expand to nothing after the filename, because
   // this falls into the category of "#include pp-tokens new-line" specified
@@ -2689,7 +2706,7 @@ void Preprocessor::HandleIncludeMacrosDirective(SourceLocation HashLoc,
 /// parsing the param list.
 bool Preprocessor::ReadMacroParameterList(MacroInfo *MI, Token &Tok) {
   SmallVector<IdentifierInfo*, 32> Parameters;
-
+  std::set<llvm::StringRef> PreprocessingDirectiveToken={"define","ifdef","undef","include","ifndef","endif","if","else","error","warning","region","endregion"};
   while (true) {
     LexUnexpandedNonComment(Tok);
     switch (Tok.getKind()) {
@@ -2744,6 +2761,12 @@ bool Preprocessor::ReadMacroParameterList(MacroInfo *MI, Token &Tok) {
 
       // Add the parameter to the macro info.
       Parameters.push_back(II);
+
+      //Checking paramete is preprocessing directive token
+      StringRef MacroParamName=II->getName();
+      if(MacroParamName == "define" || PreprocessingDirectiveToken.find(MacroParamName)!=PreprocessingDirectiveToken.end()){
+        Diag(Tok,diag::ext_misra_c20_preprocessing_directive_token_within_macro_argument);
+      }
 
       // Lex the token after the identifier.
       LexUnexpandedNonComment(Tok);
@@ -3090,10 +3113,25 @@ void Preprocessor::HandleDefineDirective(
       MacroNameTok, ImmediatelyAfterHeaderGuard);
 
   if (!MI) return;
+ 
+  //*********************** S_NO -> 107 ********** MISRA_C R.20.11 **********************//
+  if(MI->CheckForHash(*this)) {
+    Diag(MacroNameTok, diag::warn_hashash_after_hash);
+  }
+  //*********************** S_NO -> 107 ********** MISRA_C R.20.11 **********************//
 
   if (MacroShadowsKeyword &&
       !isConfigurationPattern(MacroNameTok, MI, getLangOpts())) {
     Diag(MacroNameTok, diag::warn_pp_macro_hides_keyword);
+  }
+  // if starts with '__' or '_[A-Z]' warn about hiding keywords
+  if (II->getName().starts_with("__") || (II->getName().starts_with("_") &&
+                                         II->getName().size() > 1 &&
+                                         isUppercase(II->getName()[1]))) {
+    // if name is __GCC_HAVE_DWARF2_CFI_ASM do not raise warning
+    if (!II->getName().starts_with("__GCC_HAVE_DWARF2_CFI_ASM")) {
+      Diag(MacroNameTok, diag::warn_pp_macro_hides_keyword);
+    }
   }
   // Check that there is no paste (##) operator at the beginning or end of the
   // replacement list.
@@ -3120,6 +3158,12 @@ void Preprocessor::HandleDefineDirective(
     if (!LangOpts.MicrosoftExt)
       return;
   }
+  // ********************** S_N0 -> 104 ********** MISRA_C RULE : R.20.7 ********************************** //
+  if(MI->checkMacroParams(*this)) {
+      Diag(MI->getDefinitionLoc(), diag::warn_missing_macro_parenthesis)
+          << MacroNameTok.getIdentifierInfo();
+  }
+  // ********************** S_N0 -> 104 ********** MISRA_C RULE : R.20.7 ********************************** //
 
   // Finally, if this identifier already had a macro defined for it, verify that
   // the macro bodies are identical, and issue diagnostics if they are not.

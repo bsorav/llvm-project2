@@ -185,6 +185,10 @@ static unsigned ProcessCharEscape(const char *ThisTokBegin,
     ResultChar = 11;
     break;
   case 'x': { // Hex escape.
+    if (Diags)
+      Diag(Diags, Features, Loc, ThisTokBegin, EscapeBegin, ThisTokBuf,
+          diag::err_delimited_Hex_escape_sequence)
+          << StringRef(ThisTokBuf, ThisTokEnd - ThisTokBuf);
     ResultChar = 0;
     if (ThisTokBuf != ThisTokEnd && *ThisTokBuf == '{') {
       Delimited = true;
@@ -251,6 +255,10 @@ static unsigned ProcessCharEscape(const char *ThisTokBegin,
 
     // Octal escapes are a series of octal digits with maximum length 3.
     // "\0123" is a two digit sequence equal to "\012" "3".
+    if (Diags)
+      Diag(Diags, Features, Loc, ThisTokBegin, EscapeBegin, ThisTokBuf,
+           diag::err_delimited_octal_escape_sequence)
+          << StringRef(ThisTokBuf, ThisTokEnd - ThisTokBuf);
     unsigned NumDigits = 0;
     do {
       ResultChar <<= 3;
@@ -269,6 +277,10 @@ static unsigned ProcessCharEscape(const char *ThisTokBegin,
     break;
   }
   case 'o': {
+    if (Diags)
+      Diag(Diags, Features, Loc, ThisTokBegin, EscapeBegin, ThisTokBuf,
+           diag::err_delimited_octal_escape_sequence)
+          << StringRef(ThisTokBuf, ThisTokEnd - ThisTokBuf);
     bool Overflow = false;
     if (ThisTokBuf == ThisTokEnd || *ThisTokBuf != '{') {
       HadError = true;
@@ -1045,6 +1057,15 @@ NumericLiteralParser::NumericLiteralParser(StringRef TokSpelling,
       continue;  // Success.
     case 'l':
     case 'L':
+      if (s[0] == 'l') {
+          Diags.Report(Lexer::AdvanceToTokenCharacter(
+                          TokLoc, SuffixBegin - ThisTokBegin, SM, LangOpts),
+                      diag::err_invalid_suffix_constant)
+              << StringRef(SuffixBegin, ThisTokEnd - SuffixBegin)
+              << (isFixedPointConstant ? 2 : isFPConstant);
+          hadError = true;
+          break;
+      }
       if (HasSize)
         break;
       HasSize = true;
@@ -1381,7 +1402,6 @@ void NumericLiteralParser::ParseNumberStartingWithZero(SourceLocation TokLoc) {
     // Other suffixes will be diagnosed by the caller.
     return;
   }
-
   // For now, the radix is set to 8. If we discover that we have a
   // floating point constant, the radix will change to 10. Octal floating
   // point constants are not permitted (only decimal and hexadecimal).
@@ -1395,7 +1415,10 @@ void NumericLiteralParser::ParseNumberStartingWithZero(SourceLocation TokLoc) {
     DigitsBegin = PossibleNewDigitStart;
 
   if (s == ThisTokEnd)
+  {
+    Diags.Report(TokLoc, diag::err_warn_octal_literal);
     return; // Done, simple octal number like 01234
+  }
 
   // If we have some other non-octal digit that *is* a decimal digit, see if
   // this is part of a floating point number like 094.123 or 09e1.
