@@ -6219,6 +6219,12 @@ Decl *Sema::ActOnDeclarator(Scope *S, Declarator &D) {
         S, D, MultiTemplateParamsArg(), Bases);
 
   Decl *Dcl = HandleDeclarator(S, D, MultiTemplateParamsArg());
+  //If the declarator has no identifier, no need to check.
+  auto *ND=dyn_cast<NamedDecl>(Dcl);
+  if (ND->getIdentifier()) {
+    // Check for hiding of outer scope identifiers by inner scope identifiers.
+    CheckForOuterScopeIdentifierHiding(S, ND);
+  }
 
   if (OriginalLexicalContext && OriginalLexicalContext->isObjCContainer() &&
       Dcl && Dcl->getDeclContext()->isFileContext())
@@ -6227,7 +6233,34 @@ Decl *Sema::ActOnDeclarator(Scope *S, Declarator &D) {
   if (!Bases.empty())
     ActOnFinishedFunctionDefinitionInOpenMPDeclareVariantScope(Dcl, Bases);
 
+  // Check for variable array type
+  if (VarDecl *VD = dyn_cast<VarDecl>(Dcl)) {
+    // Check if the variable declaration has a variable-length array type
+    if (VD->getType()->isVariableArrayType()) {
+        Diag(Dcl->getBeginLoc(),diag::ext_misra_c20_variable_array_type);
+    }
+  }
   return Dcl;
+}
+
+void Sema::CheckForOuterScopeIdentifierHiding(Scope *S, NamedDecl* CND) {
+  
+  // Traverse through the scopes up to the translation unit scope.
+  Scope *CurrentScope = S->getParent();
+  while(CurrentScope) {
+    // Iterate through all declarations in the current scope.
+    for (auto *Dcl : CurrentScope->decls()) {
+      if (auto *ND = dyn_cast<NamedDecl>(Dcl)) {
+        if (ND->getIdentifier() == CND->getIdentifier()) {
+          Diag(CND->getLocation(), diag::ext_misra_c20_hiding_outer_scope_identifier)
+              <<CND->getIdentifier();
+          Diag(ND->getLocation(), diag::note_previous_declaration_as)<<ND->getIdentifier();
+          // return; // Once found, return.
+        }
+      }
+    }
+    CurrentScope = CurrentScope->getParent();
+  }
 }
 
 /// DiagnoseClassNameShadow - Implement C++ [class.mem]p13:
@@ -10374,9 +10407,13 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
   NewFD->setParams(Params);
 
   if (D.getDeclSpec().isNoreturnSpecified())
+  {
+    // raise a warning 
+    Diag(D.getDeclSpec().getNoreturnSpecLoc(), diag::ext_misra_c_1_4_emergent_feature_not_allowed_in_sema);
     NewFD->addAttr(
         C11NoReturnAttr::Create(Context, D.getDeclSpec().getNoreturnSpecLoc()));
 
+  }
   // Functions returning a variably modified type violate C99 6.7.5.2p2
   // because all functions have linkage.
   if (!NewFD->isInvalidDecl() &&
@@ -15792,7 +15829,6 @@ Decl *Sema::ActOnStartOfFunctionDef(Scope *FnBodyScope, Decl *D,
         continue;
       assert(!isa<ParmVarDecl>(NonParmDecl) &&
              "parameters should not be in newly created FD yet");
-
       // If the decl has a name, make it accessible in the current scope.
       if (NonParmDecl->getDeclName())
         PushOnScopeChains(NonParmDecl, FnBodyScope, /*AddToContext=*/false);
@@ -15803,6 +15839,11 @@ Decl *Sema::ActOnStartOfFunctionDef(Scope *FnBodyScope, Decl *D,
         for (auto *EI : ED->enumerators())
           PushOnScopeChains(EI, FnBodyScope, /*AddToContext=*/false);
       }
+    }
+    for (ParmVarDecl *Param : FD->parameters()) {
+      // Get the declarator of the parameter
+      auto *ND=dyn_cast<NamedDecl>(Param);
+      CheckForOuterScopeIdentifierHiding(FnBodyScope, ND);
     }
   }
 
@@ -18246,9 +18287,30 @@ void Sema::ActOnStartCXXMemberDeclarations(Scope *S, Decl *TagD,
   assert(InjectedClassName->isInjectedClassName() &&
          "Broken injected-class-name");
 }
+static bool HasFlexibleArrayMember(const RecordDecl *RD) {
+    for (const auto *Field : RD->fields()) {
+        if (const auto *AT = dyn_cast<ArrayType>(Field->getType().getTypePtr())) {
+            if (AT->isIncompleteArrayType()) {
+                return true;
+            }
+            if (const auto *CAT = dyn_cast<ConstantArrayType>(AT)) {
+                if (CAT->getSize().getZExtValue() == 1) {
+                    return true;
+                }
+            }
+        }
+    }
+    return false;
+}
+
 
 void Sema::ActOnTagFinishDefinition(Scope *S, Decl *TagD,
                                     SourceRange BraceRange) {
+  if (RecordDecl *RD = dyn_cast_or_null<RecordDecl>(TagD)) {
+      if (HasFlexibleArrayMember(RD)) {
+          Diag(RD->getLocation(), diag::ext_misra_c20_flexible_array_type);
+      }
+  }
   AdjustDeclIfTemplate(TagD);
   TagDecl *Tag = cast<TagDecl>(TagD);
   Tag->setBraceRange(BraceRange);

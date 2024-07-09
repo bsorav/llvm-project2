@@ -1237,6 +1237,7 @@ void Preprocessor::HandleDirective(Token &Result) {
     // C99 6.10.2 - Source File Inclusion.
     case tok::pp_include:
       // Handle #include.
+      
       return HandleIncludeDirective(SavedHash.getLocation(), Result);
     case tok::pp___include_macros:
       // Handle -imacros.
@@ -1971,14 +1972,30 @@ void Preprocessor::HandleIncludeDirective(SourceLocation HashLoc,
   Token FilenameTok;
   if (LexHeaderName(FilenameTok))
     return;
-
   if (FilenameTok.isNot(tok::header_name)) {
     Diag(FilenameTok.getLocation(), diag::err_pp_expects_filename);
     if (FilenameTok.isNot(tok::eod))
       DiscardUntilEndOfDirective();
     return;
   }
-
+  //Get the filename from the token's source location
+  StringRef FilenameRef =getSpelling(FilenameTok);
+  std::string Filename=FilenameRef.str();
+  // llvm::errs()<<"Filename: "<<Filename<<"\n";
+  // Check if the filename is "setjmp.h" or "signal.h" or "stdarg.h"
+  if (Filename=="<setjmp.h>" or Filename=="<signal.h>" or Filename == "<stdarg.h>") {
+    Diag(HashLoc, diag::ext_misra_c20_header_filename_not_to_be_used)<<Filename;
+    // return;
+  }
+  
+  // Check if the filename has already been included
+  if (IncludedHeaderFileNames.count(Filename) > 0) {
+    // Handle repeated inclusion warning
+    Diag(IncludeTok.getLocation(), diag::ext_misra_c20_repeated_include_filename) << Filename;
+  } else {
+    // Add the filename to the set of included header files
+    IncludedHeaderFileNames.insert(Filename);
+  }
   // Verify that there is nothing after the filename, other than EOD.  Note
   // that we allow macros that expand to nothing after the filename, because
   // this falls into the category of "#include pp-tokens new-line" specified
@@ -2689,7 +2706,7 @@ void Preprocessor::HandleIncludeMacrosDirective(SourceLocation HashLoc,
 /// parsing the param list.
 bool Preprocessor::ReadMacroParameterList(MacroInfo *MI, Token &Tok) {
   SmallVector<IdentifierInfo*, 32> Parameters;
-
+  std::set<llvm::StringRef> PreprocessingDirectiveToken={"define","ifdef","undef","include","ifndef","endif","if","else","error","warning","region","endregion"};
   while (true) {
     LexUnexpandedNonComment(Tok);
     switch (Tok.getKind()) {
@@ -2744,6 +2761,12 @@ bool Preprocessor::ReadMacroParameterList(MacroInfo *MI, Token &Tok) {
 
       // Add the parameter to the macro info.
       Parameters.push_back(II);
+
+      //Checking paramete is preprocessing directive token
+      StringRef MacroParamName=II->getName();
+      if(MacroParamName == "define" || PreprocessingDirectiveToken.find(MacroParamName)!=PreprocessingDirectiveToken.end()){
+        Diag(Tok,diag::ext_misra_c20_preprocessing_directive_token_within_macro_argument);
+      }
 
       // Lex the token after the identifier.
       LexUnexpandedNonComment(Tok);

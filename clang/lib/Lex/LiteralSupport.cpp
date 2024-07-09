@@ -1402,7 +1402,6 @@ void NumericLiteralParser::ParseNumberStartingWithZero(SourceLocation TokLoc) {
     // Other suffixes will be diagnosed by the caller.
     return;
   }
-  Diags.Report(TokLoc, diag::err_warn_octal_literal);
   // For now, the radix is set to 8. If we discover that we have a
   // floating point constant, the radix will change to 10. Octal floating
   // point constants are not permitted (only decimal and hexadecimal).
@@ -1416,7 +1415,10 @@ void NumericLiteralParser::ParseNumberStartingWithZero(SourceLocation TokLoc) {
     DigitsBegin = PossibleNewDigitStart;
 
   if (s == ThisTokEnd)
+  {
+    Diags.Report(TokLoc, diag::err_warn_octal_literal);
     return; // Done, simple octal number like 01234
+  }
 
   // If we have some other non-octal digit that *is* a decimal digit, see if
   // this is part of a floating point number like 094.123 or 09e1.

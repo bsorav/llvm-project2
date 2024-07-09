@@ -91,6 +91,12 @@ def ext_misra_c20_backslash_in_include_filename : ExtWarn<
   "MISRA-C20: backslash not permitted in include filename.">, InGroup<MisraC20ImproperIncludeFilename>;
 def ext_misra_c20_comment_in_include_filename : ExtWarn<
   "MISRA-C20: comment not permitted in include filename.">, InGroup<MisraC20ImproperIncludeFilename>;
+def ext_misra_c20_repeated_include_filename : ExtWarn<
+  "MISRA-C20: repeated filename %0 not permitted in include filename.">, InGroup<MisraC20ImproperIncludeFilename>;
+def ext_misra_c20_header_filename_not_to_be_used : ExtWarn<
+  "MISRA-C20: The header file %0 should not be used.">, InGroup<MisraC20ImproperIncludeFilename>;
+def ext_misra_c20_preprocessing_directive_token_within_macro_argument : ExtWarn<
+  "MISRA_C20: Preprocessing Directive Token within Macro Argument.">, InGroup<MisraC20ImproperMacro>;
 
 def ext_unterminated_char_or_string : ExtWarn<
   "missing terminating %select{'|'\"'}0 character">, InGroup<InvalidPPToken>;
@@ -997,6 +1003,9 @@ def ext_misra_c215_include_signal_h : ExtWarn<
 
 def ext_misra_c214_include_setjmp_h : ExtWarn<
   "MISRA-C21.4: setjmp.h is not permitted to use.">, InGroup<MisraC20ImproperIncludeFilename>;
+
+def ext_misra_c_1_4_emergent_feature_not_allowed : ExtWarn<
+  "Emergent feature is not permitted.">;
 
 def err_warn_octal_literal : Warning<
   "use of octal constants is not permitted">;
