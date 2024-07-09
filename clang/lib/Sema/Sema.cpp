@@ -1483,12 +1483,12 @@ void Sema::ActOnEndOfTranslationUnit() {
   }
   DetectCyclesInCallGraph(CallGraph, *this);
 }
-
 void Sema::ExtractCallsFromStmt(Sema &S, Stmt *Statement, FunctionDecl *FD, llvm::DenseMap<FunctionDecl *, std::set<FunctionDecl *>> &CallGraph) {
   if (!Statement)
     return;
 
-  for (Stmt *Child : Statement->children()) {
+  for (auto *Child : Statement->children()) {
+    if(!Child) continue;
     if (auto *Call = dyn_cast<CallExpr>(Child)) {
       if (FunctionDecl *Callee = Call->getDirectCallee()) {
         CallGraph[FD->getCanonicalDecl()].insert(Callee->getCanonicalDecl());
