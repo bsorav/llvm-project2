@@ -10120,7 +10120,7 @@ def warn_switch_default : Warning<"'switch' missing 'default' label">,
   InGroup<SwitchDefault>;
 
 def ext_misra_c20_fallthrough_switch_case : ExtWarn<
-  "MISRA_C20: Not allowed fallthrough in switch case statement">, InGroup<MisraC20ImproperSwitchStmt>;
+  "MISRA_C20: Not allowed fallthrough in switch case statement">,DefaultIgnore, InGroup<MisraC20ImproperSwitchStmt>;
 def ext_misra_c20_side_effects_logical_rhs : ExtWarn<
   "MISRA_C20: RHS of logical operator contains persistent side effects">,
   InGroup<MisraC20ImproperLogicalRHS>;
@@ -10151,10 +10151,10 @@ def ext_misra_c20_flexible_array_type: ExtWarn<
 
 def warn_unannotated_fallthrough : Warning<
   "unannotated fall-through between switch labels">,
-  InGroup<ImplicitFallthrough>, DefaultIgnore;
+  InGroup<ImplicitFallthrough>;
 def warn_unannotated_fallthrough_per_function : Warning<
   "unannotated fall-through between switch labels in partly-annotated "
-  "function">, InGroup<ImplicitFallthroughPerFunction>, DefaultIgnore;
+  "function">, InGroup<ImplicitFallthroughPerFunction>;
 def note_insert_fallthrough_fixit : Note<
   "insert '%0;' to silence this warning">;
 def note_insert_break_fixit : Note<
