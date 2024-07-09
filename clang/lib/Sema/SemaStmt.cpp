@@ -908,22 +908,27 @@ StmtResult Sema::ActOnIfStmt(SourceLocation IfLoc,
 
   // // ************************ 15.6 MISRA : S_NO : 82 ************************************ 
   if ( (!thenStmt || !isa<CompoundStmt>(thenStmt)) ) {
-    llvm::errs() << "The body of a if statement shall be a compound statement \n\n";
     Diag(thenStmt->getBeginLoc(), diag::warn_misra_iteration_or_selection_body_not_compound);
   }
   if ( (elseStmt && !isa<IfStmt>(elseStmt)) ) {
     if (!isa<CompoundStmt>(elseStmt) ) {
-      llvm::errs() << "The body of an else statement shall be a compound statement \n\n";
       Diag(elseStmt->getBeginLoc(), diag::warn_misra_iteration_or_selection_body_not_compound);
     }
   }
   // ************************ 15.6 MISRA : S_NO : 82 ************************************ 
-  // Commenting it for the time being.
+
+
+
   // ***************************** MISRA_C R.15.7 *************************************** 
-  // if(!elseStmt) {
-  //   Diags.Report(IfLoc, diag::warn_else_not_found);
-  // }
+  if ( (elseStmt && isa<IfStmt>(elseStmt)) ) {
+    IfStmt *ifStmt = cast<IfStmt>(elseStmt);
+    if (!ifStmt->hasElseStorage()) {
+      llvm::errs() << "So we are here\n";
+      Diag(elseStmt->getEndLoc(), diag::warn_else_not_found);
+    }
+  }
   // ***************************** MISRA_C R.15.7 ***************************************
+
   if (ConstevalOrNegatedConsteval ||
       StatementKind == IfStatementKind::Constexpr) {
     auto DiagnoseLikelihood = [&](const Stmt *S) {
