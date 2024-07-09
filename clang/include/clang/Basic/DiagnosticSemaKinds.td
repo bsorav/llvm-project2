@@ -12199,6 +12199,11 @@ def err_wasm_builtin_arg_must_be_integer_type : Error <
 
 // MISRA RULES warnings
 // One generic function to handle all.
+
+def misra_c_r_14_4_warn_bool_if_condition : Warning<
+"MISRA C Rule 14.4 : The The controlling expression of an if statement and the controlling expression of an iteration-statement shall have essentially Boolean type">,
+InGroup<MISRA>;
+
 def warn_misra_iteration_or_selection_body_not_compound : Warning<
   "MISRA C Rule 15.6 : The body of an iteration-statement or a selection-statement shall be a compound statement">,
 InGroup<MISRA>;
