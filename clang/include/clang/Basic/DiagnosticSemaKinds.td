@@ -4020,10 +4020,10 @@ def err_impcast_complex_scalar : Error<
   "implicit conversion from %0 to %1 is not permitted in C++">;
 def warn_impcast_float_precision : Warning<
   "implicit conversion loses floating-point precision: %0 to %1">,
-  InGroup<ImplicitFloatConversion>, DefaultIgnore;
+  InGroup<ImplicitFloatConversion>;
 def warn_impcast_float_result_precision : Warning<
   "implicit conversion when assigning computation result loses floating-point precision: %0 to %1">,
-  InGroup<ImplicitFloatConversion>, DefaultIgnore;
+  InGroup<ImplicitFloatConversion>;
 def warn_impcast_double_promotion : Warning<
   "implicit conversion increases floating-point precision: %0 to %1">,
   InGroup<DoublePromotion>, DefaultIgnore;
@@ -4035,7 +4035,7 @@ def warn_impcast_integer_sign_conditional : Warning<
   InGroup<SignConversion>, DefaultIgnore;
 def warn_impcast_integer_precision : Warning<
   "implicit conversion loses integer precision: %0 to %1">,
-  InGroup<ImplicitIntConversion>, DefaultIgnore;
+  InGroup<ImplicitIntConversion>;
 def warn_impcast_high_order_zero_bits : Warning<
   "higher order bits are zeroes after implicit conversion">,
   InGroup<ImplicitIntConversion>, DefaultIgnore;
@@ -4044,7 +4044,7 @@ def warn_impcast_nonnegative_result : Warning<
   InGroup<SignConversion>, DefaultIgnore;
 def warn_impcast_integer_64_32 : Warning<
   "implicit conversion loses integer precision: %0 to %1">,
-  InGroup<Shorten64To32>, DefaultIgnore;
+  InGroup<Shorten64To32>;
 def warn_impcast_integer_precision_constant : Warning<
   "implicit conversion from %2 to %3 changes value from %0 to %1">,
   InGroup<ConstantConversion>;
@@ -4071,7 +4071,7 @@ def warn_impcast_literal_float_to_integer_out_of_range : Warning<
   InGroup<LiteralConversion>;
 def warn_impcast_float_integer : Warning<
   "implicit conversion turns floating-point number into integer: %0 to %1">,
-  InGroup<FloatConversion>, DefaultIgnore;
+  InGroup<FloatConversion>;
 def warn_impcast_float_to_objc_signed_char_bool : Warning<
   "implicit conversion from floating-point type %0 to 'BOOL'">,
   InGroup<ObjCSignedCharBoolImplicitFloatConversion>;
@@ -4082,14 +4082,14 @@ def warn_impcast_int_to_objc_signed_char_bool : Warning<
 // Implicit int -> float conversion precision loss warnings.
 def warn_impcast_integer_float_precision : Warning<
   "implicit conversion from %0 to %1 may lose precision">,
-  InGroup<ImplicitIntFloatConversion>, DefaultIgnore;
+  InGroup<ImplicitIntFloatConversion>;
 def warn_impcast_integer_float_precision_constant : Warning<
   "implicit conversion from %2 to %3 changes value from %0 to %1">,
   InGroup<ImplicitConstIntFloatConversion>;
 
 def warn_impcast_float_to_integer : Warning<
   "implicit conversion from %0 to %1 changes value from %2 to %3">,
-  InGroup<FloatOverflowConversion>, DefaultIgnore;
+  InGroup<FloatOverflowConversion>;
 def warn_impcast_float_to_integer_out_of_range : Warning<
   "implicit conversion of out of range value from %0 to %1 is undefined">,
   InGroup<FloatOverflowConversion>, DefaultIgnore;
