@@ -1489,6 +1489,7 @@ void Sema::ExtractCallsFromStmt(Sema &S, Stmt *Statement, FunctionDecl *FD, llvm
     return;
 
   for (Stmt *Child : Statement->children()) {
+    if(!Child) continue;
     if (auto *Call = dyn_cast<CallExpr>(Child)) {
       if (FunctionDecl *Callee = Call->getDirectCallee()) {
         CallGraph[FD->getCanonicalDecl()].insert(Callee->getCanonicalDecl());
