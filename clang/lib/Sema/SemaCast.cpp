@@ -2917,7 +2917,6 @@ void CastOperation::CheckCStyleCast() {
                                        ValueKind, BasePath);
     return;
   }
-
   // C99 6.5.4p2: the cast type needs to be void or scalar and the expression
   // type needs to be scalar.
   if (DestType->isVoidType()) {
@@ -3117,23 +3116,7 @@ void CastOperation::CheckCStyleCast() {
     }
     return;
   }
-  // is src a pointer to void or not 
-  if (SrcType->isVoidPointerType()) {
-    printf("SrcType is a void pointer\n");
-  }
-  // if dest a pointer to arithmetic type or not
-  if (DestType->isArithmeticType()) {
-    printf("DestType is an arithmetic type\n");
-  }
-  if (DestType->isVoidPointerType()) {
-    printf("DestType is a void pointer\n");
-  }
-  // if dest a pointer to arithmetic type or not
-  if (SrcType->isArithmeticType()) {
-    printf("SrcType is an arithmetic type\n");
-  }
-
-
+  
   // A cast shall not remove any const or volatile qualification from the type pointed to by a pointer
   if (SrcType->isPointerType() && DestType->isPointerType()) {
     if (SrcType->getPointeeType().isConstQualified() ^ DestType->getPointeeType().isConstQualified()) {
@@ -3159,13 +3142,11 @@ void CastOperation::CheckCStyleCast() {
           << SrcType << DestType << SrcExpr.get()->getSourceRange();
   }
 
-  // The macro NULL shall be the only permitted form of integer null pointer constant MISRA rule
-  // int *ptr2 = (int *)0; should raise a warning
-  // A cast shall not be performed between pointer to void and an arithmetic type
+  // check if src type is arithmetic type and dest type is void pointer type or vice versa
+
   if ((SrcType->isArithmeticType() && DestType->isVoidPointerType()) || (SrcType->isVoidPointerType() && DestType->isArithmeticType())) {
-    // casts are allowed if and only if arithmetic type is NULL 
-    // raise warning if casts are like void *ptr2 = (void *)0; but not at void *ptr = (void *)NULL;
-    if (SrcType->isArithmeticType() && !SrcExpr.get()->isNullPointerConstant(Self.Context, Expr::NPC_ValueDependentIsNotNull)) {
+    auto srcExpr = SrcExpr.get();
+    if (SrcType->isArithmeticType() && (!(SrcExpr.get()->isNullPointerConstant(Self.Context, Expr::NPC_ValueDependentIsNotNull) && srcExpr->getExprLoc().isMacroID()))) {
       Self.Diag(SrcExpr.get()->getBeginLoc(),
                 diag::warn_cast_pointer_to_void_and_arithmetic)
             << SrcType << DestType << SrcExpr.get()->getSourceRange();

@@ -12261,4 +12261,8 @@ def warn_cast_pointer_to_pointer_remove_const : Warning<
   "Conversion is not allowed between pointer to const-qualified object type and pointer to non-const-qualified object type">, InGroup<MISRARule11>;
 def warn_cast_pointer_to_pointer_remove_volatile : Warning<
   "Conversion is not allowed between pointer to volatile-qualified object type and pointer to non-volatile-qualified object type">,InGroup<MISRARule11>;
+def warn_misra_float_loop_counter : Warning<
+  "MISRA 14.2 : A loop counter shall not have essentially floating type">;
+def warn_not_well_formed_for_loop : Warning<
+  "For loop should be well formed">;
 } // end of sema component.

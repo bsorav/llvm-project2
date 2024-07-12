@@ -24,6 +24,7 @@ namespace clang {
 inline PartialDiagnostic Sema::PDiag(unsigned DiagID) {
   return PartialDiagnostic(DiagID, Context.getDiagAllocator());
 }
+void getLoopCounterVariables(const Expr *E, llvm::SmallVectorImpl<const VarDecl *> &Vars);
 
 inline bool
 FTIHasSingleVoidParameter(const DeclaratorChunk::FunctionTypeInfo &FTI) {

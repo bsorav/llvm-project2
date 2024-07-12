@@ -2259,6 +2259,27 @@ void Sema::CheckBreakContinueBinding(Expr *E) {
         << "continue";
   }
 }
+void clang::getLoopCounterVariables(const Expr *E, llvm::SmallVectorImpl<const VarDecl *> &Vars) {
+  if (!E)
+    return;
+
+  if (const DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(E)) {
+    if (const VarDecl *VD = dyn_cast<VarDecl>(DRE->getDecl())) {
+      Vars.push_back(VD);
+    }
+  } else if (const BinaryOperator *BO = dyn_cast<BinaryOperator>(E)) {
+    getLoopCounterVariables(BO->getLHS(), Vars);
+    getLoopCounterVariables(BO->getRHS(), Vars);
+  } else if (const UnaryOperator *UO = dyn_cast<UnaryOperator>(E)) {
+    getLoopCounterVariables(UO->getSubExpr(), Vars);
+  } else if (const ParenExpr *PE = dyn_cast<ParenExpr>(E)) {
+    getLoopCounterVariables(PE->getSubExpr(), Vars);
+  }else if (const ImplicitCastExpr *ICE = dyn_cast<ImplicitCastExpr>(E)) {
+    getLoopCounterVariables(ICE->getSubExpr(), Vars);
+  }
+
+}
+
 
 StmtResult Sema::ActOnForStmt(SourceLocation ForLoc, SourceLocation LParenLoc,
                               Stmt *First, ConditionResult Second,
@@ -2293,6 +2314,27 @@ StmtResult Sema::ActOnForStmt(SourceLocation ForLoc, SourceLocation LParenLoc,
       // declarations.
       if (NonVarSeen && !VarDeclSeen)
         Diag(NonVarSeen->getLocation(), diag::err_non_variable_decl_in_for);
+    }
+  }
+  llvm::SmallVector<const VarDecl *, 4> SecondLoopVars;
+  llvm::SmallVector<const VarDecl *, 4> ThirdLoopVars;
+  if (Second.get().second)
+    getLoopCounterVariables(Second.get().second->IgnoreParens(), SecondLoopVars);
+  if (third.get())
+    getLoopCounterVariables(third.get()->IgnoreParens(), ThirdLoopVars);
+
+  std::set<const VarDecl *> IntersectionVars;
+  std::set_intersection(SecondLoopVars.begin(), SecondLoopVars.end(),
+                        ThirdLoopVars.begin(), ThirdLoopVars.end(),
+                        std::inserter(IntersectionVars, IntersectionVars.begin()));
+
+  
+  // Check if any of the loop variables are of floating-point type
+  for (const VarDecl *VD : IntersectionVars) {
+    QualType QT = VD->getType();
+    if (QT->isFloatingType()) {
+      Diag(VD->getLocation(), diag::warn_misra_float_loop_counter)
+        << QT;
     }
   }
 
