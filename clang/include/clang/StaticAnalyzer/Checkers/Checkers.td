@@ -610,6 +610,10 @@ def SimpleStreamChecker : Checker<"SimpleStream">,
   HelpText<"Check for misuses of stream APIs">,
   Documentation<HasDocumentation>;
 
+def ReadOnlyStreamChecker : Checker<"ReadOnlyStreamChecker">,
+  HelpText<"Check for attempts to write to streams opened as read-only">,
+  Documentation<HasDocumentation>;
+
 def BlockInCriticalSectionChecker : Checker<"BlockInCriticalSection">,
   HelpText<"Check for calls to blocking functions inside a critical section">,
   Documentation<HasDocumentation>;
