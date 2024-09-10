@@ -1311,7 +1311,7 @@ Decl *Parser::ParseFunctionDefinition(ParsingDeclarator &D,
   llvm::TimeTraceScope TimeScope("ParseFunctionDefinition", [&]() {
     return Actions.GetNameForDeclarator(D).getName().getAsString();
   });
-
+  
   // Poison SEH identifiers so they are flagged as illegal in function bodies.
   PoisonSEHIdentifiersRAIIObject PoisonSEHIdentifiers(*this, true);
   const DeclaratorChunk::FunctionTypeInfo &FTI = D.getFunctionTypeInfo();

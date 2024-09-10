@@ -12201,7 +12201,7 @@ def err_wasm_builtin_arg_must_be_integer_type : Error <
 // One generic function to handle all.
 
 def misra_c_r_14_4_warn_bool_if_condition : Warning<
-"MISRA C Rule 14.4 : The The controlling expression of an if statement and the controlling expression of an iteration-statement shall have essentially Boolean type">,
+"MISRA C Rule 14.4 : The controlling expression of an if statement and the controlling expression of an iteration-statement shall have essentially Boolean type">,
 InGroup<MISRA>;
 
 def warn_misra_iteration_or_selection_body_not_compound : Warning<
@@ -12239,6 +12239,29 @@ def warn_switch_default_not_at_extreme : Warning<
 def warn_switch_not_enough_clauses : Warning<
   "MISRA C Rule 16.6: Every switch statement shall have at least two switch-clauses">,
   InGroup<MISRA>;
+
+def warn_dereferencing_file_pointer : Warning<
+  "MISRA C Rule 22.5 : A pointer to a FILE object shall not be dereferenced">,
+  InGroup<MISRA>;
+
+
+def ext_misra_c20_std_io_not_allowed : ExtWarn<
+  "MISRA_C20: The Standard Library input/output routines shall not be used.">, InGroup<MisraC20ImproperFunctionUsed>;
+def ext_misra_c20_std_date_and_time_not_allowed : ExtWarn<
+  "MISRA_C20: Standard Library time and date routines not allowed.">, InGroup<MisraC20ImproperFunctionUsed>;
+def ext_misra_c20_std_bsearch_and_qsort_not_allowed : ExtWarn<
+  "MISRA_C20: The Standard Library functions bsearch and qsort of < stdlib.h> shall not be used.">, InGroup<MisraC20ImproperFunctionUsed>;
+def ext_misra_c20_std_converter_not_allowed : ExtWarn<
+  "MISRA_C20: The Standard Library functions atof, atoi, atol and atoll of < stdlib.h> shall not be used.">, InGroup<MisraC20ImproperFunctionUsed>;
+def ext_misra_c20_std_termination_func_not_allowed : ExtWarn<
+  "MISRA_C20: The Standard Library termination functions of < stdlib.h> shall not be used.">, InGroup<MisraC20ImproperFunctionUsed>;
+def ext_misra_c20_std_system_func_not_allowed : ExtWarn<
+  "MISRA_C20: The Standard Library function system shall not be used.">, InGroup<MisraC20ImproperFunctionUsed>;
+
+
+//def warn_memory_overlapping: Warning<
+//  "MISRA C Rule 19.1: An object shall not be assigned or copied to an overlapping object">,
+//InGroup<MISRA>;
 
 // MISRA_C 6.1 , 6.2 : 38 , 39.
 

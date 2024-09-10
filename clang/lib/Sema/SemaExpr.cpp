@@ -571,6 +571,7 @@ static void CheckForNullPointerDereference(Sema &S, Expr *E) {
       UO->getSubExpr()->getType()->isPointerType()) {
     const LangAS AS =
         UO->getSubExpr()->getType()->getPointeeType().getAddressSpace();
+        // llvm::errs() << "Pointee Type:"  ;
     if ((!isTargetAddressSpace(AS) ||
          (isTargetAddressSpace(AS) && toTargetAddressSpace(AS) == 0)) &&
         UO->getSubExpr()->IgnoreParenCasts()->isNullPointerConstant(
@@ -584,6 +585,38 @@ static void CheckForNullPointerDereference(Sema &S, Expr *E) {
     }
   }
 }
+
+// ----------- MISRA C rule 22.5 --------------------
+// check is we are dereferencing a file pointer .
+// if so then raise a warning.
+// handled only for unary case .
+static void CheckForFilePointerDereference(Sema &S, Expr *E) {
+  const auto *UO = dyn_cast<UnaryOperator>(E->IgnoreParenCasts());
+  if (UO && UO->getOpcode() == UO_Deref &&
+    UO->getSubExpr()->getType()->isPointerType()){
+      QualType PointeeType = UO->getSubExpr()->getType()->getPointeeType();
+      const Type *BaseType = PointeeType.getTypePtr();
+      // llvm::errs() << "Pointee Type:  "  << PointeeType << "\n";
+      // llvm::errs() << "base Type:\n" << *BaseType ;
+      // if (const RecordType *RT = PointeeType->getAs<RecordType>()) {
+      //   const TagDecl *Tag = RT->getDecl();
+      //   if (Tag && Tag->getNameAsString() == "FILE") {
+      //     // This is a FILE type
+          
+      //   }
+      // }
+      if (PointeeType.getAsString() == "FILE") {
+          // Emit a diagnostic for dereferencing a FILE pointer.
+          S.Diag(UO->getOperatorLoc(), diag::warn_dereferencing_file_pointer)
+              << UO->getSubExpr()->getSourceRange();
+          return; // Issue detected, no need to check further.
+        }
+      
+    }
+}
+
+
+
 
 static void DiagnoseDirectIsaAccess(Sema &S, const ObjCIvarRefExpr *OIRE,
                                     SourceLocation AssignLoc,
@@ -688,6 +721,8 @@ ExprResult Sema::DefaultLvalueConversion(Expr *E) {
   }
 
   CheckForNullPointerDereference(*this, E);
+  CheckForFilePointerDereference(*this, E);
+
   if (const ObjCIsaExpr *OISA = dyn_cast<ObjCIsaExpr>(E->IgnoreParenCasts())) {
     NamedDecl *ObjectGetClass = LookupSingleName(TUScope,
                                      &Context.Idents.get("object_getClass"),
@@ -7156,6 +7191,7 @@ ExprResult Sema::ActOnCallExpr(Scope *Scope, Expr *Fn, SourceLocation LParenLoc,
                     /*IsExecConfig=*/false, /*AllowRecovery=*/true);
   if (Call.isInvalid())
     return Call;
+  
 
   // Diagnose uses of the C++20 "ADL-only template-id call" feature in earlier
   // language modes.
@@ -7175,6 +7211,7 @@ ExprResult Sema::ActOnCallExpr(Scope *Scope, Expr *Fn, SourceLocation LParenLoc,
     if (const auto *CE = dyn_cast<CallExpr>(Call.get()))
       DiagnosedUnqualifiedCallsToStdFunctions(*this, CE);
   }
+
   return Call;
 }
 
@@ -14692,6 +14729,7 @@ QualType Sema::CheckAssignmentOperands(Expr *LHSExpr, ExprResult &RHS,
     return QualType();
 
   CheckForNullPointerDereference(*this, LHSExpr);
+  CheckForFilePointerDereference(*this, LHSExpr);
 
   if (getLangOpts().CPlusPlus20 && LHSType.isVolatileQualified()) {
     if (CompoundType.isNull()) {

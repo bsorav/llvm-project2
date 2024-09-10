@@ -1057,15 +1057,15 @@ NumericLiteralParser::NumericLiteralParser(StringRef TokSpelling,
       continue;  // Success.
     case 'l':
     case 'L':
-      if (s[0] == 'l') {
-          Diags.Report(Lexer::AdvanceToTokenCharacter(
-                          TokLoc, SuffixBegin - ThisTokBegin, SM, LangOpts),
-                      diag::err_invalid_suffix_constant)
-              << StringRef(SuffixBegin, ThisTokEnd - SuffixBegin)
-              << (isFixedPointConstant ? 2 : isFPConstant);
-          hadError = true;
-          break;
-      }
+      // if (s[0] == 'l') {
+      //     Diags.Report(Lexer::AdvanceToTokenCharacter(
+      //                     TokLoc, SuffixBegin - ThisTokBegin, SM, LangOpts),
+      //                 diag::err_invalid_suffix_constant)
+      //         << StringRef(SuffixBegin, ThisTokEnd - SuffixBegin)
+      //         << (isFixedPointConstant ? 2 : isFPConstant);
+      //     hadError = true;
+      //     break;
+      // }
       if (HasSize)
         break;
       HasSize = true;

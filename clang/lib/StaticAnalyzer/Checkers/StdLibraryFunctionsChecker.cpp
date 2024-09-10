@@ -1356,6 +1356,12 @@ void StdLibraryFunctionsChecker::checkPreCall(const CallEvent &Call,
           }));
     }
   }
+  const FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(Call.getDecl());
+  if (!FD)
+    return;
+
+  StringRef FuncName = FD->getName();
+  llvm::errs() << FuncName << "\n";
 }
 
 void StdLibraryFunctionsChecker::checkPostCall(const CallEvent &Call,

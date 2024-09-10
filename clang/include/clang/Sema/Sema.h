@@ -73,6 +73,8 @@
 #include <tuple>
 #include <vector>
 
+
+
 namespace llvm {
   class APSInt;
   template <typename ValueT, typename ValueInfoT> class DenseSet;
@@ -395,7 +397,6 @@ public:
   /// instructions, and global values.
   static const unsigned MaxAlignmentExponent = 32;
   static const uint64_t MaximumAlignment = 1ull << MaxAlignmentExponent;
-
   typedef OpaquePtr<DeclGroupRef> DeclGroupPtrTy;
   typedef OpaquePtr<TemplateName> TemplateTy;
   typedef OpaquePtr<QualType> TypeTy;

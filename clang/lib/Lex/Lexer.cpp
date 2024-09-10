@@ -200,7 +200,7 @@ Lexer *Lexer::Create_PragmaLexer(SourceLocation SpellingLoc,
                                  SourceLocation ExpansionLocEnd,
                                  unsigned TokLen, Preprocessor &PP) {
   SourceManager &SM = PP.getSourceManager();
-
+  
   // Create the lexer as if we were going to lex the file normally.
   FileID SpellingFID = SM.getFileID(SpellingLoc);
   llvm::MemoryBufferRef InputFile = SM.getBufferOrFake(SpellingFID);

@@ -287,6 +287,11 @@ public:
   /// The kind of translation unit we are processing.
   const TranslationUnitKind TUKind;
 
+  std::unordered_set<std::string> getIncludedHeaderFileNames(){
+    //   std::unordered_set<std::string> IncludedHeaderFileNames;
+    return IncludedHeaderFileNames;
+  }
+
 private:
   /// The code-completion handler.
   CodeCompletionHandler *CodeComplete = nullptr;

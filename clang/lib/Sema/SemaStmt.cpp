@@ -923,7 +923,7 @@ StmtResult Sema::ActOnIfStmt(SourceLocation IfLoc,
   if ( (elseStmt && isa<IfStmt>(elseStmt)) ) {
     IfStmt *ifStmt = cast<IfStmt>(elseStmt);
     if (!ifStmt->hasElseStorage()) {
-      llvm::errs() << "So we are here\n";
+      // llvm::errs() << "So we are here\n";
       Diag(elseStmt->getEndLoc(), diag::warn_else_not_found);
     }
   }

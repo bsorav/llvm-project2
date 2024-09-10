@@ -1983,11 +1983,11 @@ void Preprocessor::HandleIncludeDirective(SourceLocation HashLoc,
   std::string Filename=FilenameRef.str();
   // llvm::errs()<<"Filename: "<<Filename<<"\n";
   // Check if the filename is "setjmp.h" or "signal.h" or "stdarg.h"
-  if (Filename=="<setjmp.h>" or Filename=="<signal.h>" or Filename == "<stdarg.h>") {
+  if (Filename=="<setjmp.h>" || Filename=="<signal.h>" || Filename == "<stdarg.h>" || Filename == "<tgmath.h>") {
     Diag(HashLoc, diag::ext_misra_c20_header_filename_not_to_be_used)<<Filename;
     // return;
   }
-  
+
   // Check if the filename has already been included
   if (IncludedHeaderFileNames.count(Filename) > 0) {
     // Handle repeated inclusion warning

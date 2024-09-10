@@ -8509,6 +8509,17 @@ static void CheckForNullPointerDereference(Sema &S, const Expr *E) {
   }
 }
 
+static void CheckForFilePointerDereference(Sema &S, Expr *E) {
+  const auto *UO = dyn_cast<UnaryOperator>(E->IgnoreParenCasts());
+  if (UO && UO->getOpcode() == UO_Deref &&
+    UO->getSubExpr()->getType()->isPointerType()){
+      QualType PointeeType = UO->getSubExpr()->getType()->getPointeeType();
+      const Type *BaseType = PointeeType.getTypePtr();
+      llvm::errs() << "Pointee Type:\n" ;
+      
+    }
+}
+
 MaterializeTemporaryExpr *
 Sema::CreateMaterializeTemporaryExpr(QualType T, Expr *Temporary,
                                      bool BoundToLvalueReference) {
@@ -8846,6 +8857,8 @@ ExprResult InitializationSequence::Perform(Sema &S,
       }
 
       CheckForNullPointerDereference(S, CurInit.get());
+      CheckForFilePointerDereference(S, CurInit.get());
+
       break;
 
     case SK_BindReferenceToTemporary: {
