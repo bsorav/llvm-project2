@@ -2721,24 +2721,59 @@ bool Expr::isUnusedResultAWarning(const Expr *&WarnE, SourceLocation &Loc,
   case UserDefinedLiteralClass: {
     // If this is a direct call, get the callee.
     const CallExpr *CE = cast<CallExpr>(this);
-    if (const Decl *FD = CE->getCalleeDecl()) {
-      // If the callee has attribute pure, const, or warn_unused_result, warn
-      // about it. void foo() { strlen("bar"); } should warn.
-      //
-      // Note: If new cases are added here, DiagnoseUnusedExprResult should be
-      // updated to match for QoI.
-      if (CE->hasUnusedResultAttr(Ctx) ||
-          FD->hasAttr<PureAttr>() || FD->hasAttr<ConstAttr>()) {
-        WarnE = this;
-        Loc = CE->getCallee()->getBeginLoc();
-        R1 = CE->getCallee()->getSourceRange();
 
-        if (unsigned NumArgs = CE->getNumArgs())
-          R2 = SourceRange(CE->getArg(0)->getBeginLoc(),
-                           CE->getArg(NumArgs - 1)->getEndLoc());
-        return true;
+    if (const Decl *FD = CE->getCalleeDecl()) {
+        // llvm::errs() << "Came here expr , \n";
+
+        
+    //   // If the callee has attribute pure, const, or warn_unused_result, warn
+    //   // about it. void foo() { strlen("bar"); } should warn.
+    //   //
+    //   // Note: If new cases are added here, DiagnoseUnusedExprResult should be
+    //   // updated to match for QoI.
+
+
+      // if(const FunctionDecl *FuncDecl = dyn_cast<FunctionDecl>(FD)){
+      //   std::string FuncName = FuncDecl->getNameAsString();
+      //   if(!FuncDecl->getBuiltinID()){
+      //     llvm::errs() << "This is a built-in function: " << FuncDecl->getNameAsString() << "\n";
+      //   }
+        
+      //   // Print function name and other relevant details
+      //   llvm::errs() << "Function called: " << FuncName << "\n";
+      //   llvm::errs() << "Return type: " << FuncDecl->getReturnType().getAsString() << "\n";
+      //   llvm::errs() << "Number of parameters: " << FuncDecl->getNumParams() << "\n";
+      // }
+      const FunctionDecl *FuncDecl = dyn_cast<FunctionDecl>(FD);
+      SourceManager &SM = Ctx.getSourceManager();
+      SourceLocation Loc1 = FuncDecl->getLocation();
+
+      if (!SM.isInSystemHeader(Loc1)) {
+          // llvm::errs() << "This is a user-declared function: " << FuncDecl->getNameAsString() << "\n";
+          WarnE = this;
+          Loc = CE->getCallee()->getBeginLoc();
+          R1 = CE->getCallee()->getSourceRange();
+
+          if (unsigned NumArgs = CE->getNumArgs())
+            R2 = SourceRange(CE->getArg(0)->getBeginLoc(),
+                            CE->getArg(NumArgs - 1)->getEndLoc());
+          return true;
+      }
+
+      if (
+          FD->hasAttr<PureAttr>() || FD->hasAttr<ConstAttr>()) {
+            WarnE = this;
+            Loc = CE->getCallee()->getBeginLoc();
+            R1 = CE->getCallee()->getSourceRange();
+
+            if (unsigned NumArgs = CE->getNumArgs())
+              R2 = SourceRange(CE->getArg(0)->getBeginLoc(),
+                              CE->getArg(NumArgs - 1)->getEndLoc());
+
+            return true;
       }
     }
+    // MISRA C RULE 17.7
     return false;
   }
 

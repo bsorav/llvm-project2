@@ -3100,6 +3100,9 @@ void Preprocessor::HandleDefineDirective(
     return;
 
   IdentifierInfo *II = MacroNameTok.getIdentifierInfo();
+
+  
+  // this->UserDefinedMacors.insert((std::string)(II->getName()));
   // Issue a final pragma warning if we're defining a macro that was has been
   // undefined and is being redefined.
   if (!II->hasMacroDefinition() && II->hadMacroDefinition() && II->isFinal())
@@ -3113,7 +3116,7 @@ void Preprocessor::HandleDefineDirective(
       MacroNameTok, ImmediatelyAfterHeaderGuard);
 
   if (!MI) return;
- 
+  
   //*********************** S_NO -> 107 ********** MISRA_C R.20.11 **********************//
   if(MI->CheckForHash(*this)) {
     Diag(MacroNameTok, diag::warn_hashash_after_hash);

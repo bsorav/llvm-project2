@@ -713,7 +713,7 @@ IdentifierInfo *Preprocessor::LookUpIdentifierInfo(Token &Identifier) const {
       II = getIdentifierInfo(CleanedStr);
     }
   }
-
+  
   // Update the token info (identifier info and appropriate token kind).
   // FIXME: the raw_identifier may contain leading whitespace which is removed
   // from the cleaned identifier token. The SourceLocation should be updated to
@@ -723,6 +723,7 @@ IdentifierInfo *Preprocessor::LookUpIdentifierInfo(Token &Identifier) const {
   // still 3 and the SourceLocation refers to the location of the backslash.
   Identifier.setIdentifierInfo(II);
   Identifier.setKind(II->getTokenID());
+  // llvm::errs() << "preprocessor.cpp , identifier info  726:: " << II->getName() << "\n";
 
   return II;
 }

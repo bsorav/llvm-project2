@@ -7594,7 +7594,7 @@ NamedDecl *Sema::ActOnVariableDeclarator(
   DeclarationName Name = GetNameForDeclarator(D).getName();
 
   IdentifierInfo *II = Name.getAsIdentifierInfo();  
-
+  
   QualType varDeclType2 = TInfo->getType();
   const DeclSpec &DS1 = D.getDeclSpec();
   // *************************MISRA_C R.8.14 :: S_N0 -> 53**************************** //
@@ -7694,6 +7694,25 @@ NamedDecl *Sema::ActOnVariableDeclarator(
   if (!getLangOpts().CPlusPlus) {
     NewVD = VarDecl::Create(Context, DC, D.getBeginLoc(), D.getIdentifierLoc(),
                             II, R, TInfo, SC);
+
+    SourceLocation Loc = NewVD->getLocation();
+    if (Loc.isMacroID()) {
+      // llvm::errs() << "Variable '" << NewVD->getName() << "' was introduced via macro expansion.\n";
+
+      // // To further investigate, you can use getImmediateMacroCallerLoc() 
+      // // to see where the macro was expanded.
+      // SourceLocation MacroLoc = this->SourceMgr.getImmediateMacroCallerLoc(Loc);
+      
+      // llvm::errs() << "The macro was expanded at location: ";
+      // MacroLoc.print(llvm::errs(), SourceMgr);
+      // llvm::errs() << "\n";
+
+      Diag(NewVD->getLocation(), diag::ext_misra_c20_macro_as_identifier_used);
+    }
+    // std::unordered_map<std::string, std::string> declaredMacros = this->PP.getUserDefinedMacros();
+    // if(declaredMacros.find(NewVD->getNameAsString()) != declaredMacros.end()){
+    //   llvm::errs() << "redeclared an identifier with same macro name " << NewVD->getNameAsString() << "\n";
+    // }
 
     if (R->getContainedDeducedType())
       ParsingInitForAutoVars.insert(NewVD);
@@ -7851,6 +7870,7 @@ NamedDecl *Sema::ActOnVariableDeclarator(
     } else
       NewVD = VarDecl::Create(Context, DC, D.getBeginLoc(),
                               D.getIdentifierLoc(), II, R, TInfo, SC);
+      
 
     // If this is supposed to be a variable template, create it as such.
     if (IsVariableTemplate) {
@@ -18520,6 +18540,25 @@ FieldDecl *Sema::HandleField(Scope *S, RecordDecl *Record,
 
   TypeSourceInfo *TInfo = GetTypeForDeclarator(D);
   QualType T = TInfo->getType();
+  // llvm::errs() << "Declaring field: " << II->getName() << " of type " << T.getAsString() << "\n";
+  //add check here as well
+    if (Loc.isMacroID()) {
+      // llvm::errs() << " in field declaratin \n";
+      // llvm::errs() << "Variable '" << II->getName() << "' was introduced via macro expansion.\n";
+
+      // // To further investigate, you can use getImmediateMacroCallerLoc() 
+      // // to see where the macro was expanded.
+      // SourceLocation MacroLoc = this->SourceMgr.getImmediateMacroCallerLoc(Loc);
+      
+      // llvm::errs() << "The macro was expanded at location: ";
+      // MacroLoc.print(llvm::errs(), SourceMgr);
+      // llvm::errs() << "\n";
+      Diag(Loc, diag::ext_misra_c20_macro_as_identifier_used);
+    }
+
+
+
+
   if (getLangOpts().CPlusPlus) {
     CheckExtraCXXDefaultArguments(D);
 

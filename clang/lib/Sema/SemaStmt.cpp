@@ -243,9 +243,13 @@ void Sema::DiagnoseUnusedExprResult(const Stmt *S, unsigned DiagID) {
   const Expr *WarnExpr;
   SourceLocation Loc;
   SourceRange R1, R2;
+  // llvm::errs() << "unused function \n";
+  
   if (!E->isUnusedResultAWarning(WarnExpr, Loc, R1, R2, Context))
     return;
-
+  // Loc.print(llvm::errs() , SourceMgr);
+  // llvm::errs() << "\nsecond cehck\n";
+  
   // If this is a GNU statement expression expanded from a macro, it is probably
   // unused because it is a function-like macro that can be used as either an
   // expression or statement.  Don't warn, because it is almost certainly a

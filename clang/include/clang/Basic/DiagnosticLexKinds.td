@@ -224,6 +224,11 @@ def warn_ucn_not_valid_in_c89 : Warning<
 def warn_ucn_not_valid_in_c89_literal : ExtWarn<
   "universal character names are only valid in C99 or C++">, InGroup<Unicode>;
 
+def warn_lowercase_l_suffix : Warning<
+  "The lowercase character 'l' shall not be used in a literal suffix">,
+  InGroup<DiagGroup<"MISRA">>;
+
+
 
 // Literal
 def ext_nonstandard_escape : Extension<

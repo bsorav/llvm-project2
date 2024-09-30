@@ -10174,6 +10174,12 @@ Sema::CheckAssignmentConstraints(QualType LHSType, ExprResult &RHS,
   LHSType = Context.getCanonicalType(LHSType).getUnqualifiedType();
   RHSType = Context.getCanonicalType(RHSType).getUnqualifiedType();
 
+  // of LHS is an unisgend type
+  // if(LHSType->isUnsignedIntegerType()){
+  //     // unsigned rule here R.7.2
+
+  // }
+  
   // Common case: no conversion required.
   if (LHSType == RHSType) {
     Kind = CK_NoOp;

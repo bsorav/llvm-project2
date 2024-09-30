@@ -12258,10 +12258,14 @@ def ext_misra_c20_std_termination_func_not_allowed : ExtWarn<
 def ext_misra_c20_std_system_func_not_allowed : ExtWarn<
   "MISRA_C20: The Standard Library function system shall not be used.">, InGroup<MisraC20ImproperFunctionUsed>;
 
+def ext_misra_c20_macro_as_identifier_used : Warning<
+ "MISRA_C20: Identifiers shall be distinct from macro.">, InGroup<MISRA>; 
+
 
 //def warn_memory_overlapping: Warning<
 //  "MISRA C Rule 19.1: An object shall not be assigned or copied to an overlapping object">,
 //InGroup<MISRA>;
+
 
 // MISRA_C 6.1 , 6.2 : 38 , 39.
 

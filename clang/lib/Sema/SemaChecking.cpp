@@ -13476,7 +13476,7 @@ void Sema::CheckMemaccessArguments(const CallExpr *Call,
                                    unsigned BId,
                                    IdentifierInfo *FnName) {
   assert(BId != 0);
-
+  
   // It is possible to have a non-standard definition of memset.  Validate
   // we have enough arguments, and if not, abort further checking.
   unsigned ExpectedNumArgs =
