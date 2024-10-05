@@ -562,6 +562,11 @@ def MismatchedDeallocatorChecker : Checker<"MismatchedDeallocator">,
   HelpText<"Check for mismatched deallocators.">,
   Dependencies<[DynamicMemoryModeling]>,
   Documentation<HasDocumentation>;
+  
+def StdLibOldReturnValueUseChecker : Checker<"StdLibOldReturnValueUseChecker">,
+  HelpText<"Check if the return value from certain Standard Library functions is used after a subsequent call to the same function.">,
+  Documentation<HasDocumentation>;
+
 
 def StdCLibraryFunctionsChecker : Checker<"StdCLibraryFunctions">,
   HelpText<"Check for invalid arguments of C standard library functions, "
