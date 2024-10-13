@@ -615,13 +615,10 @@ def SimpleStreamChecker : Checker<"SimpleStream">,
   HelpText<"Check for misuses of stream APIs">,
   Documentation<HasDocumentation>;
 
-<<<<<<< HEAD
 def MemcmpChecker : Checker<"MemcmpChecker">,
   HelpText<"Check for null terminated strings in memcmp">,
-=======
 def ReadOnlyStreamChecker : Checker<"ReadOnlyStreamChecker">,
   HelpText<"Check for attempts to write to streams opened as read-only">,
->>>>>>> e698ce10b7cc108dcd4b1225be18367114aa36f0
   Documentation<HasDocumentation>;
 
 def BlockInCriticalSectionChecker : Checker<"BlockInCriticalSection">,
