@@ -562,6 +562,11 @@ def MismatchedDeallocatorChecker : Checker<"MismatchedDeallocator">,
   HelpText<"Check for mismatched deallocators.">,
   Dependencies<[DynamicMemoryModeling]>,
   Documentation<HasDocumentation>;
+  
+def StdLibOldReturnValueUseChecker : Checker<"StdLibOldReturnValueUseChecker">,
+  HelpText<"Check if the return value from certain Standard Library functions is used after a subsequent call to the same function.">,
+  Documentation<HasDocumentation>;
+
 
 def StdCLibraryFunctionsChecker : Checker<"StdCLibraryFunctions">,
   HelpText<"Check for invalid arguments of C standard library functions, "
@@ -610,8 +615,13 @@ def SimpleStreamChecker : Checker<"SimpleStream">,
   HelpText<"Check for misuses of stream APIs">,
   Documentation<HasDocumentation>;
 
+<<<<<<< HEAD
 def MemcmpChecker : Checker<"MemcmpChecker">,
   HelpText<"Check for null terminated strings in memcmp">,
+=======
+def ReadOnlyStreamChecker : Checker<"ReadOnlyStreamChecker">,
+  HelpText<"Check for attempts to write to streams opened as read-only">,
+>>>>>>> e698ce10b7cc108dcd4b1225be18367114aa36f0
   Documentation<HasDocumentation>;
 
 def BlockInCriticalSectionChecker : Checker<"BlockInCriticalSection">,
