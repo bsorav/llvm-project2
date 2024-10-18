@@ -41,9 +41,10 @@ class MemcmpChecker : public Checker<check::PreCall>{
 bool MemcmpChecker::isNullTerminatedString(SVal MemVal, llvm::APSInt SizeVal) const {
     // Implement logic to check if MemVal points to a null-terminated string.
     // You can use Region-based analysis or symbol inference here.
+    //chekc fr inbuilt funciton 
     bool returnVal = false;
     if(const MemRegion *MR = MemVal.getAsRegion()){
-        llvm::errs() << MR->getString() << " \n";
+        // llvm::errs() << MR->getString() << " \n";
         if (const StringRegion *SR = dyn_cast<StringRegion>(MR)) {
             const StringLiteral *SL = SR->getStringLiteral();
             return false;
