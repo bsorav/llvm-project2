@@ -6226,6 +6226,11 @@ Decl *Sema::ActOnDeclarator(Scope *S, Declarator &D) {
     CheckForOuterScopeIdentifierHiding(S, ND);
   }
 
+  if (ND->hasExternalFormalLinkage()) {
+    // Check for duplicate external identifiers
+    CheckDuplicateExternalIdentifier(*this, ND);
+  }
+
   if (OriginalLexicalContext && OriginalLexicalContext->isObjCContainer() &&
       Dcl && Dcl->getDeclContext()->isFileContext())
     Dcl->setTopLevelDeclInObjCContainer();
@@ -6241,6 +6246,32 @@ Decl *Sema::ActOnDeclarator(Scope *S, Declarator &D) {
     }
   }
   return Dcl;
+}
+
+void Sema::CheckDuplicateExternalIdentifier(Sema &SemaRef, const NamedDecl *ND) {
+  if (const clang::VarDecl *VD = llvm::dyn_cast<clang::VarDecl>(ND)) {
+      // Check if the variable has 'extern' storage class
+      if(VD->getStorageClass() != clang::SC_Extern) return;
+  }
+  if (const clang::FunctionDecl *FD = llvm::dyn_cast<clang::FunctionDecl>(ND)) {
+      // Check if the function has 'extern' storage class
+      if(FD->getStorageClass() != clang::SC_Extern) return;
+  }
+
+
+  StringRef Name = ND->getName().substr(0,31);
+  SourceLocation Loc = ND->getLocation();
+  
+  // Check if the identifier is already in the map
+  if (ExternalIdentifiers.find(Name) != ExternalIdentifiers.end()) {
+    // Issue a diagnostic error for duplicate identifier
+    Diag(Loc, diag::ext_misra_c20_duplicate_external_identifier)<<ND->getIdentifier();
+    Diag(ExternalIdentifiers[Name], diag::note_previous_declaration);
+  }
+   else {
+    // If unique, store the identifier and its location
+    ExternalIdentifiers[Name] = Loc;
+  }
 }
 
 void Sema::CheckForOuterScopeIdentifierHiding(Scope *S, NamedDecl* CND) {

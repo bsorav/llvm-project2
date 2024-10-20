@@ -250,6 +250,8 @@ def ext_designated_init_brace_elision : ExtWarn<
 // Declarations.
 def ext_misra_c20_hiding_outer_scope_identifier : ExtWarn<
   "MISRA_C20: declaration of %0 hides identifier from an outer scope">, InGroup<MisraC20ImproperIdentifierDeclaration>;
+def ext_misra_c20_duplicate_external_identifier : ExtWarn<
+  "MISRA_C20: declaration of %0 is duplicate external identfier declaration">, InGroup<MisraC20ImproperIdentifierDeclaration>;
 def ext_plain_complex : ExtWarn<
   "plain '_Complex' requires a type specifier; assuming '_Complex double'">;
 def ext_imaginary_constant : Extension<

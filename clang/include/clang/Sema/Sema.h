@@ -1145,9 +1145,14 @@ public:
   /// in the currently selected standard.
   llvm::DenseMap<IdentifierInfo*,AsmLabelAttr*> ExtnameUndeclaredIdentifiers;
 
+  //External Identfiers
+  llvm::StringMap<SourceLocation> ExternalIdentifiers;
 
   /// Load weak undeclared identifiers from the external source.
   void LoadExternalWeakUndeclaredIdentifiers();
+
+  // Declaration of the new function to check duplicate external identifer
+  void CheckDuplicateExternalIdentifier(Sema &SemaRef, const NamedDecl *ND);
 
   // Declaration of the new function to check for outer scope identifier hiding
   void CheckForOuterScopeIdentifierHiding(Scope *S, NamedDecl *ND);
