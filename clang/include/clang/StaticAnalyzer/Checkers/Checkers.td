@@ -617,6 +617,7 @@ def SimpleStreamChecker : Checker<"SimpleStream">,
 
 def MemcmpChecker : Checker<"MemcmpChecker">,
   HelpText<"Check for null terminated strings in memcmp">,
+  Documentation<HasDocumentation>;
 def ReadOnlyStreamChecker : Checker<"ReadOnlyStreamChecker">,
   HelpText<"Check for attempts to write to streams opened as read-only">,
   Documentation<HasDocumentation>;

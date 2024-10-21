@@ -6275,7 +6275,15 @@ void Sema::CheckDuplicateExternalIdentifier(Sema &SemaRef, const NamedDecl *ND) 
 }
 
 void Sema::CheckForOuterScopeIdentifierHiding(Scope *S, NamedDecl* CND) {
-  
+  if (const clang::VarDecl *VD = llvm::dyn_cast<clang::VarDecl>(CND)) {
+      // Check if the variable has 'extern' storage class
+      if(VD->getStorageClass() == clang::SC_Extern) return;
+  }
+  if (const clang::FunctionDecl *FD = llvm::dyn_cast<clang::FunctionDecl>(CND)) {
+      // Check if the function has 'extern' storage class
+      if(FD->getStorageClass() == clang::SC_Extern) return;
+  }
+
   // Traverse through the scopes up to the translation unit scope.
   Scope *CurrentScope = S->getParent();
   while(CurrentScope) {
