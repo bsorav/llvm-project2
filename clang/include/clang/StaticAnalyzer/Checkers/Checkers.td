@@ -618,6 +618,11 @@ def SimpleStreamChecker : Checker<"SimpleStream">,
 def MemcmpChecker : Checker<"MemcmpChecker">,
   HelpText<"Check for null terminated strings in memcmp">,
   Documentation<HasDocumentation>;
+
+def ArrayPointerArithmeticChecker: Checker<"ArrayPointerArithmetic">,
+  HelpText<"Check for airthmatic operation related to array pointer">,
+  Documentation<HasDocumentation>;
+
 def ReadOnlyStreamChecker : Checker<"ReadOnlyStreamChecker">,
   HelpText<"Check for attempts to write to streams opened as read-only">,
   Documentation<HasDocumentation>;

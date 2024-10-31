@@ -70,7 +70,6 @@ void ReadOnlyStreamChecker::checkPreCall(const CallEvent &Call, CheckerContext &
 }
 
 void ento::registerReadOnlyStreamChecker(CheckerManager &mgr) {
-    llvm::errs()<<"ReadOnlyStreamChecker Registered\n";
     mgr.registerChecker<ReadOnlyStreamChecker>();
 }
 
