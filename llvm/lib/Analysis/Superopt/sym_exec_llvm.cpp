@@ -666,7 +666,7 @@ sym_exec_llvm::populate_state_template(const llvm::Function& F, bool model_llvm_
 
     Type* ty = v.getType();
     unsigned size = dl.getTypeAllocSize(ty);
-    unsigned align = dl.getPrefTypeAlignment(ty);
+    unsigned align = dl.getABITypeAlign(ty).value();
     m_local_refs.insert(make_pair(allocsite, graph_local_t(argname, size, align)));
 
     if (model_llvm_semantics) {
