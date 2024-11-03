@@ -14464,6 +14464,8 @@ StmtResult Sema::ActOnCXXForRangeIdentifier(Scope *S, SourceLocation IdentLoc,
 void Sema::CheckCompleteVariableDeclaration(VarDecl *var) {
   if (var->isInvalidDecl()) return;
 
+  
+
   MaybeAddCUDAConstantAttr(var);
 
   if (getLangOpts().OpenCL) {
@@ -14617,6 +14619,23 @@ void Sema::CheckCompleteVariableDeclaration(VarDecl *var) {
   bool IsGlobal = GlobalStorage && !var->isStaticLocal();
   QualType baseType = Context.getBaseElementType(type);
   bool HasConstInit = true;
+
+  if(Init && var->getType()->isUnsignedIntegerType() && var->getType().getAsString() == "const unsigned int"){
+    // clang::Expr::EvalResult evalResult;
+    // if (Init->EvaluateAsRValue(evalResult, Context)) {
+    //   // Convert result to the desired format based on the type
+    //   // llvm::errs() << evalResult.Val.getAsString(Context,var->getType() ) << "\n";]
+    // }
+
+    std::string valueWithSuffix;
+    llvm::raw_string_ostream stream(valueWithSuffix);
+    Init->printPretty(stream, nullptr, Context.getPrintingPolicy());
+
+    if((char)valueWithSuffix.back() != 'U'){
+      Diag(var->getLocation(), diag::ext_misra_c20_improper_unsigned_declatation);
+      
+    }
+  }
 
   // Check whether the initializer is sufficiently constant.
   if (getLangOpts().CPlusPlus && !type->isDependentType() && Init &&

@@ -1514,3 +1514,4 @@ def MISRARule11 : DiagGroup<"misra-c-r-11-8-rule">;
 def MisraC20ImproperDeclaration: DiagGroup<"misra-c20-improper-declaration">;
 def MisraC20ImproperMacro: DiagGroup<"misra-c20-improper-macro">;
 def MisraC20ImproperFunctionUsed: DiagGroup<"misra-c20-improper-func-used">;
+def MisraC20ImproperUnsignedDeclaration :  DiagGroup<"misra-c20-improper-unsigned-declatation">;

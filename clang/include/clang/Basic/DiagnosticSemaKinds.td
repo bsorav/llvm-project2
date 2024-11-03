@@ -10121,6 +10121,8 @@ def warn_missing_case : Warning<"%plural{"
 def warn_switch_default : Warning<"'switch' missing 'default' label">,
   InGroup<SwitchDefault>;
 
+def ext_misra_c20_improper_unsigned_declatation : ExtWarn<
+  "MISRA_C20: A 'u' or 'U' suffix shall be applied to all integer constants that are represented in an unsigned type ">, InGroup<MisraC20ImproperUnsignedDeclaration>;
 def ext_misra_c20_fallthrough_switch_case : ExtWarn<
   "MISRA_C20: Not allowed fallthrough in switch case statement">,DefaultIgnore, InGroup<MisraC20ImproperSwitchStmt>;
 def ext_misra_c20_side_effects_logical_rhs : ExtWarn<
@@ -10150,6 +10152,7 @@ def ext_misra_c20_variable_array_type: ExtWarn<
 def ext_misra_c20_flexible_array_type: ExtWarn<
   "MISRA_C20: Flexible Array Type">,
   InGroup<MisraC20ImproperDeclaration>;
+
 
 def warn_unannotated_fallthrough : Warning<
   "unannotated fall-through between switch labels">,
