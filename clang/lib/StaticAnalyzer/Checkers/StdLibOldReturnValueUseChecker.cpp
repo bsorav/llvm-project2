@@ -87,7 +87,6 @@ void StdLibOldReturnValueUseChecker::checkDeadSymbols(SymbolReaper &SR, CheckerC
 }
 // Register the checker in the analyzer
 void ento::registerStdLibOldReturnValueUseChecker(CheckerManager &Mgr) {
-  llvm::errs()<<"StdLibOldReturnValueUseChecker is registered\n";
   Mgr.registerChecker<StdLibOldReturnValueUseChecker>();
 }
 
