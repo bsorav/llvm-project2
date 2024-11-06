@@ -27,12 +27,23 @@ public:
 } // namespace
 
 const MemRegion* ArrayPointerArithmeticChecker::findBaseRegion(const MemRegion* LHSRegion, const MemRegion* RHSRegion) const {
-  if(const MemRegion* BaseRegion=dyn_cast<ElementRegion>(LHSRegion))
-    return BaseRegion;
-  else if(const MemRegion* BaseRegion=dyn_cast<ElementRegion>(RHSRegion))
-    return BaseRegion;
-  else
-    return nullptr;
+  
+  // Check if LHS is an ElementRegion
+  bool LHSFlag = LHSRegion && isa<const ElementRegion>(LHSRegion);
+  // Check if RHS is an ElementRegion
+  bool RHSFlag = RHSRegion && isa<const ElementRegion>(RHSRegion);
+
+  // If both LHS and RHS are ElementRegions, prioritize LHS or handle both if necessary
+  if (LHSFlag && RHSFlag) 
+      return nullptr;  // Prioritize LHS by default
+  // If only LHS is an ElementRegion, return its base region
+  if (LHSFlag) 
+      return LHSRegion->getBaseRegion();
+  // If only RHS is an ElementRegion, return its base region
+  if (RHSFlag) 
+      return RHSRegion->getBaseRegion();
+  return nullptr;
+
 }
 void ArrayPointerArithmeticChecker::checkPostStmt(const BinaryOperator *BO,
                                                  CheckerContext &C) const {
@@ -51,12 +62,11 @@ void ArrayPointerArithmeticChecker::checkPostStmt(const BinaryOperator *BO,
   const MemRegion* BaseRegion=findBaseRegion(LHSRegion,RHSRegion);
   if(!BaseRegion)
     return;
-
+  
   llvm::APInt ArraySize;
   const TypedValueRegion *TypedBaseRegion = dyn_cast<TypedValueRegion>(BaseRegion);
   if (TypedBaseRegion) {
       QualType BaseType = TypedBaseRegion->getValueType();
-
       if (const ConstantArrayType *ArrayType = Ctx.getAsConstantArrayType(BaseType)) {
           ArraySize = ArrayType->getSize();
           // Now, `ArraySize` contains the size of the array in elements
@@ -64,7 +74,7 @@ void ArrayPointerArithmeticChecker::checkPostStmt(const BinaryOperator *BO,
   }
   if(!ArraySize)
     return;
-
+  
   const MemRegion* Region=C.getSVal(BO).getAsRegion();
   const ElementRegion *ER = dyn_cast<ElementRegion>(Region);
 
