@@ -14,19 +14,22 @@ namespace {
 class ArrayPointerArithmeticChecker
     : public Checker<check::PostStmt<BinaryOperator>> {
   std::unique_ptr<BugType> BT;
+  std::unique_ptr<BugType> BTTwoDiffArrPtr;
 
 public:
   ArrayPointerArithmeticChecker() {
     BT.reset(new BugType(this, "Pointer arithmetic outside array bounds",
                          "Array pointer rule violation"));
+    BTTwoDiffArrPtr.reset(new BugType(this, "Pointer arithmetic between two different pointers",
+                         "Array pointer rule violation"));
   }
 
   void checkPostStmt(const BinaryOperator *BO, CheckerContext &C) const;
-  const MemRegion* findBaseRegion(const MemRegion* LHSRegion, const MemRegion* RHSRegion) const;
+  const MemRegion* findBaseRegion(CheckerContext &C,const MemRegion* LHSRegion, const MemRegion* RHSRegion) const;
 };
 } // namespace
 
-const MemRegion* ArrayPointerArithmeticChecker::findBaseRegion(const MemRegion* LHSRegion, const MemRegion* RHSRegion) const {
+const MemRegion* ArrayPointerArithmeticChecker::findBaseRegion(CheckerContext &C,const MemRegion* LHSRegion, const MemRegion* RHSRegion) const {
   
   // Check if LHS is an ElementRegion
   bool LHSFlag = LHSRegion && isa<const ElementRegion>(LHSRegion);
@@ -35,7 +38,21 @@ const MemRegion* ArrayPointerArithmeticChecker::findBaseRegion(const MemRegion* 
 
   // If both LHS and RHS are ElementRegions, prioritize LHS or handle both if necessary
   if (LHSFlag && RHSFlag) 
-      return nullptr;  // Prioritize LHS by default
+  {
+    const MemRegion* LHSBaseRegion=LHSRegion->getBaseRegion();
+    const MemRegion* RHSBaseRegion=RHSRegion->getBaseRegion();
+    if(LHSBaseRegion!=RHSBaseRegion){
+      ExplodedNode *N = C.generateErrorNode();
+      if (!N)
+        return nullptr;
+
+      auto R = std::make_unique<PathSensitiveBugReport>(
+          *BTTwoDiffArrPtr, "Pointer airthmatic between two different array pointers",
+          N);
+      C.emitReport(std::move(R));
+    }
+    return nullptr;
+  }
   // If only LHS is an ElementRegion, return its base region
   if (LHSFlag) 
       return LHSRegion->getBaseRegion();
@@ -59,7 +76,7 @@ void ArrayPointerArithmeticChecker::checkPostStmt(const BinaryOperator *BO,
   const MemRegion * LHSRegion=C.getSVal(LHS).getAsRegion();
   const MemRegion * RHSRegion=C.getSVal(RHS).getAsRegion();
   
-  const MemRegion* BaseRegion=findBaseRegion(LHSRegion,RHSRegion);
+  const MemRegion* BaseRegion=findBaseRegion(C,LHSRegion,RHSRegion);
   if(!BaseRegion)
     return;
   
@@ -87,7 +104,7 @@ void ArrayPointerArithmeticChecker::checkPostStmt(const BinaryOperator *BO,
   std::optional<nonloc::ConcreteInt> CI = IndexVal.getAs<nonloc::ConcreteInt>();
   llvm::APInt Index=CI->getValue();
   // Check that the result is still within the same base region
-  if (ER->getBaseRegion()!=BaseRegion || !Index.uge(0) ||  !Index.ult(ArraySize)) {
+  if (ER->getBaseRegion()!=BaseRegion || !Index.uge(0) ||  !Index.ule(ArraySize)) {
     // Report an error if the resulting pointer is outside of array bounds
     ExplodedNode *N = C.generateErrorNode();
     if (!N)
