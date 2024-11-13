@@ -15,6 +15,7 @@ class ArrayPointerArithmeticChecker
     : public Checker<check::PostStmt<BinaryOperator>> {
   std::unique_ptr<BugType> BT;
   std::unique_ptr<BugType> BTTwoDiffArrPtr;
+  std::unique_ptr<BugType> BTTwoDiffObjPtr;
 
 public:
   ArrayPointerArithmeticChecker() {
@@ -22,6 +23,8 @@ public:
                          "Array pointer rule violation"));
     BTTwoDiffArrPtr.reset(new BugType(this, "Pointer arithmetic between two different pointers",
                          "Array pointer rule violation"));
+    BTTwoDiffObjPtr.reset(new BugType(this, "Pointer relational between two different object pointers",
+                         "Object pointer rule violation"));
   }
 
   void checkPostStmt(const BinaryOperator *BO, CheckerContext &C) const;
@@ -64,6 +67,27 @@ const MemRegion* ArrayPointerArithmeticChecker::findBaseRegion(CheckerContext &C
 }
 void ArrayPointerArithmeticChecker::checkPostStmt(const BinaryOperator *BO,
                                                  CheckerContext &C) const {
+
+  if (BO->isRelationalOp()) {
+    const Expr *LHS = BO->getLHS()->IgnoreParens();
+    const Expr *RHS = BO->getRHS()->IgnoreParens();
+    const QualType LType = LHS->getType();
+    const QualType RType = RHS->getType();
+      // Ensure both operands are pointers
+    if (LType->isPointerType() && RType->isPointerType()) {
+      const MemRegion *LRegion = C.getSVal(LHS).getAsRegion()->getBaseRegion();
+      const MemRegion *RRegion = C.getSVal(RHS).getAsRegion()->getBaseRegion();
+      // Check if both pointers refer to the same memory region (object)
+      if (LRegion && RRegion && LRegion!=RRegion) {
+        // Report an error if they are not pointing into the same object
+        ExplodedNode *N = C.generateErrorNode();
+        if (!N) return;
+        auto R = std::make_unique<PathSensitiveBugReport>(*BTTwoDiffObjPtr, "Relational comparison between pointers to different objects is not allowed", N);
+        C.emitReport(std::move(R));
+      }
+    }
+  }
+
   if (BO->getOpcode() != BO_Add && BO->getOpcode() != BO_Sub)
     return;
 
