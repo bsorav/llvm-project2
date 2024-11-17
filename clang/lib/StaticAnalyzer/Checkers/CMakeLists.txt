@@ -31,6 +31,7 @@ add_clang_library(clangStaticAnalyzerCheckers
   CloneChecker.cpp
   ContainerModeling.cpp
   ConversionChecker.cpp
+  CTypeFunctionsChecker.cpp
   CXXDeleteChecker.cpp
   CXXSelfAssignmentChecker.cpp
   DeadStoresChecker.cpp

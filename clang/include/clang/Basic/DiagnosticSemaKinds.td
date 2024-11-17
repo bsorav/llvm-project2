@@ -10152,6 +10152,15 @@ def ext_misra_c20_variable_array_type: ExtWarn<
 def ext_misra_c20_flexible_array_type: ExtWarn<
   "MISRA_C20: Flexible Array Type">,
   InGroup<MisraC20ImproperDeclaration>;
+def ext_misra_c20_wider_type_assigned : ExtWarn<
+  "MISRA_C20: The value of a composite expression shall not be assigned to an object with wider essential type">,
+  InGroup<MisraC20ImproperOperands>;
+def ext_goto_statmemt_used : ExtWarn<
+  "MISRA_C20: The goto statement should not be used">,
+  InGroup<MisraC20ImproperDeclaration>;
+def ext_more_than_one_break_or_goto_used : ExtWarn<
+  "MISRA_C20: There should be no more than one break or goto statement used to terminate any iteration statement">,
+  InGroup<MisraC20ImproperLoopBody>;
 
 
 def warn_unannotated_fallthrough : Warning<

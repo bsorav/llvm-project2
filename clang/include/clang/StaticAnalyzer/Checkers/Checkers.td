@@ -619,6 +619,10 @@ def MemcmpChecker : Checker<"MemcmpChecker">,
   HelpText<"Check for null terminated strings in memcmp">,
   Documentation<HasDocumentation>;
 
+def CTypeFunctionsChecker : Checker<"CTypeFunctionsChecker">,
+  HelpText<"Check for arguments passed in functions of library ctype.h">,
+  Documentation<HasDocumentation>;
+
 def ArrayPointerArithmeticChecker: Checker<"ArrayPointerArithmetic">,
   HelpText<"Check for airthmatic operation related to array pointer">,
   Documentation<HasDocumentation>;

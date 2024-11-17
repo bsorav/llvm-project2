@@ -16145,6 +16145,24 @@ ExprResult Sema::ActOnBinOp(Scope *S, SourceLocation TokLoc,
 
   // Check if the LHS and RHS have same essential type in usual airthmatic conversations
   std::unordered_set<BinaryOperatorKind> AirthmaticOperatorSet={BO_Mul,BO_Div,BO_Rem,BO_Add,BO_Sub,BO_MulAssign,BO_DivAssign,BO_RemAssign,BO_AddAssign,BO_SubAssign};
+
+  // llvm::errs() << LHSExpr->getType().getAsString()  << "\n";
+  // LHSExpr->printPretty(llvm::errs(), nullptr, getPrintingPolicy());
+  // llvm::errs() << "\n";
+  // llvm::errs() << RHSExpr->getType().getAsString()  << "\n";
+  // RHSExpr->IgnoreImpCasts()->getType().print(llvm::errs(), getPrintingPolicy());
+  // llvm::errs() << "\n";
+  // RHSExpr->printPretty(llvm::errs(), nullptr, getPrintingPolicy());
+  // llvm::errs() << "\n";
+  // llvm::errs() << Context.getTypeSize(LHSExpr->getType()) << "\n";
+  // llvm::errs() << Context.getTypeSize(RHSExpr->getType()) << "\n\n";
+  // *************** MISRA RULE 10.6 *********************
+  // if(Context.getTypeSize(LHSExpr->getType()) >  Context.getTypeSize(RHSExpr->getType())  ){
+  //   Diag(TokLoc,diag::ext_misra_c20_wider_type_assigned);
+  // }
+  
+  // llvm::errs() << "\n\n";
+
   if( AirthmaticOperatorSet.find(Opc)!=AirthmaticOperatorSet.end() && LHSExpr && RHSExpr && LHSExpr->getType() != RHSExpr->getType()){
     bool LHSFlag=LHSExpr->getType()->isAnyCharacterType();
     bool RHSFlag=(RHSExpr->getType()->isIntegralOrEnumerationType() || RHSExpr->getType()->isUnsignedIntegerType());

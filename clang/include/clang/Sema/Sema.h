@@ -395,6 +395,7 @@ public:
   ///
   /// This is the greatest alignment value supported by load, store, and alloca
   /// instructions, and global values.
+  // Stack to keep track of break and goto counts within nested loops
   static const unsigned MaxAlignmentExponent = 32;
   static const uint64_t MaximumAlignment = 1ull << MaxAlignmentExponent;
   typedef OpaquePtr<DeclGroupRef> DeclGroupPtrTy;
@@ -5192,6 +5193,8 @@ public:
     }
     void disable() { Active = false; }
   };
+
+  void CheckBreakGotoCount(Stmt *Body, SourceLocation LoopLoc) ;
 
   StmtResult ActOnDeclStmt(DeclGroupPtrTy Decl,
                                    SourceLocation StartLoc,

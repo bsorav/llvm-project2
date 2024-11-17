@@ -1829,6 +1829,7 @@ StmtResult Sema::ActOnWhileStmt(SourceLocation WhileLoc,
         << "The body of a while loop statement shall be a compound statement";
   }
   // ************************ 15.6 MISRA : S_NO : 82 ************************************ 
+  CheckBreakGotoCount(Body, WhileLoc);
   return WhileStmt::Create(Context, CondVal.first, CondVal.second, Body,
                            WhileLoc, LParenLoc, RParenLoc);
 }
@@ -2284,6 +2285,74 @@ void clang::getLoopCounterVariables(const Expr *E, llvm::SmallVectorImpl<const V
 
 }
 
+std::unordered_set<std::string> CountBreakGoto(Stmt *S, bool inNested, int& BreakCount, int& GotoCount){
+  std::unordered_set<std::string> insideGotoLabels;
+  if (!S) return insideGotoLabels;
+  // S->dumpColor();
+  // llvm::errs() << "\n\n";
+  for (Stmt *SubStmt : S->children()) {
+    if(SubStmt ==nullptr) continue;
+    // SubStmt->dumpColor();
+    // llvm::errs() << "\n\n";
+    if (isa<BreakStmt>(SubStmt)) {
+        if(!inNested) BreakCount++;
+    } else if (isa<GotoStmt>(SubStmt)) {
+        if(!inNested) GotoCount++;
+        GotoStmt* g = dyn_cast<GotoStmt>(SubStmt);   
+        // llvm::errs() << g->getLabel()->getNameAsString() << "\n";       
+        if (inNested) insideGotoLabels.insert(g->getLabel()->getNameAsString());
+    }else if(isa<LabelStmt>(SubStmt)){
+      LabelStmt* ls  = dyn_cast<LabelStmt>(SubStmt); 
+      // ls->dumpColor();
+      // llvm::errs() << insideGotoLabels.size() << " \n";
+      if(insideGotoLabels.find(ls->getName()) != insideGotoLabels.end()){
+        // llvm::errs() << "found the declaration of the goto wiht label :  " << ls->getName() << "\n";
+        insideGotoLabels.erase(ls->getName());
+      }
+    }else if(SubStmt != nullptr && (isa<ForStmt>(SubStmt) || isa<WhileStmt>(SubStmt))){
+      // llvm::errs() << " entering inside a loop  :::::: \n" ;
+      std::unordered_set<std::string>  nestedGotoLabels = CountBreakGoto(SubStmt, true, BreakCount, GotoCount);
+      // llvm::errs() << " inside loops goto count nestedGotoLabels ::  " << nestedGotoLabels.size() << " \n";
+      if(nestedGotoLabels.size() > 0) insideGotoLabels.insert(nestedGotoLabels.begin(), nestedGotoLabels.end());
+    }else{
+      std::unordered_set<std::string>  nestedGotoLabels =  CountBreakGoto(SubStmt, inNested, BreakCount, GotoCount);
+      if(nestedGotoLabels.size() > 0) insideGotoLabels.insert(nestedGotoLabels.begin(), nestedGotoLabels.end());
+    }
+  }
+
+  // if(insideGotoLabels.size() > 0 && !inNested){
+  //   llvm::errs() << "WARNING :::::---------------- \n";
+  //   S->dumpColor();
+  //   llvm::errs() << "------------- \n\n";
+  // }
+  // llvm::errs() << "  insideGotoLabels cpunt  :: " << insideGotoLabels.size() << " " << inNested<< "\n";
+  // llvm::errs() << " exiting inside a loop  :::::: \n" ;
+  return insideGotoLabels;
+}
+
+
+// Helper function to count break and goto statements
+void Sema::CheckBreakGotoCount(Stmt *Body, SourceLocation LoopLoc) {
+
+  // Initialize counters
+    int BreakCount = 0;
+    int GotoCount = 0;
+
+    std::unordered_set<std::string>  nestedGotoLabels = CountBreakGoto(Body, false, BreakCount, GotoCount);
+    if(nestedGotoLabels.size() > 0){
+      // llvm::errs() << "WARNING :::::---------------- \n";
+      // S->dumpColor();
+      // llvm::errs() << "------------- \n\n";
+      Diag(LoopLoc, diag::ext_more_than_one_break_or_goto_used);
+
+    }
+    // llvm::errs() << "Break count: " << BreakCount << ", Goto count: " << GotoCount << "\n";
+    if((BreakCount + GotoCount > 1)){
+      Diag(LoopLoc, diag::ext_more_than_one_break_or_goto_used);
+    }
+    // llvm::errs() << " \n\n";
+  return;
+}
 
 StmtResult Sema::ActOnForStmt(SourceLocation ForLoc, SourceLocation LParenLoc,
                               Stmt *First, ConditionResult Second,
@@ -2359,9 +2428,10 @@ StmtResult Sema::ActOnForStmt(SourceLocation ForLoc, SourceLocation LParenLoc,
   if (isa<NullStmt>(Body))
     getCurCompoundScope().setHasEmptyLoopBodies();
 
+  CheckBreakGotoCount(Body, ForLoc);
   // ************************ 15.6 MISRA : S_NO : 82 ************************************ 
   if (Body && !isa<CompoundStmt>(Body)) {
-    llvm::errs() << "Braces not found\n";
+    // llvm::errs() << "Braces not found\n";
     Diag(Body->getBeginLoc(), diag::warn_misra_iteration_or_selection_body_not_compound)
         << "The body of a for-loop statement shall be a compound statement";
   }
@@ -3468,10 +3538,12 @@ StmtResult Sema::FinishCXXForRangeStmt(Stmt *S, Stmt *B) {
 StmtResult Sema::ActOnGotoStmt(SourceLocation GotoLoc,
                                SourceLocation LabelLoc,
                                LabelDecl *TheDecl) {
+  Diag(GotoLoc, diag::ext_goto_statmemt_used);
   setFunctionHasBranchIntoScope();
   TheDecl->markUsed(Context);
   if(TheDecl->getStmt()) {
-      Diag(TheDecl->getStmt()->getBeginLoc(), diag::warn_label_before_goto) << "Label declared before goto";
+    // TheDecl->getStmt()->getBeginLoc().dump(this->SourceMgr);
+    Diag(TheDecl->getStmt()->getBeginLoc(), diag::warn_label_before_goto) << "Label declared before goto";
   } 
   return new (Context) GotoStmt(TheDecl, GotoLoc, LabelLoc);
 }

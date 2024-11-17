@@ -1,4 +1,4 @@
-//===-- SimpleStreamChecker.cpp -----------------------------------------*- C++ -*--//
+//===-- MemcmpChecker.cpp -----------------------------------------*- C++ -*--//
 //
 // Part of the MISRA Project
 //
@@ -54,8 +54,9 @@ bool MemcmpChecker::isNullTerminatedString(SVal MemVal, llvm::APSInt SizeVal) co
                 const StringLiteral *SL = SRSuper->getStringLiteral();
 
                 unsigned StringLength = SL->getLength();
+                // llvm::errs() << StringLength << " " << SizeVal << "\n";
 
-                if(SizeVal == StringLength){
+                if(SizeVal >= StringLength){
                     // llvm::errs() << "null terminated string passed as argument\n";
                     returnVal = true;
                 }else{
