@@ -29,6 +29,7 @@ add_clang_library(clangStaticAnalyzerCheckers
   CheckerDocumentation.cpp
   ChrootChecker.cpp
   CloneChecker.cpp
+  ConstPointerLocalChecker.cpp
   ContainerModeling.cpp
   ConversionChecker.cpp
   CTypeFunctionsChecker.cpp
@@ -94,6 +95,7 @@ add_clang_library(clangStaticAnalyzerCheckers
   ObjCUnusedIVarsChecker.cpp
   OSObjectCStyleCast.cpp
   PaddingChecker.cpp
+  PointerArgumentChecker.cpp
   PointerArithChecker.cpp
   PointerIterationChecker.cpp
   PointerSortingChecker.cpp

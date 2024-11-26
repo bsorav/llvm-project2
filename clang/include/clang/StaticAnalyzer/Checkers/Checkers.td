@@ -631,6 +631,14 @@ def ReadOnlyStreamChecker : Checker<"ReadOnlyStreamChecker">,
   HelpText<"Check for attempts to write to streams opened as read-only">,
   Documentation<HasDocumentation>;
 
+def PointerArgumentChecker : Checker<"PointerArgumentChecker">,
+  HelpText<"Check for the arguments passed in memcpy, memmove and memcmp">,
+  Documentation<HasDocumentation>;
+
+def ConstPointerLocalChecker : Checker<"ConstPointerLocalChecker">,
+  HelpText<"Check for the use of resules of localeconv, getenv, setlocale and strerror ">,
+  Documentation<HasDocumentation>;
+
 def BlockInCriticalSectionChecker : Checker<"BlockInCriticalSection">,
   HelpText<"Check for calls to blocking functions inside a critical section">,
   Documentation<HasDocumentation>;
