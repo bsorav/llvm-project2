@@ -14,28 +14,80 @@ namespace {
 class ArrayPointerArithmeticChecker
     : public Checker<check::PostStmt<BinaryOperator>> {
   std::unique_ptr<BugType> BT;
+  std::unique_ptr<BugType> BTTwoDiffArrPtr;
+  std::unique_ptr<BugType> BTTwoDiffObjPtr;
 
 public:
   ArrayPointerArithmeticChecker() {
     BT.reset(new BugType(this, "Pointer arithmetic outside array bounds",
                          "Array pointer rule violation"));
+    BTTwoDiffArrPtr.reset(new BugType(this, "Pointer arithmetic between two different pointers",
+                         "Array pointer rule violation"));
+    BTTwoDiffObjPtr.reset(new BugType(this, "Pointer relational between two different object pointers",
+                         "Object pointer rule violation"));
   }
 
   void checkPostStmt(const BinaryOperator *BO, CheckerContext &C) const;
-  const MemRegion* findBaseRegion(const MemRegion* LHSRegion, const MemRegion* RHSRegion) const;
+  const MemRegion* findBaseRegion(CheckerContext &C,const MemRegion* LHSRegion, const MemRegion* RHSRegion) const;
 };
 } // namespace
 
-const MemRegion* ArrayPointerArithmeticChecker::findBaseRegion(const MemRegion* LHSRegion, const MemRegion* RHSRegion) const {
-  if(const MemRegion* BaseRegion=dyn_cast<ElementRegion>(LHSRegion))
-    return BaseRegion;
-  else if(const MemRegion* BaseRegion=dyn_cast<ElementRegion>(RHSRegion))
-    return BaseRegion;
-  else
+const MemRegion* ArrayPointerArithmeticChecker::findBaseRegion(CheckerContext &C,const MemRegion* LHSRegion, const MemRegion* RHSRegion) const {
+  
+  // Check if LHS is an ElementRegion
+  bool LHSFlag = LHSRegion && isa<const ElementRegion>(LHSRegion);
+  // Check if RHS is an ElementRegion
+  bool RHSFlag = RHSRegion && isa<const ElementRegion>(RHSRegion);
+
+  // If both LHS and RHS are ElementRegions, prioritize LHS or handle both if necessary
+  if (LHSFlag && RHSFlag) 
+  {
+    const MemRegion* LHSBaseRegion=LHSRegion->getBaseRegion();
+    const MemRegion* RHSBaseRegion=RHSRegion->getBaseRegion();
+    if(LHSBaseRegion!=RHSBaseRegion){
+      ExplodedNode *N = C.generateErrorNode();
+      if (!N)
+        return nullptr;
+
+      auto R = std::make_unique<PathSensitiveBugReport>(
+          *BTTwoDiffArrPtr, "Pointer airthmatic between two different array pointers",
+          N);
+      C.emitReport(std::move(R));
+    }
     return nullptr;
+  }
+  // If only LHS is an ElementRegion, return its base region
+  if (LHSFlag) 
+      return LHSRegion->getBaseRegion();
+  // If only RHS is an ElementRegion, return its base region
+  if (RHSFlag) 
+      return RHSRegion->getBaseRegion();
+  return nullptr;
+
 }
 void ArrayPointerArithmeticChecker::checkPostStmt(const BinaryOperator *BO,
                                                  CheckerContext &C) const {
+
+  if (BO->isRelationalOp()) {
+    const Expr *LHS = BO->getLHS()->IgnoreParens();
+    const Expr *RHS = BO->getRHS()->IgnoreParens();
+    const QualType LType = LHS->getType();
+    const QualType RType = RHS->getType();
+      // Ensure both operands are pointers
+    if (LType->isPointerType() && RType->isPointerType()) {
+      const MemRegion *LRegion = C.getSVal(LHS).getAsRegion()->getBaseRegion();
+      const MemRegion *RRegion = C.getSVal(RHS).getAsRegion()->getBaseRegion();
+      // Check if both pointers refer to the same memory region (object)
+      if (LRegion && RRegion && LRegion!=RRegion) {
+        // Report an error if they are not pointing into the same object
+        ExplodedNode *N = C.generateErrorNode();
+        if (!N) return;
+        auto R = std::make_unique<PathSensitiveBugReport>(*BTTwoDiffObjPtr, "Relational comparison between pointers to different objects is not allowed", N);
+        C.emitReport(std::move(R));
+      }
+    }
+  }
+
   if (BO->getOpcode() != BO_Add && BO->getOpcode() != BO_Sub)
     return;
 
@@ -48,15 +100,14 @@ void ArrayPointerArithmeticChecker::checkPostStmt(const BinaryOperator *BO,
   const MemRegion * LHSRegion=C.getSVal(LHS).getAsRegion();
   const MemRegion * RHSRegion=C.getSVal(RHS).getAsRegion();
   
-  const MemRegion* BaseRegion=findBaseRegion(LHSRegion,RHSRegion);
+  const MemRegion* BaseRegion=findBaseRegion(C,LHSRegion,RHSRegion);
   if(!BaseRegion)
     return;
-
+  
   llvm::APInt ArraySize;
   const TypedValueRegion *TypedBaseRegion = dyn_cast<TypedValueRegion>(BaseRegion);
   if (TypedBaseRegion) {
       QualType BaseType = TypedBaseRegion->getValueType();
-
       if (const ConstantArrayType *ArrayType = Ctx.getAsConstantArrayType(BaseType)) {
           ArraySize = ArrayType->getSize();
           // Now, `ArraySize` contains the size of the array in elements
@@ -64,7 +115,7 @@ void ArrayPointerArithmeticChecker::checkPostStmt(const BinaryOperator *BO,
   }
   if(!ArraySize)
     return;
-
+  
   const MemRegion* Region=C.getSVal(BO).getAsRegion();
   const ElementRegion *ER = dyn_cast<ElementRegion>(Region);
 
@@ -77,7 +128,7 @@ void ArrayPointerArithmeticChecker::checkPostStmt(const BinaryOperator *BO,
   std::optional<nonloc::ConcreteInt> CI = IndexVal.getAs<nonloc::ConcreteInt>();
   llvm::APInt Index=CI->getValue();
   // Check that the result is still within the same base region
-  if (ER->getBaseRegion()!=BaseRegion || !Index.uge(0) ||  !Index.ult(ArraySize)) {
+  if (ER->getBaseRegion()!=BaseRegion || !Index.uge(0) ||  !Index.ule(ArraySize)) {
     // Report an error if the resulting pointer is outside of array bounds
     ExplodedNode *N = C.generateErrorNode();
     if (!N)
