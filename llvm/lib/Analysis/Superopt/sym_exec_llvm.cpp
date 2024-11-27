@@ -1921,7 +1921,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
       // == intermediate edge 1 ==
       // local.<id>            <- alloc_ptr
       // local.alloc.count.ssa <- local.alloc.count
-      expr_ref alloc_ptr_expr = m_ctx->get_local_alloc_ptr_fn_expr_for_ml(local_alloc_count_var, ml_local);
+      expr_ref alloc_ptr_expr = m_ctx->mk_alloc_ptr(m_ctx->get_local_alloc_ptr_fn_expr_for_ml(local_alloc_count_var, ml_local), ml_local);
       state_set_expr(state_out, local_addr_key, alloc_ptr_expr);
       state_set_expr(state_out, local_alloc_count_ssa_varname, local_alloc_count_var);
       if (m_ctx->get_config().prefer_friendly_counterexamples) {
@@ -1931,11 +1931,6 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
       add_edge_with_state();
 
       // == intermediate edge 2 ==
-      // <llvm-var> <- local.<id>
-      state_set_expr(state_out, iname, local_addr_var);
-      add_edge_with_state();
-
-      // == intermediate edge 3 ==
       // mem.alloc <- alloc
       // mem       <- store_unint
       expr_ref const new_mem_alloc = m_ctx->mk_alloc(mem_alloc_e, ml_local, local_addr_var, local_size_var);
@@ -1944,8 +1939,10 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
       state_set_expr(state_out, m_mem_reg, new_mem);
       add_edge_with_state();
 
-      // == intermediate edge 4 ==
+      // == intermediate edge 3 ==
+      // <llvm-var>        <- local.<id>
       // local.alloc.count <- local.alloc.count+1
+      state_set_expr(state_out, iname, local_addr_var);
       state_set_expr(state_out, local_alloc_count_varname, m_ctx->mk_increment_count(local_alloc_count_var));
     }
     break;
