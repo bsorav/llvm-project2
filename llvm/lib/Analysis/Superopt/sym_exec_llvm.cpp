@@ -1792,42 +1792,6 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     const AllocaInst* a =  cast<const AllocaInst>(&I);
     ASSERT(a);
     string const iname = get_value_name(*a);
-    //Type *ElTy = a->getAllocatedType();
-    //Value const* ArraySize = a->getArraySize();
-    //unsigned const align = a->getAlign().value();
-    //auto const op_alloc_size_bits = a->getAllocationSizeInBits(dl);
-    //bool const is_varsize = !(op_alloc_size_bits.has_value());
-    //bool const is_alloca = alloca_instruction_is_alloca_operator_in_src(this->m_module, I);
-
-    //uint64_t const local_type_alloc_size = dl.getTypeAllocSize(ElTy);
-    //uint64_t local_size = local_type_alloc_size;
-    //if (const ConstantInt* constArraySize = dyn_cast<const ConstantInt>(ArraySize)) {
-    //  local_size *= constArraySize->getZExtValue();
-    //  ASSERT(!is_varsize);
-    //  ASSERT(local_size == op_alloc_size_bits.value()/8);
-    //}
-
-    //allocsite_t const local_id(from_node->get_pc());
-    //allocstack_t const local_id_stack = allocstack_t::allocstack_singleton(cur_function_name, local_id);
-    //memlabel_t const ml_local = memlabel_t::memlabel_local(local_id_stack);
-    //expr_ref const local_addr_var = m_cs.get_local_addr(local_id_stack, m_srcdst_keyword);
-
-    //string const local_addr_key = m_ctx->get_key_from_input_expr(local_addr_var)->get_str();
-    //m_local_refs.emplace(local_id, graph_local_t(mk_string_ref(iname), local_size, align, is_varsize, is_alloca));
-
-    //expr_ref local_size_val;
-    //if (is_varsize) {
-    //  expr_ref varsize_expr;
-    //  tie(varsize_expr, state_assumes) = get_expr_adding_edges_for_intermediate_vals(*ArraySize, iname, state_in, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map);
-    //  unsigned bvlen = varsize_expr->get_sort()->get_size();
-    //  ASSERT(bvlen == get_word_length());
-    //  expr_ref const local_type_alloc_size_expr = m_ctx->mk_bv_const(bvlen, local_type_alloc_size);
-    //  local_size_val = m_ctx->mk_bvmul(varsize_expr, local_type_alloc_size_expr);
-
-    //  if (is_alloca) {
-    //    // add size != 0 assume
-    //    expr_ref size_is_nonzero = m_ctx->mk_not(m_ctx->mk_eq(local_size_val, m_ctx->mk_zerobv(bvlen)));
-    //    add_state_assume(iname, size_is_nonzero, state_in, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map); //state_assumes.insert(size_is_positive_assume);
     auto const* dilocal = this->get_dilocal_for_alloca(a);
     expr_ref param_addr;
     if (dilocal && this->alloca_corresponds_to_a_local_parameter(*a, *dilocal, F, t, param_addr)) {
