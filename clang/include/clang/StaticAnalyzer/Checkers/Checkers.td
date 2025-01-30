@@ -562,10 +562,6 @@ def MismatchedDeallocatorChecker : Checker<"MismatchedDeallocator">,
   HelpText<"Check for mismatched deallocators.">,
   Dependencies<[DynamicMemoryModeling]>,
   Documentation<HasDocumentation>;
-  
-def StdLibOldReturnValueUseChecker : Checker<"StdLibOldReturnValueUseChecker">,
-  HelpText<"Check if the return value from certain Standard Library functions is used after a subsequent call to the same function.">,
-  Documentation<HasDocumentation>;
 
 
 def StdCLibraryFunctionsChecker : Checker<"StdCLibraryFunctions">,
@@ -641,6 +637,10 @@ def ConstPointerLocalChecker : Checker<"ConstPointerLocalChecker">,
 
 def BlockInCriticalSectionChecker : Checker<"BlockInCriticalSection">,
   HelpText<"Check for calls to blocking functions inside a critical section">,
+  Documentation<HasDocumentation>;
+
+def StdLibOldReturnValueUseChecker : Checker<"StdLibOldReturnValueUseChecker">,
+  HelpText<"Check if the return value from certain Standard Library functions is used after a subsequent call to the same function.">,
   Documentation<HasDocumentation>;
 
 } // end "alpha.unix"
