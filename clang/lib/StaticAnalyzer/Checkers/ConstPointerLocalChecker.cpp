@@ -86,12 +86,12 @@ void ConstPointerLocalChecker::checkPostCall(const CallEvent &Call,
 
   // Save the returned pointer in the program state
 
-    ProgramStateRef State = C.getState();
-    SVal ReturnValue = Call.getReturnValue();
-    if(!State->contains<ConstPointerState>(ReturnValue.getAsRegion())){
-      State = State->add<ConstPointerState>(ReturnValue.getAsRegion());
-      C.addTransition(State);
-    }
+  ProgramStateRef State = C.getState();
+  SVal ReturnValue = Call.getReturnValue();
+  if(!State->contains<ConstPointerState>(ReturnValue.getAsRegion())){
+    State = State->add<ConstPointerState>(ReturnValue.getAsRegion());
+    C.addTransition(State);
+  }
 }
 
 void ConstPointerLocalChecker::checkPreStmt(const BinaryOperator *S, CheckerContext &C) const { 
@@ -132,12 +132,12 @@ void ConstPointerLocalChecker::checkPreStmt(const BinaryOperator *S, CheckerCont
 void ConstPointerLocalChecker::checkPreCall(const CallEvent &Call, CheckerContext &C) const {
   ProgramStateRef State = C.getState();
   const FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(Call.getDecl());
-  const SourceManager &SM = C.getSourceManager();
+  // const SourceManager &SM = C.getSourceManager();
 
 //   FD->dump(llvm::errs());
 
   for (unsigned i = 0; i < Call.getNumArgs(); ++i) {
-    const Expr *ArgExpr = Call.getArgExpr(i);
+    // const Expr *ArgExpr = Call.getArgExpr(i);
     SVal ArgVal = Call.getArgSVal(i);
     const ParmVarDecl *ParamDecl = FD->getParamDecl(i);
     QualType ParamType = ParamDecl->getType();
