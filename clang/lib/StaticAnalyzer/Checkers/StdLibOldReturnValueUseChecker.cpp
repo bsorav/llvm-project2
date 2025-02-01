@@ -13,7 +13,6 @@ using namespace ento;
 namespace{
 
 class StdLibOldReturnValueUseChecker : public Checker<check::PostCall,check::DeadSymbols,check::Location> {
-  mutable llvm::StringMap<const MemRegion *> TrackedFunctions;
   mutable std::unique_ptr<BugType> BT;
 
 public:
@@ -31,7 +30,9 @@ private:
 };
 // ProgramState trait to track invalidated regions
 }
-REGISTER_SET_WITH_PROGRAMSTATE(InvalidRegions, const MemRegion *)
+REGISTER_MAP_WITH_PROGRAMSTATE(FuncCurrentRegions, const IdentifierInfo *, const MemRegion *)
+REGISTER_MAP_WITH_PROGRAMSTATE(CreationNodes, const MemRegion *, const ExplodedNode *)
+REGISTER_MAP_WITH_PROGRAMSTATE(InvalidRegions, const MemRegion *,const ExplodedNode *)
 
 void StdLibOldReturnValueUseChecker::checkLocation(SVal Loc, bool IsLoad,
                                                    const Stmt *S,
@@ -44,19 +45,34 @@ void StdLibOldReturnValueUseChecker::checkLocation(SVal Loc, bool IsLoad,
     if (auto Val = State->getSVal(MR).getAs<loc::MemRegionVal>()) {
       const MemRegion *TargetRegion = Val->getRegion();
       // 2. Check if POINTEE region is invalid
-      if (State->contains<InvalidRegions>(TargetRegion)) {
-        ProgramStateRef State = C.getState();
-        if (State->contains<InvalidRegions>(TargetRegion)) {
-          // Report error at actual usage location
-          ExplodedNode *N = C.generateNonFatalErrorNode();
-          if (!N) {
-            return;
-          }
-          auto Report = std::make_unique<PathSensitiveBugReport>(
-              *BT, "Using stale return value from previous API call",N);
-          Report->addRange(S->getSourceRange());
-          C.emitReport(std::move(Report));
+      if (auto InvalidationNodePtr = State->get<InvalidRegions>(TargetRegion)) {
+        // Report error at actual usage location
+        ExplodedNode *N = C.generateNonFatalErrorNode();
+        if (!N) {
+          return;
         }
+        auto Report = std::make_unique<PathSensitiveBugReport>(
+            *BT, "Using stale return value from previous API call",N);
+        Report->addRange(S->getSourceRange());
+
+        // Add note for where the value was invalidated
+        const ExplodedNode *InvalidationNode = *InvalidationNodePtr;
+        PathDiagnosticLocation Loc = PathDiagnosticLocation::create(
+          InvalidationNode->getLocation(),  // ProgramPoint from ExplodedNode
+          C.getSourceManager()
+        );
+        Report->addNote("Return value invalidated here", Loc);
+
+        // When accessing creation nodes:
+        if (auto CreationNodePtr = State->get<CreationNodes>(MR)) {
+          const ExplodedNode *CreationNode = *CreationNodePtr;
+          PathDiagnosticLocation CreationLoc = PathDiagnosticLocation::create(
+            CreationNode->getLocation(),
+            C.getSourceManager()
+          );
+          Report->addNote("Return value created here", CreationLoc);
+        }
+        C.emitReport(std::move(Report));
       }
     }
   }
@@ -82,21 +98,33 @@ void StdLibOldReturnValueUseChecker::checkPostCall(const CallEvent &Call, Checke
 }
 
 void StdLibOldReturnValueUseChecker::trackFunction(const CallEvent &Call, CheckerContext &C) const {
+  const IdentifierInfo *II = Call.getCalleeIdentifier();
+  if (!II) return;
+
   ProgramStateRef State = C.getState();
   const MemRegion *NewRegion = Call.getReturnValue().getAsRegion();
   if (!NewRegion) {
     return; // Ignore if the return value isn't a memory region
   }
   
+  // Track creation node
+  ExplodedNode *CreationNode = C.generateNonFatalErrorNode();
+  if (CreationNode) {
+    State = State->set<CreationNodes>(NewRegion, CreationNode);
+  }
+
   // Get the old region associated with the function name
-  const MemRegion *OldRegion = TrackedFunctions.lookup(Call.getCalleeIdentifier()->getName());
+  const MemRegion *OldRegion = *State->get<FuncCurrentRegions>(II);
   if (OldRegion) {
-    // Mark previous region as invalid
-    State = State->add<InvalidRegions>(OldRegion);
+    // Mark previous region as invalid with its invalidation node
+    ExplodedNode *InvalidationNode = C.generateNonFatalErrorNode();
+    if (InvalidationNode) {
+      State = State->set<InvalidRegions>(OldRegion, InvalidationNode);
+    }
   }
   
   // Update current valid region
-  TrackedFunctions[Call.getCalleeIdentifier()->getName()] = NewRegion;
+  State = State->set<FuncCurrentRegions>(II, NewRegion);
   C.addTransition(State);
 }
 
@@ -106,7 +134,8 @@ void StdLibOldReturnValueUseChecker::checkDeadSymbols(SymbolReaper &SR, CheckerC
 
   // Create temporary copy for safe iteration
   llvm::SmallVector<const MemRegion *, 8> ToRemove;
-  for (const auto *MR : Invalid) {
+  for (auto Entry = Invalid.begin(); Entry != Invalid.end(); ++Entry) {
+    const MemRegion* MR=Entry->first;
     if (!SR.isLiveRegion(MR)) {
       ToRemove.push_back(MR);
     }
@@ -115,12 +144,11 @@ void StdLibOldReturnValueUseChecker::checkDeadSymbols(SymbolReaper &SR, CheckerC
   for (const auto *MR : ToRemove) {
     State = State->remove<InvalidRegions>(MR);
   }
-  for (const auto &Entry : TrackedFunctions) {
-    const MemRegion *OldRegion = Entry.getValue();
-    // If the old region is not live anymore, no bug
-    if (OldRegion && !SR.isLiveRegion(OldRegion)) {
-      TrackedFunctions[Entry.getKey()] = nullptr; // Mark the region as dead
-      continue;
+   // Cleanup FuncCurrentRegions
+  auto CurrentRegions = State->get<FuncCurrentRegions>();
+  for (auto I = CurrentRegions.begin(); I != CurrentRegions.end(); ++I) {
+    if (!SR.isLiveRegion(I->second)) {
+      State = State->remove<FuncCurrentRegions>(I->first);
     }
   }
   C.addTransition(State);
