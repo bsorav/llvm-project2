@@ -115,7 +115,14 @@ void StdLibOldReturnValueUseChecker::checkDeadSymbols(SymbolReaper &SR, CheckerC
   for (const auto *MR : ToRemove) {
     State = State->remove<InvalidRegions>(MR);
   }
-  
+  for (const auto &Entry : TrackedFunctions) {
+    const MemRegion *OldRegion = Entry.getValue();
+    // If the old region is not live anymore, no bug
+    if (OldRegion && !SR.isLiveRegion(OldRegion)) {
+      TrackedFunctions[Entry.getKey()] = nullptr; // Mark the region as dead
+      continue;
+    }
+  }
   C.addTransition(State);
 }
 // Register the checker in the analyzer
