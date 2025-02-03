@@ -10,6 +10,11 @@
 
 using namespace clang;
 using namespace ento;
+
+REGISTER_MAP_WITH_PROGRAMSTATE(FuncCurrentRegions, const IdentifierInfo *, const MemRegion *)
+REGISTER_SET_WITH_PROGRAMSTATE(InvalidRegions, const MemRegion *)
+REGISTER_SET_WITH_PROGRAMSTATE(SymbolsToTrack, SymbolRef)
+
 namespace{
 
 class StdLibOldReturnValueUseChecker : public Checker<check::PostCall,check::DeadSymbols,check::Location> {
@@ -27,35 +32,51 @@ public:
 
 private:
   void trackFunction(const CallEvent &Call, CheckerContext &C) const;
+
+  class StaleValueVisitor : public BugReporterVisitor {
+    const MemRegion *InvalidRegion;
+  public:
+    StaleValueVisitor(const MemRegion *MR) : InvalidRegion(MR) {}
+
+    PathDiagnosticPieceRef VisitNode(const ExplodedNode *N,
+                                     BugReporterContext &BRC,
+                                     PathSensitiveBugReport &BR) override {
+      ProgramStateRef State = N->getState();
+      ProgramStateRef PrevState = N->getFirstPred()->getState();
+
+      if (!PrevState->contains<InvalidRegions>(InvalidRegion) &&
+          State->contains<InvalidRegions>(InvalidRegion)) {
+        const Stmt *S = N->getStmtForDiagnostics();
+        if (!S) return nullptr;
+
+        PathDiagnosticLocation Loc(S, BRC.getSourceManager(),
+                                   N->getLocationContext());
+        
+        auto Piece = std::make_shared<PathDiagnosticEventPiece>(
+            Loc, "Stale value obtained here");
+        Piece->setPrunable(false);
+        return Piece;
+      }
+      return nullptr;
+    }
+    
+    void finalizeVisitor(BugReporterContext &BRC,
+                         const ExplodedNode *EndPathNode,
+                         PathSensitiveBugReport &BR) override {
+      // Get location from the end path node
+      PathDiagnosticLocation Loc = PathDiagnosticLocation::create(EndPathNode->getLocation(), 
+                             BRC.getSourceManager());
+      
+      // Create note with message and location
+      BR.addNote("Stale value used here", Loc); 
+    }
+    void Profile(llvm::FoldingSetNodeID &ID) const override {
+      ID.AddPointer(InvalidRegion);
+    }
+  };
 };
 // ProgramState trait to track invalidated regions
 }
-// Add unique wrapper types for ProgramPoints
-struct CreationPoint {
-  ProgramPoint Point;
-  CreationPoint(ProgramPoint P) : Point(P) {}
-  bool operator==(const CreationPoint &Other) const {
-    return Point == Other.Point;
-  }
-  void Profile(llvm::FoldingSetNodeID &ID) const {
-    Point.Profile(ID); // Delegate to ProgramPoint's profiling
-  }
-};
-
-struct InvalidationPoint {
-  ProgramPoint Point;
-  InvalidationPoint(ProgramPoint P) : Point(P) {}
-  bool operator==(const InvalidationPoint &Other) const {
-    return Point == Other.Point;
-  }
-  void Profile(llvm::FoldingSetNodeID &ID) const {
-    Point.Profile(ID);
-  }
-};
-REGISTER_MAP_WITH_PROGRAMSTATE(FuncCurrentRegions, const IdentifierInfo *, const MemRegion *)
-REGISTER_MAP_WITH_PROGRAMSTATE(CreationLocs, const MemRegion *, CreationPoint)
-REGISTER_SET_WITH_PROGRAMSTATE(InvalidRegions, const MemRegion *)
-REGISTER_MAP_WITH_PROGRAMSTATE(InvalidationLocs, const MemRegion *, InvalidationPoint )
 
 
 void StdLibOldReturnValueUseChecker::checkLocation(SVal Loc, bool IsLoad,
@@ -78,21 +99,7 @@ void StdLibOldReturnValueUseChecker::checkLocation(SVal Loc, bool IsLoad,
         auto Report = std::make_unique<PathSensitiveBugReport>(
             *BT, "Using stale return value from previous API call",N);
         Report->addRange(S->getSourceRange());
-
-        // Add note with invalidation location
-        const auto *InvalidLoc = C.getState()->get<InvalidationLocs>(TargetRegion);
-        Report->addNote("Value invalidated here", 
-                       PathDiagnosticLocation::create(
-                         InvalidLoc->Point,
-                         C.getSourceManager()));
-
-
-        // When accessing creation nodes:
-        const auto *CreationLoc = C.getState()->get<CreationLocs>(TargetRegion);
-        Report->addNote("Value created here", 
-                       PathDiagnosticLocation::create(
-                         CreationLoc->Point,
-                         C.getSourceManager()));
+        Report->addVisitor(std::make_unique<StaleValueVisitor>(TargetRegion));
         C.emitReport(std::move(Report));
       }
     }
@@ -120,7 +127,6 @@ void StdLibOldReturnValueUseChecker::checkPostCall(const CallEvent &Call, Checke
 
 void StdLibOldReturnValueUseChecker::trackFunction(const CallEvent &Call, CheckerContext &C) const {
   const IdentifierInfo *II = Call.getCalleeIdentifier();
-  const ProgramPoint PP = C.getPredecessor()->getLocation();
   if (!II) return;
 
   ProgramStateRef State = C.getState();
@@ -129,17 +135,17 @@ void StdLibOldReturnValueUseChecker::trackFunction(const CallEvent &Call, Checke
     return; // Ignore if the return value isn't a memory region
   }
   
-  State=State->set<CreationLocs>(NewRegion,CreationPoint(PP));
-
   // Get the old region associated with the function name
   const MemRegion *OldRegion = nullptr;
   if (const MemRegion *const *OldRegionPtr = State->get<FuncCurrentRegions>(II)) {
     OldRegion = *OldRegionPtr;
   }
   if (OldRegion) {
-    // Always mark OldRegion as invalid
-    State = State->add<InvalidRegions>(OldRegion);
-    State = State->set<InvalidationLocs>(OldRegion, InvalidationPoint(PP));
+    SymbolRef OldSym = State->getSVal(OldRegion).getAsSymbol();
+    if (OldSym) {
+      State = State->add<InvalidRegions>(OldRegion);
+      State = State->add<SymbolsToTrack>(OldSym);
+    }
   }
   
   // Update current valid region
@@ -160,15 +166,17 @@ void StdLibOldReturnValueUseChecker::checkDeadSymbols(SymbolReaper &SR, CheckerC
   }
   for (const auto *MR : ToRemove) {
     State = State->remove<InvalidRegions>(MR);
-    State = State->remove<InvalidationLocs>(MR);
   }
 
-   // Cleanup FuncCurrentRegions
-  auto CurrentRegions = State->get<FuncCurrentRegions>();
-  for (auto I = CurrentRegions.begin(); I != CurrentRegions.end(); ++I) {
-    if (!SR.isLiveRegion(I->second)) {
-      State = State->remove<FuncCurrentRegions>(I->first);
+  auto Tracked = State->get<SymbolsToTrack>();
+  llvm::SmallVector<SymbolRef, 8> SymbolsToRemove;
+  for (const auto &Sym : Tracked) {
+    if (!SR.isLive(Sym)) {
+      SymbolsToRemove.push_back(Sym);
     }
+  }
+  for (const auto &Sym : SymbolsToRemove) {
+    State = State->remove<SymbolsToTrack>(Sym);
   }
   C.addTransition(State);
 }
