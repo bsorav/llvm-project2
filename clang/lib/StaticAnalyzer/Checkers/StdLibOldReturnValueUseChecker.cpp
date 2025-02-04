@@ -13,7 +13,6 @@ using namespace ento;
 
 REGISTER_MAP_WITH_PROGRAMSTATE(FuncCurrentRegions, const IdentifierInfo *, const MemRegion *)
 REGISTER_SET_WITH_PROGRAMSTATE(InvalidRegions, const MemRegion *)
-// REGISTER_SET_WITH_PROGRAMSTATE(SymbolsToTrack, SymbolRef)
 
 namespace{
 
@@ -35,6 +34,7 @@ private:
 
   class StaleValueVisitor : public BugReporterVisitor {
     const MemRegion *InvalidRegion;
+    // bool flag=false;
   public:
     StaleValueVisitor(const MemRegion *MR) : InvalidRegion(MR) {}
 
@@ -43,7 +43,7 @@ private:
                                      PathSensitiveBugReport &BR) override {
       ProgramStateRef State = N->getState();
       ProgramStateRef PrevState = N->getFirstPred()->getState();
-
+      
       if (!PrevState->contains<InvalidRegions>(InvalidRegion) &&
           State->contains<InvalidRegions>(InvalidRegion)) {
         const Stmt *S = N->getStmtForDiagnostics();
@@ -56,6 +56,25 @@ private:
             Loc, "Stale value obtained here");
         Piece->setPrunable(false);
         return Piece;
+      }
+      // Check if this node represents the creation point of the invalid region
+      auto FuncRegions = State->get<FuncCurrentRegions>();
+      for (const auto &Entry : FuncRegions) {
+        if (Entry.second == InvalidRegion && 
+            (!PrevState->get<FuncCurrentRegions>().lookup(Entry.first) || 
+            *PrevState->get<FuncCurrentRegions>().lookup(Entry.first) != InvalidRegion)) {
+          const Stmt *S = N->getStmtForDiagnostics();
+          if (!S) return nullptr;
+
+          PathDiagnosticLocation Loc(S, BRC.getSourceManager(),
+                                    N->getLocationContext());
+          
+          auto Piece = std::make_shared<PathDiagnosticEventPiece>(
+              Loc, "Return value obtained here, later becomes stale");
+          Piece->setPrunable(false);
+          // CreationPointFound = true;
+          return Piece;
+        }
       }
       return nullptr;
     }
@@ -118,7 +137,6 @@ void StdLibOldReturnValueUseChecker::checkPostCall(const CallEvent &Call, Checke
   
   for (const auto &TrackedFunction : FunctionsToTrack) {
     if (FName == TrackedFunction) {
-      // llvm::errs()<<TrackedFunctions[FName]<<"\n";
       trackFunction(Call, C);
       return;
     }
@@ -144,7 +162,6 @@ void StdLibOldReturnValueUseChecker::trackFunction(const CallEvent &Call, Checke
     SymbolRef OldSym = State->getSVal(OldRegion).getAsSymbol();
     if (OldSym) {
       State = State->add<InvalidRegions>(OldRegion);
-      // State = State->add<SymbolsToTrack>(OldSym);
     }
   }
   
@@ -167,17 +184,6 @@ void StdLibOldReturnValueUseChecker::checkDeadSymbols(SymbolReaper &SR, CheckerC
   for (const auto *MR : ToRemove) {
     State = State->remove<InvalidRegions>(MR);
   }
-
-  // auto Tracked = State->get<SymbolsToTrack>();
-  // llvm::SmallVector<SymbolRef, 8> SymbolsToRemove;
-  // for (const auto &Sym : Tracked) {
-  //   if (!SR.isLive(Sym)) {
-  //     SymbolsToRemove.push_back(Sym);
-  //   }
-  // }
-  // for (const auto &Sym : SymbolsToRemove) {
-  //   State = State->remove<SymbolsToTrack>(Sym);
-  // }
   C.addTransition(State);
 }
 // Register the checker in the analyzer
