@@ -13,7 +13,7 @@ using namespace ento;
 
 REGISTER_MAP_WITH_PROGRAMSTATE(FuncCurrentRegions, const IdentifierInfo *, const MemRegion *)
 REGISTER_SET_WITH_PROGRAMSTATE(InvalidRegions, const MemRegion *)
-REGISTER_SET_WITH_PROGRAMSTATE(SymbolsToTrack, SymbolRef)
+// REGISTER_SET_WITH_PROGRAMSTATE(SymbolsToTrack, SymbolRef)
 
 namespace{
 
@@ -144,7 +144,7 @@ void StdLibOldReturnValueUseChecker::trackFunction(const CallEvent &Call, Checke
     SymbolRef OldSym = State->getSVal(OldRegion).getAsSymbol();
     if (OldSym) {
       State = State->add<InvalidRegions>(OldRegion);
-      State = State->add<SymbolsToTrack>(OldSym);
+      // State = State->add<SymbolsToTrack>(OldSym);
     }
   }
   
@@ -168,16 +168,16 @@ void StdLibOldReturnValueUseChecker::checkDeadSymbols(SymbolReaper &SR, CheckerC
     State = State->remove<InvalidRegions>(MR);
   }
 
-  auto Tracked = State->get<SymbolsToTrack>();
-  llvm::SmallVector<SymbolRef, 8> SymbolsToRemove;
-  for (const auto &Sym : Tracked) {
-    if (!SR.isLive(Sym)) {
-      SymbolsToRemove.push_back(Sym);
-    }
-  }
-  for (const auto &Sym : SymbolsToRemove) {
-    State = State->remove<SymbolsToTrack>(Sym);
-  }
+  // auto Tracked = State->get<SymbolsToTrack>();
+  // llvm::SmallVector<SymbolRef, 8> SymbolsToRemove;
+  // for (const auto &Sym : Tracked) {
+  //   if (!SR.isLive(Sym)) {
+  //     SymbolsToRemove.push_back(Sym);
+  //   }
+  // }
+  // for (const auto &Sym : SymbolsToRemove) {
+  //   State = State->remove<SymbolsToTrack>(Sym);
+  // }
   C.addTransition(State);
 }
 // Register the checker in the analyzer
