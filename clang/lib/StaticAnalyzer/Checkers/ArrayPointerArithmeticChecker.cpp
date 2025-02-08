@@ -4,30 +4,30 @@
 #include "clang/StaticAnalyzer/Core/PathSensitive/CheckerContext.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/ProgramStateTrait.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/SVals.h"
+#include "clang/StaticAnalyzer/Core/PathSensitive/CallEvent.h"
 #include <optional>
 #include "clang/AST/Expr.h"
 
 using namespace clang;
 using namespace ento;
 
+REGISTER_MAP_WITH_PROGRAMSTATE(InitializedRegions, const MemRegion *, const Stmt *)
+
 namespace {
 class ArrayPointerArithmeticChecker
-    : public Checker<check::PostStmt<BinaryOperator>> {
+    : public Checker<check::PostStmt<BinaryOperator>, check::PostCall, check::PostStmt<DeclStmt>,check::Location> {
   std::unique_ptr<BugType> BT;
   std::unique_ptr<BugType> BTTwoDiffArrPtr;
   std::unique_ptr<BugType> BTTwoDiffObjPtr;
 
   class PointerArithVisitor : public BugReporterVisitor {
-    const MemRegion *LHSRegion;
-    const MemRegion *RHSRegion;
+    const MemRegion *TrackedRegion;
 
   public:
-    PointerArithVisitor(const MemRegion *LHS, const MemRegion *RHS)
-        : LHSRegion(LHS), RHSRegion(RHS) {}
+    PointerArithVisitor(const MemRegion *MR) : TrackedRegion(MR){}
 
     void Profile(llvm::FoldingSetNodeID &ID) const override {
-      ID.AddPointer(LHSRegion);
-      ID.AddPointer(RHSRegion);
+      ID.AddPointer(TrackedRegion);
     }
 
     PathDiagnosticPieceRef VisitNode(const ExplodedNode *N,
@@ -35,156 +35,169 @@ class ArrayPointerArithmeticChecker
                                      PathSensitiveBugReport &BR) override {
       ProgramStateRef State = N->getState();
       ProgramStateRef PrevState = N->getFirstPred()->getState();
-      const StoreManager &StoreMgr = State->getStateManager().getStoreManager();
-      const StoreManager &PrevStoreMgr = PrevState->getStateManager().getStoreManager();
-        if (LHSRegion && !(bool)PrevStoreMgr.Lookup(State->getStore(), LHSRegion) &&
-                         (bool)StoreMgr.Lookup(State->getStore(), LHSRegion)) {
-          auto Piece = createEvent(N, BRC, LHSRegion, "First pointer obtained here");
-          return Piece;
-        }
 
-        if (RHSRegion && !(bool)PrevStoreMgr.Lookup(State->getStore(), RHSRegion) &&
-                         (bool)StoreMgr.Lookup(State->getStore(), RHSRegion)) {
-          auto Piece = createEvent(N, BRC, RHSRegion, "Second pointer obtained here");
-          return Piece;
-        }
-      return nullptr;
-    }
+      auto InitStmt = State->get<InitializedRegions>(TrackedRegion);
+      auto PreInitStmt = PrevState->get<InitializedRegions>(TrackedRegion);
+      if (!InitStmt or PreInitStmt) return nullptr;
 
-  private:
-    PathDiagnosticPieceRef createEvent(const ExplodedNode *N,
-                                       BugReporterContext &BRC,
-                                       const MemRegion *MR,
-                                       llvm::StringRef Msg) {
-      const Stmt *S = N->getStmtForDiagnostics();
-      if (!S) return nullptr;
-
-      PathDiagnosticLocation Loc(S, BRC.getSourceManager(),
-                                 N->getLocationContext());
-      auto Piece = std::make_shared<PathDiagnosticEventPiece>(Loc, Msg);
+      PathDiagnosticLocation Loc = PathDiagnosticLocation::createBegin(
+          *InitStmt, BRC.getSourceManager(), N->getLocationContext());
+      
+      auto Piece = std::make_shared<PathDiagnosticEventPiece>(Loc, "Pointer initialized here");
       Piece->setPrunable(false);
       return Piece;
     }
   };
 
+  void trackInitialization(CheckerContext &C, const MemRegion *MR, const Stmt *S) const {
+    if (!MR || !S) return;
+
+    ProgramStateRef State = C.getState();
+    if (!State->get<InitializedRegions>(MR)) {
+      State = State->set<InitializedRegions>(MR, S);
+      C.addTransition(State);
+    }
+  }
+
 public:
   ArrayPointerArithmeticChecker() {
     BT.reset(new BugType(this, "Pointer arithmetic outside array bounds",
-                         "Array pointer rule violation"));
-    BTTwoDiffArrPtr.reset(new BugType(this, "Pointer arithmetic between different arrays",
-                         "Array pointer rule violation"));
-    BTTwoDiffObjPtr.reset(new BugType(this, "Pointer relational between different objects",
-                         "Object pointer rule violation"));
+                         "Array violation"));
+    BTTwoDiffArrPtr.reset(new BugType(this, "Different array pointers",
+                         "Array violation"));
+    BTTwoDiffObjPtr.reset(new BugType(this, "Different object pointers",
+                         "Object violation"));
   }
 
   void checkPostStmt(const BinaryOperator *BO, CheckerContext &C) const;
+  void checkPostCall(const CallEvent &Call, CheckerContext &C) const;
+  void checkPostStmt(const DeclStmt *DS, CheckerContext &C) const;
+  void checkLocation(SVal Loc, bool IsLoad,const Stmt *S,CheckerContext &C) const;
   const MemRegion* findBaseRegion(CheckerContext &C, const MemRegion* LHSRegion, 
                                   const MemRegion* RHSRegion) const;
 };
-} // namespace
+}
 
+void ArrayPointerArithmeticChecker::checkLocation(SVal Loc, bool IsLoad,const Stmt *S,CheckerContext &C) const {
+  // Track memory accesses and mark regions as initialized
+  ProgramStateRef State = C.getState();
+  if (const MemRegion *MR = Loc.getAsRegion()) {
+    trackInitialization(C, MR, S);
+  }
+}
 
-const MemRegion* ArrayPointerArithmeticChecker::findBaseRegion(CheckerContext &C,
-                                                               const MemRegion* LHSRegion,
-                                                               const MemRegion* RHSRegion) const {
-  bool LHSFlag = LHSRegion && isa<ElementRegion>(LHSRegion);
-  bool RHSFlag = RHSRegion && isa<ElementRegion>(RHSRegion);
+const MemRegion* ArrayPointerArithmeticChecker::findBaseRegion(
+    CheckerContext &C, const MemRegion* LHSRegion, const MemRegion* RHSRegion) const {
+  auto getBase = [](const MemRegion *R) {
+    return R && isa<ElementRegion>(R) ? R->getBaseRegion() : R;
+  };
 
-  if (LHSFlag && RHSFlag) {
-    const MemRegion* LHSBase = LHSRegion->getBaseRegion();
-    const MemRegion* RHSBase = RHSRegion->getBaseRegion();
-
-    if (LHSBase != RHSBase) {
-      ExplodedNode *N = C.generateErrorNode();
-      if (!N) return nullptr;
-
-      auto R = std::make_unique<PathSensitiveBugReport>(
-          *BTTwoDiffArrPtr, "Pointer arithmetic between different array pointers", N);
-      R->addVisitor(std::make_unique<PointerArithVisitor>(LHSBase, RHSBase));
+  const MemRegion *LHSBase = getBase(LHSRegion);
+  const MemRegion *RHSBase = getBase(RHSRegion);
+  if (LHSBase && RHSBase && LHSBase != RHSBase) {
+    ExplodedNode *N = C.generateErrorNode();
+    if (!N) return nullptr;
+    
+    auto R = std::make_unique<PathSensitiveBugReport>(
+      *BTTwoDiffArrPtr, "Pointer arithmetic between different arrays", N);
+      R->addVisitor(std::make_unique<PointerArithVisitor>(LHSBase));
+      R->addVisitor(std::make_unique<PointerArithVisitor>(RHSBase));
       C.emitReport(std::move(R));
-    }
+  }
+  if(LHSBase && RHSBase){
     return nullptr;
   }
+  return LHSBase ? LHSBase : RHSBase;
+}
 
-  const MemRegion *BaseRegion = nullptr;
-  if (LHSFlag) BaseRegion = LHSRegion->getBaseRegion();
-  if (RHSFlag) BaseRegion = RHSRegion->getBaseRegion();
-  return BaseRegion;
+void ArrayPointerArithmeticChecker::checkPostStmt(const DeclStmt *DS,
+                                                 CheckerContext &C) const {
+  for (const auto *D : DS->decls()) {
+    if (const auto *VD = dyn_cast<VarDecl>(D)) {
+      // Use RegionManager from SValBuilder
+      const VarRegion *VR = C.getSValBuilder().getRegionManager()
+          .getVarRegion(VD, C.getLocationContext());
+      if (VR) {
+        trackInitialization(C, VR,DS);
+      }
+    }
+  }
+}
+
+void ArrayPointerArithmeticChecker::checkPostCall(const CallEvent &Call,
+                                                 CheckerContext &C) const {
+  const IdentifierInfo *II = Call.getCalleeIdentifier();
+  if (II && (II->isStr("malloc") || II->isStr("calloc"))) {
+    if (const MemRegion *MR = Call.getReturnValue().getAsRegion()) {
+      trackInitialization(C, MR, Call.getOriginExpr());
+    }
+  }
 }
 
 void ArrayPointerArithmeticChecker::checkPostStmt(const BinaryOperator *BO,
-                                                  CheckerContext &C) const {
+                                                 CheckerContext &C) const {
+  if (BO->getOpcode() == BO_Assign) {
+    // Handle pointer assignments
+    const Expr *LHS = BO->getLHS()->IgnoreParens();
+    const Expr *RHS = BO->getRHS()->IgnoreParens();
+
+    const MemRegion *LRegion = C.getSVal(LHS).getAsRegion();
+    const MemRegion *RRegion = C.getSVal(RHS).getAsRegion();
+
+    if (LRegion && RRegion) {
+      trackInitialization(C, LRegion,BO);
+    }
+  }
   if (BO->isRelationalOp()) {
     const Expr *LHS = BO->getLHS()->IgnoreParens();
     const Expr *RHS = BO->getRHS()->IgnoreParens();
-    const QualType LType = LHS->getType();
-    const QualType RType = RHS->getType();
     
-    if (LType->isPointerType() && RType->isPointerType()) {
-      const MemRegion *LRegion = C.getSVal(LHS).getAsRegion();
-      const MemRegion *RRegion = C.getSVal(RHS).getAsRegion();
-      
-      if (LRegion && RRegion) {
-        
-        if (LRegion->getBaseRegion() != RRegion->getBaseRegion()) {
+    const MemRegion *LRegion = C.getSVal(LHS).getAsRegion();
+    const MemRegion *RRegion = C.getSVal(RHS).getAsRegion();
+
+    if (LRegion && RRegion && LRegion->getBaseRegion() != RRegion->getBaseRegion()) {
+      ExplodedNode *N = C.generateErrorNode();
+      if (!N) return;
+      auto R = std::make_unique<PathSensitiveBugReport>(
+          *BTTwoDiffObjPtr, "Comparison of different object pointers", N);
+      R->addVisitor(std::make_unique<PointerArithVisitor>(LRegion));
+      R->addVisitor(std::make_unique<PointerArithVisitor>(RRegion));
+      C.emitReport(std::move(R));
+    }
+    return;
+  }
+
+  if (BO->getOpcode() != BO_Add && BO->getOpcode() != BO_Sub) return;
+  ASTContext &Ctx = C.getASTContext();
+  const MemRegion *LHSRegion = C.getSVal(BO->getLHS()).getAsRegion();
+  const MemRegion *RHSRegion = C.getSVal(BO->getRHS()).getAsRegion();
+
+  const MemRegion *BaseRegion = findBaseRegion(C, LHSRegion, RHSRegion);
+  if (!BaseRegion) return;
+  trackInitialization(C, BaseRegion, BO);
+
+  const TypedValueRegion *TypedBase = dyn_cast<TypedValueRegion>(BaseRegion);
+  if (!TypedBase) return;
+
+  if (const auto *ArrayType = Ctx.getAsConstantArrayType(TypedBase->getValueType())) {
+    llvm::APInt ArraySize = ArrayType->getSize();
+    const MemRegion *ResultRegion = C.getSVal(BO).getAsRegion();
+    
+    if (const auto *ER = dyn_cast<ElementRegion>(ResultRegion)) {
+      if (auto CI = ER->getIndex().getAs<nonloc::ConcreteInt>()) {
+        if (ER->getBaseRegion() != BaseRegion || 
+            CI->getValue().uge(ArraySize) || 
+            CI->getValue().isNegative()) {
           ExplodedNode *N = C.generateErrorNode();
           if (!N) return;
+          
           auto R = std::make_unique<PathSensitiveBugReport>(
-              *BTTwoDiffObjPtr, 
-              "Relational comparison between pointers to different objects", 
-              N);
-          R->addVisitor(std::make_unique<PointerArithVisitor>(LRegion, RRegion));
+              *BT, "Out-of-bounds array access", N);
+          R->addVisitor(std::make_unique<PointerArithVisitor>(BaseRegion));
           C.emitReport(std::move(R));
         }
       }
     }
-  }
-
-  if (BO->getOpcode() != BO_Add && BO->getOpcode() != BO_Sub)
-    return;
-
-  ASTContext &Ctx = C.getASTContext();
-  Expr *LHS = BO->getLHS()->IgnoreParens();
-  Expr *RHS = BO->getRHS()->IgnoreParens();
-
-  const MemRegion *LHSRegion = C.getSVal(LHS).getAsRegion();
-  const MemRegion *RHSRegion = C.getSVal(RHS).getAsRegion();
-  
-  const MemRegion* BaseRegion = findBaseRegion(C, LHSRegion, RHSRegion);
-  if (!BaseRegion)
-    return;
-  
-  llvm::APInt ArraySize;
-  const TypedValueRegion *TypedBaseRegion = dyn_cast<TypedValueRegion>(BaseRegion);
-  if (TypedBaseRegion) {
-      QualType BaseType = TypedBaseRegion->getValueType();
-      if (const ConstantArrayType *ArrayType = Ctx.getAsConstantArrayType(BaseType)) {
-          ArraySize = ArrayType->getSize();
-      }
-  }
-  if (!ArraySize)
-    return;
-  
-  const MemRegion* Region = C.getSVal(BO).getAsRegion();
-  const ElementRegion *ER = dyn_cast<ElementRegion>(Region);
-
-  if (!ER)
-      return;
-
-  SVal IndexVal = ER->getIndex();
-  std::optional<nonloc::ConcreteInt> CI = IndexVal.getAs<nonloc::ConcreteInt>();
-  if (!CI)
-    return;
-  
-  llvm::APInt Index = CI->getValue();
-  if (ER->getBaseRegion() != BaseRegion || !Index.uge(0) || !Index.ule(ArraySize)) {
-    ExplodedNode *N = C.generateErrorNode();
-    if (!N) return;
-
-    auto R = std::make_unique<PathSensitiveBugReport>(
-        *BT, "Pointer arithmetic out of bounds", N);
-    R->addVisitor(std::make_unique<PointerArithVisitor>(BaseRegion, nullptr));
-    C.emitReport(std::move(R));
   }
 }
 
