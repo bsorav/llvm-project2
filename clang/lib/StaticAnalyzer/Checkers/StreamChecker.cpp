@@ -110,11 +110,14 @@ struct StreamState {
   /// This value applies to all error states in ErrorState except FEOF.
   /// An EOF+indeterminate state is the same as EOF state.
   bool const FilePositionIndeterminate = false;
+  //Filepath  name
+  const std::string Filepath;
+  enum AccessMode{Read,Write,ReadWrite} Mode;
 
   StreamState(const FnDescription *L, KindTy S, const StreamErrorState &ES,
-              bool IsFilePositionIndeterminate)
+              bool IsFilePositionIndeterminate,std::string Filepath, AccessMode Mode)
       : LastOperation(L), State(S), ErrorState(ES),
-        FilePositionIndeterminate(IsFilePositionIndeterminate) {
+        FilePositionIndeterminate(IsFilePositionIndeterminate),Filepath(Filepath), Mode(Mode){
     assert((!ES.isFEof() || !IsFilePositionIndeterminate) &&
            "FilePositionIndeterminate should be false in FEof case.");
     assert((State == Opened || ErrorState.isNoError()) &&
@@ -135,14 +138,14 @@ struct StreamState {
 
   static StreamState getOpened(const FnDescription *L,
                                const StreamErrorState &ES = ErrorNone,
-                               bool IsFilePositionIndeterminate = false) {
-    return StreamState{L, Opened, ES, IsFilePositionIndeterminate};
+                               bool IsFilePositionIndeterminate = false,std::string Filepath="", AccessMode Mode=Read) {
+    return StreamState{L, Opened, ES, IsFilePositionIndeterminate,Filepath,Mode};
   }
   static StreamState getClosed(const FnDescription *L) {
-    return StreamState{L, Closed, {}, false};
+    return StreamState{L, Closed, {}, false,"",Read};
   }
   static StreamState getOpenFailed(const FnDescription *L) {
-    return StreamState{L, OpenFailed, {}, false};
+    return StreamState{L, OpenFailed, {}, false,"",Read};
   }
 
   void Profile(llvm::FoldingSetNodeID &ID) const {
@@ -221,6 +224,9 @@ class StreamChecker : public Checker<check::PreCall, eval::Call,
   BugType BT_StreamEof{this, "Stream already in EOF", "Stream handling error"};
   BugType BT_ResourceLeak{this, "Resource leak", "Stream handling error",
                           /*SuppressOnSink =*/true};
+  BugType BT_AccessConflict{this, "Conflicting file access", 
+                         "Stream handling error"};
+
 
 public:
   void checkPreCall(const CallEvent &Call, CheckerContext &C) const;
@@ -237,6 +243,12 @@ public:
   const BugType *getBT_StreamEof() const { return &BT_StreamEof; }
 
 private:
+  StreamState::AccessMode parseMode(StringRef Mode) const {
+    if (Mode.contains('+')|| (Mode.contains('r') && (Mode.contains('w') || Mode.contains('a')))) return StreamState::ReadWrite;
+    if (Mode.contains('r')) return StreamState::Read;
+    if (Mode.contains('w') || Mode.contains('a')) return StreamState::Write;
+    return StreamState::Read; // Default fallback
+  }
   CallDescriptionMap<FnDescription> FnDescriptions = {
       {{{"fopen"}, 2}, {nullptr, &StreamChecker::evalFopen, ArgNone}},
       {{{"fdopen"}, 2}, {nullptr, &StreamChecker::evalFopen, ArgNone}},
@@ -575,6 +587,9 @@ void StreamChecker::evalFopen(const FnDescription *Desc, const CallEvent &Call,
                               CheckerContext &C) const {
   ProgramStateRef State = C.getState();
   const CallExpr *CE = dyn_cast_or_null<CallExpr>(Call.getOriginExpr());
+  llvm::errs()<<"CallExpr\n";
+  CE->dump();
+  llvm::errs()<<"\n";
   if (!CE)
     return;
 
@@ -584,16 +599,52 @@ void StreamChecker::evalFopen(const FnDescription *Desc, const CallEvent &Call,
 
   State = State->BindExpr(CE, C.getLocationContext(), RetVal);
 
+  // Get filename
+  auto FileName = dyn_cast<StringLiteral>(Call.getArgExpr(0)->IgnoreParenCasts());
+  if (!FileName) return;
+  std::string Path = FileName->getString().str();
+
+  // Get access mode
+  auto ModeStr = dyn_cast<StringLiteral>(Call.getArgExpr(1)->IgnoreParenCasts());
+  StreamState::AccessMode Mode = parseMode(ModeStr->getString());
+  llvm::errs()<<Path<<" "<<Mode<<"\n";
   // Bifurcate the state into two: one with a valid FILE* pointer, the other
   // with a NULL.
   ProgramStateRef StateNotNull, StateNull;
   std::tie(StateNotNull, StateNull) =
       C.getConstraintManager().assumeDual(State, RetVal);
-
+      
   StateNotNull =
-      StateNotNull->set<StreamMap>(RetSym, StreamState::getOpened(Desc));
+      StateNotNull->set<StreamMap>(RetSym, StreamState::getOpened(Desc,ErrorNone,false,Path,Mode));
   StateNull =
       StateNull->set<StreamMap>(RetSym, StreamState::getOpenFailed(Desc));
+  // Check existing streams
+  bool Conflict = false;
+  for (const auto &Entry : StateNotNull->get<StreamMap>()) {
+    if (Entry.first == RetSym) continue; // Skip current stream
+    const StreamState &SS = Entry.second;
+    llvm::errs()<<"Inside loop: "<<SS.Mode<<"\n";
+    llvm::errs()<<"Inside loop: "<<SS.Filepath<<"\n";
+    if (SS.isOpened() && SS.Filepath == Path) {
+      if ((SS.Mode ==StreamState::Read && (Mode == StreamState::Write || Mode == StreamState::ReadWrite)) ||
+          (SS.Mode == StreamState::Write && (Mode == StreamState::Read || Mode == StreamState::ReadWrite)) ||
+          (SS.Mode == StreamState::ReadWrite)) {
+        Conflict = true;
+        break;
+      }
+    }
+  }
+  llvm::errs()<<"Conflict: "<<Conflict<<"\n";
+  if (Conflict) {
+    if (ExplodedNode *N = C.generateErrorNode(State)) {
+      auto R = std::make_unique<PathSensitiveBugReport>(
+          BT_AccessConflict,
+          "File already opened with conflicting access mode",
+          N);
+      C.emitReport(std::move(R));
+    }
+    return;
+  }
 
   C.addTransition(StateNotNull,
                   constructNoteTag(C, RetSym, "Stream opened here"));
