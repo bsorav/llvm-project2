@@ -141,8 +141,8 @@ struct StreamState {
                                bool IsFilePositionIndeterminate = false,std::string Filepath="", AccessMode Mode=Read) {
     return StreamState{L, Opened, ES, IsFilePositionIndeterminate,Filepath,Mode};
   }
-  static StreamState getClosed(const FnDescription *L) {
-    return StreamState{L, Closed, {}, false,"",Read};
+  static StreamState getClosed(const FnDescription *L,std::string Filepath="", AccessMode Mode=Read) {
+    return StreamState{L, Closed, {}, false,Filepath,Mode};
   }
   static StreamState getOpenFailed(const FnDescription *L) {
     return StreamState{L, OpenFailed, {}, false,"",Read};
@@ -587,9 +587,6 @@ void StreamChecker::evalFopen(const FnDescription *Desc, const CallEvent &Call,
                               CheckerContext &C) const {
   ProgramStateRef State = C.getState();
   const CallExpr *CE = dyn_cast_or_null<CallExpr>(Call.getOriginExpr());
-  llvm::errs()<<"CallExpr\n";
-  CE->dump();
-  llvm::errs()<<"\n";
   if (!CE)
     return;
 
@@ -607,7 +604,6 @@ void StreamChecker::evalFopen(const FnDescription *Desc, const CallEvent &Call,
   // Get access mode
   auto ModeStr = dyn_cast<StringLiteral>(Call.getArgExpr(1)->IgnoreParenCasts());
   StreamState::AccessMode Mode = parseMode(ModeStr->getString());
-  llvm::errs()<<Path<<" "<<Mode<<"\n";
   // Bifurcate the state into two: one with a valid FILE* pointer, the other
   // with a NULL.
   ProgramStateRef StateNotNull, StateNull;
@@ -623,8 +619,6 @@ void StreamChecker::evalFopen(const FnDescription *Desc, const CallEvent &Call,
   for (const auto &Entry : StateNotNull->get<StreamMap>()) {
     if (Entry.first == RetSym) continue; // Skip current stream
     const StreamState &SS = Entry.second;
-    llvm::errs()<<"Inside loop: "<<SS.Mode<<"\n";
-    llvm::errs()<<"Inside loop: "<<SS.Filepath<<"\n";
     if (SS.isOpened() && SS.Filepath == Path) {
       if ((SS.Mode ==StreamState::Read && (Mode == StreamState::Write || Mode == StreamState::ReadWrite)) ||
           (SS.Mode == StreamState::Write && (Mode == StreamState::Read || Mode == StreamState::ReadWrite)) ||
@@ -634,7 +628,6 @@ void StreamChecker::evalFopen(const FnDescription *Desc, const CallEvent &Call,
       }
     }
   }
-  llvm::errs()<<"Conflict: "<<Conflict<<"\n";
   if (Conflict) {
     if (ExplodedNode *N = C.generateErrorNode(State)) {
       auto R = std::make_unique<PathSensitiveBugReport>(
@@ -729,7 +722,7 @@ void StreamChecker::evalFclose(const FnDescription *Desc, const CallEvent &Call,
   // Close the File Descriptor.
   // Regardless if the close fails or not, stream becomes "closed"
   // and can not be used any more.
-  State = State->set<StreamMap>(Sym, StreamState::getClosed(Desc));
+  State = State->set<StreamMap>(Sym, StreamState::getClosed(Desc,SS->Filepath,SS->Mode));
 
   // Return 0 on success, EOF on failure.
   SValBuilder &SVB = C.getSValBuilder();
