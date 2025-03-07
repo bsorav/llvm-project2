@@ -45,7 +45,7 @@ public:
     PathDiagnosticLocation Loc = PathDiagnosticLocation::createBegin(
         *InitStmt, BRC.getSourceManager(), N->getLocationContext());
     
-    const char* msg=ArgIndex==0?"Source Pointer initialized here":"Destination Pointer initialized here";
+    const char* msg=ArgIndex==0?"Destination Pointer initialized here":"Source Pointer initialized here";
     auto Piece = std::make_shared<PathDiagnosticEventPiece>(Loc,msg);
     Piece->setPrunable(false);
     return Piece;
