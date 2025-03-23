@@ -643,6 +643,10 @@ def StdLibOldReturnValueUseChecker : Checker<"StdLibOldReturnValueUseChecker">,
   HelpText<"Check if the return value from certain Standard Library functions is used after a subsequent call to the same function.">,
   Documentation<HasDocumentation>;
 
+def EOFChecker : Checker<"EOFChecker">,
+  HelpText<"The macro EOF shall only be compared with the unmodified return value from any Standard Library function capable of returning EOF.">,
+  Documentation<HasDocumentation>;
+
 } // end "alpha.unix"
 
 //===----------------------------------------------------------------------===//
