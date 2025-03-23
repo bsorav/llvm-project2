@@ -22,6 +22,8 @@ public:
     void checkPostCall(const CallEvent &Call, CheckerContext &C) const;
     void checkPreStmt(const BinaryOperator *BO, CheckerContext &C) const;
     void checkBind(SVal Loc, SVal Val, const Stmt *S, CheckerContext &C) const;
+private:
+    bool isEOFexpr(const Expr * Expration) const;
 };
 }
 
@@ -51,6 +53,20 @@ void EOFChecker::checkPostCall(const CallEvent &Call, CheckerContext &C) const {
     }
 }
 
+bool EOFChecker::isEOFexpr(const Expr * Expration) const {
+    if (const UnaryOperator *UO = dyn_cast<UnaryOperator>(Expration)) {
+        if (UO->getOpcode() == UO_Minus) {  // Ensure it's a negation
+            const Expr *SubExpr = UO->getSubExpr()->IgnoreParenCasts();
+            if (const IntegerLiteral *IL = dyn_cast<IntegerLiteral>(SubExpr)) {
+                if (IL->getValue() == 1) { // Checking for `-1`
+                    return true;
+                }
+            }
+        }
+    }
+    return false;
+}
+
 void EOFChecker::checkPreStmt(const BinaryOperator *BO, CheckerContext &C) const {
     if (!BO->isComparisonOp()) // Only handle comparisons
         return;
@@ -59,37 +75,38 @@ void EOFChecker::checkPreStmt(const BinaryOperator *BO, CheckerContext &C) const
     const Expr *LHS = BO->getLHS()->IgnoreParenCasts();
     const Expr *RHS = BO->getRHS()->IgnoreParenCasts();
     llvm::errs()<<"Inside checkPrestmt\n";
-    // Checking if EOF is used in the comparison
-    if (const IntegerLiteral *IL = dyn_cast<IntegerLiteral>(RHS)) {
-        if (IL->getValue() == -1) { // EOF is usually -1
-        llvm::errs()<<"inside first condn\n";
-            SymbolRef VarSym = C.getSVal(LHS).getAsSymbol();
-            llvm::errs()<<"VarSym\n";
-            VarSym->dump();
-            llvm::errs()<<"\n";
-            if (VarSym && !State->contains<EOFVarSet>(VarSym)) {
-                ExplodedNode *ErrNode = C.generateErrorNode();
-                llvm::errs()<<"Inside error\n";
-                if (!ErrNode)
-                    return;
+    RHS->dump();
+    llvm::errs()<<"\n";
+    if (isEOFexpr(RHS)) { // Checking for `-1`
+        llvm::errs() << "Inside first condition\n";
+        SymbolRef VarSym = C.getSVal(LHS).getAsSymbol();
+        if (VarSym && !State->contains<EOFVarSet>(VarSym)) {
+            ExplodedNode *ErrNode = C.generateErrorNode();
+            llvm::errs() << "Inside error\n";
+            if (!ErrNode)
+                return;
 
-                auto R = std::make_unique<PathSensitiveBugReport>(*BT, "EOF should only be compared with an unmodified return value of an EOF-setting function", ErrNode);
-                C.emitReport(std::move(R));
-            }
+            auto R = std::make_unique<PathSensitiveBugReport>(
+                *BT,
+                "EOF should only be compared with an unmodified return value of an EOF-setting function",
+                ErrNode);
+            C.emitReport(std::move(R));
         }
     }
-    // Checking if EOF is used in the comparison
-    if (const IntegerLiteral *IL = dyn_cast<IntegerLiteral>(LHS)) {
-        if (IL->getValue() == -1) { // EOF is usually -1
-            SymbolRef VarSym = C.getSVal(RHS).getAsSymbol();
-            if (VarSym && !State->contains<EOFVarSet>(VarSym)) {
-                ExplodedNode *ErrNode = C.generateErrorNode();
-                if (!ErrNode)
-                    return;
+    if (isEOFexpr(LHS)) { // Checking for `-1`
+        llvm::errs() << "Inside second condition\n";
+        SymbolRef VarSym = C.getSVal(RHS).getAsSymbol();
+        if (VarSym && !State->contains<EOFVarSet>(VarSym)) {
+            ExplodedNode *ErrNode = C.generateErrorNode();
+            llvm::errs() << "Inside error\n";
+            if (!ErrNode)
+                return;
 
-                auto R = std::make_unique<PathSensitiveBugReport>(*BT, "EOF should only be compared with an unmodified return value of an EOF-setting function", ErrNode);
-                C.emitReport(std::move(R));
-            }
+            auto R = std::make_unique<PathSensitiveBugReport>(
+                *BT,
+                "EOF should only be compared with an unmodified return value of an EOF-setting function",
+                ErrNode);
+            C.emitReport(std::move(R));
         }
     }
 }
