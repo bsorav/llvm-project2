@@ -23,44 +23,37 @@ public:
     void checkPreStmt(const BinaryOperator *BO, CheckerContext &C) const;
     void checkBind(SVal Loc, SVal Val, const Stmt *S, CheckerContext &C) const;
 private:
-    bool isEOFexpr(const Expr * Expration) const;
+    bool isEOFexpr(const Expr *Expration) const;
 };
-}
 
-// A set to store variables assigned return values from EOF-setting functions
+} // end anonymous namespace
+
 REGISTER_SET_WITH_PROGRAMSTATE(EOFVarSet, SymbolRef)
 
 void EOFChecker::checkPostCall(const CallEvent &Call, CheckerContext &C) const {
-    // Get the function name being called
     StringRef FName = Call.getCalleeIdentifier() ? Call.getCalleeIdentifier()->getName() : "";
-
-    // List of standard functions that return EOF
-    static const llvm::StringSet<> EOFFunctions = {
-        "fgetc", "fputc", "fclose", "getchar", "putchar", "ungetc"
-    };
-    llvm::errs()<<"Inside checkPostCall\n";
+    static const llvm::StringSet<> EOFFunctions = {"fgetc", "fputc", "fclose", "getchar", "putchar", "ungetc"};
+    
     if (EOFFunctions.count(FName)) {
         ProgramStateRef State = C.getState();
-        SymbolRef RetSym = Call.getReturnValue().getAsSymbol();
-        llvm::errs()<<"Retsym\n";
-        RetSym->dump();
-        llvm::errs()<<"\n";
-        if (RetSym) {
+        SVal RetVal = Call.getReturnValue();
+        
+        if (SymbolRef RetSym = RetVal.getAsSymbol()) {
+            llvm::errs()<<"RetSym\n";
+            RetSym->dump();
+            llvm::errs()<<"\n";
             State = State->add<EOFVarSet>(RetSym);
-            llvm::errs()<<"Retsymb\n";
             C.addTransition(State);
         }
     }
 }
 
-bool EOFChecker::isEOFexpr(const Expr * Expration) const {
+bool EOFChecker::isEOFexpr(const Expr *Expration) const {
     if (const UnaryOperator *UO = dyn_cast<UnaryOperator>(Expration)) {
-        if (UO->getOpcode() == UO_Minus) {  // Ensure it's a negation
+        if (UO->getOpcode() == UO_Minus) {
             const Expr *SubExpr = UO->getSubExpr()->IgnoreParenCasts();
             if (const IntegerLiteral *IL = dyn_cast<IntegerLiteral>(SubExpr)) {
-                if (IL->getValue() == 1) { // Checking for `-1`
-                    return true;
-                }
+                return IL->getValue() == 1;
             }
         }
     }
@@ -68,69 +61,54 @@ bool EOFChecker::isEOFexpr(const Expr * Expration) const {
 }
 
 void EOFChecker::checkPreStmt(const BinaryOperator *BO, CheckerContext &C) const {
-    if (!BO->isComparisonOp()) // Only handle comparisons
+    if (!BO->isComparisonOp())
         return;
 
     ProgramStateRef State = C.getState();
-    const Expr *LHS = BO->getLHS()->IgnoreParenCasts();
-    const Expr *RHS = BO->getRHS()->IgnoreParenCasts();
-    llvm::errs()<<"Inside checkPrestmt\n";
-    RHS->dump();
-    llvm::errs()<<"\n";
-    if (isEOFexpr(RHS)) { // Checking for `-1`
-        llvm::errs() << "Inside first condition\n";
-        SymbolRef VarSym = C.getSVal(LHS).getAsSymbol();
-        if (VarSym && !State->contains<EOFVarSet>(VarSym)) {
-            ExplodedNode *ErrNode = C.generateErrorNode();
-            llvm::errs() << "Inside error\n";
-            if (!ErrNode)
-                return;
+    const Expr *Operands[] = { BO->getLHS()->IgnoreParenCasts(), BO->getRHS()->IgnoreParenCasts() };
 
-            auto R = std::make_unique<PathSensitiveBugReport>(
-                *BT,
-                "EOF should only be compared with an unmodified return value of an EOF-setting function",
-                ErrNode);
-            C.emitReport(std::move(R));
-        }
-    }
-    if (isEOFexpr(LHS)) { // Checking for `-1`
-        llvm::errs() << "Inside second condition\n";
-        SymbolRef VarSym = C.getSVal(RHS).getAsSymbol();
-        if (VarSym && !State->contains<EOFVarSet>(VarSym)) {
-            ExplodedNode *ErrNode = C.generateErrorNode();
-            llvm::errs() << "Inside error\n";
-            if (!ErrNode)
-                return;
-
-            auto R = std::make_unique<PathSensitiveBugReport>(
-                *BT,
-                "EOF should only be compared with an unmodified return value of an EOF-setting function",
-                ErrNode);
-            C.emitReport(std::move(R));
+    for (const Expr *Operand : Operands) {
+        if (isEOFexpr(Operand)) {
+            SVal OtherSVal = C.getSVal(Operand == Operands[0] ? Operands[1] : Operands[0]);
+            SymbolRef SymVal=nullptr;
+            if (std::optional<Loc> LLoc = OtherSVal.getAs<Loc>()) {
+                SymVal = State->getSVal(*LLoc).getAsSymbol();
+            }            
+            llvm::errs()<<"SymVal\n";
+            SymVal->dump();
+            llvm::errs()<<"\n";
+            if (!SymVal || !State->contains<EOFVarSet>(SymVal)) {
+                if (ExplodedNode *ErrNode = C.generateErrorNode()) {
+                    C.emitReport(std::make_unique<PathSensitiveBugReport>(
+                        *BT, "EOF should only be compared with an unmodified return value of an EOF-setting function", ErrNode));
+                }
+            }
         }
     }
 }
 
-void EOFChecker::checkBind(SVal Loc, SVal Val, const Stmt *S, CheckerContext &C) const {
-    SymbolRef Sym = Loc.getAsSymbol();
-    if (!Sym)
-        return;
-    llvm::errs()<<"symbol going to be removed\n";
-    Sym->dump();
-    llvm::errs()<<"\n";
+
+void EOFChecker::checkBind(SVal LocV, SVal Val, const Stmt *S, CheckerContext &C) const {
     ProgramStateRef State = C.getState();
-    if (State->contains<EOFVarSet>(Sym)) {
-        // If the variable is modified, remove it from the set
-        State = State->remove<EOFVarSet>(Sym);
-        C.addTransition(State);
+    SymbolRef LocSym=nullptr;
+    if (std::optional<Loc> LLoc = LocV.getAs<Loc>()) {
+        LocSym = State->getSVal(*LLoc).getAsSymbol();
+    }  
+    if (LocSym ) {
+        llvm::errs()<<"LocSym\n";
+        LocSym->dump();
+        llvm::errs()<<"\n";
+        if (State->contains<EOFVarSet>(LocSym)) {
+            State = State->remove<EOFVarSet>(LocSym);
+            C.addTransition(State);
+        }
     }
 }
-// Register the checker in the analyzer
+
 void ento::registerEOFChecker(CheckerManager &Mgr) {
-  Mgr.registerChecker<EOFChecker>();
+    Mgr.registerChecker<EOFChecker>();
 }
 
-// This ensures the checker is invoked by the analyzer
 bool ento::shouldRegisterEOFChecker(const CheckerManager &Mgr) {
-  return true;
+    return true;
 }
