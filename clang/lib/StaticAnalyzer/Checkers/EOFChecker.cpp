@@ -13,6 +13,7 @@ using namespace ento;
 namespace {
 class EOFChecker : public Checker<check::PreStmt<BinaryOperator>, check::PostCall, check::Bind> {
     mutable std::unique_ptr<BugType> BT;
+    const llvm::StringSet<> EOFFunctions = {"fgetc", "fputc", "fclose", "getchar", "putchar", "ungetc"};
   
 public:
     EOFChecker() {
@@ -24,6 +25,7 @@ public:
     void checkBind(SVal Loc, SVal Val, const Stmt *S, CheckerContext &C) const;
 private:
     bool isEOFexpr(const Expr *Expration) const;
+    bool isEOFReturningFunctionCall(const Expr * Expration,  CheckerContext &C) const;
 };
 
 } // end anonymous namespace
@@ -31,17 +33,12 @@ private:
 REGISTER_SET_WITH_PROGRAMSTATE(EOFVarSet, SymbolRef)
 
 void EOFChecker::checkPostCall(const CallEvent &Call, CheckerContext &C) const {
-    StringRef FName = Call.getCalleeIdentifier() ? Call.getCalleeIdentifier()->getName() : "";
-    static const llvm::StringSet<> EOFFunctions = {"fgetc", "fputc", "fclose", "getchar", "putchar", "ungetc"};
-    
+    StringRef FName = Call.getCalleeIdentifier() ? Call.getCalleeIdentifier()->getName() : "";    
     if (EOFFunctions.count(FName)) {
         ProgramStateRef State = C.getState();
         SVal RetVal = Call.getReturnValue();
         
         if (SymbolRef RetSym = RetVal.getAsSymbol()) {
-            llvm::errs()<<"RetSym\n";
-            RetSym->dump();
-            llvm::errs()<<"\n";
             State = State->add<EOFVarSet>(RetSym);
             C.addTransition(State);
         }
@@ -59,6 +56,24 @@ bool EOFChecker::isEOFexpr(const Expr *Expration) const {
     }
     return false;
 }
+bool EOFChecker::isEOFReturningFunctionCall(const Expr *Expration, CheckerContext &C) const {
+    if (const CallExpr *CE = dyn_cast<CallExpr>(Expration)) {
+        if (const FunctionDecl *FD = CE->getDirectCallee()) {
+            StringRef FName= FD->getName();
+            if (EOFFunctions.count(FName)) {
+                ProgramStateRef State = C.getState();
+                SVal RetVal = C.getSVal(CE);
+                
+                if (SymbolRef RetSym = RetVal.getAsSymbol()) {
+                    State = State->add<EOFVarSet>(RetSym);
+                    C.addTransition(State);
+                }
+                return true;
+            }
+        }
+    }
+    return false;
+}
 
 void EOFChecker::checkPreStmt(const BinaryOperator *BO, CheckerContext &C) const {
     if (!BO->isComparisonOp())
@@ -70,13 +85,13 @@ void EOFChecker::checkPreStmt(const BinaryOperator *BO, CheckerContext &C) const
     for (const Expr *Operand : Operands) {
         if (isEOFexpr(Operand)) {
             SVal OtherSVal = C.getSVal(Operand == Operands[0] ? Operands[1] : Operands[0]);
+            if(isEOFReturningFunctionCall(Operand == Operands[0]? Operands[1]:Operands[0],C)){
+                continue;
+            }
             SymbolRef SymVal=nullptr;
             if (std::optional<Loc> LLoc = OtherSVal.getAs<Loc>()) {
                 SymVal = State->getSVal(*LLoc).getAsSymbol();
             }            
-            llvm::errs()<<"SymVal\n";
-            SymVal->dump();
-            llvm::errs()<<"\n";
             if (!SymVal || !State->contains<EOFVarSet>(SymVal)) {
                 if (ExplodedNode *ErrNode = C.generateErrorNode()) {
                     C.emitReport(std::make_unique<PathSensitiveBugReport>(
@@ -95,9 +110,6 @@ void EOFChecker::checkBind(SVal LocV, SVal Val, const Stmt *S, CheckerContext &C
         LocSym = State->getSVal(*LLoc).getAsSymbol();
     }  
     if (LocSym ) {
-        llvm::errs()<<"LocSym\n";
-        LocSym->dump();
-        llvm::errs()<<"\n";
         if (State->contains<EOFVarSet>(LocSym)) {
             State = State->remove<EOFVarSet>(LocSym);
             C.addTransition(State);
