@@ -10465,6 +10465,16 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
   // Finally, we know we have the right number of parameters, install them.
   NewFD->setParams(Params);
 
+  // ==== MISRA_C Rule  R_8_2====
+  // Check for unnamed parameters
+  for (const auto *Param : NewFD->parameters()) {
+    if (Param->getName().empty()) {
+      Diag(Param->getLocation(), diag::ext_misra_C20_warn_missing_parameter_name)
+          << NewFD->getIdentifier();
+    }
+  }
+  // ==== End of Rule Validation ====
+
   if (D.getDeclSpec().isNoreturnSpecified())
   {
     // raise a warning 

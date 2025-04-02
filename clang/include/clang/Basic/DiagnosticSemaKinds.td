@@ -10161,6 +10161,9 @@ def ext_goto_statmemt_used : ExtWarn<
 def ext_more_than_one_break_or_goto_used : ExtWarn<
   "MISRA_C20: There should be no more than one break or goto statement used to terminate any iteration statement">,
   InGroup<MisraC20ImproperLoopBody>;
+def ext_misra_C20_warn_missing_parameter_name : ExtWarn<
+  "MISRA_C20: Function %0 has a parameter without a name, which violates coding standards">,
+  InGroup<MisraC20ImproperDeclaration>;
 
 
 def warn_unannotated_fallthrough : Warning<
