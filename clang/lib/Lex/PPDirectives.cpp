@@ -3125,15 +3125,15 @@ void Preprocessor::HandleDefineDirective(
 
   if (MacroShadowsKeyword &&
       !isConfigurationPattern(MacroNameTok, MI, getLangOpts())) {
-    Diag(MacroNameTok, diag::warn_pp_macro_hides_keyword);
+    Diag(MacroNameTok, diag::ext_misra_c20_warn_pp_macro_hides_keyword);
   }
   // if starts with '__' or '_[A-Z]' warn about hiding keywords
-  if (II->getName().starts_with("__") || (II->getName().starts_with("_") &&
-                                         II->getName().size() > 1 &&
-                                         isUppercase(II->getName()[1]))) {
-    // if name is __GCC_HAVE_DWARF2_CFI_ASM do not raise warning
+  bool isReserved=II->getName().starts_with("__") || (II->getName().starts_with("_") && II->getName().size() > 1 &&isUppercase(II->getName()[1])) 
+      || II->getName().starts_with("_") || ((II->getName().starts_with("str") || II->getName().starts_with("mem") || II->getName().starts_with("wcs")) &&
+      II->getName().size() > 3 && islower(II->getName()[3]));
+  if(isReserved) {
     if (!II->getName().starts_with("__GCC_HAVE_DWARF2_CFI_ASM")) {
-      Diag(MacroNameTok, diag::warn_pp_macro_hides_keyword);
+      Diag(MacroNameTok, diag::ext_misra_c20_warn_pp_macro_hides_keyword);
     }
   }
   // Check that there is no paste (##) operator at the beginning or end of the
@@ -3296,7 +3296,15 @@ void Preprocessor::HandleUndefDirective() {
 
     Undef = AllocateUndefMacroDirective(MacroNameTok.getLocation());
   }
-
+  // if starts with '__' or '_[A-Z]' warn about hiding keywords
+  bool isReserved=II->getName().starts_with("__") || (II->getName().starts_with("_") && II->getName().size() > 1 &&isUppercase(II->getName()[1])) 
+      || II->getName().starts_with("_") || ((II->getName().starts_with("str") || II->getName().starts_with("mem") || II->getName().starts_with("wcs")) &&
+      II->getName().size() > 3 && islower(II->getName()[3]));
+  if(isReserved) {
+    if (!II->getName().starts_with("__GCC_HAVE_DWARF2_CFI_ASM")) {
+      Diag(MacroNameTok, diag::ext_misra_c20_warn_pp_macro_hides_keyword);
+    }
+  }
   // If the callbacks want to know, tell them about the macro #undef.
   // Note: no matter if the macro was defined or not.
   if (Callbacks)
