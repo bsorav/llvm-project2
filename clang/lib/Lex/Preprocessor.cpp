@@ -908,16 +908,16 @@ void Preprocessor::Lex(Token &Result) {
     Result.setIdentifierInfo(nullptr);
   }
 
-  // ********* S_NO -> 113  ********************* MISRA_C RULE : R.21.3    ************************** //
+  // ********* S_NO -> 113  ********************* MISRA_C RULE : R.21.3  && D.4.12  ************************** //
   if(Result.is(tok::identifier)){
     IdentifierInfo &II2 = *Result.getIdentifierInfo();
     StringRef Text2 = II2.getName();
-    if(Text2.equals("malloc") || Text2.equals("free")) {
+    if(Text2.equals("malloc") || Text2.equals("free") || Text2.equals("realloc") || Text2.equals("calloc")) {
       auto TokSpelling = getSpelling(Result);
-      Diag(Result, diag::warn_forbidden_function_usage) << TokSpelling;
+      Diag(Result, diag::ext_misra_c20_warn_forbidden_function_usage) << TokSpelling;
     }
   }
-  // ********* S_NO -> 113  ********************* MISRA_C RULE : R.21.3    ************************** //
+  // ********* S_NO -> 113  ********************* MISRA_C RULE : R.21.3   && D.4.12  ************************** //
   
 
   // Update StdCXXImportSeqState to track our position within a C++20 import-seq

@@ -999,8 +999,8 @@ def err_pp_pragma_unsafe_buffer_usage_syntax :
 Error<"Expected 'begin' or 'end'">;
 
 // MISRA C WARNINGS
-def warn_forbidden_function_usage : Warning<
-  "Usage of %0 is forbidden">,
+def ext_misra_c20_warn_forbidden_function_usage : Warning<
+  "MISRAC20: Usage of %0 is forbidden">,
   InGroup<ForbiddenFunctionUsage>;
 
 def ext_misra_c215_include_signal_h : ExtWarn<
