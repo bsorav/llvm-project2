@@ -8923,7 +8923,38 @@ ExprResult Sema::ActOnFinishFullExpr(Expr *FE, SourceLocation CC,
       CurrentLSI->hasPotentialCaptures() && !FullExpr.isInvalid())
     CheckIfAnyEnclosingLambdasMustCaptureAnyPotentialCaptures(FE, CurrentLSI,
                                                               *this);
+  // Check all expressions, even non-discarded ones
+  if ( FE && !getLangOpts().CPlusPlus) { // C-only check
+        CheckForNestedAssignment(FE, DiscardedValue);
+  }
   return MaybeCreateExprWithCleanups(FullExpr);
+}
+
+void Sema::CheckForNestedAssignment(const Expr *E, bool IsDiscarded) {
+  if (!E) return;
+
+  E = E->IgnoreParenImpCasts();
+
+  // Check current node first
+  if (const auto *BO = dyn_cast<BinaryOperator>(E)) {
+    if (BO->getOpcode() == BO_Assign && !IsDiscarded) {
+      Diag(BO->getOperatorLoc(), diag::ext_misra_c20_warn_assignment_result_used)
+          << BO->getSourceRange();
+    }
+
+    // Recurse with proper context:
+    // - LHS of assignment is a target (always "discarded" context)
+    // - RHS of assignment is a value (non-discarded context)
+    CheckForNestedAssignment(BO->getLHS(), false);
+    CheckForNestedAssignment(BO->getRHS(), false);
+  } else {
+    // For other expressions, propagate IsDiscarded to children
+    for (const Stmt *SubStmt : E->children()) {
+      if (const Expr *Child = dyn_cast_or_null<Expr>(SubStmt)) {
+        CheckForNestedAssignment(Child, IsDiscarded);
+      }
+    }
+  }
 }
 
 StmtResult Sema::ActOnFinishFullStmt(Stmt *FullStmt) {

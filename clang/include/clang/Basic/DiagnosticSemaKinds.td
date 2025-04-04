@@ -10137,6 +10137,9 @@ def ext_misra_c20_recursive_function_call : ExtWarn<
 def ext_misra_c20_bool_operand_for_bitwise_operator: ExtWarn<
   "MISRA_C20: Bool operand for bitwise operator">,
   InGroup<MisraC20ImproperOperands>;
+def ext_misra_c20_warn_assignment_result_used : Warning<
+  "MISRA_C20: The result of an assignment operator should not be used">,
+  InGroup<MISRA>;
 def ext_misra_c20_distinct_operand_type_in_usual_airhtmatic_conversatons: ExtWarn<
   "MISRA_C20: Distict Operand type in usual airthmatic expression">,
   InGroup<MisraC20ImproperOperands>;

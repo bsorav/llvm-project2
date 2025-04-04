@@ -7047,6 +7047,7 @@ public:
   ExprResult ActOnFinishFullExpr(Expr *Expr, SourceLocation CC,
                                  bool DiscardedValue, bool IsConstexpr = false,
                                  bool IsTemplateArgument = false);
+  void CheckForNestedAssignment(const Expr *E,bool IsDiscarded);
   StmtResult ActOnFinishFullStmt(Stmt *Stmt);
 
   // Marks SS invalid if it represents an incomplete type.
