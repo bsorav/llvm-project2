@@ -5142,3 +5142,34 @@ StmtResult Sema::ActOnCapturedRegionEnd(Stmt *S) {
 
   return Res;
 }
+
+bool Sema::ContainsIncrementDecrement(Expr *E) {
+  if (!E) return false;
+  E = E->IgnoreParens();
+
+  if (auto *UO = dyn_cast<UnaryOperator>(E)) {
+    if (UO->isIncrementDecrementOp())
+      return true;
+  }
+
+  for (Stmt *Child : E->children()) {
+    if (Expr *ChildExpr = dyn_cast<Expr>(Child)) {
+      if (ContainsIncrementDecrement(ChildExpr))
+        return true;
+    }
+  }
+  return false;
+}
+
+void Sema::CollectSideEffectExprs(Expr *E, std::vector<Expr *> &SideEffects) {
+  if (!E) return;
+  E = E->IgnoreParens();
+
+  if (E->HasSideEffects(getASTContext()))
+    SideEffects.push_back(E);
+
+  for (Stmt *Child : E->children()) {
+    if (Expr *ChildExpr = dyn_cast<Expr>(Child))
+      CollectSideEffectExprs(ChildExpr, SideEffects);
+  }
+}

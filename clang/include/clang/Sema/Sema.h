@@ -7047,6 +7047,13 @@ public:
   ExprResult ActOnFinishFullExpr(Expr *Expr, SourceLocation CC,
                                  bool DiscardedValue, bool IsConstexpr = false,
                                  bool IsTemplateArgument = false);
+  private:
+
+  bool ContainsIncrementDecrement(Expr *E);
+  void CollectSideEffectExprs(Expr *E, std::vector<Expr *> &SideEffects);
+  
+  public:
+
   void CheckForNestedAssignment(const Expr *E,bool IsDiscarded);
   StmtResult ActOnFinishFullStmt(Stmt *Stmt);
 

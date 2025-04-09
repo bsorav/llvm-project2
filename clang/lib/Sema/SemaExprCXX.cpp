@@ -8927,6 +8927,24 @@ ExprResult Sema::ActOnFinishFullExpr(Expr *FE, SourceLocation CC,
   if ( FE && !getLangOpts().CPlusPlus) { // C-only check
         CheckForNestedAssignment(FE, DiscardedValue);
   }
+  if (FE &&  ContainsIncrementDecrement(FE)) {
+    std::vector<Expr *> SideEffects;
+    CollectSideEffectExprs(FE, SideEffects);
+    
+    for (Expr *SE : SideEffects) {
+      if (auto *UO = dyn_cast<UnaryOperator>(SE)) {
+        if (!UO->isIncrementDecrementOp()) {
+          Diag(SE->getBeginLoc(), diag::ext_misra_c20_extra_potenital_side_effects)
+              << SE->getSourceRange();
+          break;
+        }
+      } else {
+        Diag(SE->getBeginLoc(), diag::ext_misra_c20_extra_potenital_side_effects)
+            << SE->getSourceRange();
+        break;
+      }
+    }
+  }
   return MaybeCreateExprWithCleanups(FullExpr);
 }
 

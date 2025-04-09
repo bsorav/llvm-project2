@@ -1506,6 +1506,7 @@ def BitFieldsIssues : DiagGroup<"misra-c-r-bit-field-issues">;
 def MisraC20ImproperArrayParameterDeclaration : DiagGroup<"misra-c20-improper-array-parameter-declaration">;
 def MisraC20ImproperIdentifierDeclaration : DiagGroup<"misra-c20-improper-identifier-declaration">;
 def MisraC20ImproperSwitchStmt : DiagGroup<"misra-c20-improper-switch-stmt">;
+def MisraC20ImproperStmt : DiagGroup<"misra-c20-improper-stmt">;
 def MisraC20ImproperLogicalRHS : DiagGroup<"misra-c20-improper-logical-rhs">;
 def MisraC20ImproperArrayInitialization: DiagGroup<"misra-c20-improper-array-initialization">;
 def MisraC20ImproperFuntionCall: DiagGroup<"misra-c20-improper-function-call">;
