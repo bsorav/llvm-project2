@@ -26,6 +26,7 @@
 #include "clang/AST/TypeLoc.h"
 #include "clang/AST/TypeOrdering.h"
 #include "clang/Basic/TargetInfo.h"
+#include "clang/Basic/OperatorPrecedence.h"
 #include "clang/Lex/Preprocessor.h"
 #include "clang/Sema/Initialization.h"
 #include "clang/Sema/Lookup.h"
@@ -5010,6 +5011,61 @@ buildCapturedStmtCaptureList(Sema &S, CapturedRegionScopeInfo *RSI,
     CaptureInits.push_back(Init.get());
   }
   return false;
+}
+
+void Sema::CheckOperatorPrecedence(Expr *E,bool IsRoot) {
+  if (!E || getLangOpts().CPlusPlus) // Apply only to C files
+    return;
+
+  // Ignore parentheses and implicit casts to focus on the actual operator
+  E = E->IgnoreParenImpCasts();
+
+  if (auto *BO = dyn_cast<BinaryOperator>(E)) {
+    if (!(IsRoot && BO->getOpcode() == BO_Assign)) {
+      CheckOperand(BO->getLHS(), E);
+      CheckOperand(BO->getRHS(), E);
+    }
+    CheckOperatorPrecedence(BO->getLHS(),false);
+    CheckOperatorPrecedence(BO->getRHS(),false);
+  }else if (auto *CO = dyn_cast<ConditionalOperator>(E)) {
+    // Check ternary operator (?:)
+    CheckOperand(CO->getCond(), E);
+    CheckOperand(CO->getTrueExpr(), E);
+    CheckOperand(CO->getFalseExpr(), E);
+    CheckOperatorPrecedence(CO->getCond(),false);
+    CheckOperatorPrecedence(CO->getTrueExpr(),false);
+    CheckOperatorPrecedence(CO->getFalseExpr(),false);
+  }
+}
+
+void Sema::CheckOperand(Expr *Operand, Expr *Parent) {
+  if (!Operand || isa<ParenExpr>(Operand)) return;
+
+  if (auto *ParentBO = dyn_cast<BinaryOperator>(Parent)) {
+    // Check if the operand is a binary operator without parentheses
+    if (auto *ChildBO = dyn_cast<BinaryOperator>(Operand->IgnoreParenImpCasts())) {
+      // Get precedence levels directly from BinaryOperatorKind
+      auto ParentPrec =ParentBO->getOpcode();
+      auto ChildPrec = ChildBO->getOpcode();
+
+      // Warn if precedences differ and operand is not explicitly parenthesized
+      if (ParentPrec != ChildPrec) {
+        Diag(Operand->getBeginLoc(), diag::ext_misra_c20_precedence_not_explicit)
+          << Parent->getSourceRange() << Operand->getSourceRange();
+      }
+    }else if(auto *ChildCO = dyn_cast<ConditionalOperator>(Operand->IgnoreParenImpCasts())){
+      Diag(Operand->getBeginLoc(), diag::ext_misra_c20_precedence_not_explicit)
+        << Parent->getSourceRange() << Operand->getSourceRange();
+    }
+  }else if(auto *CO = dyn_cast<ConditionalOperator>(Parent)){
+    if(auto *ChildBO = dyn_cast<BinaryOperator>(Operand->IgnoreParenImpCasts())){
+      Diag(Operand->getBeginLoc(), diag::ext_misra_c20_precedence_not_explicit)
+        << Parent->getSourceRange() << Operand->getSourceRange();
+    }else if (auto *ChildCO = dyn_cast<ConditionalOperator>(Operand->IgnoreParenImpCasts())){
+      Diag(Operand->getBeginLoc(), diag::ext_misra_c20_precedence_not_explicit)
+        << Parent->getSourceRange() << Operand->getSourceRange();
+    }
+  }
 }
 
 void Sema::ActOnCapturedRegionStart(SourceLocation Loc, Scope *CurScope,

@@ -8945,6 +8945,9 @@ ExprResult Sema::ActOnFinishFullExpr(Expr *FE, SourceLocation CC,
       }
     }
   }
+  if (FE) {
+    CheckOperatorPrecedence(FE,true);
+  }
   return MaybeCreateExprWithCleanups(FullExpr);
 }
 

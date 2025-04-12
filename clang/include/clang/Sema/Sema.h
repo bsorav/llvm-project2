@@ -7051,6 +7051,8 @@ public:
 
   bool ContainsIncrementDecrement(Expr *E);
   void CollectSideEffectExprs(Expr *E, std::vector<Expr *> &SideEffects);
+  void CheckOperatorPrecedence(Expr *E,bool IsRoot=false);
+  void CheckOperand(Expr *Operand, Expr *Parent);
   
   public:
 
