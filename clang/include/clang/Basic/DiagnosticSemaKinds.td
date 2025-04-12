@@ -10121,6 +10121,9 @@ def warn_missing_case : Warning<"%plural{"
 def warn_switch_default : Warning<"'switch' missing 'default' label">,
   InGroup<SwitchDefault>;
 
+def ext_misra_c20_warn_pointer_integer_conversion : ExtWarn<
+  "MISRA_C20: conversion between pointer %0 and integer-like type %1 is not allowed">,
+  InGroup<MisraC20ImproperTypeConverison>;
 def ext_misra_c20_improper_unsigned_declatation : ExtWarn<
   "MISRA_C20: A 'u' or 'U' suffix shall be applied to all integer constants that are represented in an unsigned type ">, InGroup<MisraC20ImproperUnsignedDeclaration>;
 def ext_misra_c20_fallthrough_switch_case : ExtWarn<

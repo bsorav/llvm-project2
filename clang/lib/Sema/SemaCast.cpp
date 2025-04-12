@@ -2910,6 +2910,22 @@ static void DiagnoseBadFunctionCast(Sema &Self, const ExprResult &SrcExpr,
 void CastOperation::CheckCStyleCast() {
   assert(!Self.getLangOpts().CPlusPlus);
 
+  // Apply this check only in C mode
+  auto isIntegerLike = [](QualType T) {
+    return T->isIntegerType() || T->isEnumeralType() || T->isBooleanType();
+  };
+
+  QualType SrcTy = SrcExpr.get()->getType();
+  QualType DestTy = DestType;
+
+  if ((SrcTy->isPointerType() && isIntegerLike(DestTy)) ||
+      (isIntegerLike(SrcTy) && DestTy->isPointerType())) {
+    Self.Diag(OpRange.getBegin(), diag::ext_misra_c20_warn_pointer_integer_conversion)
+        << SrcTy << DestTy << OpRange;
+    SrcExpr = ExprError();
+    return;
+  }
+
   // C-style casts can resolve __unknown_any types.
   if (claimPlaceholder(BuiltinType::UnknownAny)) {
     SrcExpr = Self.checkUnknownAnyCast(DestRange, DestType,
