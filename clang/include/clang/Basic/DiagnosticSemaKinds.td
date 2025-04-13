@@ -10121,6 +10121,9 @@ def warn_missing_case : Warning<"%plural{"
 def warn_switch_default : Warning<"'switch' missing 'default' label">,
   InGroup<SwitchDefault>;
 
+def ext_misra_c20_unsigned_overflow : ExtWarn<
+  "MISRA_C20: unsigned integer constant expression wraps around">,
+  InGroup<MisraC20ImproperOperands>;
 def ext_misra_c20_precedence_not_explicit : ExtWarn<
   "MISRA_C20: operator precedence in expression is not explicit; add parentheses">,
   InGroup<MisraC20ImproperOperands>;
