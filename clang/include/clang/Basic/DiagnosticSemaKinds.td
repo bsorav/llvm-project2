@@ -10121,6 +10121,12 @@ def warn_missing_case : Warning<"%plural{"
 def warn_switch_default : Warning<"'switch' missing 'default' label">,
   InGroup<SwitchDefault>;
 
+def ext_misra_c20_misra_param_name_mismatch : ExtWarn<
+  "MISRA_C20: parameter %0 name differs between declarations: expected '%1' but got '%2'">,
+  InGroup<MisraC20ImproperParameter>;
+def ext_misra_c20_misra_param_qual_mismatch : ExtWarn<
+  "MISRA_C20: parameter %0 qualifiers differ between declarations: expected '%1' but got '%2'">,
+  InGroup<MisraC20ImproperParameter>;
 def ext_misra_c20_unsigned_overflow : ExtWarn<
   "MISRA_C20: unsigned integer constant expression wraps around">,
   InGroup<MisraC20ImproperOperands>;

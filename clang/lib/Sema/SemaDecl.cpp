@@ -3722,6 +3722,34 @@ bool Sema::MergeFunctionDecl(FunctionDecl *New, NamedDecl *&OldD, Scope *S,
       return true;
     }
   }
+  // Check parameter names and qualifiers
+  unsigned NumParams = New->getNumParams();
+  for (unsigned i = 0; i < NumParams; ++i) {
+    ParmVarDecl *OldParam = Old->getParamDecl(i);
+    ParmVarDecl *NewParam = New->getParamDecl(i);
+
+    // Check parameter names
+    if (OldParam->getIdentifier() || NewParam->getIdentifier()) {
+      if (OldParam->getIdentifier() != NewParam->getIdentifier()) {
+        Diag(NewParam->getLocation(), diag::ext_misra_c20_misra_param_name_mismatch)
+            << (i + 1)
+            << (OldParam->getIdentifier() ? OldParam->getIdentifier()->getName() : "")
+            << (NewParam->getIdentifier() ? NewParam->getIdentifier()->getName() : "");
+        Diag(OldParam->getLocation(), diag::note_previous_declaration);
+      }
+    }
+
+    // Check parameter type qualifiers (const, volatile, etc.)
+    QualType OldParamTy = OldParam->getType();
+    QualType NewParamTy = NewParam->getType();
+    if (OldParamTy.getLocalQualifiers() != NewParamTy.getLocalQualifiers()) {
+      Diag(NewParam->getLocation(), diag::ext_misra_c20_misra_param_qual_mismatch)
+          << (i + 1)
+          << OldParamTy.getQualifiers().getAsString()
+          << NewParamTy.getQualifiers().getAsString();
+      Diag(OldParam->getLocation(), diag::note_previous_declaration);
+    }
+  }
 
   // If the old declaration was found in an inline namespace and the new
   // declaration was qualified, update the DeclContext to match.

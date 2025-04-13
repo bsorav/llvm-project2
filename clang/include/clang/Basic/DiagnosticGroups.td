@@ -1518,3 +1518,4 @@ def MisraC20ImproperMacro: DiagGroup<"misra-c20-improper-macro">;
 def MisraC20ImproperFunctionUsed: DiagGroup<"misra-c20-improper-func-used">;
 def MisraC20ImproperUnsignedDeclaration :  DiagGroup<"misra-c20-improper-unsigned-declatation">;
 def MisraC20ImproperTypeConverison:  DiagGroup<"misra-c20-improper-type-conversion">;
+def MisraC20ImproperParameter:  DiagGroup<"misra-c20-improper-parameter">;
