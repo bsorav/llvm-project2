@@ -3251,7 +3251,7 @@ sym_exec_llvm::get_tfg(llvm::Function& F, llvm::Module const *M, string const &n
   //cout << timestamp() << ": " << _FNLN_ << ": setting symbol map\n";
   //set<symbol_id_t> all_symbols = map_get_keys(symbol_map.get_map());
   //t->set_symbol_map_for_touched_symbols(symbol_map, all_symbols);
-  t->tfg_set_symbol_map(symbol_map);
+  t->set_symbol_map(std::move(symbol_map));
   t->set_string_contents_for_touched_symbols_at_zero_offset(*se.m_string_contents, se.m_touched_symbols);
 
   t->remove_function_name_from_symbols(name);
