@@ -2922,8 +2922,6 @@ void CastOperation::CheckCStyleCast() {
       (isIntegerLike(SrcTy) && DestTy->isPointerType())) {
     Self.Diag(OpRange.getBegin(), diag::ext_misra_c20_warn_pointer_integer_conversion)
         << SrcTy << DestTy << OpRange;
-    SrcExpr = ExprError();
-    return;
   }
 
   // C-style casts can resolve __unknown_any types.
