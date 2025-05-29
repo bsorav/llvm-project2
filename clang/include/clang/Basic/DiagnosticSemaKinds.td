@@ -10138,8 +10138,6 @@ def ext_misra_c20_warn_pointer_integer_conversion : ExtWarn<
   InGroup<MisraC20ImproperTypeConverison>;
 def ext_misra_c20_improper_unsigned_declatation : ExtWarn<
   "MISRA_C20: A 'u' or 'U' suffix shall be applied to all integer constants that are represented in an unsigned type ">, InGroup<MisraC20ImproperUnsignedDeclaration>;
-def ext_misra_c20_fallthrough_switch_case : ExtWarn<
-  "MISRA_C20: Not allowed fallthrough in switch case statement">,DefaultIgnore, InGroup<MisraC20ImproperSwitchStmt>;
 def ext_misra_c20_extra_potenital_side_effects : ExtWarn<
   "MISRA_C20: Extra side effets in full statement other than caused by increament or decreament operator">,DefaultIgnore, InGroup<MisraC20ImproperStmt>;
 def ext_misra_c20_side_effects_logical_rhs : ExtWarn<
