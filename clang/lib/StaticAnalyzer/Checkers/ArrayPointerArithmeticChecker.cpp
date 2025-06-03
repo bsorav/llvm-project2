@@ -167,7 +167,7 @@ void ArrayPointerArithmeticChecker::checkPostStmt(const BinaryOperator *BO,
     return;
   }
 
-  if (BO->getOpcode() != BO_Add && BO->getOpcode() != BO_Sub) return;
+  if (BO->getOpcode() != BO_Add && BO->getOpcode() != BO_Sub && BO->getOpcode()!=BO_AddAssign && BO->getOpcode()!=BO_SubAssign) return;
   ASTContext &Ctx = C.getASTContext();
   const MemRegion *LHSRegion = C.getSVal(BO->getLHS()).getAsRegion();
   const MemRegion *RHSRegion = C.getSVal(BO->getRHS()).getAsRegion();
