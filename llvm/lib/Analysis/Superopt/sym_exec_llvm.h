@@ -72,7 +72,7 @@ public:
   {}
   virtual ~sym_exec_llvm() {}
 
-  void exec(const state& state_in, const llvm::Instruction& I/*, state& state_out, vector<control_flow_transfer>& cfts, bool &expand_switch_flag, unordered_set<predicate> &assumes*/, dshared_ptr<tfg_node> from_node, llvm::BasicBlock const &B, llvm::Function const &F, size_t next_insn_id, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, bool model_llvm_semantics, tfg &t/*, map<string, pair<callee_summary_t, dshared_ptr<tfg_llvm_t>>> *function_tfg_map*/, map<llvm_value_id_t, string_ref>* value_to_name_map/*, set<string> const *function_call_chain*/, map<shared_ptr<tfg_edge const>, llvm::Instruction *>& eimap, map<string, value_scev_map_t> const& scev_map, context::xml_output_format_t xml_output_format);
+  void exec(const state& state_in, const llvm::Instruction& I/*, state& state_out, vector<control_flow_transfer>& cfts, bool &expand_switch_flag, unordered_set<predicate> &assumes*/, dshared_ptr<tfg_node> from_node, llvm::BasicBlock const &B, llvm::Function const &F, size_t next_insn_id, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, bool model_llvm_semantics, tfg_llvm_t &t/*, map<string, pair<callee_summary_t, dshared_ptr<tfg_llvm_t>>> *function_tfg_map*/, map<llvm_value_id_t, string_ref>* value_to_name_map/*, set<string> const *function_call_chain*/, map<shared_ptr<tfg_edge const>, llvm::Instruction *>& eimap, map<string, value_scev_map_t> const& scev_map, context::xml_output_format_t xml_output_format);
 
   string get_cur_rounding_mode_varname() const;
   expr_ref get_cur_rounding_mode_var() const;
@@ -141,12 +141,15 @@ private:
 
   string gep_instruction_get_intermediate_value_name(llvm::Instruction const& I/*string base_name*/, unsigned index_counter, int intermediate_value_num) const;
   string constexpr_instruction_get_name(llvm::Instruction const& I) const;
+  string float_fcall_arg_get_name(llvm::CallInst const& I, int argnum) const;
 
   //llvm::BasicBlock const *get_basic_block_for_pc(const llvm::Function& F, pc const &p);
 
   pair<unordered_set<expr_ref>,unordered_set<expr_ref>> apply_memcpy_function(const llvm::CallInst* c, expr_ref fun_name_expr, string const &fun_name, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, llvm::Function *F, state const &state_in, state &state_out, unordered_set<expr_ref> const& assumes, string const &cur_function_name, dshared_ptr<tfg_node> &from_node, bool model_llvm_semantics, llvm::Function const &curF, tfg &t/*, map<string, pair<callee_summary_t, dshared_ptr<tfg_llvm_t>>> *function_tfg_map*/, map<llvm_value_id_t, string_ref>* value_to_name_map/*, set<string> const *function_call_chain*/, map<string, value_scev_map_t> const& scev_map, context::xml_output_format_t xml_output_format);
 
   pair<unordered_set<expr_ref>,unordered_set<expr_ref>> apply_memset_function(const llvm::CallInst* c, expr_ref fun_name_expr, string const &fun_name, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, llvm::Function *F, state const &state_in, state &state_out, unordered_set<expr_ref> const& assumes, string const &cur_function_name, dshared_ptr<tfg_node> &from_node, bool model_llvm_semantics, llvm::Function const &curF, tfg &t/*, map<string, pair<callee_summary_t, dshared_ptr<tfg_llvm_t>>> *function_tfg_map*/, map<llvm_value_id_t, string_ref>* value_to_name_map/*, set<string> const *function_call_chain*/, map<string, value_scev_map_t> const& scev_map, context::xml_output_format_t xml_output_format);
+
+  pair<unordered_set<expr_ref>,unordered_set<expr_ref>> apply_fmuladd_function(const llvm::CallInst* c, expr_ref fun_name_expr, string const &fun_name, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, llvm::Function *F, state const &state_in, state &state_out, unordered_set<expr_ref> const& assumes, string const &cur_function_name, dshared_ptr<tfg_node> &from_node, bool model_llvm_semantics, llvm::Function const &curF, tfg &t/*, map<string, pair<callee_summary_t, dshared_ptr<tfg_llvm_t>>> *function_tfg_map*/, map<llvm_value_id_t, string_ref>* value_to_name_map/*, set<string> const *function_call_chain*/, map<string, value_scev_map_t> const& scev_map, context::xml_output_format_t xml_output_format);
 
   static size_t function_get_num_bbls(const llvm::Function *F);
   pair<callee_summary_t, dshared_ptr<tfg_llvm_t>> const& get_callee_summary(llvm::Function *F, string const &fun_name, dshared_ptr<tfg_llvm_t const> src_llvm_tfg/*, map<string, pair<callee_summary_t, dshared_ptr<tfg_llvm_t>>> &function_tfg_map*/, map<llvm_value_id_t, string_ref>* value_to_name_map/*, set<string> const &function_call_chain*/, map<string, value_scev_map_t> const& scev_map, context::xml_output_format_t xml_output_format);

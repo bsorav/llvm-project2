@@ -340,9 +340,9 @@ executable_supports_dyn_debug(char const* exec)
   } else {
     last_slash++;
   }
-  if (   string_has_prefix(last_slash, "clang")
-      || string_has_prefix(last_slash, "llc")
-      || string_has_prefix(last_slash, "opt")) {
+  if (   string_has_prefix(string_view{last_slash}, "clang")
+      || string_has_prefix(string_view{last_slash}, "llc")
+      || string_has_prefix(string_view{last_slash}, "opt")) {
     return true;
   }
   return false;
