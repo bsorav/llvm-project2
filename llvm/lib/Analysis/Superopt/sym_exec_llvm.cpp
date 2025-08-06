@@ -2883,7 +2883,7 @@ sym_exec_llvm::get_scev(ScalarEvolution& SE, SCEV const* scev, string const& src
     case scSequentialUMinExpr: {
       const SCEVNAryExpr *NAry = cast<SCEVNAryExpr>(scev);
       vector<scev_ref> scev_args;
-      for (int i = 0; i < NAry->getNumOperands(); i++) {
+      for (size_t i = 0; i < NAry->getNumOperands(); i++) {
         scev_ref scev_arg = get_scev(SE, NAry->getOperand(i), srcdst_keyword, word_length);
         scev_args.push_back(scev_arg);
       }
@@ -3138,7 +3138,7 @@ sym_exec_llvm::alloca_corresponds_to_a_local_parameter(AllocaInst const& a, DILo
     bool matched = false;
     graph_arg_id_t argnum = 0;
     for (auto const& arg : F.args()) {
-      if (arg.getName().startswith(param_name_ref)) {
+      if (arg.getName().starts_with(param_name_ref)) {
         param_addrs.push_back(t.get_argument_regs().addr_at(mk_string_ref(graph_arg_regs_t::get_argname_from_argnum(argnum))));
         matched = true;
       } else if (matched) { // failed to match after matching previously
