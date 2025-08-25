@@ -4084,6 +4084,7 @@ sym_exec_common::get_constant_bytes(Constant const* c)
   const ConstantStruct *Struct;
   const ConstantFP *FP;
   const ConstantAggregateZero *Zero;
+  const ConstantArray *Array;
 
   //cout << __func__ << " " << __LINE__ << ": Array = " << Array << endl;
   //XXX: handle all cases using lib/IR/AsmWriter.cpp:WriteConstantInternal()
@@ -4154,6 +4155,14 @@ sym_exec_common::get_constant_bytes(Constant const* c)
       return v;
     }
     NOT_IMPLEMENTED();
+  } else if ((Array = dyn_cast<ConstantArray>(c))) {
+    vector<char> v;
+    for (size_t i = 0; i < Array->getNumOperands(); i++) {
+      Constant* field = Array->getAggregateElement(i);
+      vector<char> fv = get_constant_bytes(field);
+      vector_append(v, fv);
+    }
+    return v;
   } else {
     NOT_IMPLEMENTED();
   }
