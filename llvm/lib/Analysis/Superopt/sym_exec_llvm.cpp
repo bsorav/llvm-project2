@@ -815,7 +815,7 @@ sym_exec_llvm::get_expr_adding_edges_for_intermediate_vals(const Value& v, strin
 
     m_poison_varnames_seen.insert(undef_poison_varname);
 
-    ASSERT(s->is_bv_kind() || s->is_bool_kind());
+    ASSERT(s->is_bv_kind() || s->is_bool_kind() || s->is_float_kind());
     expr_ref undef_expr = mk_fresh_expr(undef_key_name, G_INPUT_KEYWORD, s);
 
     return make_pair(undef_expr, state_assumes);
