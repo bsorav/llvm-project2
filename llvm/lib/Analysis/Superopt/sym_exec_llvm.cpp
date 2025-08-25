@@ -4142,7 +4142,17 @@ sym_exec_common::get_constant_bytes(Constant const* c)
     }
     return v;
   } else if ((FP = dyn_cast<ConstantFP>(c))/* && Array->isString()*/) {
-    dbgs() << _FNLN_ << ": Unhandled FP constant\n";
+    APInt ai = FP->getValueAPF().bitcastToAPInt();
+    unsigned const bitwidth = ai.getBitWidth();
+    if (bitwidth == DWORD_LEN || bitwidth == QWORD_LEN) {
+      uint64_t val = ai.getZExtValue();
+      vector<char> v;
+      for (unsigned i = 0; i < bitwidth; i += BYTE_LEN) {
+        v.push_back((unsigned char)(val & MAKE_MASK(BYTE_LEN)));
+        val = val >> BYTE_LEN;
+      }
+      return v;
+    }
     NOT_IMPLEMENTED();
   } else {
     NOT_IMPLEMENTED();
