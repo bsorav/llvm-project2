@@ -1140,7 +1140,7 @@ sym_exec_llvm::apply_memset_function(const CallInst* c, expr_ref fun_name_expr, 
     }
     pc cur_pc = from_node->get_pc();
     dshared_ptr<tfg_node> intermediate_node = get_next_intermediate_subsubindex_pc_node(t, from_node);
-    shared_ptr<tfg_edge const> e = mk_tfg_edge(cur_pc, intermediate_node->get_pc(), expr_true(m_ctx), state_out, assumes, {}, this->instruction_to_te_comment(*c, from_pc));
+    shared_ptr<tfg_edge const> e = mk_tfg_edge(cur_pc, intermediate_node->get_pc(), expr_true(m_ctx), state_out, vector<expr_ref>{assumes.begin(), assumes.end()}, {}, this->instruction_to_te_comment(*c, from_pc));
     t.add_edge(e);
     DYN_DEBUG(llvm2tfg_memset, cout << "added edge " << e->to_string_concise() << " for alignment assume" << endl);
     cur_pc = intermediate_node->get_pc();
@@ -1233,7 +1233,7 @@ sym_exec_llvm::apply_memcpy_function(const CallInst* c, expr_ref fun_name_expr, 
     }
     pc cur_pc = from_node->get_pc();
     dshared_ptr<tfg_node> intermediate_node = get_next_intermediate_subsubindex_pc_node(t, from_node);
-    shared_ptr<tfg_edge const> e = mk_tfg_edge(cur_pc, intermediate_node->get_pc(), expr_true(m_ctx), state_out, assumes, {}, this->instruction_to_te_comment(*c, from_pc));
+    shared_ptr<tfg_edge const> e = mk_tfg_edge(cur_pc, intermediate_node->get_pc(), expr_true(m_ctx), state_out, vector<expr_ref>{assumes.begin(), assumes.end()}, {}, this->instruction_to_te_comment(*c, from_pc));
     t.add_edge(e);
     DYN_DEBUG(llvm2tfg_memcpy, cout << "added edge " << e->to_string_concise() << " for alignment assume" << endl);
     cur_pc = intermediate_node->get_pc();
@@ -1861,7 +1861,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
           t.add_node(intermediate_node);
 
           ASSERT(intermediate_node);
-          tfg_edge_ref e = mk_tfg_edge(from_node->get_pc(), intermediate_node->get_pc(), expr_true(m_ctx), state_out, state_assumes, {}, te_comment);
+          tfg_edge_ref e = mk_tfg_edge(from_node->get_pc(), intermediate_node->get_pc(), expr_true(m_ctx), state_out, vector<expr_ref>{state_assumes.begin(),state_assumes.end()}, {}, te_comment);
           t.add_edge(e);
 
           from_node = intermediate_node;
@@ -2035,7 +2035,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     //add_align_assumes(lname, lTy, read_value, pc_to/*from_node->get_pc()*/, t);
     // create extra edge for adding assumes related to the load target
     dshared_ptr<tfg_node> intermediate_node = get_next_intermediate_subsubindex_pc_node(t, from_node);
-    tfg_edge_ref e = mk_tfg_edge(from_node->get_pc(), intermediate_node->get_pc(), expr_true(m_ctx), state_out/*, t.get_start_state()*/, state_assumes, {}, te_comment);
+    tfg_edge_ref e = mk_tfg_edge(from_node->get_pc(), intermediate_node->get_pc(), expr_true(m_ctx), state_out, vector<expr_ref>{state_assumes.begin(), state_assumes.end()}, {}, te_comment);
     t.add_edge(e);
 
     unordered_set<expr_ref> align_assumes = gen_ptr_align_assumes(lname, lTy, read_value->get_sort());
@@ -2144,7 +2144,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     if (succ_assumes.size()) {
       // create extra edge for adding assumes related to the function return value target
       dshared_ptr<tfg_node> intermediate_node = get_next_intermediate_subsubindex_pc_node(t, from_node);
-      tfg_edge_ref e = mk_tfg_edge(from_node->get_pc(), intermediate_node->get_pc(), expr_true(m_ctx), state_out, state_assumes, {}, te_comment);
+      tfg_edge_ref e = mk_tfg_edge(from_node->get_pc(), intermediate_node->get_pc(), expr_true(m_ctx), state_out, vector<expr_ref>{state_assumes.begin(), state_assumes.end()}, {}, te_comment);
       t.add_edge(e);
 
       state_assumes = succ_assumes;
@@ -2157,7 +2157,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     unordered_set<expr_ref> heap_allocfree_assumes;
     if (ftmap_t::function_name_represents_mallocfree(cur_function_name, fname, from_node->get_pc(), fcall_state, m_mem_alloc_reg, m_mem_reg, m_word_length, state_out_heap_allocfree, heap_allocfree_assumes)) {
       dshared_ptr<tfg_node> intermediate_node = get_next_intermediate_subsubindex_pc_node(t, from_node);
-      tfg_edge_ref e = mk_tfg_edge(from_node->get_pc(), intermediate_node->get_pc(), expr_true(m_ctx), state_out, state_assumes, {}, te_comment);
+      tfg_edge_ref e = mk_tfg_edge(from_node->get_pc(), intermediate_node->get_pc(), expr_true(m_ctx), state_out, vector<expr_ref>{state_assumes.begin(), state_assumes.end()}, {}, te_comment);
       t.add_edge(e);
 
       state_assumes = heap_allocfree_assumes;
@@ -2691,7 +2691,7 @@ sym_exec_llvm::exec_gen_expr(const llvm::Instruction& I, string const& Iname, co
       }
 
       dshared_ptr<tfg_node> intermediate_node = get_next_intermediate_subsubindex_pc_node(t, from_node);
-      shared_ptr<tfg_edge const> e = mk_tfg_edge(cur_pc, intermediate_node->get_pc(), expr_true(m_ctx), state_to_intermediate_val/*, t.get_start_state()*/, assumes, {}, this->instruction_to_te_comment(I, from_node->get_pc()/*, bbo*/));
+      shared_ptr<tfg_edge const> e = mk_tfg_edge(cur_pc, intermediate_node->get_pc(), expr_true(m_ctx), state_to_intermediate_val, vector<expr_ref>{assumes.begin(), assumes.end()}, {}, this->instruction_to_te_comment(I, from_node->get_pc()/*, bbo*/));
       t.add_edge(e);
 
       cur_expr = mk_fresh_expr(total_offset_name, G_INPUT_KEYWORD, m_ctx->mk_bv_sort(get_word_length()));
@@ -2704,7 +2704,7 @@ sym_exec_llvm::exec_gen_expr(const llvm::Instruction& I, string const& Iname, co
     state_set_expr(state_to_intermediate_val, total_offset_name, m_ctx->mk_bvadd(ptr, cur_expr));
 
     dshared_ptr<tfg_node> intermediate_node = get_next_intermediate_subsubindex_pc_node(t, from_node);
-    shared_ptr<tfg_edge const> e = mk_tfg_edge(cur_pc, intermediate_node->get_pc(), expr_true(m_ctx), state_to_intermediate_val/*, t.get_start_state()*/, {}, {}, this->instruction_to_te_comment(I, from_node->get_pc()/*, bbo*/));
+    shared_ptr<tfg_edge const> e = mk_tfg_edge(cur_pc, intermediate_node->get_pc(), expr_true(m_ctx), state_to_intermediate_val, {}, {}, this->instruction_to_te_comment(I, from_node->get_pc()/*, bbo*/));
     t.add_edge(e);
 
     cur_expr = mk_fresh_expr(total_offset_name, G_INPUT_KEYWORD, m_ctx->mk_bv_sort(get_word_length()));
@@ -3310,7 +3310,7 @@ sym_exec_llvm::expand_switch(tfg &t, map<llvm_value_id_t, string_ref>* value_to_
     unordered_set_union(assumes, cond_assumes);
     state state_to_newvar;
     state_set_expr(state_to_newvar, switch_tmpvar_name, cft.get_condition());
-    shared_ptr<tfg_edge const> e1 = mk_tfg_edge(cur_node->get_pc(), intermediate_pc, expr_true(m_ctx), state_to_newvar, assumes, {}, te_comment);
+    shared_ptr<tfg_edge const> e1 = mk_tfg_edge(cur_node->get_pc(), intermediate_pc, expr_true(m_ctx), state_to_newvar, vector<expr_ref>{assumes.begin(), assumes.end()}, {}, te_comment);
     t.add_edge(e1);
     DYN_DEBUG2(llvm2tfg, cout << __func__ << ':' << __LINE__ << ": Added edge e1 = " << e1->to_string() << endl);
 
@@ -3348,7 +3348,7 @@ sym_exec_llvm::process_cft(tfg &t, map<llvm_value_id_t, string_ref>* value_to_na
   }
   if (target) {
     state_set_expr(state_to_cft, m_srcdst_keyword + "." LLVM_STATE_INDIR_TARGET_KEY_ID, target);
-    auto e = mk_tfg_edge(from_pc, pc_to, to_condition, state_to_cft/*, t.get_start_state()*/, assumes, {}, te_comment);
+    auto e = mk_tfg_edge(from_pc, pc_to, to_condition, state_to_cft, vector<expr_ref>{assumes.begin(), assumes.end()}, {}, te_comment);
     eimap.insert(make_pair(e, I));
     t.add_edge(e);
     return;//make_pair(from_node, map<string, sort_ref>());
@@ -3356,7 +3356,7 @@ sym_exec_llvm::process_cft(tfg &t, map<llvm_value_id_t, string_ref>* value_to_na
     process_phi_nodes(t, value_to_name_map, &B, pc_to, from_node, model_llvm_semantics, to_condition, assumes, te_comment, I, F, eimap);
     return;
   } else {
-    auto e = mk_tfg_edge(from_pc, pc_to, to_condition, state_to_cft/*, t.get_start_state()*/, assumes, {}, te_comment);
+    auto e = mk_tfg_edge(from_pc, pc_to, to_condition, state_to_cft, vector<expr_ref>{assumes.begin(), assumes.end()}, {}, te_comment);
     eimap.insert(make_pair(e, I));
     t.add_edge(e);
     return;//make_pair(from_node, map<string, sort_ref>());
@@ -3612,7 +3612,6 @@ llvm::BasicBlock const *
 sym_exec_llvm::get_basic_block_for_pc(const llvm::Function& F, pc const &p)
 {
   stringstream ss;
-  //ss << string(F.getName()) << "." << p.get_index();
   ss << functionGetName(F) << "." << p.get_index();
   string id = ss.str();
   if (m_pc2bb_cache.count(id) > 0) {
@@ -3672,7 +3671,7 @@ sym_exec_llvm::process_phi_nodes(tfg &t, map<llvm_value_id_t, string_ref>* value
   dshared_ptr<tfg_node> pc_to_phi_node = from_node;
 
   dshared_ptr<tfg_node> pc_to_phi_start_node = get_next_intermediate_subsubindex_pc_node(t, from_node);
-  auto e1 = mk_tfg_edge(pc_to_phi_node->get_pc(), pc_to_phi_start_node->get_pc(), edgecond, state(), assumes, {}, te_comment);
+  auto e1 = mk_tfg_edge(pc_to_phi_node->get_pc(), pc_to_phi_start_node->get_pc(), edgecond, state(), vector<expr_ref>{assumes.begin(), assumes.end()}, {}, te_comment);
   eimap.insert(make_pair(e1, I));
   t.add_edge(e1);
   pc_to_phi_node = pc_to_phi_start_node;
@@ -3733,7 +3732,7 @@ sym_exec_llvm::process_phi_nodes(tfg &t, map<llvm_value_id_t, string_ref>* value
     DYN_DEBUG2(llvm2tfg, cout << __func__ << " " << __LINE__ << " " << get_timestamp(as1, sizeof as1) << ": from_node = " << from_node->get_pc() << ": pc_to_phi_node = " << pc_to_phi_node->get_pc() << ", pc_to_phi_dst_node = " << pc_to_phi_dst_node->get_pc() << endl);
     //string const& bbindex = get_basicblock_index(*B_to);
     //bbl_order_descriptor_t const& bbo = this->m_bbl_order_map.at(mk_string_ref(bbindex));
-    auto e = mk_tfg_edge(pc_to_phi_node->get_pc(), pc_to_phi_dst_node->get_pc(), expr_true(m_ctx), state_out/*, t.get_start_state()*/, state_assumes, {}, phi_node_to_te_comment(/*bbo, */inum, I));
+    auto e = mk_tfg_edge(pc_to_phi_node->get_pc(), pc_to_phi_dst_node->get_pc(), expr_true(m_ctx), state_out, vector<expr_ref>{state_assumes.begin(), state_assumes.end()}, {}, phi_node_to_te_comment(/*bbo, */inum, I));
     eimap.insert(make_pair(e, (Instruction *)&I));
     t.add_edge(e);
     DYN_DEBUG2(llvm2tfg, cout << __func__ << " " << __LINE__ << " " << get_timestamp(as1, sizeof as1) << ": adding phi edge: " << e->to_string(/*&t.get_start_state()*/) << endl);
@@ -3765,7 +3764,7 @@ sym_exec_llvm::process_phi_nodes(tfg &t, map<llvm_value_id_t, string_ref>* value
     }
 
     dshared_ptr<tfg_node> pc_to_phi_dst_node = get_next_intermediate_subsubindex_pc_node(t, from_node);
-    auto e = mk_tfg_edge(pc_to_phi_node->get_pc(), pc_to_phi_dst_node->get_pc(), expr_true(m_ctx), state_out/*, t.get_start_state()*/, {}, {}, te_comment);
+    auto e = mk_tfg_edge(pc_to_phi_node->get_pc(), pc_to_phi_dst_node->get_pc(), expr_true(m_ctx), state_out, {}, {}, te_comment);
     eimap.insert(make_pair(e, (Instruction*)&I));
     t.add_edge(e);
     //cout << __func__ << " " << __LINE__ << ": t.incoming =\n" << t.incoming_sizes_to_string() << endl;
