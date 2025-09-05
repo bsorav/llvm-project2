@@ -168,6 +168,7 @@ private:
 
   expr_ref gen_no_divbyzero_assume_expr(expr_ref const& a) const;
   expr_ref gen_div_no_overflow_assume_expr(expr_ref const& dividend, expr_ref const& divisor) const;
+  expr_ref gen_div_is_exact_assume_expr(expr_ref const& dividend, expr_ref const& divisor, bool is_signed) const;
 
   void add_shiftcount_assume(expr_ref a, size_t shifted_val_size, pc const &from_pc, tfg &t) const;
   void add_dereference_assume(expr_ref a, pc const &from_pc, tfg &t);

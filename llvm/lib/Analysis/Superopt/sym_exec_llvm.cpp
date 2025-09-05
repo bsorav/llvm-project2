@@ -2574,6 +2574,10 @@ sym_exec_llvm::exec_gen_expr(const llvm::Instruction& I, string const& Iname, co
           || I.getOpcode() == Instruction::SRem) {
         add_state_assume(Iname, gen_div_no_overflow_assume_expr(args[0], args[1]), state_in, assumes, from_node, model_llvm_semantics, t, value_to_name_map);
       }
+      if (   (I.getOpcode() == Instruction::SDiv || I.getOpcode() == Instruction::UDiv)
+          && I.isExact()) {
+        add_state_assume(Iname, gen_div_is_exact_assume_expr(args[0], args[1], I.getOpcode() == Instruction::SDiv), state_in, assumes, from_node, model_llvm_semantics, t, value_to_name_map);
+      }
     }
     return make_pair(ret, assumes);
   }
@@ -2740,6 +2744,9 @@ sym_exec_llvm::gen_shiftcount_assume_expr(expr_ref const& a, size_t shifted_val_
 expr_ref
 sym_exec_llvm::gen_no_divbyzero_assume_expr(expr_ref const& a) const
 {
+  if (a->is_const()) {
+    return m_ctx->mk_bool_const(!a->get_mybitset_value().is_zero());
+  }
   return m_ctx->mk_not(m_ctx->mk_eq(a, m_ctx->mk_zerobv(a->get_sort()->get_size())));
 }
 
@@ -2753,6 +2760,33 @@ sym_exec_llvm::gen_div_no_overflow_assume_expr(expr_ref const& dividend, expr_re
   unsigned long max_negative_value = 0x1<<(bvsize-1);
   // XXX verify this
   return m_ctx->mk_not(m_ctx->mk_and(m_ctx->mk_eq(divisor, m_ctx->mk_zerobv(bvsize)), m_ctx->mk_eq(dividend, m_ctx->mk_bv_const(bvsize, max_negative_value))));
+}
+
+expr_ref
+sym_exec_llvm::gen_div_is_exact_assume_expr(expr_ref const& dividend, expr_ref const& divisor, bool is_signed) const
+{
+  ASSERT(dividend->is_bv_sort());
+  ASSERT(divisor->is_bv_sort());
+  context* ctx = divisor->get_context();
+  if (   divisor->is_const()
+      && divisor->get_sort()->get_size() <= DWORD_LEN
+      && divisor->get_mybitset_value().is_pos()) {
+    uint64_t d = divisor->get_mybitset_value().toUint64();
+    if (d == 0) { // div by zero
+      return ctx->mk_bool_true();
+    }
+    // use more efficient bit-masking when divisor is a machine-wide positive power-of-2
+    // Note that signedness does not matter here
+    unsigned pos = 0;
+    if (is_power_of_2(d, &pos)) {
+      ASSERT(pos < dividend->get_sort()->get_size());
+      return ctx->mk_eq(ctx->mk_bvextract(dividend, pos-1, 0), ctx->mk_bv_const(pos, (int)0));
+    }
+  }
+  expr_ref quotient = is_signed ? ctx->mk_bvsdiv(dividend, divisor)
+                                : ctx->mk_bvudiv(dividend, divisor);
+  // dividend == divisor * quotient
+  return ctx->mk_eq(dividend, ctx->mk_bvmul(divisor, quotient));
 }
 
 unordered_set<expr_ref>
@@ -4801,7 +4835,9 @@ sym_exec_llvm::add_state_assume(string const& varname, expr_ref const& assume, s
     t.add_edge(e);
     from_node = intermediate_node;
   } else {
-    assumes.insert(assume);
+    if (!assume->is_const_bool_true()) {
+      assumes.insert(assume);
+    }
   }
 }
 
