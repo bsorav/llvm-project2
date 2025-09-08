@@ -4087,6 +4087,15 @@ sym_exec_common::get_symbol_map_and_string_contents(Module const *M, list<pair<s
     symbol_is_constant = cv->isConstant();
     symbol_id = get_symbol_id_for_name(name, src_llvm_tfg, symbol_id);
     //cout << __func__ << " " << __LINE__ << ": symbol_is_constant = " << symbol_is_constant << endl;
+    if (cv->hasExternalLinkage() && cv->isDeclaration()) {
+      if (auto *arr = llvm::dyn_cast<llvm::ArrayType>(cv->getValueType());
+          arr && arr->getNumElements() == 0) {
+        cout << _FNLN_ << ": encountered incomplete external array declaration: " << name << ".\n"
+                "Such a variable has zero size prohibiting its modeling (dl.getTypeAllocSiize = " << symbol_size << ")" <<< endl;
+        NOT_IMPLEMENTED();
+      }
+    }
+
     bool inserted = smap.insert(make_pair(symbol_id, graph_symbol_t(mk_string_ref(name), symbol_size, symbol_alignment, symbol_is_constant))).second;
     ASSERT(inserted);
     if (symbol_is_constant && cv->hasInitializer()) {
