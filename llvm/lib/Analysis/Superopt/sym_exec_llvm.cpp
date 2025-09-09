@@ -4091,7 +4091,7 @@ sym_exec_common::get_symbol_map_and_string_contents(Module const *M, list<pair<s
       if (auto *arr = llvm::dyn_cast<llvm::ArrayType>(cv->getValueType());
           arr && arr->getNumElements() == 0) {
         cout << _FNLN_ << ": encountered incomplete external array declaration: " << name << ".\n"
-                "Such a variable has zero size prohibiting its modeling (dl.getTypeAllocSiize = " << symbol_size << ")" <<< endl;
+                "Such a variable has zero size prohibiting its modeling (dl.getTypeAllocSiize = " << symbol_size << ")" << endl;
         NOT_IMPLEMENTED();
       }
     }
