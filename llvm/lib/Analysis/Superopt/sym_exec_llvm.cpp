@@ -544,6 +544,13 @@ sym_exec_llvm::float_fcall_arg_get_name(CallInst const& I, int argnum) const
 }
 
 string
+sym_exec_llvm::byval_fcall_arg_get_name(CallInst const& I, int argnum) const
+{
+  string base_name = llvm_instruction_get_md5sum_name(I);
+  return base_name + ".arg." + std::to_string(argnum) + ".byval";
+}
+
+string
 sym_exec_llvm::constexpr_instruction_get_name(Instruction const& I) const
 {
   string base_name = llvm_instruction_get_md5sum_name(I);
@@ -1498,6 +1505,30 @@ sym_exec_llvm::apply_general_function(const CallInst* c, expr_ref fun_name_expr,
       t.add_edge(e);
       from_node = intermediate_node;
       expr = m_ctx->get_input_expr_for_key(mk_string_ref(float_fcall_arg_name), bv_expr->get_sort());
+    } else if (c->paramHasAttr(argnum, Attribute::ByVal)) {
+      Type *elTy = c->getParamByValType(argnum);
+      if (this->m_cc == calling_conventions_t::LINUX_I386) {
+        // In Linux I386, the structure is passed on the stack regardless of size
+        // So, we pass-by-value by reading the byval pointer
+        // Note that count below corresponds to size of the struct which can be quite large! (but, hey, the programmer _chose_ to do this)
+        unsigned count = m_module->getDataLayout().getTypeAllocSize(elTy);
+        expr_ref byval_expr_val = m_ctx->mk_select(mem, mem_alloc, memlabel_t::memlabel_top(), expr, count, false); // TODO: assumes for select()?
+        string byval_expr_name = byval_fcall_arg_get_name(*c, argnum);
+
+        state interm_st;
+        state_set_expr(interm_st, byval_expr_name, byval_expr_val);
+        dshared_ptr<tfg_node> interm_node = get_next_intermediate_subsubindex_pc_node(t, from_node);
+        pc const& from_pc = from_node->get_pc();
+        auto interm_ed = mk_tfg_edge(from_pc, interm_node->get_pc(), expr_true(m_ctx), interm_st, {}, {}, te_comment_t::te_comment_llvm_byval_fcall_arg(from_pc.get_subindex()));
+        t.add_edge(interm_ed);
+        from_node = interm_node;
+        expr = m_ctx->get_input_expr_for_key(mk_string_ref(byval_expr_name), byval_expr_val->get_sort());
+      } else {
+        llvm::errs() << "Operand " << argnum << " is byval of type ";
+        elTy->print(llvm::errs());
+        cout << _FNLN_ << ": handling of byval values is NOT supported with non-I386 calling conventions" << endl;
+        NOT_IMPLEMENTED();
+      }
     }
     args.push_back(expr);
     args_type.push_back(expr->get_sort());
@@ -1554,28 +1585,19 @@ sym_exec_llvm::apply_general_function(const CallInst* c, expr_ref fun_name_expr,
         ss << Elname << "." LLVM_FIELDNUM_PREFIX << r;
         Elname = ss.str();
         StructType const *sty = dyn_cast<StructType>(ElTy);
-        //StructLayout const *sl = dl.getStructLayout((StructType *)sty);
         ASSERT(r < ret_sort_vec.size());
         ElTy = sty->getElementType(r);
       }
 
       set_expr(Elname, c_expr, state_out);
-      //add_align_assumes(Elname, ElTy, c_expr, pc_to, t);
       unordered_set_union(succ_assumes, gen_ptr_align_assumes(Elname, ElTy, c_expr->get_sort()));
       DYN_DEBUG2(llvm2tfg, errs() << "\n\nfun sort: " << m_ctx->expr_to_string_table(fun) << "\n");
     }
   }
-  //sort_ref memfun_sort = get_fun_type_sort(/*ft, */mem->get_sort(), args_type);
-  //sort_ref io_fun_sort = get_fun_type_sort(io->get_sort(), args_type);
-  //string memfun_name = smt_fun_name + "." + G_MEM_SYMBOL;
-  expr_ref memfun = m_ctx->get_fun_expr(args_type, mem->get_sort()); //m_ctx->mk_var(memfun_name, memfun_sort);
-  //string io_fun_name = smt_fun_name + "." + G_IO_SYMBOL;
-  //expr_ref io_fun = m_ctx->mk_var(io_fun_name, io_fun_sort);
+  expr_ref memfun = m_ctx->get_fun_expr(args_type, mem->get_sort());
   ASSERT(args[FUNCTION_CALL_REGNUM_ARG_INDEX]->is_const());
-  //args[FUNCTION_CALL_REGNUM_ARG_INDEX] = zerobv; //regnum 0
-  args[FUNCTION_CALL_REGNUM_ARG_INDEX] = m_ctx->mk_regid_const(0); //regnum 0
+  args[FUNCTION_CALL_REGNUM_ARG_INDEX] = m_ctx->mk_regid_const(0);
   expr_ref ret = m_ctx->mk_function_call(memfun, args);
-  //cout << __func__ << " " << __LINE__ << ": ret = " << endl << ret->to_string_table() << endl;
   state_set_expr(state_out, m_mem_reg, ret);
   return make_pair(assumes, succ_assumes);
 }
