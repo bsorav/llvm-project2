@@ -2910,6 +2910,20 @@ static void DiagnoseBadFunctionCast(Sema &Self, const ExprResult &SrcExpr,
 void CastOperation::CheckCStyleCast() {
   assert(!Self.getLangOpts().CPlusPlus);
 
+  // Apply this check only in C mode
+  auto isIntegerLike = [](QualType T) {
+    return T->isIntegerType() || T->isEnumeralType() || T->isBooleanType();
+  };
+
+  QualType SrcTy = SrcExpr.get()->getType();
+  QualType DestTy = DestType;
+
+  if ((SrcTy->isPointerType() && isIntegerLike(DestTy)) ||
+      (isIntegerLike(SrcTy) && DestTy->isPointerType())) {
+    Self.Diag(OpRange.getBegin(), diag::ext_misra_c20_warn_pointer_integer_conversion)
+        << SrcTy << DestTy << OpRange;
+  }
+
   // C-style casts can resolve __unknown_any types.
   if (claimPlaceholder(BuiltinType::UnknownAny)) {
     SrcExpr = Self.checkUnknownAnyCast(DestRange, DestType,
@@ -2917,7 +2931,6 @@ void CastOperation::CheckCStyleCast() {
                                        ValueKind, BasePath);
     return;
   }
-
   // C99 6.5.4p2: the cast type needs to be void or scalar and the expression
   // type needs to be scalar.
   if (DestType->isVoidType()) {
@@ -3117,7 +3130,88 @@ void CastOperation::CheckCStyleCast() {
     }
     return;
   }
+  
+  // A cast shall not remove any const or volatile qualification from the type pointed to by a pointer
+  if (SrcType->isPointerType() && DestType->isPointerType()) {
+    if (SrcType->getPointeeType().isConstQualified() ^ DestType->getPointeeType().isConstQualified()) {
+      Self.Diag(SrcExpr.get()->getBeginLoc(),
+                diag::warn_cast_pointer_to_pointer_remove_const)
+          << SrcType << DestType << SrcExpr.get()->getSourceRange();
+    }
+    if (SrcType->getPointeeType().isVolatileQualified() ^ DestType->getPointeeType().isVolatileQualified()) {
+      Self.Diag(SrcExpr.get()->getBeginLoc(),
+                diag::warn_cast_pointer_to_pointer_remove_volatile)
+          << SrcType << DestType << SrcExpr.get()->getSourceRange();
+    }
+  }
+  // A cast shall not be performed between pointer to object and a non-integer arithmetic type
+  if ((SrcType->isPointerType() && DestType->isArithmeticType()) && (!SrcType->isVoidPointerType()) && (!DestType->isIntegerType())) {
+    Self.Diag(SrcExpr.get()->getBeginLoc(),
+              diag::warn_cast_non_int_arithmetic_to_obj_pointer)
+          << SrcType << DestType << SrcExpr.get()->getSourceRange();
+  }
+  if ((SrcType->isArithmeticType() && DestType->isPointerType()) && (!SrcType->isIntegerType()) && (!DestType->isVoidPointerType())) {
+    Self.Diag(SrcExpr.get()->getBeginLoc(),
+              diag::warn_cast_non_int_arithmetic_to_obj_pointer)
+          << SrcType << DestType << SrcExpr.get()->getSourceRange();
+  }
 
+  // check if src type is arithmetic type and dest type is void pointer type or vice versa
+
+  if ((SrcType->isArithmeticType() && DestType->isVoidPointerType()) || (SrcType->isVoidPointerType() && DestType->isArithmeticType())) {
+    auto srcExpr = SrcExpr.get();
+    if (SrcType->isArithmeticType() && (!(SrcExpr.get()->isNullPointerConstant(Self.Context, Expr::NPC_ValueDependentIsNotNull) && srcExpr->getExprLoc().isMacroID()))) {
+      Self.Diag(SrcExpr.get()->getBeginLoc(),
+                diag::warn_cast_pointer_to_void_and_arithmetic)
+            << SrcType << DestType << SrcExpr.get()->getSourceRange();
+    }
+    else{
+      if (DestType->isArithmeticType()){
+        Self.Diag(SrcExpr.get()->getBeginLoc(),
+                diag::warn_cast_pointer_to_void_and_arithmetic)
+            << SrcType << DestType << SrcExpr.get()->getSourceRange();
+      } 
+    }
+  }
+  // A cast shall not be performed between a pointer to object type and a pointer to a different object type
+  if ((SrcType->isPointerType() && DestType->isPointerType()) && (!SrcType->isVoidPointerType() && !DestType->isVoidPointerType())) {
+    if (SrcType->getPointeeType()!= DestType->getPointeeType()) {
+      Self.Diag(SrcExpr.get()->getBeginLoc(),
+              diag::warn_cast_pointer_to_pointer_of_diff_obj)
+          << SrcType << DestType << SrcExpr.get()->getSourceRange();
+    }
+  }
+  if (SrcType->isFunctionPointerType()) {
+    if (!DestType->isFunctionPointerType()) {
+      // raise a warning here
+      Self.Diag(SrcExpr.get()->getBeginLoc(),
+                diag::warn_cast_function_to_non_function_pointer)
+          << SrcType << DestType << SrcExpr.get()->getSourceRange();
+    }
+  }
+  if (!SrcType->isFunctionPointerType()) {
+    if (DestType->isFunctionPointerType()) {
+      Self.Diag(SrcExpr.get()->getBeginLoc(),
+                diag::warn_cast_function_to_non_function_pointer)
+          << SrcType << DestType << SrcExpr.get()->getSourceRange();
+    }
+  }
+  if (SrcType->isPointerType() && DestType->isPointerType()) {
+    if (SrcType->getPointeeType()->isIncompleteType()) {
+      if (!DestType->getPointeeType()->isIncompleteType()) {
+        Self.Diag(SrcExpr.get()->getExprLoc(),
+                  diag::warn_cast_pointer_to_incomplete)
+            << SrcType << DestType << SrcExpr.get()->getSourceRange();
+      }
+    }
+    if (DestType->getPointeeType()->isIncompleteType()) {
+      if (!SrcType->getPointeeType()->isIncompleteType()) {
+        Self.Diag(SrcExpr.get()->getExprLoc(),
+                  diag::warn_cast_pointer_to_incomplete)
+            << SrcType << DestType << SrcExpr.get()->getSourceRange();
+      }
+    }
+  }
   if (SrcType->isVectorType()) {
     if (Self.CheckVectorCast(OpRange, SrcType, DestType, Kind))
       SrcExpr = ExprError();

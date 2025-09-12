@@ -563,6 +563,7 @@ def MismatchedDeallocatorChecker : Checker<"MismatchedDeallocator">,
   Dependencies<[DynamicMemoryModeling]>,
   Documentation<HasDocumentation>;
 
+
 def StdCLibraryFunctionsChecker : Checker<"StdCLibraryFunctions">,
   HelpText<"Check for invalid arguments of C standard library functions, "
            "and apply relations between arguments and return value">,
@@ -610,8 +611,40 @@ def SimpleStreamChecker : Checker<"SimpleStream">,
   HelpText<"Check for misuses of stream APIs">,
   Documentation<HasDocumentation>;
 
+def MemcmpChecker : Checker<"MemcmpChecker">,
+  HelpText<"Check for null terminated strings in memcmp">,
+  Documentation<HasDocumentation>;
+
+def CTypeFunctionsChecker : Checker<"CTypeFunctionsChecker">,
+  HelpText<"Check for arguments passed in functions of library ctype.h">,
+  Documentation<HasDocumentation>;
+
+def ArrayPointerArithmeticChecker: Checker<"ArrayPointerArithmetic">,
+  HelpText<"Check for airthmatic operation related to array pointer">,
+  Documentation<HasDocumentation>;
+
+def ReadOnlyStreamChecker : Checker<"ReadOnlyStreamChecker">,
+  HelpText<"Check for attempts to write to streams opened as read-only">,
+  Documentation<HasDocumentation>;
+
+def PointerArgumentChecker : Checker<"PointerArgumentChecker">,
+  HelpText<"Check for the arguments passed in memcpy, memmove and memcmp">,
+  Documentation<HasDocumentation>;
+
+def ConstPointerLocalChecker : Checker<"ConstPointerLocalChecker">,
+  HelpText<"Check for the use of resules of localeconv, getenv, setlocale and strerror ">,
+  Documentation<HasDocumentation>;
+
 def BlockInCriticalSectionChecker : Checker<"BlockInCriticalSection">,
   HelpText<"Check for calls to blocking functions inside a critical section">,
+  Documentation<HasDocumentation>;
+
+def StdLibOldReturnValueUseChecker : Checker<"StdLibOldReturnValueUseChecker">,
+  HelpText<"Check if the return value from certain Standard Library functions is used after a subsequent call to the same function.">,
+  Documentation<HasDocumentation>;
+
+def EOFChecker : Checker<"EOFChecker">,
+  HelpText<"The macro EOF shall only be compared with the unmodified return value from any Standard Library function capable of returning EOF.">,
   Documentation<HasDocumentation>;
 
 } // end "alpha.unix"

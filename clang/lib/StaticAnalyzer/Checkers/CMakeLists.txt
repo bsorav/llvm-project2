@@ -9,6 +9,7 @@ add_clang_library(clangStaticAnalyzerCheckers
   AnalyzerStatsChecker.cpp
   ArrayBoundChecker.cpp
   ArrayBoundCheckerV2.cpp
+  ArrayPointerArithmeticChecker.cpp
   BasicObjCFoundationChecks.cpp
   BitwiseShiftChecker.cpp
   BlockInCriticalSectionChecker.cpp
@@ -28,8 +29,10 @@ add_clang_library(clangStaticAnalyzerCheckers
   CheckerDocumentation.cpp
   ChrootChecker.cpp
   CloneChecker.cpp
+  ConstPointerLocalChecker.cpp
   ContainerModeling.cpp
   ConversionChecker.cpp
+  CTypeFunctionsChecker.cpp
   CXXDeleteChecker.cpp
   CXXSelfAssignmentChecker.cpp
   DeadStoresChecker.cpp
@@ -45,6 +48,7 @@ add_clang_library(clangStaticAnalyzerCheckers
   ErrnoChecker.cpp
   ErrnoModeling.cpp
   ErrnoTesterChecker.cpp
+  EOFChecker.cpp
   ExprInspectionChecker.cpp
   FixedAddressChecker.cpp
   FuchsiaHandleChecker.cpp
@@ -67,6 +71,7 @@ add_clang_library(clangStaticAnalyzerCheckers
   MallocOverflowSecurityChecker.cpp
   MallocSizeofChecker.cpp
   MismatchedIteratorChecker.cpp
+  MemcmpChecker.cpp
   MmapWriteExecChecker.cpp
   MIGChecker.cpp
   MoveChecker.cpp
@@ -91,12 +96,14 @@ add_clang_library(clangStaticAnalyzerCheckers
   ObjCUnusedIVarsChecker.cpp
   OSObjectCStyleCast.cpp
   PaddingChecker.cpp
+  PointerArgumentChecker.cpp
   PointerArithChecker.cpp
   PointerIterationChecker.cpp
   PointerSortingChecker.cpp
   PointerSubChecker.cpp
   PthreadLockChecker.cpp
   cert/PutenvWithAutoChecker.cpp
+  ReadOnlyStreamChecker.cpp
   RetainCountChecker/RetainCountChecker.cpp
   RetainCountChecker/RetainCountDiagnostics.cpp
   ReturnPointerRangeChecker.cpp
@@ -108,6 +115,7 @@ add_clang_library(clangStaticAnalyzerCheckers
   SmartPtrModeling.cpp
   StackAddrEscapeChecker.cpp
   StdLibraryFunctionsChecker.cpp
+  StdLibOldReturnValueUseChecker.cpp
   StdVariantChecker.cpp
   STLAlgorithmModeling.cpp
   StreamChecker.cpp
