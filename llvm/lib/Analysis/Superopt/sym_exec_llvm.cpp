@@ -1144,47 +1144,30 @@ sym_exec_llvm::apply_memset_function(const CallInst* c, expr_ref fun_name_expr, 
     int count = memset_nbytes_expr->get_int64_value();
     if (count != 0) {
       add_state_assume("", gen_is_aligned_assume_expr(memset_dst_expr, memset_align_int), state_in, assumes, from_node, model_llvm_semantics, t, value_to_name_map);
-    }
-    pc cur_pc = from_node->get_pc();
-    dshared_ptr<tfg_node> intermediate_node = get_next_intermediate_subsubindex_pc_node(t, from_node);
-    shared_ptr<tfg_edge const> e = mk_tfg_edge(cur_pc, intermediate_node->get_pc(), expr_true(m_ctx), state_out, vector<expr_ref>{assumes.begin(), assumes.end()}, {}, this->instruction_to_te_comment(*c, from_pc));
-    t.add_edge(e);
-    DYN_DEBUG(llvm2tfg_memset, cout << "added edge " << e->to_string_concise() << " for alignment assume" << endl);
-    cur_pc = intermediate_node->get_pc();
 
-    for (int i = 0; i < count; i += memset_align_int) {
-      state_out = state_in;
-
-      expr_ref offset = m_ctx->mk_bv_const(get_word_length(), i);
-      //expr_ref mem = state_get_expr(state_out, m_mem_reg, this->get_mem_sort());
-      //expr_ref mem_alloc = state_get_expr(state_out, m_mem_alloc_reg, this->get_mem_alloc_sort());
-      //expr_ref inbytes = m_ctx->mk_select(mem, mem_alloc, memlabel_t::memlabel_top(), m_ctx->mk_bvadd(memcpy_src_expr, offset), memcpy_align_int, false/*, comment_t()*/);
-      ASSERT(memset_val_expr->is_bv_sort());
-      if (memset_align_int * BYTE_LEN != memset_val_expr->get_sort()->get_size()) {
-        cout << _FNLN_ << ":\nmemset_align_int = " << memset_align_int << endl;
-        cout << "memset_val_expr =\n" << m_ctx->expr_to_string_table(memset_val_expr) << endl;
-      }
-      ASSERT(memset_align_int * BYTE_LEN == memset_val_expr->get_sort()->get_size());
-      expr_ref inbytes = memset_val_expr;
-
-      expr_ref out_mem = state_get_expr(state_out, m_mem_reg, this->get_mem_sort());
-      expr_ref out_mem_alloc = state_get_expr(state_out, m_mem_alloc_reg, this->get_mem_alloc_sort());
-      out_mem = m_ctx->mk_store(out_mem, out_mem_alloc, memlabel_t::memlabel_top(), m_ctx->mk_bvadd(memset_dst_expr, offset), inbytes, memset_align_int, false);
-      state_set_expr(state_out, m_mem_reg, out_mem);
       if (   !memset_volatile_expr->is_const()
           || (memset_volatile_expr->is_bv_sort() && memset_volatile_expr != m_ctx->mk_zerobv(memset_volatile_expr->get_sort()->get_size()))
           || (memset_volatile_expr->is_bool_sort() && memset_volatile_expr != expr_false(m_ctx))) {
         cout << _FNLN_ << ": memset_volatile_expr =\n" << m_ctx->expr_to_string_table(memset_volatile_expr) << endl;
         NOT_IMPLEMENTED(); //have not implemented support for volatile memset yet
       }
-
-      dshared_ptr<tfg_node> intermediate_node = get_next_intermediate_subsubindex_pc_node(t, from_node);
-
-      shared_ptr<tfg_edge const> e = mk_tfg_edge(cur_pc, intermediate_node->get_pc(), expr_true(m_ctx), state_out, {}, {}, this->instruction_to_te_comment(*c, from_pc));
-      t.add_edge(e);
-      DYN_DEBUG(llvm2tfg_memset, cout << "added edge " << e->to_string_concise() << " for memset of bytes " << i << "-" << (i+memset_align_int-1) << endl);
-      cur_pc = intermediate_node->get_pc();
+      if (memset_align_int * BYTE_LEN != memset_val_expr->get_sort()->get_size()) {
+        cout << _FNLN_ << ":\nmemset_align_int = " << memset_align_int << endl;
+        cout << "memset_val_expr =\n" << m_ctx->expr_to_string_table(memset_val_expr) << endl;
+      }
+      ASSERT(memset_val_expr->is_bv_sort());
+      ASSERT(memset_align_int * BYTE_LEN == memset_val_expr->get_sort()->get_size());
     }
+
+    pc cur_pc = from_node->get_pc();
+    dshared_ptr<tfg_node> intermediate_node = get_next_intermediate_subsubindex_pc_node(t, from_node);
+    shared_ptr<tfg_edge const> e = mk_tfg_edge(cur_pc, intermediate_node->get_pc(), expr_true(m_ctx), state_out, vector<expr_ref>{assumes.begin(), assumes.end()}, {}, this->instruction_to_te_comment(*c, from_pc));
+    t.add_edge(e);
+    DYN_DEBUG(llvm2tfg_memset, cout << "added edge " << e->to_string_concise() << " for alignment assume" << endl);
+    expr_ref mem = state_get_expr(state_out, m_mem_reg, this->get_mem_sort());
+    expr_ref mem_alloc = state_get_expr(state_out, m_mem_alloc_reg, this->get_mem_alloc_sort());
+    cur_pc = t.model_memset(intermediate_node->get_pc(), mem, mem_alloc, memset_dst_expr, memset_val_expr, count, memset_align_int, get_word_length(), te_comment_t::te_comment_memset(nullopt));
+    this->sync_next_intermediate_subsubindex_map(cur_pc); // sync subsubindex info as model_memcpy() may have created intermediate PCs
     state_out = state_in;
     from_node = t.find_node(cur_pc);
     ASSERT(from_node);
@@ -1243,28 +1226,11 @@ sym_exec_llvm::apply_memcpy_function(const CallInst* c, expr_ref fun_name_expr, 
     shared_ptr<tfg_edge const> e = mk_tfg_edge(cur_pc, intermediate_node->get_pc(), expr_true(m_ctx), state_out, vector<expr_ref>{assumes.begin(), assumes.end()}, {}, this->instruction_to_te_comment(*c, from_pc));
     t.add_edge(e);
     DYN_DEBUG(llvm2tfg_memcpy, cout << "added edge " << e->to_string_concise() << " for alignment assume" << endl);
-    cur_pc = intermediate_node->get_pc();
 
-    for (int i = 0; i < count; i += memcpy_align_int) {
-      state_out = state_in;
-
-      expr_ref offset = m_ctx->mk_bv_const(get_word_length(), i);
-      expr_ref mem = state_get_expr(state_out, m_mem_reg, this->get_mem_sort());
-      expr_ref mem_alloc = state_get_expr(state_out, m_mem_alloc_reg, this->get_mem_alloc_sort());
-      expr_ref inbytes = m_ctx->mk_select(mem, mem_alloc, memlabel_t::memlabel_top(), m_ctx->mk_bvadd(memcpy_src_expr, offset), memcpy_align_int, false/*, comment_t()*/);
-
-      expr_ref out_mem = state_get_expr(state_out, m_mem_reg, this->get_mem_sort());
-      expr_ref out_mem_alloc = state_get_expr(state_out, m_mem_alloc_reg, this->get_mem_alloc_sort());
-      out_mem = m_ctx->mk_store(out_mem, out_mem_alloc, memlabel_t::memlabel_top(), m_ctx->mk_bvadd(memcpy_dst_expr, offset), inbytes, memcpy_align_int, false/*, comment_t()*/);
-      state_set_expr(state_out, m_mem_reg, out_mem);
-
-      dshared_ptr<tfg_node> intermediate_node = get_next_intermediate_subsubindex_pc_node(t, from_node);
-
-      shared_ptr<tfg_edge const> e = mk_tfg_edge(cur_pc, intermediate_node->get_pc(), expr_true(m_ctx), state_out, {}, {}, this->instruction_to_te_comment(*c, from_pc));
-      t.add_edge(e);
-      DYN_DEBUG(llvm2tfg_memcpy, cout << "added edge " << e->to_string_concise() << " for memcpy of bytes " << i << "-" << (i+memcpy_align_int-1) << endl);
-      cur_pc = intermediate_node->get_pc();
-    }
+    expr_ref mem = state_get_expr(state_out, m_mem_reg, this->get_mem_sort());
+    expr_ref mem_alloc = state_get_expr(state_out, m_mem_alloc_reg, this->get_mem_alloc_sort());
+    cur_pc = t.model_memcpy(intermediate_node->get_pc(), mem, mem_alloc, memcpy_src_expr, memcpy_dst_expr, count, memcpy_align_int, get_word_length(), te_comment_t::te_comment_memcpy(nullopt));
+    this->sync_next_intermediate_subsubindex_map(cur_pc); // sync subsubindex info as model_memcpy() may have created intermediate PCs
     state_out = state_in;
     from_node = t.find_node(cur_pc);
     ASSERT(from_node);
@@ -3708,6 +3674,20 @@ sym_exec_common::get_next_intermediate_subsubindex_pc_node(tfg &t, dshared_ptr<t
     t.add_node(make_dshared<tfg_node>(ret));
   }
   return t.find_node(ret);
+}
+
+void
+sym_exec_common::sync_next_intermediate_subsubindex_map(pc const& in_p)
+{
+  char const *index = in_p.get_index();
+  int subindex      = in_p.get_subindex();
+  pc p(pc::insn_label, index, subindex, PC_SUBSUBINDEX_DEFAULT);
+  auto itr = m_intermediate_subsubindex_map.find(p);
+  if (itr == m_intermediate_subsubindex_map.end()) {
+    m_intermediate_subsubindex_map.emplace(p, in_p.get_subsubindex());
+  } else {
+    itr->second = max(itr->second, in_p.get_subsubindex());
+  }
 }
 
 //template<typename FUNCTION, typename BASICBLOCK, typename INSTRUCTION>
