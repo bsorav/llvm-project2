@@ -1207,9 +1207,6 @@ sym_exec_llvm::apply_memcpy_function(const CallInst* c, expr_ref fun_name_expr, 
     ASSERT(memcpy_align_int > 0);
   }
 
-  //memlabel_t ml_top;
-  //memlabel_t::keyword_to_memlabel(&ml_top, G_MEMLABEL_TOP_SYMBOL, MEMSIZE_MAX);
-
   unordered_set<expr_ref> succ_assumes;
   if (memcpy_nbytes_expr->is_const()) {
     uint64_t memcpy_dst_align = F->getParamAlign(0).valueOrOne().value();
