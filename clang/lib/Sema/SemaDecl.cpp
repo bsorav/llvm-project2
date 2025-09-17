@@ -3722,6 +3722,34 @@ bool Sema::MergeFunctionDecl(FunctionDecl *New, NamedDecl *&OldD, Scope *S,
       return true;
     }
   }
+  // Check parameter names and qualifiers
+  unsigned NumParams = New->getNumParams();
+  for (unsigned i = 0; i < NumParams; ++i) {
+    ParmVarDecl *OldParam = Old->getParamDecl(i);
+    ParmVarDecl *NewParam = New->getParamDecl(i);
+
+    // Check parameter names
+    if (OldParam->getIdentifier() || NewParam->getIdentifier()) {
+      if (OldParam->getIdentifier() != NewParam->getIdentifier()) {
+        Diag(NewParam->getLocation(), diag::ext_misra_c20_misra_param_name_mismatch)
+            << (i + 1)
+            << (OldParam->getIdentifier() ? OldParam->getIdentifier()->getName() : "")
+            << (NewParam->getIdentifier() ? NewParam->getIdentifier()->getName() : "");
+        Diag(OldParam->getLocation(), diag::note_previous_declaration);
+      }
+    }
+
+    // Check parameter type qualifiers (const, volatile, etc.)
+    QualType OldParamTy = OldParam->getType();
+    QualType NewParamTy = NewParam->getType();
+    if (OldParamTy.getLocalQualifiers() != NewParamTy.getLocalQualifiers()) {
+      Diag(NewParam->getLocation(), diag::ext_misra_c20_misra_param_qual_mismatch)
+          << (i + 1)
+          << OldParamTy.getQualifiers().getAsString()
+          << NewParamTy.getQualifiers().getAsString();
+      Diag(OldParam->getLocation(), diag::note_previous_declaration);
+    }
+  }
 
   // If the old declaration was found in an inline namespace and the new
   // declaration was qualified, update the DeclContext to match.
@@ -6219,6 +6247,17 @@ Decl *Sema::ActOnDeclarator(Scope *S, Declarator &D) {
         S, D, MultiTemplateParamsArg(), Bases);
 
   Decl *Dcl = HandleDeclarator(S, D, MultiTemplateParamsArg());
+  //If the declarator has no identifier, no need to check.
+  auto *ND=dyn_cast<NamedDecl>(Dcl);
+  if (ND->getIdentifier()) {
+    // Check for hiding of outer scope identifiers by inner scope identifiers.
+    CheckForOuterScopeIdentifierHiding(S, ND);
+  }
+
+  if (ND->hasExternalFormalLinkage()) {
+    // Check for duplicate external identifiers
+    CheckDuplicateExternalIdentifier(*this, ND);
+  }
 
   if (OriginalLexicalContext && OriginalLexicalContext->isObjCContainer() &&
       Dcl && Dcl->getDeclContext()->isFileContext())
@@ -6227,7 +6266,68 @@ Decl *Sema::ActOnDeclarator(Scope *S, Declarator &D) {
   if (!Bases.empty())
     ActOnFinishedFunctionDefinitionInOpenMPDeclareVariantScope(Dcl, Bases);
 
+  // Check for variable array type
+  if (VarDecl *VD = dyn_cast<VarDecl>(Dcl)) {
+    // Check if the variable declaration has a variable-length array type
+    if (VD->getType()->isVariableArrayType()) {
+        Diag(Dcl->getBeginLoc(),diag::ext_misra_c20_variable_array_type);
+    }
+  }
   return Dcl;
+}
+
+void Sema::CheckDuplicateExternalIdentifier(Sema &SemaRef, const NamedDecl *ND) {
+  if (const clang::VarDecl *VD = llvm::dyn_cast<clang::VarDecl>(ND)) {
+      // Check if the variable has 'extern' storage class
+      if(VD->getStorageClass() != clang::SC_Extern) return;
+  }
+  if (const clang::FunctionDecl *FD = llvm::dyn_cast<clang::FunctionDecl>(ND)) {
+      // Check if the function has 'extern' storage class
+      if(FD->getStorageClass() != clang::SC_Extern) return;
+  }
+
+
+  StringRef Name = ND->getName().substr(0,31);
+  SourceLocation Loc = ND->getLocation();
+  
+  // Check if the identifier is already in the map
+  if (ExternalIdentifiers.find(Name) != ExternalIdentifiers.end()) {
+    // Issue a diagnostic error for duplicate identifier
+    Diag(Loc, diag::ext_misra_c20_duplicate_external_identifier)<<ND->getIdentifier();
+    Diag(ExternalIdentifiers[Name], diag::note_previous_declaration);
+  }
+   else {
+    // If unique, store the identifier and its location
+    ExternalIdentifiers[Name] = Loc;
+  }
+}
+
+void Sema::CheckForOuterScopeIdentifierHiding(Scope *S, NamedDecl* CND) {
+  if (const clang::VarDecl *VD = llvm::dyn_cast<clang::VarDecl>(CND)) {
+      // Check if the variable has 'extern' storage class
+      if(VD->getStorageClass() == clang::SC_Extern) return;
+  }
+  if (const clang::FunctionDecl *FD = llvm::dyn_cast<clang::FunctionDecl>(CND)) {
+      // Check if the function has 'extern' storage class
+      if(FD->getStorageClass() == clang::SC_Extern) return;
+  }
+
+  // Traverse through the scopes up to the translation unit scope.
+  Scope *CurrentScope = S->getParent();
+  while(CurrentScope) {
+    // Iterate through all declarations in the current scope.
+    for (auto *Dcl : CurrentScope->decls()) {
+      if (auto *ND = dyn_cast<NamedDecl>(Dcl)) {
+        if (ND->getIdentifier() == CND->getIdentifier()) {
+          Diag(CND->getLocation(), diag::ext_misra_c20_hiding_outer_scope_identifier)
+              <<CND->getIdentifier();
+          Diag(ND->getLocation(), diag::note_previous_declaration_as)<<ND->getIdentifier();
+          // return; // Once found, return.
+        }
+      }
+    }
+    CurrentScope = CurrentScope->getParent();
+  }
 }
 
 /// DiagnoseClassNameShadow - Implement C++ [class.mem]p13:
@@ -7560,7 +7660,17 @@ NamedDecl *Sema::ActOnVariableDeclarator(
   QualType R = TInfo->getType();
   DeclarationName Name = GetNameForDeclarator(D).getName();
 
-  IdentifierInfo *II = Name.getAsIdentifierInfo();
+  IdentifierInfo *II = Name.getAsIdentifierInfo();  
+  
+  QualType varDeclType2 = TInfo->getType();
+  const DeclSpec &DS1 = D.getDeclSpec();
+  // *************************MISRA_C R.8.14 :: S_N0 -> 53**************************** //
+  if(varDeclType2.isRestrictQualified()) {
+          Diag(DS1.getTypeSpecTypeLoc(), diag::warn_misra_restrict_qualifier)
+            << D.getIdentifier()->getName();
+  }
+  // *************************MISRA_C R.8.14 :: S_N0 -> 53**************************** //
+
   bool IsPlaceholderVariable = false;
 
   if (D.isDecompositionDeclarator()) {
@@ -7651,6 +7761,25 @@ NamedDecl *Sema::ActOnVariableDeclarator(
   if (!getLangOpts().CPlusPlus) {
     NewVD = VarDecl::Create(Context, DC, D.getBeginLoc(), D.getIdentifierLoc(),
                             II, R, TInfo, SC);
+
+    SourceLocation Loc = NewVD->getLocation();
+    if (Loc.isMacroID()) {
+      // llvm::errs() << "Variable '" << NewVD->getName() << "' was introduced via macro expansion.\n";
+
+      // // To further investigate, you can use getImmediateMacroCallerLoc() 
+      // // to see where the macro was expanded.
+      // SourceLocation MacroLoc = this->SourceMgr.getImmediateMacroCallerLoc(Loc);
+      
+      // llvm::errs() << "The macro was expanded at location: ";
+      // MacroLoc.print(llvm::errs(), SourceMgr);
+      // llvm::errs() << "\n";
+
+      Diag(NewVD->getLocation(), diag::ext_misra_c20_macro_as_identifier_used);
+    }
+    // std::unordered_map<std::string, std::string> declaredMacros = this->PP.getUserDefinedMacros();
+    // if(declaredMacros.find(NewVD->getNameAsString()) != declaredMacros.end()){
+    //   llvm::errs() << "redeclared an identifier with same macro name " << NewVD->getNameAsString() << "\n";
+    // }
 
     if (R->getContainedDeducedType())
       ParsingInitForAutoVars.insert(NewVD);
@@ -7808,6 +7937,7 @@ NamedDecl *Sema::ActOnVariableDeclarator(
     } else
       NewVD = VarDecl::Create(Context, DC, D.getBeginLoc(),
                               D.getIdentifierLoc(), II, R, TInfo, SC);
+      
 
     // If this is supposed to be a variable template, create it as such.
     if (IsVariableTemplate) {
@@ -9837,6 +9967,16 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
                                               isVirtualOkay);
   if (!NewFD) return nullptr;
 
+  // ******************* MISRA_C Rule 8.10 S_N0 -> 51 ***************** // 
+  bool isInline_C_lang = D.getDeclSpec().isInlineSpecified();
+  if(isInline_C_lang) {
+      if(SC != SC_Static) {
+        Diag(D.getIdentifierLoc(), diag::warn_inline_not_static)
+        << D.getIdentifier()->getName();
+      }
+  }
+  // ******************* MISRA_C Rule 8.10 S_N0 -> 51 ***************** // 
+
   if (OriginalLexicalContext && OriginalLexicalContext->isObjCContainer())
     NewFD->setTopLevelDeclInObjCContainer();
 
@@ -10353,10 +10493,24 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
   // Finally, we know we have the right number of parameters, install them.
   NewFD->setParams(Params);
 
+  // ==== MISRA_C Rule  R_8_2====
+  // Check for unnamed parameters
+  for (const auto *Param : NewFD->parameters()) {
+    if (Param->getName().empty()) {
+      Diag(Param->getLocation(), diag::ext_misra_C20_warn_missing_parameter_name)
+          << NewFD->getIdentifier();
+    }
+  }
+  // ==== End of Rule Validation ====
+
   if (D.getDeclSpec().isNoreturnSpecified())
+  {
+    // raise a warning 
+    Diag(D.getDeclSpec().getNoreturnSpecLoc(), diag::ext_misra_c_1_4_emergent_feature_not_allowed_in_sema);
     NewFD->addAttr(
         C11NoReturnAttr::Create(Context, D.getDeclSpec().getNoreturnSpecLoc()));
 
+  }
   // Functions returning a variably modified type violate C99 6.7.5.2p2
   // because all functions have linkage.
   if (!NewFD->isInvalidDecl() &&
@@ -14348,6 +14502,8 @@ StmtResult Sema::ActOnCXXForRangeIdentifier(Scope *S, SourceLocation IdentLoc,
 void Sema::CheckCompleteVariableDeclaration(VarDecl *var) {
   if (var->isInvalidDecl()) return;
 
+  
+
   MaybeAddCUDAConstantAttr(var);
 
   if (getLangOpts().OpenCL) {
@@ -14501,6 +14657,23 @@ void Sema::CheckCompleteVariableDeclaration(VarDecl *var) {
   bool IsGlobal = GlobalStorage && !var->isStaticLocal();
   QualType baseType = Context.getBaseElementType(type);
   bool HasConstInit = true;
+
+  if(Init && var->getType()->isUnsignedIntegerType() && var->getType().getAsString() == "const unsigned int"){
+    // clang::Expr::EvalResult evalResult;
+    // if (Init->EvaluateAsRValue(evalResult, Context)) {
+    //   // Convert result to the desired format based on the type
+    //   // llvm::errs() << evalResult.Val.getAsString(Context,var->getType() ) << "\n";]
+    // }
+
+    std::string valueWithSuffix;
+    llvm::raw_string_ostream stream(valueWithSuffix);
+    Init->printPretty(stream, nullptr, Context.getPrintingPolicy());
+
+    if((char)valueWithSuffix.back() != 'U'){
+      Diag(var->getLocation(), diag::ext_misra_c20_improper_unsigned_declatation);
+      
+    }
+  }
 
   // Check whether the initializer is sufficiently constant.
   if (getLangOpts().CPlusPlus && !type->isDependentType() && Init &&
@@ -15125,6 +15298,13 @@ Decl *Sema::ActOnParamDeclarator(Scope *S, Declarator &D,
 
   // Check for redeclaration of parameters, e.g. int foo(int x, int x);
   IdentifierInfo *II = D.getIdentifier();
+  // *************************MISRA_C R.8.14 :: S_N0 -> 53**************************** //
+  if(parmDeclType.isRestrictQualified()) {
+          Diag(DS.getTypeSpecTypeLoc(), diag::warn_misra_restrict_qualifier)
+            << D.getIdentifier()->getName();
+  }
+  // *************************MISRA_C R.8.14 :: S_N0 -> 53**************************** //
+
   if (II) {
     LookupResult R(*this, II, D.getIdentifierLoc(), LookupOrdinaryName,
                    ForVisibleRedeclaration);
@@ -15765,7 +15945,6 @@ Decl *Sema::ActOnStartOfFunctionDef(Scope *FnBodyScope, Decl *D,
         continue;
       assert(!isa<ParmVarDecl>(NonParmDecl) &&
              "parameters should not be in newly created FD yet");
-
       // If the decl has a name, make it accessible in the current scope.
       if (NonParmDecl->getDeclName())
         PushOnScopeChains(NonParmDecl, FnBodyScope, /*AddToContext=*/false);
@@ -15776,6 +15955,11 @@ Decl *Sema::ActOnStartOfFunctionDef(Scope *FnBodyScope, Decl *D,
         for (auto *EI : ED->enumerators())
           PushOnScopeChains(EI, FnBodyScope, /*AddToContext=*/false);
       }
+    }
+    for (ParmVarDecl *Param : FD->parameters()) {
+      // Get the declarator of the parameter
+      auto *ND=dyn_cast<NamedDecl>(Param);
+      CheckForOuterScopeIdentifierHiding(FnBodyScope, ND);
     }
   }
 
@@ -18219,9 +18403,30 @@ void Sema::ActOnStartCXXMemberDeclarations(Scope *S, Decl *TagD,
   assert(InjectedClassName->isInjectedClassName() &&
          "Broken injected-class-name");
 }
+static bool HasFlexibleArrayMember(const RecordDecl *RD) {
+    for (const auto *Field : RD->fields()) {
+        if (const auto *AT = dyn_cast<ArrayType>(Field->getType().getTypePtr())) {
+            if (AT->isIncompleteArrayType()) {
+                return true;
+            }
+            if (const auto *CAT = dyn_cast<ConstantArrayType>(AT)) {
+                if (CAT->getSize().getZExtValue() == 1) {
+                    return true;
+                }
+            }
+        }
+    }
+    return false;
+}
+
 
 void Sema::ActOnTagFinishDefinition(Scope *S, Decl *TagD,
                                     SourceRange BraceRange) {
+  if (RecordDecl *RD = dyn_cast_or_null<RecordDecl>(TagD)) {
+      if (HasFlexibleArrayMember(RD)) {
+          Diag(RD->getLocation(), diag::ext_misra_c20_flexible_array_type);
+      }
+  }
   AdjustDeclIfTemplate(TagD);
   TagDecl *Tag = cast<TagDecl>(TagD);
   Tag->setBraceRange(BraceRange);
@@ -18431,6 +18636,25 @@ FieldDecl *Sema::HandleField(Scope *S, RecordDecl *Record,
 
   TypeSourceInfo *TInfo = GetTypeForDeclarator(D);
   QualType T = TInfo->getType();
+  // llvm::errs() << "Declaring field: " << II->getName() << " of type " << T.getAsString() << "\n";
+  //add check here as well
+    if (Loc.isMacroID()) {
+      // llvm::errs() << " in field declaratin \n";
+      // llvm::errs() << "Variable '" << II->getName() << "' was introduced via macro expansion.\n";
+
+      // // To further investigate, you can use getImmediateMacroCallerLoc() 
+      // // to see where the macro was expanded.
+      // SourceLocation MacroLoc = this->SourceMgr.getImmediateMacroCallerLoc(Loc);
+      
+      // llvm::errs() << "The macro was expanded at location: ";
+      // MacroLoc.print(llvm::errs(), SourceMgr);
+      // llvm::errs() << "\n";
+      Diag(Loc, diag::ext_misra_c20_macro_as_identifier_used);
+    }
+
+
+
+
   if (getLangOpts().CPlusPlus) {
     CheckExtraCXXDefaultArguments(D);
 
@@ -19395,6 +19619,23 @@ void Sema::ActOnFields(Scope *S, SourceLocation RecLoc, Decl *EnclosingDecl,
     // Keep track of the number of named members.
     if (FD->getIdentifier())
       ++NumNamedMembers;
+    // *************************  MISRA_C R.6.1/2  ***************  S_NO -> 38 , 39 **************************************************** //
+    if(FD->isBitField()) {
+      clang::QualType FT_B_Field = FD->getType();
+      // check if it's length >= 2?
+      if (FT_B_Field->isSpecificBuiltinType(clang::BuiltinType::Int)) {
+        ASTContext &Context_new = EnclosingDecl->getASTContext();
+        unsigned int bit_field_length = FD->getBitWidthValue(Context_new);
+        if(bit_field_length < 2) {
+          Diag(FD->getLocation(), diag::warn_bit_fields_of_signed_must_be_greater) << FD->getDeclName();        
+        }
+      }
+      else if(!(FT_B_Field->isSpecificBuiltinType(clang::BuiltinType::UInt))) {
+        Diag(FD->getLocation(), diag::warn_bit_fields_must_be_signed_or_unsigned) << FD->getDeclName();
+      }
+    }
+    // *************************  MISRA_C R.6.1/2  ***************  S_NO -> 38 , 39 **************************************************** //
+
   }
 
   // Okay, we successfully defined 'Record'.

@@ -1471,6 +1471,66 @@ void Sema::ActOnEndOfTranslationUnit() {
 
   if (!PP.isIncrementalProcessingEnabled())
     TUScope = nullptr;
+  // Add call graph construction and cycle detection here
+  llvm::DenseMap< FunctionDecl *, std::set<FunctionDecl *>> CallGraph;
+
+  for (auto *D : Context.getTranslationUnitDecl()->decls()) {
+    if (auto *FD = llvm::dyn_cast<FunctionDecl>(D)) {
+      if (FD->hasBody()) {
+        ExtractCalledFunctions(*this, FD, CallGraph);
+      }
+    }
+  }
+  DetectCyclesInCallGraph(CallGraph, *this);
+}
+
+void Sema::ExtractCallsFromStmt(Sema &S, Stmt *Statement, FunctionDecl *FD, llvm::DenseMap<FunctionDecl *, std::set<FunctionDecl *>> &CallGraph) {
+  if (!Statement)
+    return;
+
+  for (Stmt *Child : Statement->children()) {
+    if(!Child) continue;
+    if (auto *Call = dyn_cast<CallExpr>(Child)) {
+      if (FunctionDecl *Callee = Call->getDirectCallee()) {
+        CallGraph[FD->getCanonicalDecl()].insert(Callee->getCanonicalDecl());
+        if (!CallGraph.count(Callee->getCanonicalDecl())) {
+          CallGraph[Callee->getCanonicalDecl()] = {};
+        }
+      }
+    }
+    // Recursively extract calls from the child statement
+    ExtractCallsFromStmt(S, Child, FD, CallGraph);
+  }
+}
+
+void Sema::ExtractCalledFunctions(Sema &S, FunctionDecl *FD, llvm::DenseMap<FunctionDecl *, std::set<FunctionDecl *>> &CallGraph) {
+  ExtractCallsFromStmt(S, FD->getBody(), FD, CallGraph);
+}
+
+void Sema::DetectCyclesInCallGraph(llvm::DenseMap<FunctionDecl *, std::set<FunctionDecl *>> &CallGraph, Sema &S) {
+  llvm::DenseSet<FunctionDecl *> Visited;
+  llvm::DenseSet<FunctionDecl *> Stack;
+
+  std::function<void(FunctionDecl *)> Visit = [&](FunctionDecl *FD) -> void {
+    if(Visited.count(FD->getCanonicalDecl())){
+      return;
+    }
+    if (Stack.count(FD->getCanonicalDecl())) {
+      // Cycle detected
+      S.Diag(FD->getCanonicalDecl()->getLocation(), diag::ext_misra_c20_recursive_function_call);
+      return;
+    }
+    Stack.insert(FD->getCanonicalDecl());
+    for(auto &childFD:CallGraph[FD]){
+      Visit(childFD->getCanonicalDecl());
+    }
+    Stack.erase(FD->getCanonicalDecl());
+    Visited.insert(FD->getCanonicalDecl());
+    return;
+  };
+  for (auto Entry : CallGraph) {
+    Visit(Entry.first->getCanonicalDecl());
+  }
 }
 
 

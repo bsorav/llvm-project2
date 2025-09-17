@@ -54,6 +54,7 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <unordered_set>
 
 namespace llvm {
 
@@ -126,6 +127,8 @@ enum MacroUse {
 /// know anything about preprocessor-level issues like the \#include stack,
 /// token expansion, etc.
 class Preprocessor {
+  std::unordered_set<std::string> IncludedHeaderFileNames;
+
   friend class VAOptDefinitionContext;
   friend class VariadicMacroScopeGuard;
 
@@ -283,6 +286,11 @@ class Preprocessor {
 public:
   /// The kind of translation unit we are processing.
   const TranslationUnitKind TUKind;
+
+  std::unordered_set<std::string> getIncludedHeaderFileNames(){
+    //   std::unordered_set<std::string> IncludedHeaderFileNames;
+    return IncludedHeaderFileNames;
+  }
 
 private:
   /// The code-completion handler.
