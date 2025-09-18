@@ -194,6 +194,7 @@ protected:
   //void add_edges(const llvm::BasicBlock& B, tfg& t, const llvm::Function& F, map<string, pair<callee_summary_t, tfg *>> &function_tfg_map, set<string> const &function_call_chain);
   //void process_phi_nodes(tfg &t, const llvm::BasicBlock* B_from, const pc& p_to, shared_ptr<tfg_node> const &from_node, const llvm::Function& F, expr_ref edgecond);
   dshared_ptr<tfg_node> get_next_intermediate_subsubindex_pc_node(tfg &t, dshared_ptr<tfg_node> const &from_node);
+  void sync_next_intermediate_subsubindex_map(pc const& p);
 
   //expr_ref exec_gen_expr_casts(const llvm::CastInst& I, expr_ref arg, pc const &from_pc, tfg &t/*, unordered_set<predicate> &assumes*/);
   //static string getTypeString(llvm::Type *t);
