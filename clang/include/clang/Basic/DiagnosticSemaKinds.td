@@ -10154,7 +10154,7 @@ def ext_misra_c20_bool_operand_for_bitwise_operator: ExtWarn<
   InGroup<MisraC20ImproperOperands>;
 def ext_misra_c20_warn_assignment_result_used : Warning<
   "MISRA_C20: The result of an assignment operator should not be used">,
-  InGroup<MISRA>;
+  InGroup<MisraC>;
 def ext_misra_c20_distinct_operand_type_in_usual_airhtmatic_conversatons: ExtWarn<
   "MISRA_C20: Distict Operand type in usual airthmatic expression">,
   InGroup<MisraC20ImproperOperands>;
@@ -12237,47 +12237,47 @@ def err_wasm_builtin_arg_must_be_integer_type : Error <
 
 def misra_c_r_14_4_warn_bool_if_condition : Warning<
 "MISRA C Rule 14.4 : The controlling expression of an if statement and the controlling expression of an iteration-statement shall have essentially Boolean type">,
-InGroup<MISRA>;
+InGroup<MisraC>;
 
 def warn_misra_iteration_or_selection_body_not_compound : Warning<
   "MISRA C Rule 15.6 : The body of an iteration-statement or a selection-statement shall be a compound statement">,
-InGroup<MISRA>;
+InGroup<MisraC>;
 
 def warn_non_const_char_pointer : Warning<
   "MISRA C Rule 7.4 : A string literal shall not be assigned to an object unless the object's type is pointer to const-qualified char">,
-InGroup<MISRA>;
+InGroup<MisraC>;
 
 def warn_label_before_goto : Warning<
   "MISRA C Rule R.15.2 : goto jumps to label declared before it">,
-InGroup<MISRA>;
+InGroup<MisraC>;
 
 def warn_char_type_in_arithmetic : Warning<
   "MISRA C RULE 10.2 : You can't add a char with another char">,
-InGroup<MISRA>;
+InGroup<MisraC>;
 
 def warn_inline_not_static : Warning<
   "inline function '%0' should be declared static to comply with MISRA C Rule 8.10">,
-  InGroup<MISRA>;
+  InGroup<MisraC>;
 
 def warn_misra_restrict_qualifier : Warning<
   "MISRA C Rule 8.14: The restrict type qualifier shall not be used for '%0'">,
-  InGroup<MISRA>;
+  InGroup<MisraC>;
 
 def warn_else_not_found : Warning<
   "MISRA C Rule 15.7 : All if . . else if constructs shall be terminated with an else statement">,
-  InGroup<MISRA>;
+  InGroup<MisraC>;
 
 def warn_switch_default_not_at_extreme : Warning<
   "MISRA C Rule 16.5: Default shall be either at the start or end of switch">,
-  InGroup<MISRA>;
+  InGroup<MisraC>;
 
 def warn_switch_not_enough_clauses : Warning<
   "MISRA C Rule 16.6: Every switch statement shall have at least two switch-clauses">,
-  InGroup<MISRA>;
+  InGroup<MisraC>;
 
 def warn_dereferencing_file_pointer : Warning<
   "MISRA C Rule 22.5 : A pointer to a FILE object shall not be dereferenced">,
-  InGroup<MISRA>;
+  InGroup<MisraC>;
 
 
 def ext_misra_c20_std_io_not_allowed : ExtWarn<
@@ -12294,12 +12294,12 @@ def ext_misra_c20_std_system_func_not_allowed : ExtWarn<
   "MISRA_C20: The Standard Library function system shall not be used.">, InGroup<MisraC20ImproperFunctionUsed>;
 
 def ext_misra_c20_macro_as_identifier_used : Warning<
- "MISRA_C20: Identifiers shall be distinct from macro.">, InGroup<MISRA>; 
+ "MISRA_C20: Identifiers shall be distinct from macro.">, InGroup<MisraC>;
 
 
 //def warn_memory_overlapping: Warning<
 //  "MISRA C Rule 19.1: An object shall not be assigned or copied to an overlapping object">,
-//InGroup<MISRA>;
+//InGroup<MisraC>;
 
 
 // MISRA_C 6.1 , 6.2 : 38 , 39.
