@@ -1978,14 +1978,10 @@ void Preprocessor::HandleIncludeDirective(SourceLocation HashLoc,
       DiscardUntilEndOfDirective();
     return;
   }
-  //Get the filename from the token's source location
-  StringRef FilenameRef =getSpelling(FilenameTok);
-  std::string Filename=FilenameRef.str();
-  // llvm::errs()<<"Filename: "<<Filename<<"\n";
+  auto Filename = getSpelling(FilenameTok);
   // Check if the filename is "setjmp.h" or "signal.h" or "stdarg.h"
   if (Filename=="<setjmp.h>" || Filename=="<signal.h>" || Filename == "<stdarg.h>" || Filename == "<tgmath.h>") {
     Diag(HashLoc, diag::ext_misra_c20_header_filename_not_to_be_used)<<Filename;
-    // return;
   }
 
   // Check if the filename has already been included
