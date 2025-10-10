@@ -918,7 +918,6 @@ StmtResult Sema::ActOnIfStmt(SourceLocation IfLoc,
   // ************************ 15.6 MISRA : S_NO : 82 ************************************ 
 
 
-
   // ***************************** MISRA_C R.15.7 *************************************** 
   if ( (elseStmt && isa<IfStmt>(elseStmt)) ) {
     IfStmt *ifStmt = cast<IfStmt>(elseStmt);
@@ -944,7 +943,6 @@ StmtResult Sema::ActOnIfStmt(SourceLocation IfLoc,
     }
   }
   // ***************************** MISRA_C R.14.4 ***************************************
-
 
 
   if (ConstevalOrNegatedConsteval ||
@@ -1280,9 +1278,8 @@ Sema::ActOnFinishSwitchStmt(SourceLocation SwitchLoc, Stmt *Switch,
 
   // ************************ 15.6 MISRA : S_NO : 82 ************************************ 
   if (BodyStmt && !isa<CompoundStmt>(BodyStmt)) {
-    llvm::errs() << "Braces not found in switch\n";
     Diag(BodyStmt->getBeginLoc(), diag::warn_misra_iteration_or_selection_body_not_compound)
-    << "The body of a selection statement shall be a compound statement";
+      << "The body of a selection statement shall be a compound statement";
   }
   // ************************ 15.6 MISRA : S_NO : 82 ************************************
 
@@ -2347,6 +2344,7 @@ StmtResult Sema::ActOnForStmt(SourceLocation ForLoc, SourceLocation LParenLoc,
         Diag(NonVarSeen->getLocation(), diag::err_non_variable_decl_in_for);
     }
   }
+  {
   llvm::SmallVector<const VarDecl *, 4> SecondLoopVars;
   llvm::SmallVector<const VarDecl *, 4> ThirdLoopVars;
   if (Second.get().second)
@@ -2368,6 +2366,7 @@ StmtResult Sema::ActOnForStmt(SourceLocation ForLoc, SourceLocation LParenLoc,
         << QT;
     }
   }
+  }
 
   CheckBreakContinueBinding(Second.get().second);
   CheckBreakContinueBinding(third.get());
@@ -2386,6 +2385,7 @@ StmtResult Sema::ActOnForStmt(SourceLocation ForLoc, SourceLocation LParenLoc,
   if (isa<NullStmt>(Body))
     getCurCompoundScope().setHasEmptyLoopBodies();
 
+  {
   CheckBreakGotoCount(Body, ForLoc);
   // ************************ 15.6 MISRA : S_NO : 82 ************************************ 
   if (Body && !isa<CompoundStmt>(Body)) {
@@ -2394,6 +2394,7 @@ StmtResult Sema::ActOnForStmt(SourceLocation ForLoc, SourceLocation LParenLoc,
         << "The body of a for-loop statement shall be a compound statement";
   }
   // ************************ 15.6 MISRA : S_NO : 82 ************************************ 
+  }
 
   return new (Context)
       ForStmt(Context, First, Second.get().second, Second.get().first, Third,

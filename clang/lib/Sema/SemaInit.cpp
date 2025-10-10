@@ -8512,11 +8512,9 @@ static void CheckForNullPointerDereference(Sema &S, const Expr *E) {
 static void CheckForFilePointerDereference(Sema &S, Expr *E) {
   const auto *UO = dyn_cast<UnaryOperator>(E->IgnoreParenCasts());
   if (UO && UO->getOpcode() == UO_Deref &&
-    UO->getSubExpr()->getType()->isPointerType()){
-      QualType PointeeType = UO->getSubExpr()->getType()->getPointeeType();
-      const Type *BaseType = PointeeType.getTypePtr();
-      llvm::errs() << "Pointee Type:\n" ;
-      
+      UO->getSubExpr()->getType()->isPointerType()) {
+      //QualType PointeeType = UO->getSubExpr()->getType()->getPointeeType();
+      // NOT_IMPLEMENTED()
     }
 }
 

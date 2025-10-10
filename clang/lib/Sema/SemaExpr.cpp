@@ -595,16 +595,6 @@ static void CheckForFilePointerDereference(Sema &S, Expr *E) {
   if (UO && UO->getOpcode() == UO_Deref &&
     UO->getSubExpr()->getType()->isPointerType()){
       QualType PointeeType = UO->getSubExpr()->getType()->getPointeeType();
-      const Type *BaseType = PointeeType.getTypePtr();
-      // llvm::errs() << "Pointee Type:  "  << PointeeType << "\n";
-      // llvm::errs() << "base Type:\n" << *BaseType ;
-      // if (const RecordType *RT = PointeeType->getAs<RecordType>()) {
-      //   const TagDecl *Tag = RT->getDecl();
-      //   if (Tag && Tag->getNameAsString() == "FILE") {
-      //     // This is a FILE type
-          
-      //   }
-      // }
       if (PointeeType.getAsString() == "FILE") {
           // Emit a diagnostic for dereferencing a FILE pointer.
           S.Diag(UO->getOperatorLoc(), diag::warn_dereferencing_file_pointer)
