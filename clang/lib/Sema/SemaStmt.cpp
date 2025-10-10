@@ -929,15 +929,11 @@ StmtResult Sema::ActOnIfStmt(SourceLocation IfLoc,
   // ***************************** MISRA_C R.15.7 ***************************************
 
 
-
-
-
   // ***************************** MISRA_C R.14.4 ***************************************
   assert((Cond.isInvalid() || CondExpr) && "switch with no condition");
   if (CondExpr && !CondExpr->isTypeDependent()) {
-    if (!CondExpr->getType()->isIntegralOrEnumerationType())
-      return StmtError();
-    if (!CondExpr->isKnownToHaveBooleanValue()) {
+    if (CondExpr->getType()->isIntegralOrEnumerationType() &&
+        CondExpr->isKnownToHaveBooleanValue()) {
       Diag(IfLoc, diag::misra_c_r_14_4_warn_bool_if_condition)
           << CondExpr->getSourceRange();
     }
