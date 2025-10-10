@@ -1408,6 +1408,13 @@ void CodeGenFunction::EmitDeclStmt(const DeclStmt &S) {
 
 void CodeGenFunction::EmitBreakStatementMarker(const BreakStmt &S)
 {
+  // Do not insert if we are unreachable.
+  // Apparently, LLVM disconnects all unreachable instructions from the parent
+  // block and we end up with an invalid IR which the verifier violently
+  // complains about.
+  if (!HaveInsertPoint()) {
+    return;
+  }
   auto ValueFn = llvm::Intrinsic::getDeclaration(
     &CGM.getModule(), llvm::Intrinsic::break_statement_marker);
 
