@@ -1516,8 +1516,7 @@ void Sema::DetectCyclesInCallGraph(llvm::DenseMap<FunctionDecl *, std::set<Funct
       return;
     }
     if (Stack.count(FD->getCanonicalDecl())) {
-      // Cycle detected
-      S.Diag(FD->getCanonicalDecl()->getLocation(), diag::ext_misra_c20_recursive_function_call);
+      S.Diag(FD->getCanonicalDecl()->getLocation(), diag::misra_c20_recursive_function_call);
       return;
     }
     Stack.insert(FD->getCanonicalDecl());

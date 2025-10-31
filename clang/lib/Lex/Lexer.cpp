@@ -1984,13 +1984,10 @@ bool Lexer::isHexaLiteral(const char *Start, const LangOptions &LangOpts) {
 /// constant. From[-1] is the first character lexed.  Return the end of the
 /// constant.
 bool Lexer::LexNumericConstant(Token &Result, const char *CurPtr) {
-  // llvm::errs() << "insise lex numeric constt \n";
   unsigned Size;
   char C = getCharAndSize(CurPtr, Size);
-
   char PrevCh = 0;
   while (isPreprocessingNumberBody(C)) {
-    
     CurPtr = ConsumeChar(CurPtr, Size, Result);
     PrevCh = C;
     if (LangOpts.HLSL && C == '.' && (*CurPtr == 'x' || *CurPtr == 'r')) {
@@ -1998,18 +1995,11 @@ bool Lexer::LexNumericConstant(Token &Result, const char *CurPtr) {
       break;
     }
     if (C == 'l') {  // Check if the last character is a lowercase 'l'.
-    // if (!isLexingRawMode()) {
-      // Emit a diagnostic warning or error.
-      // SourceLocation Loc2 = Result.getLocation();
-      Diag(CurPtr-Size, diag::warn_lowercase_l_suffix);
-
-      // llvm::errs()  << "The lowercase character 'l' shall not be used in a literal suffix.\n";
-    // }
+      Diag(CurPtr-Size, diag::misra_c20_warn_lowercase_l_suffix);
     }
     
     C = getCharAndSize(CurPtr, Size);
   }
-  
 
   // If we fell out, check for a sign, due to 1e+12.  If we have one, continue.
   if ((C == '-' || C == '+') && (PrevCh == 'E' || PrevCh == 'e')) {
@@ -2036,8 +2026,6 @@ bool Lexer::LexNumericConstant(Token &Result, const char *CurPtr) {
       return LexNumericConstant(Result, ConsumeChar(CurPtr, Size, Result));
   }
 
-  
-
   // If we have a digit separator, continue.
   if (C == '\'' && (LangOpts.CPlusPlus14 || LangOpts.C23)) {
     auto [Next, NextSize] = getCharAndSizeNoWarn(CurPtr + Size, LangOpts);
@@ -2057,8 +2045,6 @@ bool Lexer::LexNumericConstant(Token &Result, const char *CurPtr) {
     return LexNumericConstant(Result, CurPtr);
   if (!isASCII(C) && tryConsumeIdentifierUTF8Char(CurPtr, Result))
     return LexNumericConstant(Result, CurPtr);
-
-  
 
   // Update the location of token as well as BufferPtr.
   const char *TokStart = BufferPtr;

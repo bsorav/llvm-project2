@@ -63,7 +63,6 @@ bool ConstPointerLocalChecker::isPointerConstQualified(
     return false;
   LHSRegion = LHSRegion->getBaseRegion();
   if (SymbolRef SR = (PointerVal.getLocSymbolInBase())) {
-    // llvm::errs() << "herererer\n";
     const MemRegion *LHSRegion2 = SR->getOriginRegion();
     if (LHSRegion2) {
       LHSRegion = LHSRegion2->getBaseRegion();

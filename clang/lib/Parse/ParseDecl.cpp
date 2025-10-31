@@ -7465,21 +7465,17 @@ void Parser::ParseParameterDeclarationClause(
                                   : DeclaratorContext::Prototype);
     ParseDeclarator(ParmDeclarator);
 
-    // Check if the declarator represents an array.
+    // MISRA C Rule 17.6: no static keyword in array parameter declaration
     for (unsigned int i = 0; i < ParmDeclarator.getNumTypeObjects(); ++i) {
-        const DeclaratorChunk &TypeChunk = ParmDeclarator.getTypeObject(i);
-        if (TypeChunk.Kind == DeclaratorChunk::Array) {
-            const DeclaratorChunk::ArrayTypeInfo &ArrayInfo = TypeChunk.Arr;
-          if (ArrayInfo.hasStatic){
-            // Issue a diagnostic error indicating that 'static' is not allowed
-            // within the square brackets of an array parameter declaration.
-            Diag(ParmDeclarator.getIdentifierLoc(), diag::ext_misra_c20_static_keyword_in_array_parameter_declaration);
-          }
-          // Break the loop as we found the array type.
-          break;
+      const DeclaratorChunk &TypeChunk = ParmDeclarator.getTypeObject(i);
+      if (TypeChunk.Kind == DeclaratorChunk::Array) {
+        const DeclaratorChunk::ArrayTypeInfo &ArrayInfo = TypeChunk.Arr;
+        if (ArrayInfo.hasStatic) {
+          Diag(ParmDeclarator.getIdentifierLoc(), diag::misra_c20_static_keyword_in_array_parameter_declaration);
         }
+        break;
+      }
     }
-
 
     if (ThisLoc.isValid())
       ParmDeclarator.SetRangeBegin(ThisLoc);

@@ -30,7 +30,7 @@ def note_loop_iteration_here : Note<"%select{decremented|incremented}0 here">;
 
 def warn_duplicate_enum_values : Warning<
   "element %0 has been implicitly assigned %1 which another element has "
-  "been assigned">, InGroup<DiagGroup<"duplicate-enum">>;
+  "been assigned">, InGroup<DuplicateEnum>, DefaultIgnore;
 def note_duplicate_element : Note<"element %0 also has value %1">;
 
 // Absolute value functions
@@ -248,10 +248,6 @@ def ext_designated_init_brace_elision : ExtWarn<
   InGroup<C99Designator>, SFINAEFailure;
 
 // Declarations.
-def ext_misra_c20_hiding_outer_scope_identifier : ExtWarn<
-  "MISRA_C20: declaration of %0 hides identifier from an outer scope">, InGroup<MisraC20ImproperIdentifierDeclaration>;
-def ext_misra_c20_duplicate_external_identifier : ExtWarn<
-  "MISRA_C20: declaration of %0 is duplicate external identfier declaration">, InGroup<MisraC20ImproperIdentifierDeclaration>;
 def ext_plain_complex : ExtWarn<
   "plain '_Complex' requires a type specifier; assuming '_Complex double'">;
 def ext_imaginary_constant : Extension<
@@ -4022,10 +4018,10 @@ def err_impcast_complex_scalar : Error<
   "implicit conversion from %0 to %1 is not permitted in C++">;
 def warn_impcast_float_precision : Warning<
   "implicit conversion loses floating-point precision: %0 to %1">,
-  InGroup<ImplicitFloatConversion>;
+  InGroup<ImplicitFloatConversion>, DefaultIgnore;
 def warn_impcast_float_result_precision : Warning<
   "implicit conversion when assigning computation result loses floating-point precision: %0 to %1">,
-  InGroup<ImplicitFloatConversion>;
+  InGroup<ImplicitFloatConversion>, DefaultIgnore;
 def warn_impcast_double_promotion : Warning<
   "implicit conversion increases floating-point precision: %0 to %1">,
   InGroup<DoublePromotion>, DefaultIgnore;
@@ -4037,7 +4033,7 @@ def warn_impcast_integer_sign_conditional : Warning<
   InGroup<SignConversion>, DefaultIgnore;
 def warn_impcast_integer_precision : Warning<
   "implicit conversion loses integer precision: %0 to %1">,
-  InGroup<ImplicitIntConversion>;
+  InGroup<ImplicitIntConversion>, DefaultIgnore;
 def warn_impcast_high_order_zero_bits : Warning<
   "higher order bits are zeroes after implicit conversion">,
   InGroup<ImplicitIntConversion>, DefaultIgnore;
@@ -4046,7 +4042,7 @@ def warn_impcast_nonnegative_result : Warning<
   InGroup<SignConversion>, DefaultIgnore;
 def warn_impcast_integer_64_32 : Warning<
   "implicit conversion loses integer precision: %0 to %1">,
-  InGroup<Shorten64To32>;
+  InGroup<Shorten64To32>, DefaultIgnore;
 def warn_impcast_integer_precision_constant : Warning<
   "implicit conversion from %2 to %3 changes value from %0 to %1">,
   InGroup<ConstantConversion>;
@@ -4073,7 +4069,7 @@ def warn_impcast_literal_float_to_integer_out_of_range : Warning<
   InGroup<LiteralConversion>;
 def warn_impcast_float_integer : Warning<
   "implicit conversion turns floating-point number into integer: %0 to %1">,
-  InGroup<FloatConversion>;
+  InGroup<FloatConversion>, DefaultIgnore;
 def warn_impcast_float_to_objc_signed_char_bool : Warning<
   "implicit conversion from floating-point type %0 to 'BOOL'">,
   InGroup<ObjCSignedCharBoolImplicitFloatConversion>;
@@ -4084,14 +4080,14 @@ def warn_impcast_int_to_objc_signed_char_bool : Warning<
 // Implicit int -> float conversion precision loss warnings.
 def warn_impcast_integer_float_precision : Warning<
   "implicit conversion from %0 to %1 may lose precision">,
-  InGroup<ImplicitIntFloatConversion>;
+  InGroup<ImplicitIntFloatConversion>, DefaultIgnore;
 def warn_impcast_integer_float_precision_constant : Warning<
   "implicit conversion from %2 to %3 changes value from %0 to %1">,
   InGroup<ImplicitConstIntFloatConversion>;
 
 def warn_impcast_float_to_integer : Warning<
   "implicit conversion from %0 to %1 changes value from %2 to %3">,
-  InGroup<FloatOverflowConversion>;
+  InGroup<FloatOverflowConversion>, DefaultIgnore;
 def warn_impcast_float_to_integer_out_of_range : Warning<
   "implicit conversion of out of range value from %0 to %1 is undefined">,
   InGroup<FloatOverflowConversion>, DefaultIgnore;
@@ -10119,77 +10115,14 @@ def warn_missing_case : Warning<"%plural{"
   ":%0 enumeration values not handled in switch: %1, %2, %3...}0">,
   InGroup<Switch>;
 def warn_switch_default : Warning<"'switch' missing 'default' label">,
-  InGroup<SwitchDefault>;
-
-def ext_misra_c20_misra_param_name_mismatch : ExtWarn<
-  "MISRA_C20: parameter %0 name differs between declarations: expected '%1' but got '%2'">,
-  InGroup<MisraC20ImproperParameter>;
-def ext_misra_c20_misra_param_qual_mismatch : ExtWarn<
-  "MISRA_C20: parameter %0 qualifiers differ between declarations: expected '%1' but got '%2'">,
-  InGroup<MisraC20ImproperParameter>;
-def ext_misra_c20_unsigned_overflow : ExtWarn<
-  "MISRA_C20: unsigned integer constant expression wraps around">,
-  InGroup<MisraC20ImproperOperands>;
-def ext_misra_c20_precedence_not_explicit : ExtWarn<
-  "MISRA_C20: operator precedence in expression is not explicit; add parentheses">,
-  InGroup<MisraC20ImproperOperands>;
-def ext_misra_c20_warn_pointer_integer_conversion : ExtWarn<
-  "MISRA_C20: conversion between pointer %0 and integer-like type %1 is not allowed">,
-  InGroup<MisraC20ImproperTypeConverison>;
-def ext_misra_c20_improper_unsigned_declatation : ExtWarn<
-  "MISRA_C20: A 'u' or 'U' suffix shall be applied to all integer constants that are represented in an unsigned type ">, InGroup<MisraC20ImproperUnsignedDeclaration>;
-def ext_misra_c20_extra_potenital_side_effects : ExtWarn<
-  "MISRA_C20: Extra side effets in full statement other than caused by increament or decreament operator">,DefaultIgnore, InGroup<MisraC20ImproperStmt>;
-def ext_misra_c20_side_effects_logical_rhs : ExtWarn<
-  "MISRA_C20: RHS of logical operator contains persistent side effects">,
-  InGroup<MisraC20ImproperLogicalRHS>;
-def ext_misra_c20_partial_array_initialization : ExtWarn<
-  "MISRA_C20: Array is partially initialized">,
-  InGroup<MisraC20ImproperArrayInitialization>;
-def ext_misra_c20_recursive_function_call : ExtWarn<
-  "MISRA_C20: Recursive function call direclty or indirectly">,
-  InGroup<MisraC20ImproperFuntionCall>;
-def ext_misra_c20_bool_operand_for_bitwise_operator: ExtWarn<
-  "MISRA_C20: Bool operand for bitwise operator">,
-  InGroup<MisraC20ImproperOperands>;
-def ext_misra_c20_warn_assignment_result_used : Warning<
-  "MISRA_C20: The result of an assignment operator should not be used">,
-  InGroup<MisraC>;
-def ext_misra_c20_distinct_operand_type_in_usual_airhtmatic_conversatons: ExtWarn<
-  "MISRA_C20: Distict Operand type in usual airthmatic expression">,
-  InGroup<MisraC20ImproperOperands>;
-def ext_misra_c20_array_designated_initialization_without_specified_size_explicitly: ExtWarn<
-  "MISRA_C20: Array is designated initialized without specified size explicitly:">,
-  InGroup<MisraC20ImproperArrayInitialization>;
-def ext_misra_c20_initializer_list_contain_persistent_side_effects: ExtWarn<
-  "MISRA_C20: Initializer contain persistent side effects:">,
-  InGroup<MisraC20ImproperArrayInitialization>;
-def ext_misra_c20_variable_array_type: ExtWarn<
-  "MISRA_C20: Variable Array Type">,
-  InGroup<MisraC20ImproperDeclaration>;
-def ext_misra_c20_flexible_array_type: ExtWarn<
-  "MISRA_C20: Flexible Array Type">,
-  InGroup<MisraC20ImproperDeclaration>;
-def ext_misra_c20_wider_type_assigned : ExtWarn<
-  "MISRA_C20: The value of a composite expression shall not be assigned to an object with wider essential type">,
-  InGroup<MisraC20ImproperOperands>;
-def ext_goto_statmemt_used : ExtWarn<
-  "MISRA_C20: The goto statement should not be used">,
-  InGroup<MisraC20ImproperDeclaration>;
-def ext_more_than_one_break_or_goto_used : ExtWarn<
-  "MISRA_C20: There should be no more than one break or goto statement used to terminate any iteration statement">,
-  InGroup<MisraC20ImproperLoopBody>;
-def ext_misra_C20_warn_missing_parameter_name : ExtWarn<
-  "MISRA_C20: Function %0 has a parameter without a name, which violates coding standards">,
-  InGroup<MisraC20ImproperDeclaration>;
-
+  InGroup<SwitchDefault>, DefaultIgnore;
 
 def warn_unannotated_fallthrough : Warning<
   "unannotated fall-through between switch labels">,
-  InGroup<ImplicitFallthrough>;
+  InGroup<ImplicitFallthrough>, DefaultIgnore;
 def warn_unannotated_fallthrough_per_function : Warning<
   "unannotated fall-through between switch labels in partly-annotated "
-  "function">, InGroup<ImplicitFallthroughPerFunction>;
+  "function">, InGroup<ImplicitFallthroughPerFunction>, DefaultIgnore;
 def note_insert_fallthrough_fixit : Note<
   "insert '%0;' to silence this warning">;
 def note_insert_break_fixit : Note<
@@ -12232,99 +12165,175 @@ def err_wasm_builtin_arg_must_match_table_element_type : Error <
 def err_wasm_builtin_arg_must_be_integer_type : Error <
   "%ordinal0 argument must be an integer">;
 
-// MISRA RULES warnings
-// One generic function to handle all.
+// MISRA C warnings
+def misra_c20_warn_dynamic_alloc : Warning<
+  "MISRA C Directive 4.12: Dynamic memory allocation shall not be used">,
+  InGroup<MisraC20D_4_12>, DefaultIgnore;
 
-def misra_c_r_14_4_warn_bool_if_condition : Warning<
-"MISRA C Rule 14.4 : The controlling expression of an if statement and the controlling expression of an iteration-statement shall have essentially Boolean type">,
-InGroup<MisraC>;
+def misra_c_1_4_emergent_feature_noreturn_not_allowed : Warning<
+  "MISRA C Rule 1.4: Emergent language feature _Noreturn is not permitted">,
+  InGroup<MisraC20R_1_4>, DefaultIgnore;
 
-def warn_misra_iteration_or_selection_body_not_compound : Warning<
-  "MISRA C Rule 15.6 : The body of an iteration-statement or a selection-statement shall be a compound statement">,
-InGroup<MisraC>;
+def misra_c20_duplicate_external_identifier : Warning<
+  "MISRA C Rule 5.1: external idenitifer %0 is not distinguishable from previously declared external identifier">,
+  InGroup<MisraC20R_5_1>, DefaultIgnore;
+def misra_c20_macro_as_identifier_used : Warning<
+  "MISRA C Rule 5.5: Identifiers shall be distinct from macro.">,
+  InGroup<MisraC20R_5_5>, DefaultIgnore;
 
-def warn_non_const_char_pointer : Warning<
-  "MISRA C Rule 7.4 : A string literal shall not be assigned to an object unless the object's type is pointer to const-qualified char">,
-InGroup<MisraC>;
+def misra_c20_bit_fields_must_be_signed_or_unsigned : Warning<
+  "MISRA C Rule 6.1: Bit fields must be either signed or unsigned">,
+  InGroup<MisraC20R_6_1>, DefaultIgnore;
+def misra_c20_bit_fields_of_signed_must_be_greater : Warning<
+  "MISRA C Rule 6.2: Signed bit fields must have atleast length of 2">,
+  InGroup<MisraC20R_6_2>, DefaultIgnore;
 
-def warn_label_before_goto : Warning<
-  "MISRA C Rule R.15.2 : goto jumps to label declared before it">,
-InGroup<MisraC>;
+def misra_c20_warn_non_const_char_pointer : Warning<
+  "MISRA C Rule 7.4: A string literal shall not be assigned to an object unless the object's type is pointer to const-qualified char">,
+  InGroup<MisraC20R_7_4>, DefaultIgnore;
 
-def warn_char_type_in_arithmetic : Warning<
-  "MISRA C RULE 10.2 : You can't add a char with another char">,
-InGroup<MisraC>;
-
-def warn_inline_not_static : Warning<
-  "inline function '%0' should be declared static to comply with MISRA C Rule 8.10">,
-  InGroup<MisraC>;
-
-def warn_misra_restrict_qualifier : Warning<
+def misra_C20_warn_missing_parameter_name : Warning<
+  "MISRA C Rule 8.2: Function %0 has a parameter without a name">,
+  InGroup<MisraC20R_8_2>, DefaultIgnore;
+def misra_c20_misra_param_name_mismatch : Warning<
+  "MISRA C Rule 8.3: parameter %0 name differs between declarations: expected '%1' but got '%2'">,
+  InGroup<MisraC20R_8_3>, DefaultIgnore;
+def misra_c20_misra_param_qual_mismatch : Warning<
+  "MISRA C Rule 8.3: parameter %0 qualifiers differ between declarations: expected '%1' but got '%2'">,
+  InGroup<MisraC20R_8_3>, DefaultIgnore;
+def misra_c20_inline_not_static : Warning<
+  "MISRA C Rule 8.10: inline function '%0' should be declared static">,
+  InGroup<MisraC20R_8_10>, DefaultIgnore;
+def misra_c20_restrict_qualifier : Warning<
   "MISRA C Rule 8.14: The restrict type qualifier shall not be used for '%0'">,
-  InGroup<MisraC>;
+  InGroup<MisraC20R_8_14>, DefaultIgnore;
 
-def warn_else_not_found : Warning<
-  "MISRA C Rule 15.7 : All if . . else if constructs shall be terminated with an else statement">,
-  InGroup<MisraC>;
+def misra_c20_partial_array_initialization : Warning<
+  "MISRA C Rule 9.3: Array shall not be partially initialized.  Only %0 out of %1 initialized">,
+  InGroup<MisraC20R_9_3>, DefaultIgnore;
+def misra_c20_array_designated_initialization_without_specified_size_explicitly: Warning<
+  "MISRA C Rule 9.5: Array is designated initialized without specified size explicitly">,
+  InGroup<MisraC20R_9_5>, DefaultIgnore;
 
-def warn_switch_default_not_at_extreme : Warning<
+def misra_c20_bool_operand_for_bitwise_operator: Warning<
+  "MISRA C Rule 10.1: Bool operand for bitwise operator">,
+  InGroup<MisraC20R_10_1>, DefaultIgnore;
+def misra_c20_char_type_in_arithmetic : Warning<
+  "MISRA C Rule 10.2 : Addition of two essentially char objects is not permitted">,
+  InGroup<MisraC20R_10_2>, DefaultIgnore;
+def misra_c20_distinct_operand_type_in_usual_arithmetic_conversions : Warning<
+  "MISRA C Rule 10.4: Distinct operand type in usual arithmetic expression">,
+  InGroup<MisraC20R_10_4>, DefaultIgnore;
+
+def misra_c20_warn_cast_function_to_non_function_pointer : Warning<
+  "MISRA C Rule 11.1: Conversion is not allowed between pointer to a function and any other type">,
+  InGroup<MisraC20R_11_1>, DefaultIgnore;
+def misra_c20_warn_cast_pointer_to_incomplete : Warning<
+  "MISRA C Rule 11.2: Conversion is not allowed between pointer to a incomplete and any other type">,
+  InGroup<MisraC20R_11_2>, DefaultIgnore;
+def misra_c20_warn_cast_pointer_to_pointer_of_diff_obj : Warning<
+  "MISRA C Rule 11.3: Conversion is not allowed between pointer to object type and pointer to another object type">,
+  InGroup<MisraC20R_11_3>, DefaultIgnore;
+def misra_c20_warn_pointer_integer_conversion : Warning<
+  "MISRA C Rule 11.4: conversion between pointer %0 and integer-like type %1 is not allowed">,
+  InGroup<MisraC20R_11_4>, DefaultIgnore;
+def misra_c20_warn_cast_pointer_to_void_and_arithmetic : Warning<
+  "MISRA C Rule 11.6: Cast between pointer to void and arithmetic type is not permitted">,
+  InGroup<MisraC20R_11_6>, DefaultIgnore;
+def misra_c20_warn_cast_non_int_arithmetic_to_obj_pointer : Warning<
+  "MISRA C Rule 11.7: Cast between pointer to object and non-integer arithmetic type is not allowed">,
+  InGroup<MisraC20R_11_7>, DefaultIgnore;
+def misra_c20_warn_cast_pointer_to_pointer_remove_const : Warning<
+  "MISRA C Rule 11.8: A conversion shall not a remove 'const' qualification from the type pointed to by a pointer">,
+  InGroup<MisraC20R_11_8>, DefaultIgnore;
+def misra_c20_warn_cast_pointer_to_pointer_remove_volatile : Warning<
+  "MISRA C Rule 11.8:  A conversion shall not a remove 'volatile' qualification from the type pointed to by a pointer">,
+  InGroup<MisraC20R_11_8>, DefaultIgnore;
+
+def misra_c20_precedence_not_explicit : Warning<
+  "MISRA C Rule 12.1: operator precedence in expression is not explicit; introduce parentheses around '%1' to make the precedence explicit in '%0'">,
+  InGroup<MisraC20R_12_1>, DefaultIgnore;
+def misra_c20_unsigned_overflow : Warning<
+  "MISRA C Rule 12.4: unsigned integer constant expression wraps around">,
+  InGroup<MisraC20R_12_4>, DefaultIgnore;
+
+def misra_c20_initializer_list_contain_persistent_side_effects: Warning<
+  "MISRA C Rule 13.1: Initializer list shall not contain persistent side effects">,
+  InGroup<MisraC20R_13_1>, DefaultIgnore;
+def misra_c20_extra_potential_side_effects : Warning<
+  "MISRA C Rule 13.3: Extra side effects in full statement other than caused by increment or decrement operator">,
+  InGroup<MisraC20R_13_3>, DefaultIgnore;
+def misra_c20_warn_assignment_result_used : Warning<
+  "MISRA C Rule 13.4: The result of an assignment operator should not be used">,
+  InGroup<MisraC20R_13_4>, DefaultIgnore;
+def misra_c20_side_effects_logical_rhs : Warning<
+  "MISRA C Rule 13.5: RHS of logical operator contains persistent side effects">,
+  InGroup<MisraC20R_13_5>, DefaultIgnore;
+
+def misra_c20_float_loop_counter : Warning<
+  "MISRA C Rule 14.1: A loop counter shall not have essentially floating type">,
+  InGroup<MisraC20R_14_1>, DefaultIgnore;
+def misra_c20_controlling_expr_must_be_boolean : Warning<
+  "MISRA C Rule 14.4: The controlling expression of an if-statement and the controlling expression of an iteration-statement shall have essentially Boolean type">,
+  InGroup<MisraC20R_14_4>, DefaultIgnore;
+
+def ext_goto_statmemt_used : Warning<
+  "MISRA C Rule 15.1: The goto statement should not be used">,
+  InGroup<MisraC20R_15_1>, DefaultIgnore;
+def misra_c20_label_before_goto : Warning<
+  "MISRA C Rule 15.2: goto jumps to label declared before it">,
+  InGroup<MisraC20R_15_2>, DefaultIgnore;
+def ext_more_than_one_break_or_goto_used : Warning<
+  "MISRA C Rule 15.4: There should be no more than one break or goto statement used to terminate any iteration statement">,
+  InGroup<MisraC20R_15_4>, DefaultIgnore;
+def misra_c20_iteration_or_selection_body_not_compound : Warning<
+  "MISRA C Rule 15.6: The body of an iteration-statement or a selection-statement shall be a compound statement">,
+  InGroup<MisraC20R_15_6>, DefaultIgnore;
+def misra_c20_else_not_found : Warning<
+  "MISRA C Rule 15.7: All if ... else if constructs shall be terminated with an else statement">,
+  InGroup<MisraC20R_15_7>, DefaultIgnore;
+
+def misra_c20_switch_default_not_at_extreme : Warning<
   "MISRA C Rule 16.5: Default shall be either at the start or end of switch">,
-  InGroup<MisraC>;
-
-def warn_switch_not_enough_clauses : Warning<
+  InGroup<MisraC20R_16_5>, DefaultIgnore;
+def misra_c20_switch_not_enough_clauses : Warning<
   "MISRA C Rule 16.6: Every switch statement shall have at least two switch-clauses">,
-  InGroup<MisraC>;
+  InGroup<MisraC20R_16_6>, DefaultIgnore;
 
-def warn_dereferencing_file_pointer : Warning<
-  "MISRA C Rule 22.5 : A pointer to a FILE object shall not be dereferenced">,
-  InGroup<MisraC>;
+def misra_c20_recursive_function_call : Warning<
+  "MISRA C Rule 17.2: Recursive function call direclty or indirectly">,
+  InGroup<MisraC20R_17_2>, DefaultIgnore;
 
+def misra_c20_flexible_array_type: Warning<
+  "MISRA C Rule 18.7: use of flexible array member is not permitted">,
+  InGroup<MisraC20R_18_7>, DefaultIgnore;
+def misra_c20_variable_array_type: Warning<
+  "MISRA C Rule 18.8: Variable-Length Arrays shall not be used">,
+  InGroup<MisraC20R_18_8>, DefaultIgnore;
 
-def ext_misra_c20_std_io_not_allowed : ExtWarn<
-  "MISRA_C20: The Standard Library input/output routines shall not be used.">, InGroup<MisraC20ImproperFunctionUsed>;
-def ext_misra_c20_std_date_and_time_not_allowed : ExtWarn<
-  "MISRA_C20: Standard Library time and date routines not allowed.">, InGroup<MisraC20ImproperFunctionUsed>;
-def ext_misra_c20_std_bsearch_and_qsort_not_allowed : ExtWarn<
-  "MISRA_C20: The Standard Library functions bsearch and qsort of < stdlib.h> shall not be used.">, InGroup<MisraC20ImproperFunctionUsed>;
-def ext_misra_c20_std_converter_not_allowed : ExtWarn<
-  "MISRA_C20: The Standard Library functions atof, atoi, atol and atoll of < stdlib.h> shall not be used.">, InGroup<MisraC20ImproperFunctionUsed>;
-def ext_misra_c20_std_termination_func_not_allowed : ExtWarn<
-  "MISRA_C20: The Standard Library termination functions of < stdlib.h> shall not be used.">, InGroup<MisraC20ImproperFunctionUsed>;
-def ext_misra_c20_std_system_func_not_allowed : ExtWarn<
-  "MISRA_C20: The Standard Library function system shall not be used.">, InGroup<MisraC20ImproperFunctionUsed>;
+def misra_c20_warn_alloc_dealloc_stdlib : Warning<
+  "MISRA C Rule 21.3: The memory allocation and deallocation functions of stdlib.h shall not be used">,
+  InGroup<MisraC20R_21_3>, DefaultIgnore;
+def misra_c20_std_io_not_allowed : Warning<
+  "MISRA C Rule 21.6: The Standard Library input/output routines shall not be used">,
+  InGroup<MisraC20R_21_6>, DefaultIgnore;
+def misra_c20_std_converter_not_allowed : Warning<
+  "MISRA C Rule 21.7: The Standard Library functions atof(), atoi(), atol() and atoll() of stdlib.h shall not be used">,
+  InGroup<MisraC20R_21_7>, DefaultIgnore;
+def misra_c20_std_termination_func_not_allowed : Warning<
+  "MISRA C Rule 21.8: The Standard Library termination functions of stdlib.h shall not be used">,
+  InGroup<MisraC20R_21_8>, DefaultIgnore;
+def misra_c20_std_bsearch_and_qsort_not_allowed : Warning<
+  "MISRA C Rule 21.9: The Standard Library functions bsearch and qsort of stdlib.h shall not be used.">,
+  InGroup<MisraC20R_21_9>, DefaultIgnore;
+def misra_c20_std_date_and_time_not_allowed : Warning<
+  "MISRA C Rule 21.10: Standard Library time and date routines shall not be used">,
+  InGroup<MisraC20R_21_10>, DefaultIgnore;
+def misra_c20_std_system_func_not_allowed : Warning<
+  "MISRA C Rule 21.21: The Standard Library function system() shall not be used.">,
+  InGroup<MisraC20R_21_21>, DefaultIgnore;
 
-def ext_misra_c20_macro_as_identifier_used : Warning<
- "MISRA_C20: Identifiers shall be distinct from macro.">, InGroup<MisraC>;
-
-
-//def warn_memory_overlapping: Warning<
-//  "MISRA C Rule 19.1: An object shall not be assigned or copied to an overlapping object">,
-//InGroup<MisraC>;
-
-
-// MISRA_C 6.1 , 6.2 : 38 , 39.
-
-def warn_bit_fields_of_signed_must_be_greater : Warning<"Signed bit fields must have atleast length of 2">, InGroup<BitFieldsIssues>;
-def warn_bit_fields_must_be_signed_or_unsigned : Warning<"bit fields must be either signed or unsigned">, InGroup<BitFieldsIssues>;
-
-def warn_cast_function_to_non_function_pointer : Warning<
-  "Conversion is not allowed between pointer to a function and any other type">;
-def warn_cast_pointer_to_incomplete : Warning<
-  "Conversion is not allowed between pointer to a incomplete and any other type">;
-def ext_misra_c_1_4_emergent_feature_not_allowed_in_sema : ExtWarn<
-  "Emergent feature is not permitted.">;
-def warn_cast_pointer_to_void_and_arithmetic : Warning<
-  "Cast between pointer to void and arithmetic type is not permitted">;
-def warn_cast_pointer_to_pointer_of_diff_obj : Warning<
-  "Conversion is not allowed between pointer to object type and pointer to another object type">;
-def warn_cast_non_int_arithmetic_to_obj_pointer : Warning<
-  "Cast between pointer to object and non-integer arithmetic type is not allowed">;
-def warn_cast_pointer_to_pointer_remove_const : Warning<
-  "Conversion is not allowed between pointer to const-qualified object type and pointer to non-const-qualified object type">, InGroup<MISRARule11>;
-def warn_cast_pointer_to_pointer_remove_volatile : Warning<
-  "Conversion is not allowed between pointer to volatile-qualified object type and pointer to non-volatile-qualified object type">,InGroup<MISRARule11>;
-def warn_misra_float_loop_counter : Warning<
-  "MISRA 14.2 : A loop counter shall not have essentially floating type">;
-def warn_not_well_formed_for_loop : Warning<
-  "For loop should be well formed">;
+def misra_c20_dereferencing_file_pointer : Warning<
+  "MISRA C Rule 22.5: A pointer to a FILE object shall not be dereferenced">,
+  InGroup<MisraC>, DefaultIgnore;
 } // end of sema component.

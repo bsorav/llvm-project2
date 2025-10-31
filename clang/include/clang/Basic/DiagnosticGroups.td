@@ -714,6 +714,8 @@ def ReservedIdAsMacro : DiagGroup<"reserved-macro-identifier">;
 def ReservedIdAsMacroAlias : DiagGroup<"reserved-id-macro", [ReservedIdAsMacro]>;
 def RestrictExpansionMacro : DiagGroup<"restrict-expansion">;
 def FinalMacro : DiagGroup<"final-macro">;
+def PPUndefIdentifier : DiagGroup<"undef">;
+def PPUnknownDirectives : DiagGroup<"unknown-directives">;
 
 // Just silence warnings about -Wstrict-aliasing for now.
 def : DiagGroup<"strict-aliasing=0">;
@@ -1492,36 +1494,212 @@ def ReadOnlyPlacementChecks : DiagGroup<"read-only-types">;
 def UnsafeBufferUsageInContainer : DiagGroup<"unsafe-buffer-usage-in-container">;
 def UnsafeBufferUsage : DiagGroup<"unsafe-buffer-usage", [UnsafeBufferUsageInContainer]>;
 
+def DuplicateEnum : DiagGroup<"duplicate-enum">;
+
 // Warnings of MISRA C RULES
-def MisraC20ImproperIncludeFilename : DiagGroup<"misra-c20-improper-include-filename">;
-def MisraC3ImproperCommentSyntax : DiagGroup<"misra-c3-improper-comment-syntax">;
-def ForbiddenFunctionUsage : DiagGroup<"misra-c-r-21-3-rule">;
-def OctalHexaEscSeqNotPermitted : DiagGroup<"misra-c-octal-hex-rules">;
-def MacroParenthesis : DiagGroup<"no-parenthesis-around-parameters">;
+def MisraC20D_4_10 : DiagGroup<"misra-c-d-4-10">;
+def MisraC20D_4_12 : DiagGroup<"misra-c-d-4-12">;
 
-def HashGroup : DiagGroup<"hashash-after-hash">;
-def NonBinConditional : DiagGroup<"didnt-evaluate-to-one-or-zero">;
-def BitFieldsIssues : DiagGroup<"misra-c-r-bit-field-issues">;
-def MisraC20ImproperArrayParameterDeclaration : DiagGroup<"misra-c20-improper-array-parameter-declaration">;
-def MisraC20ImproperIdentifierDeclaration : DiagGroup<"misra-c20-improper-identifier-declaration">;
-def MisraC20ImproperStmt : DiagGroup<"misra-c20-improper-stmt">;
-def MisraC20ImproperLogicalRHS : DiagGroup<"misra-c20-improper-logical-rhs">;
-def MisraC20ImproperArrayInitialization: DiagGroup<"misra-c20-improper-array-initialization">;
-def MisraC20ImproperFuntionCall: DiagGroup<"misra-c20-improper-function-call">;
-def MisraC20ImproperOperands: DiagGroup<"misra-c20-operands">;
-def MISRARule11 : DiagGroup<"misra-c-r-11-8-rule">;
-def MisraC20ImproperDeclaration: DiagGroup<"misra-c20-improper-declaration">;
-def MisraC20ImproperLoopBody: DiagGroup<"misra-c20-improper-loop-body">;
-def MisraC20ImproperMacro: DiagGroup<"misra-c20-improper-macro">;
-def MisraC20ImproperFunctionUsed: DiagGroup<"misra-c20-improper-func-used">;
-def MisraC20ImproperUnsignedDeclaration :  DiagGroup<"misra-c20-improper-unsigned-declatation">;
-def MisraC20ImproperTypeConverison:  DiagGroup<"misra-c20-improper-type-conversion">;
-def MisraC20ImproperParameter:  DiagGroup<"misra-c20-improper-parameter">;
+def MisraC20R_1_4    : DiagGroup<"misra-c-r-1-4">;
+def MisraC20R_3_1    : DiagGroup<"misra-c-r-3-1">;
+def MisraC20R_3_2    : DiagGroup<"misra-c-r-3-2">;
+def MisraC20R_5_1    : DiagGroup<"misra-c-r-5-1">;
+def MisraC20R_5_3    : DiagGroup<"misra-c-r-5-3", [Shadow]>;
+def MisraC20R_5_5    : DiagGroup<"misra-c-r-5-5">;
+def MisraC20R_5_6    : DiagGroup<"misra-c-r-5-6">; // not implemented!
+def MisraC20R_6_1    : DiagGroup<"misra-c-r-6-1">;
+def MisraC20R_6_2    : DiagGroup<"misra-c-r-6-2">;
+def MisraC20R_7_1    : DiagGroup<"misra-c-r-7-1">;
+def MisraC20R_7_2    : DiagGroup<"misra-c-r-7-2">; // not implemented!
+def MisraC20R_7_3    : DiagGroup<"misra-c-r-7-3">;
+def MisraC20R_7_4    : DiagGroup<"misra-c-r-7-4">;
+def MisraC20R_8_1    : DiagGroup<"misra-c-r-8-1", [ImplicitInt]>;
+def MisraC20R_8_2    : DiagGroup<"misra-c-r-8-2">;
+def MisraC20R_8_3    : DiagGroup<"misra-c-r-8-3">;
+def MisraC20R_8_10   : DiagGroup<"misra-c-r-8-10">;
+def MisraC20R_8_12   : DiagGroup<"misra-c-r-8-12", [DuplicateEnum]>;
+def MisraC20R_8_14   : DiagGroup<"misra-c-r-8-14">;
+def MisraC20R_9_1    : DiagGroup<"misra-c-r-9-1">;
+def MisraC20R_9_2    : DiagGroup<"misra-c-r-9-2", [MissingBraces]>;
+def MisraC20R_9_3    : DiagGroup<"misra-c-r-9-3">;
+def MisraC20R_9_4    : DiagGroup<"misra-c-r-9-4", [InitializerOverrides]>;
+def MisraC20R_9_5    : DiagGroup<"misra-c-r-9-5">;
+def MisraC20R_10_1   : DiagGroup<"misra-c-r-10-1">; // incomplete!
+def MisraC20R_10_2   : DiagGroup<"misra-c-r-10-2">;
+def MisraC20R_10_4   : DiagGroup<"misra-c-r-10-4">;
+def MisraC20R_11_1   : DiagGroup<"misra-c-r-11-1">;
+def MisraC20R_11_2   : DiagGroup<"misra-c-r-11-2">;
+def MisraC20R_11_3   : DiagGroup<"misra-c-r-11-3">;
+def MisraC20R_11_4   : DiagGroup<"misra-c-r-11-4">;
+def MisraC20R_11_6   : DiagGroup<"misra-c-r-11-6">;
+def MisraC20R_11_7   : DiagGroup<"misra-c-r-11-7">;
+def MisraC20R_11_8   : DiagGroup<"misra-c-r-11-8">;
+def MisraC20R_12_1   : DiagGroup<"misra-c-r-12-1">;
+def MisraC20R_12_4   : DiagGroup<"misra-c-r-12-4">;
+def MisraC20R_12_5   : DiagGroup<"misra-c-r-12-5", [SizeofArrayArgument]>;
+def MisraC20R_13_1   : DiagGroup<"misra-c-r-13-1", [UnevaluatedExpression]>;
+def MisraC20R_13_3   : DiagGroup<"misra-c-r-13-3">;
+def MisraC20R_13_4   : DiagGroup<"misra-c-r-13-4">;
+def MisraC20R_13_5   : DiagGroup<"misra-c-r-13-5">;
+def MisraC20R_13_6   : DiagGroup<"misra-c-r-13-6">;
+def MisraC20R_14_1   : DiagGroup<"misra-c-r-14-1">;
+def MisraC20R_14_2   : DiagGroup<"misra-c-r-14-2">;
+def MisraC20R_14_4   : DiagGroup<"misra-c-r-14-4">;
+def MisraC20R_15_1   : DiagGroup<"misra-c-r-15-1">;
+def MisraC20R_15_2   : DiagGroup<"misra-c-r-15-2">;
+def MisraC20R_15_3   : DiagGroup<"misra-c-r-15-3">; // not implemented!
+def MisraC20R_15_4   : DiagGroup<"misra-c-r-15-4">;
+def MisraC20R_15_6   : DiagGroup<"misra-c-r-15-6">;
+def MisraC20R_15_7   : DiagGroup<"misra-c-r-15-7">;
+def MisraC20R_16_1   : DiagGroup<"misra-c-r-16-1">; // not implemented!
+def MisraC20R_16_2   : DiagGroup<"misra-c-r-16-2">; // not implemented!
+def MisraC20R_16_3   : DiagGroup<"misra-c-r-16-3", [ImplicitFallthrough]>;
+def MisraC20R_16_4   : DiagGroup<"misra-c-r-16-4", [SwitchDefault]>;
+def MisraC20R_16_5   : DiagGroup<"misra-c-r-16-5">;
+def MisraC20R_16_6   : DiagGroup<"misra-c-r-16-6">;
+def MisraC20R_16_7   : DiagGroup<"misra-c-r-16-7", [SwitchBool]>;
+def MisraC20R_17_1   : DiagGroup<"misra-c-r-17-1", [UnusedResult]>; // UnusedResult enabled by default!
+def MisraC20R_17_2   : DiagGroup<"misra-c-r-17-2">;
+def MisraC20R_17_3   : DiagGroup<"misra-c-r-17-3", [ImplicitFunctionDeclare]>;
+def MisraC20R_17_4   : DiagGroup<"misra-c-r-17-4", [ReturnType]>; // ReturnType enabled as error by default
+def MisraC20R_17_6   : DiagGroup<"misra-c-r-17-6">;
+def MisraC20R_17_7   : DiagGroup<"misra-c-r-17-7">;
+def MisraC20R_18_7   : DiagGroup<"misra-c-r-18-7">;
+def MisraC20R_18_8   : DiagGroup<"misra-c-r-18-8">;
+def MisraC20R_19_1   : DiagGroup<"misra-c-r-19-1">;
+def MisraC20R_20_2   : DiagGroup<"misra-c-r-20-2">;
+def MisraC20R_20_4   : DiagGroup<"misra-c-r-20-4", [KeywordAsMacro]>;
+def MisraC20R_20_6   : DiagGroup<"misra-c-r-20-6">;
+def MisraC20R_20_7   : DiagGroup<"misra-c-r-20-7">;
+def MisraC20R_20_8   : DiagGroup<"misra-c-r-20-8">;
+def MisraC20R_20_9   : DiagGroup<"misra-c-r-20-9", [PPUndefIdentifier]>;
+def MisraC20R_20_11  : DiagGroup<"misra-c-r-20-11">;
+def MisraC20R_20_13  : DiagGroup<"misra-c-r-20-13", [PPUnknownDirectives]>;
+def MisraC20R_21_3   : DiagGroup<"misra-c-r-21-3">;
+def MisraC20R_21_4   : DiagGroup<"misra-c-r-21-4">;
+def MisraC20R_21_5   : DiagGroup<"misra-c-r-21-5">;
+def MisraC20R_21_6   : DiagGroup<"misra-c-r-21-6">;
+def MisraC20R_21_7   : DiagGroup<"misra-c-r-21-7">;
+def MisraC20R_21_8   : DiagGroup<"misra-c-r-21-8">;
+def MisraC20R_21_9   : DiagGroup<"misra-c-r-21-9">;
+def MisraC20R_21_10  : DiagGroup<"misra-c-r-21-10">;
+def MisraC20R_21_11  : DiagGroup<"misra-c-r-21-11">;
+def MisraC20R_21_13  : DiagGroup<"misra-c-r-21-13">;
+def MisraC20R_21_17  : DiagGroup<"misra-c-r-21-17">;
+def MisraC20R_21_18  : DiagGroup<"misra-c-r-21-18">;
+def MisraC20R_21_19  : DiagGroup<"misra-c-r-21-19">;
+def MisraC20R_21_20  : DiagGroup<"misra-c-r-21-20">;
+def MisraC20R_21_21  : DiagGroup<"misra-c-r-21-21">;
+def MisraC20R_22_2   : DiagGroup<"misra-c-r-22-2">;
 
-def MisraCMandatory : DiagGroup<"misra-c-mandatory">;
-def MisraCRequired : DiagGroup<"misra-c-required">;
-def MisraCAdvisory : DiagGroup<"misra-c-advisory">;
-def MisraC : DiagGroup<"misra-c", [
+def MisraCMandatory : DiagGroup<"misra-c-mandatory",
+[
+  MisraC20R_9_1,
+  MisraC20R_12_5,
+  MisraC20R_13_6,
+  MisraC20R_17_3,
+  MisraC20R_17_4,
+  MisraC20R_17_6,
+  MisraC20R_19_1,
+  MisraC20R_21_13,
+  MisraC20R_21_17,
+  MisraC20R_21_18,
+  MisraC20R_21_19,
+  MisraC20R_21_20,
+  MisraC20R_22_2,
+]>;
+
+def MisraCRequired : DiagGroup<"misra-c-required",
+[
+  MisraC20D_4_10,
+  MisraC20D_4_12,
+
+  MisraC20R_1_4,
+  MisraC20R_3_1,
+  MisraC20R_3_2,
+  MisraC20R_5_1,
+  MisraC20R_5_3,
+  MisraC20R_5_5,
+  MisraC20R_5_6,
+  MisraC20R_6_1,
+  MisraC20R_6_2,
+  MisraC20R_7_1,
+  MisraC20R_7_2,
+  MisraC20R_7_3,
+  MisraC20R_7_4,
+  MisraC20R_8_1,
+  MisraC20R_8_2,
+  MisraC20R_8_3,
+  MisraC20R_8_10,
+  MisraC20R_8_12,
+  MisraC20R_8_14,
+  MisraC20R_9_2,
+  MisraC20R_9_3,
+  MisraC20R_9_4,
+  MisraC20R_9_5,
+  MisraC20R_10_1,
+  MisraC20R_10_2,
+  MisraC20R_10_4,
+  MisraC20R_11_1,
+  MisraC20R_11_2,
+  MisraC20R_11_3,
+  MisraC20R_11_6,
+  MisraC20R_11_7,
+  MisraC20R_11_8,
+  MisraC20R_13_1,
+  MisraC20R_13_5,
+  MisraC20R_14_1,
+  MisraC20R_14_2,
+  MisraC20R_14_4,
+  MisraC20R_15_2,
+  MisraC20R_15_3,
+  MisraC20R_15_6,
+  MisraC20R_15_7,
+  MisraC20R_16_1,
+  MisraC20R_16_2,
+  MisraC20R_16_3,
+  MisraC20R_16_4,
+  MisraC20R_16_5,
+  MisraC20R_16_6,
+  MisraC20R_16_7,
+  MisraC20R_17_1,
+  MisraC20R_17_2,
+  MisraC20R_17_7,
+  MisraC20R_18_7,
+  MisraC20R_18_8,
+  MisraC20R_20_2,
+  MisraC20R_20_4,
+  MisraC20R_20_6,
+  MisraC20R_20_7,
+  MisraC20R_20_8,
+  MisraC20R_20_9,
+  MisraC20R_20_11,
+  MisraC20R_20_13,
+  MisraC20R_21_3,
+  MisraC20R_21_4,
+  MisraC20R_21_5,
+  MisraC20R_21_6,
+  MisraC20R_21_7,
+  MisraC20R_21_8,
+  MisraC20R_21_9,
+  MisraC20R_21_10,
+  MisraC20R_21_11,
+  MisraC20R_21_21,
+]>;
+
+def MisraCAdvisory : DiagGroup<"misra-c-advisory",
+[
+  MisraC20R_11_4,
+  MisraC20R_12_1,
+  MisraC20R_12_4,
+  MisraC20R_13_3,
+  MisraC20R_13_4,
+  MisraC20R_15_1,
+  MisraC20R_15_4,
+]>;
+
+def MisraC : DiagGroup<"misra-c",
+[
   MisraCMandatory,
   MisraCRequired,
   MisraCAdvisory,

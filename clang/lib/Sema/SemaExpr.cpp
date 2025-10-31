@@ -571,7 +571,6 @@ static void CheckForNullPointerDereference(Sema &S, Expr *E) {
       UO->getSubExpr()->getType()->isPointerType()) {
     const LangAS AS =
         UO->getSubExpr()->getType()->getPointeeType().getAddressSpace();
-        // llvm::errs() << "Pointee Type:"  ;
     if ((!isTargetAddressSpace(AS) ||
          (isTargetAddressSpace(AS) && toTargetAddressSpace(AS) == 0)) &&
         UO->getSubExpr()->IgnoreParenCasts()->isNullPointerConstant(
@@ -586,23 +585,20 @@ static void CheckForNullPointerDereference(Sema &S, Expr *E) {
   }
 }
 
-// ----------- MISRA C rule 22.5 --------------------
-// check is we are dereferencing a file pointer .
-// if so then raise a warning.
-// handled only for unary case .
+// MISRA C Rule 22.5:check is we are dereferencing a file pointer
+// If so then raise a warning.  Handled only for unary case.
 static void CheckForFilePointerDereference(Sema &S, Expr *E) {
   const auto *UO = dyn_cast<UnaryOperator>(E->IgnoreParenCasts());
   if (UO && UO->getOpcode() == UO_Deref &&
-    UO->getSubExpr()->getType()->isPointerType()){
-      QualType PointeeType = UO->getSubExpr()->getType()->getPointeeType();
-      if (PointeeType.getAsString() == "FILE") {
-          // Emit a diagnostic for dereferencing a FILE pointer.
-          S.Diag(UO->getOperatorLoc(), diag::warn_dereferencing_file_pointer)
-              << UO->getSubExpr()->getSourceRange();
-          return; // Issue detected, no need to check further.
-        }
-      
+      UO->getSubExpr()->getType()->isPointerType()){
+    QualType PointeeType = UO->getSubExpr()->getType()->getPointeeType();
+    if (PointeeType.getAsString() == "FILE") {
+      // Emit a diagnostic for dereferencing a FILE pointer.
+      S.Diag(UO->getOperatorLoc(), diag::misra_c20_dereferencing_file_pointer)
+        << UO->getSubExpr()->getSourceRange();
+      return; // Issue detected, no need to check further.
     }
+  }
 }
 
 
@@ -7181,7 +7177,6 @@ ExprResult Sema::ActOnCallExpr(Scope *Scope, Expr *Fn, SourceLocation LParenLoc,
                     /*IsExecConfig=*/false, /*AllowRecovery=*/true);
   if (Call.isInvalid())
     return Call;
-  
 
   // Diagnose uses of the C++20 "ADL-only template-id call" feature in earlier
   // language modes.
@@ -7201,6 +7196,22 @@ ExprResult Sema::ActOnCallExpr(Scope *Scope, Expr *Fn, SourceLocation LParenLoc,
     if (const auto *CE = dyn_cast<CallExpr>(Call.get()))
       DiagnosedUnqualifiedCallsToStdFunctions(*this, CE);
   }
+  
+  // MISRA C Rule 21.3 && Directive 4.12
+  if (LangOpts.C99) {
+    if (CallExpr *CE = dyn_cast<CallExpr>(Call.get())) {
+      if (FunctionDecl *CalleeFnDecl = CE->getDirectCallee()) {
+        if (CalleeFnDecl->getIdentifier()) {
+          auto Name = CalleeFnDecl->getName();
+          if(Name.equals("malloc") || Name.equals("free") || Name.equals("realloc") || Name.equals("calloc") || Name.equals("aligned_alloc")) {
+            Diag(Fn->getExprLoc(), diag::misra_c20_warn_dynamic_alloc) << Fn->getSourceRange();
+            Diag(Fn->getExprLoc(), diag::misra_c20_warn_alloc_dealloc_stdlib) << Fn->getSourceRange();
+          }
+        }
+      }
+    }
+  }
+
 
   return Call;
 }
@@ -10145,31 +10156,11 @@ Sema::CheckAssignmentConstraints(QualType LHSType, ExprResult &RHS,
   QualType RHSType = RHS.get()->getType();
   QualType OrigLHSType = LHSType;
 
-  // if(const PointerType *PTR_RHS = RHSType->getAs<PointerType>()) {
-  //   QualType RHS_PointeeType = PTR_RHS->getPointeeType();
-  //   if (RHS_PointeeType->isCharType()) {
-  //     if(const PointerType *PTR_LHS = LHSType->getAs<PointerType>()) {
-  //       QualType LHS_PointeeType = PTR_LHS->getPointeeType();
-  //       if (LHS_PointeeType->isCharType() && LHS_PointeeType.isConstQualified()) {
-  //       } else {
-  //           Diag(RHS.get()->getExprLoc(), diag::warn_non_const_char_pointer)
-  //             << RHSType << LHSType;
-  //       } 
-  //     }
-  //   }
-  // }
-
   // Get canonical types.  We're not formatting these types, just comparing
   // them.
   LHSType = Context.getCanonicalType(LHSType).getUnqualifiedType();
   RHSType = Context.getCanonicalType(RHSType).getUnqualifiedType();
 
-  // of LHS is an unisgend type
-  // if(LHSType->isUnsignedIntegerType()){
-  //     // unsigned rule here R.7.2
-
-  // }
-  
   // Common case: no conversion required.
   if (LHSType == RHSType) {
     Kind = CK_NoOp;
@@ -12160,7 +12151,6 @@ static void DiagnoseBadShiftValues(Sema& S, ExprResult &LHS, ExprResult &RHS,
   if (RHS.get()->isValueDependent() ||
       !RHS.get()->EvaluateAsInt(RHSResult, S.Context))
     return;
-  RHS.get()->EvaluateAsInt(RHSResult, S.Context);
   llvm::APSInt Right = RHSResult.Val.getInt();
 
   if (Right.isNegative()) {
@@ -16114,50 +16104,28 @@ ExprResult Sema::ActOnBinOp(Scope *S, SourceLocation TokLoc,
   assert(LHSExpr && "ActOnBinOp(): missing left expression");
   assert(RHSExpr && "ActOnBinOp(): missing right expression");
 
-  // Check if the operator is Bitwise AND (&&) or Bitwise OR (||) or Bitwise XOR (^)
+  // MISRA C Rule 10.1: check types of operands: bools
   if (Opc == BO_And || Opc == BO_Or || Opc == BO_Xor || Opc == BO_AndAssign || Opc == BO_OrAssign || Opc == BO_XorAssign) {
-    // Check if LHSExpr or RHSExpr is bool
     if (RHSExpr && RHSExpr->getType()->isBooleanType()) {
-      Diag(RHSExpr->getExprLoc(), diag::ext_misra_c20_bool_operand_for_bitwise_operator);
+      Diag(RHSExpr->getExprLoc(), diag::misra_c20_bool_operand_for_bitwise_operator);
     }
     if (LHSExpr && LHSExpr->getType()->isBooleanType()) {
-      Diag(LHSExpr->getExprLoc(), diag::ext_misra_c20_bool_operand_for_bitwise_operator);
+      Diag(LHSExpr->getExprLoc(), diag::misra_c20_bool_operand_for_bitwise_operator);
     }
   }
-
-  // Check if the operator is logical AND (&&) or logical OR (||)
+  // MISRA Rule 13.5: Check if RHS of &&,|| contains persistent side effects
   if (Opc == BO_LAnd || Opc == BO_LOr) {
-    // Check if RHSExpr contains persistent side effects
     if (RHSExpr->HasSideEffects(Context, /*IncludePossibleEffects=*/true)) {
-      Diag(RHSExpr->getExprLoc(), diag::ext_misra_c20_side_effects_logical_rhs);
+      Diag(RHSExpr->getExprLoc(), diag::misra_c20_side_effects_logical_rhs) << RHSExpr->getType() << RHSExpr->getSourceRange();
     }
   }
-
-  // Check if the LHS and RHS have same essential type in usual airthmatic conversations
-  std::unordered_set<BinaryOperatorKind> AirthmaticOperatorSet={BO_Mul,BO_Div,BO_Rem,BO_Add,BO_Sub,BO_MulAssign,BO_DivAssign,BO_RemAssign,BO_AddAssign,BO_SubAssign};
-
-  // llvm::errs() << LHSExpr->getType().getAsString()  << "\n";
-  // LHSExpr->printPretty(llvm::errs(), nullptr, getPrintingPolicy());
-  // llvm::errs() << "\n";
-  // llvm::errs() << RHSExpr->getType().getAsString()  << "\n";
-  // RHSExpr->IgnoreImpCasts()->getType().print(llvm::errs(), getPrintingPolicy());
-  // llvm::errs() << "\n";
-  // RHSExpr->printPretty(llvm::errs(), nullptr, getPrintingPolicy());
-  // llvm::errs() << "\n";
-  // llvm::errs() << Context.getTypeSize(LHSExpr->getType()) << "\n";
-  // llvm::errs() << Context.getTypeSize(RHSExpr->getType()) << "\n\n";
-  // *************** MISRA RULE 10.6 *********************
-  // if(Context.getTypeSize(LHSExpr->getType()) >  Context.getTypeSize(RHSExpr->getType())  ){
-  //   Diag(TokLoc,diag::ext_misra_c20_wider_type_assigned);
-  // }
-  
-  // llvm::errs() << "\n\n";
-
-  if( AirthmaticOperatorSet.find(Opc)!=AirthmaticOperatorSet.end() && LHSExpr && RHSExpr && LHSExpr->getType() != RHSExpr->getType()){
-    bool LHSFlag=LHSExpr->getType()->isAnyCharacterType();
-    bool RHSFlag=(RHSExpr->getType()->isIntegralOrEnumerationType() || RHSExpr->getType()->isUnsignedIntegerType());
-    if(!( LHSFlag && RHSFlag && (Opc == BO_Add || Opc == BO_AddAssign || Opc == BO_Sub || Opc == BO_SubAssign))){
-      Diag(TokLoc,diag::ext_misra_c20_distinct_operand_type_in_usual_airhtmatic_conversatons);
+  // MISRA Rule 10.4: Check if the LHS and RHS have same essential type in usual arithmetic conversions
+  std::unordered_set<BinaryOperatorKind> ArithmeticOperators = {BO_Mul,BO_Div,BO_Rem,BO_Add,BO_Sub,BO_MulAssign,BO_DivAssign,BO_RemAssign,BO_AddAssign,BO_SubAssign};
+  if (ArithmeticOperators.count(Opc) && LHSExpr && RHSExpr && LHSExpr->getType() != RHSExpr->getType()){
+    bool LHSFlag = LHSExpr->getType()->isAnyCharacterType();
+    bool RHSFlag = (RHSExpr->getType()->isIntegralOrEnumerationType() || RHSExpr->getType()->isUnsignedIntegerType());
+    if (!(LHSFlag && RHSFlag && (Opc == BO_Add || Opc == BO_AddAssign || Opc == BO_Sub || Opc == BO_SubAssign))){
+      Diag(TokLoc, diag::misra_c20_distinct_operand_type_in_usual_arithmetic_conversions);
     }
   }
   // Emit warnings for tricky precedence issues, e.g. "bitfield & 0x4 == 0"
@@ -16359,17 +16327,16 @@ ExprResult Sema::BuildBinOp(Scope *S, SourceLocation OpLoc,
                                   CurFPFeatureOverrides());
   }
 
-  // Build a built-in binary operation.
-  // ************************** MISRA_C R.10.2 :: S_NO 59 ************************ //
-  // We cant add a char with another char.
+  // MISRA C Rule 10.2: restrictions on essentially char objects operations
   QualType LHSType = LHSExpr->getType();
   QualType RHSType = RHSExpr->getType();
   if (Opc == BO_Add) {
     if (LHSType->isCharType() && RHSType->isCharType()) {
-      Diag(OpLoc, diag::warn_char_type_in_arithmetic) << LHSType << RHSType;
+      Diag(OpLoc, diag::misra_c20_char_type_in_arithmetic);
     }
   }
-  // ************************** MISRA_C R.10.2 :: S_NO 59 ************************ //
+
+  // Build a built-in binary operation.
   return CreateBuiltinBinOp(OpLoc, Opc, LHSExpr, RHSExpr);
 }
 
@@ -17763,10 +17730,8 @@ bool Sema::DiagnoseAssignmentResult(AssignConvertType ConvTy,
     *Complained = false;
   
   if (IsStringLiteralToNonConstPointerConversion(SrcExpr, DstType) ) {
-    Diag(SrcExpr->getExprLoc(), diag::warn_non_const_char_pointer) << DstType << SrcType;
+    Diag(SrcExpr->getExprLoc(), diag::misra_c20_warn_non_const_char_pointer) << DstType << SrcType << SrcExpr->getSourceRange();
   }
-
-
 
   // Decode the result (notice that AST's are still created for extensions).
   bool CheckInferredResultType = false;

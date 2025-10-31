@@ -1,6 +1,5 @@
 //===-- MemcmpChecker.cpp -----------------------------------------*- C++ -*--//
 //
-// Part of the MISRA Project
 //
 //===----------------------------------------------------------------------===//
 //
@@ -46,7 +45,6 @@ bool MemcmpChecker::isNullTerminatedString(SVal MemVal, llvm::APSInt SizeVal) co
     if(const MemRegion *MR = MemVal.getAsRegion()){
         // llvm::errs() << MR->getString() << " \n";
         if (const StringRegion *SR = dyn_cast<StringRegion>(MR)) {
-            const StringLiteral *SL = SR->getStringLiteral();
             return false;
         } else if (const ElementRegion *ER = dyn_cast<ElementRegion>(MR)) {
             const MemRegion *SuperRegion = ER->getSuperRegion();

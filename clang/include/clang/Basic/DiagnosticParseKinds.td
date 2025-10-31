@@ -31,8 +31,6 @@ def err_asm_duplicate_qual : Error<"duplicate asm qualifier '%0'">;
 
 let CategoryName = "Parse Issue" in {
 
-def ext_misra_c20_static_keyword_in_array_parameter_declaration : ExtWarn<
-  "MISRA_C20: static keyword not permitted in array parameter decaration.">, InGroup<MisraC20ImproperArrayParameterDeclaration>;
 def ext_empty_translation_unit : Extension<
   "ISO C requires a translation unit to contain at least one declaration">,
   InGroup<DiagGroup<"empty-translation-unit">>;
@@ -1734,9 +1732,15 @@ def ext_hlsl_access_specifiers : ExtWarn<
   "access specifiers are a clang HLSL extension">,
   InGroup<HLSLExtension>;
 
-// MISRA C warnings
-def ext_misra_warn_comment_contains_comment : ExtWarn<
-  "Comment is not permitted inside a comment">, InGroup<MisraC3ImproperCommentSyntax>;
-def ext_misra_warn_inline_comments_line_sliced : ExtWarn<
-  "MISRA-R.3.2: Line-splicing is not permitted in // comments.">, InGroup<MisraC3ImproperCommentSyntax>;
+//MISRA C warnings
+def misra_warn_comment_contains_comment : Warning<
+  "MISRA C Rule 3.1 : Comment is not permitted inside a comment">,
+  InGroup<MisraC20R_3_1>, DefaultIgnore;
+def ext_misra_warn_inline_comments_line_sliced : Warning<
+  "MISRA C Rule 3.2 : Line-splicing is not permitted in // comments.">,
+  InGroup<MisraC20R_3_2>, DefaultIgnore;
+
+def misra_c20_static_keyword_in_array_parameter_declaration : Warning<
+  "MISRA C Rule 17.6: static keyword not permitted in array parameter decaration.">,
+  InGroup<MisraC20R_17_6>, DefaultIgnore;
 } // end of Parser diagnostics

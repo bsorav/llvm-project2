@@ -288,7 +288,6 @@ public:
   const TranslationUnitKind TUKind;
 
   std::unordered_set<std::string> getIncludedHeaderFileNames(){
-    //   std::unordered_set<std::string> IncludedHeaderFileNames;
     return IncludedHeaderFileNames;
   }
 

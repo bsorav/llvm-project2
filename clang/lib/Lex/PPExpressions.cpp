@@ -258,10 +258,7 @@ static bool EvaluateValue(PPValue &Result, Token &PeekTok, DefinedTracker &DT,
         // preprocessor keywords and it wasn't macro expanded, it turns
         // into a simple 0
         if (ValueLive) {
-          // AT LINE 383 IN DIAGLEXKINDS , warn_pp_undef_identifier , we removed the DefaultIgnore thing.
-          // *********************R.20.9  ***  106  ************ IT WAS INGORED EARLIER ********************************************* 
           PP.Diag(PeekTok, diag::warn_pp_undef_identifier) << II;
-          // *********************R.20.9  ***  106  ************ IT WAS INGORED EARLIER *********************************************  
 
           const DiagnosticsEngine &DiagEngine = PP.getDiagnostics();
           // If 'Wundef' is enabled, do not emit 'undef-prefix' diagnostics.
@@ -903,9 +900,9 @@ Preprocessor::EvaluateDirectiveExpression(IdentifierInfo *&IfNDefMacro) {
 
     // Restore 'DisableMacroExpansion'.
     DisableMacroExpansion = DisableMacroExpansionAtStartOfDirective;
-    //**************************** S_N0 -> 105 **********  MISRA_C R.20.8    ***************************//
-    if(!ResVal.Val.isOne() && !ResVal.Val.isZero()) {Diag(StartTok, diag::warn_macro_if_elif_non_binary);}
-    //**************************** S_N0 -> 105 **********  MISRA_C R.20.8    ***************************//
+
+    // MISRA C Rule 20.8
+    if (!ResVal.Val.isOne() && !ResVal.Val.isZero()) Diag(StartTok, diag::misra_c20_macro_if_elif_non_binary);
  
     // We cannot trust the source range from the value because there was a
     // parse error. Track the range manually -- the end of the directive is the
@@ -927,9 +924,8 @@ Preprocessor::EvaluateDirectiveExpression(IdentifierInfo *&IfNDefMacro) {
     // Restore 'DisableMacroExpansion'.
     DisableMacroExpansion = DisableMacroExpansionAtStartOfDirective;
 
-    //**************************** S_N0 -> 105 **********  MISRA_C R.20.8    ***************************//
-    if(!ResVal.Val.isOne() && !ResVal.Val.isZero()) {Diag(StartTok, diag::warn_macro_if_elif_non_binary);}
-    //**************************** S_N0 -> 105 **********  MISRA_C R.20.8    ***************************//
+    // MISRA C Rule 20.8
+    if(!ResVal.Val.isOne() && !ResVal.Val.isZero()) Diag(StartTok, diag::misra_c20_macro_if_elif_non_binary);
     
     return {ResVal.Val != 0, DT.IncludedUndefinedIds, ResVal.getRange()};
   }
@@ -944,9 +940,10 @@ Preprocessor::EvaluateDirectiveExpression(IdentifierInfo *&IfNDefMacro) {
 
     // Restore 'DisableMacroExpansion'.
     DisableMacroExpansion = DisableMacroExpansionAtStartOfDirective;
-    //**************************** S_N0 -> 105 **********  MISRA_C R.20.8    ***************************//
-    if(!ResVal.Val.isOne() && !ResVal.Val.isZero()) {Diag(StartTok, diag::warn_macro_if_elif_non_binary);}
-    //**************************** S_N0 -> 105 **********  MISRA_C R.20.8    ***************************//
+
+    // MISRA C Rule 20.8
+    if(!ResVal.Val.isOne() && !ResVal.Val.isZero()) Diag(StartTok, diag::misra_c20_macro_if_elif_non_binary);
+
     return {false, DT.IncludedUndefinedIds, ResVal.getRange()};
   }
 
@@ -959,8 +956,9 @@ Preprocessor::EvaluateDirectiveExpression(IdentifierInfo *&IfNDefMacro) {
 
   // Restore 'DisableMacroExpansion'.
   DisableMacroExpansion = DisableMacroExpansionAtStartOfDirective;
-  //**************************** S_N0 -> 105 **********  MISRA_C R.20.8    ***************************//
-  if(!ResVal.Val.isOne() && !ResVal.Val.isZero()) {Diag(StartTok, diag::warn_macro_if_elif_non_binary);}
-  //**************************** S_N0 -> 105 **********  MISRA_C R.20.8    ***************************//
+
+  // MISRA C Rule 20.8
+  if(!ResVal.Val.isOne() && !ResVal.Val.isZero()) Diag(StartTok, diag::misra_c20_macro_if_elif_non_binary);
+
   return {ResVal.Val != 0, DT.IncludedUndefinedIds, ResVal.getRange()};
 }

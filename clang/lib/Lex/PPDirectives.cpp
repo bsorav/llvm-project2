@@ -1237,7 +1237,6 @@ void Preprocessor::HandleDirective(Token &Result) {
     // C99 6.10.2 - Source File Inclusion.
     case tok::pp_include:
       // Handle #include.
-      
       return HandleIncludeDirective(SavedHash.getLocation(), Result);
     case tok::pp___include_macros:
       // Handle -imacros.
@@ -1972,6 +1971,7 @@ void Preprocessor::HandleIncludeDirective(SourceLocation HashLoc,
   Token FilenameTok;
   if (LexHeaderName(FilenameTok))
     return;
+
   if (FilenameTok.isNot(tok::header_name)) {
     Diag(FilenameTok.getLocation(), diag::err_pp_expects_filename);
     if (FilenameTok.isNot(tok::eod))
@@ -1979,15 +1979,10 @@ void Preprocessor::HandleIncludeDirective(SourceLocation HashLoc,
     return;
   }
   auto Filename = getSpelling(FilenameTok);
-  // Check if the filename is "setjmp.h" or "signal.h" or "stdarg.h"
-  if (Filename=="<setjmp.h>" || Filename=="<signal.h>" || Filename == "<stdarg.h>" || Filename == "<tgmath.h>") {
-    Diag(HashLoc, diag::ext_misra_c20_header_filename_not_to_be_used)<<Filename;
-  }
-
   // Check if the filename has already been included
   if (IncludedHeaderFileNames.count(Filename) > 0) {
     // Handle repeated inclusion warning
-    Diag(IncludeTok.getLocation(), diag::ext_misra_c20_repeated_include_filename) << Filename;
+    Diag(IncludeTok.getLocation(), diag::misra_c20_repeated_include_filename) << Filename;
   } else {
     // Add the filename to the set of included header files
     IncludedHeaderFileNames.insert(Filename);
@@ -2702,7 +2697,7 @@ void Preprocessor::HandleIncludeMacrosDirective(SourceLocation HashLoc,
 /// parsing the param list.
 bool Preprocessor::ReadMacroParameterList(MacroInfo *MI, Token &Tok) {
   SmallVector<IdentifierInfo*, 32> Parameters;
-  std::set<llvm::StringRef> PreprocessingDirectiveToken={"define","ifdef","undef","include","ifndef","endif","if","else","error","warning","region","endregion"};
+  static std::set<llvm::StringRef> PreprocessingDirectiveTokens = {"define","ifdef","undef","include","ifndef","endif","if","else","error","warning","region","endregion"};
   while (true) {
     LexUnexpandedNonComment(Tok);
     switch (Tok.getKind()) {
@@ -2758,10 +2753,10 @@ bool Preprocessor::ReadMacroParameterList(MacroInfo *MI, Token &Tok) {
       // Add the parameter to the macro info.
       Parameters.push_back(II);
 
-      //Checking paramete is preprocessing directive token
-      StringRef MacroParamName=II->getName();
-      if(MacroParamName == "define" || PreprocessingDirectiveToken.find(MacroParamName)!=PreprocessingDirectiveToken.end()){
-        Diag(Tok,diag::ext_misra_c20_preprocessing_directive_token_within_macro_argument);
+      // MISRA C Rule 20.6
+      StringRef MacroParamName = II->getName();
+      if (PreprocessingDirectiveTokens.count(MacroParamName)) {
+        Diag(Tok, diag::misra_c20_preprocessing_directive_token_within_macro_argument);
       }
 
       // Lex the token after the identifier.
@@ -3096,9 +3091,6 @@ void Preprocessor::HandleDefineDirective(
     return;
 
   IdentifierInfo *II = MacroNameTok.getIdentifierInfo();
-
-  
-  // this->UserDefinedMacors.insert((std::string)(II->getName()));
   // Issue a final pragma warning if we're defining a macro that was has been
   // undefined and is being redefined.
   if (!II->hasMacroDefinition() && II->hadMacroDefinition() && II->isFinal())
@@ -3113,15 +3105,14 @@ void Preprocessor::HandleDefineDirective(
 
   if (!MI) return;
   
-  //*********************** S_NO -> 107 ********** MISRA_C R.20.11 **********************//
-  if(MI->CheckForHash(*this)) {
-    Diag(MacroNameTok, diag::warn_hashash_after_hash);
+  // MISRA C Rule 20.11
+  if (MI->CheckForHash(*this)) {
+    Diag(MacroNameTok, diag::misra_c20_hashash_after_hash);
   }
-  //*********************** S_NO -> 107 ********** MISRA_C R.20.11 **********************//
 
   if (MacroShadowsKeyword &&
       !isConfigurationPattern(MacroNameTok, MI, getLangOpts())) {
-    Diag(MacroNameTok, diag::ext_misra_c20_warn_pp_macro_hides_keyword);
+    Diag(MacroNameTok, diag::warn_pp_macro_hides_keyword);
   }
   // if starts with '__' or '_[A-Z]' warn about hiding keywords
   bool isReserved=II->getName().starts_with("__") || (II->getName().starts_with("_") && II->getName().size() > 1 &&isUppercase(II->getName()[1])) 
@@ -3129,7 +3120,7 @@ void Preprocessor::HandleDefineDirective(
       II->getName().size() > 3 && islower(II->getName()[3]));
   if(isReserved) {
     if (!II->getName().starts_with("__GCC_HAVE_DWARF2_CFI_ASM")) {
-      Diag(MacroNameTok, diag::ext_misra_c20_warn_pp_macro_hides_keyword);
+      Diag(MacroNameTok, diag::warn_pp_macro_hides_keyword);
     }
   }
   // Check that there is no paste (##) operator at the beginning or end of the
@@ -3157,12 +3148,11 @@ void Preprocessor::HandleDefineDirective(
     if (!LangOpts.MicrosoftExt)
       return;
   }
-  // ********************** S_N0 -> 104 ********** MISRA_C RULE : R.20.7 ********************************** //
-  if(MI->checkMacroParams(*this)) {
-      Diag(MI->getDefinitionLoc(), diag::warn_missing_macro_parenthesis)
-          << MacroNameTok.getIdentifierInfo();
+  // MISRA C Rule 20.7
+  if (MI->checkMacroParams(*this)) {
+    Diag(MI->getDefinitionLoc(), diag::misra_c20_missing_macro_parenthesis)
+      << MacroNameTok.getIdentifierInfo();
   }
-  // ********************** S_N0 -> 104 ********** MISRA_C RULE : R.20.7 ********************************** //
 
   // Finally, if this identifier already had a macro defined for it, verify that
   // the macro bodies are identical, and issue diagnostics if they are not.
@@ -3298,7 +3288,7 @@ void Preprocessor::HandleUndefDirective() {
       II->getName().size() > 3 && islower(II->getName()[3]));
   if(isReserved) {
     if (!II->getName().starts_with("__GCC_HAVE_DWARF2_CFI_ASM")) {
-      Diag(MacroNameTok, diag::ext_misra_c20_warn_pp_macro_hides_keyword);
+      Diag(MacroNameTok, diag::warn_pp_macro_hides_keyword);
     }
   }
   // If the callbacks want to know, tell them about the macro #undef.

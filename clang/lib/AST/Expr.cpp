@@ -2728,6 +2728,7 @@ bool Expr::isUnusedResultAWarning(const Expr *&WarnE, SourceLocation &Loc,
       // Note: If new cases are added here, DiagnoseUnusedExprResult should be
       // updated to match for QoI.
 
+      // MISRA C Rule 17.7
       if (const FunctionDecl *FuncDecl = dyn_cast<FunctionDecl>(FD)) {
         SourceManager &SM = Ctx.getSourceManager();
         SourceLocation Loc1 = FuncDecl->getLocation();
@@ -2754,11 +2755,9 @@ bool Expr::isUnusedResultAWarning(const Expr *&WarnE, SourceLocation &Loc,
         if (unsigned NumArgs = CE->getNumArgs())
           R2 = SourceRange(CE->getArg(0)->getBeginLoc(),
                            CE->getArg(NumArgs - 1)->getEndLoc());
-
         return true;
       }
     }
-    // MISRA C RULE 17.7
     return false;
   }
 

@@ -7653,7 +7653,7 @@ bool Sema::CheckFunctionCall(FunctionDecl *FDecl, CallExpr *TheCall,
         cast<CXXMemberCallExpr>(TheCall)->getImplicitObjectArgument();
 
   if (ImplicitThis) {
-    // Implicit This may or may not be a pointer, depending on whether . or -> is
+    // ImplicitThis may or may not be a pointer, depending on whether . or -> is
     // used.
     QualType ThisType = ImplicitThis->getType();
     if (!ThisType->isPointerType()) {
@@ -7673,89 +7673,89 @@ bool Sema::CheckFunctionCall(FunctionDecl *FDecl, CallExpr *TheCall,
             TheCall->getCallee()->getSourceRange(), CallType);
 
   IdentifierInfo *FnInfo = FDecl->getIdentifier();
-  
-  
-  // llvm::errs()  << " func  name : " <<  FnInfo->getName() << "\n";
   // None of the checks below are needed for functions that don't have
   // simple names (e.g., C++ conversion functions).
+  if (!FnInfo)
+    return false;
 
   clang::Preprocessor& pp = this->getPreprocessor();
   auto headerFiles  = pp.getIncludedHeaderFileNames();
-  // std::unordered_set<std::string> headerFiles;
-
-  bool IsStdIOIncluded = headerFiles.find("<stdio.h>") != headerFiles.end() ? true : false;
-  bool IsStdLibIncluded = headerFiles.find("<stdlib.h>") != headerFiles.end() ? true : false;
-  bool IsStdTimeIncluded = headerFiles.find("<time.h>") != headerFiles.end() ? true : false;
-  if (!FnInfo)
-    return false;
-  // ------------------ MISRA C R.21.6 ------------------ //
-  if( (FnInfo->getName() == "scanf" || 
-      FnInfo->getName() == "fscanf" || 
-      FnInfo->getName() == "sscanf" || 
-      FnInfo->getName() == "gets" || 
-      FnInfo->getName() == "fgets" || 
-      FnInfo->getName() == "printf" || 
-      FnInfo->getName() == "fprintf" || 
-      FnInfo->getName() == "sprintf" || 
-      FnInfo->getName() == "snprintf" || 
-      FnInfo->getName() == "puts" || 
-      FnInfo->getName() == "fputs" || 
-      FnInfo->getName() == "fopen" || 
-      FnInfo->getName() == "fclose" || 
-      FnInfo->getName() == "fread" || 
-      FnInfo->getName() == "fwrite" || 
-      FnInfo->getName() == "fgetc" || 
-      FnInfo->getName() == "fputc" || 
-      FnInfo->getName() == "ungetc" || 
-      FnInfo->getName() == "feof" || 
-      FnInfo->getName() == "ferror" || 
-      FnInfo->getName() == "fflush") && IsStdIOIncluded 
-    ){
-
-     Diag(TheCall->getExprLoc(), diag::ext_misra_c20_std_io_not_allowed);
+  bool IsStdIOIncluded   = headerFiles.count("<stdio.h>");
+  bool IsStdLibIncluded  = headerFiles.count("<stdlib.h>");
+  bool IsStdTimeIncluded = headerFiles.count("<time.h>");
+  // MISRA C Rule 21.6
+  if (IsStdIOIncluded &&
+      (FnInfo->getName() == "scanf" || 
+       FnInfo->getName() == "fscanf" || 
+       FnInfo->getName() == "sscanf" || 
+       FnInfo->getName() == "gets" || 
+       FnInfo->getName() == "fgets" || 
+       FnInfo->getName() == "printf" || 
+       FnInfo->getName() == "fprintf" || 
+       FnInfo->getName() == "sprintf" || 
+       FnInfo->getName() == "snprintf" || 
+       FnInfo->getName() == "puts" || 
+       FnInfo->getName() == "fputs" || 
+       FnInfo->getName() == "fopen" || 
+       FnInfo->getName() == "fclose" || 
+       FnInfo->getName() == "fread" || 
+       FnInfo->getName() == "fwrite" || 
+       FnInfo->getName() == "fgetc" || 
+       FnInfo->getName() == "fputc" || 
+       FnInfo->getName() == "ungetc" || 
+       FnInfo->getName() == "feof" || 
+       FnInfo->getName() == "ferror" || 
+       FnInfo->getName() == "fflush")) {
+    Diag(TheCall->getExprLoc(), diag::misra_c20_std_io_not_allowed)
+      << TheCall->getSourceRange();
   }
-  // ------------------ MISRA C R.21.10 ------------------ //
-  if(( FnInfo->getName() == "time" || 
-    FnInfo->getName() == "clock" || 
-    FnInfo->getName() == "difftime" || 
-    FnInfo->getName() == "mktime" || 
-    FnInfo->getName() == "asctime" || 
-    FnInfo->getName() == "ctime" || 
-    FnInfo->getName() == "gmtime" || 
-    FnInfo->getName() == "localtime" || 
-    FnInfo->getName() == "strftime" || 
-    FnInfo->getName() == "strptime" || 
-    FnInfo->getName() == "tzset" || 
-    FnInfo->getName() == "clock_gettime" || 
-    FnInfo->getName() == "clock_settime" || 
-    FnInfo->getName() == "clock_getres" || 
-    FnInfo->getName() == "nanosleep") && IsStdTimeIncluded
-    ){
-     Diag(TheCall->getExprLoc(), diag::ext_misra_c20_std_date_and_time_not_allowed);
+  // MISRA C Rule 21.7
+  if (IsStdLibIncluded && (FnInfo->getName() == "atoi" || FnInfo->getName() == "atol" || FnInfo->getName() == "atof" || FnInfo->getName() == "atoll")) {
+    Diag(TheCall->getExprLoc(), diag::misra_c20_std_converter_not_allowed)
+      << TheCall->getSourceRange();
   }
-  // ------------------ MISRA C R.21.9 ------------------ //
-  if((FnInfo->getName() == "bsearch" ||FnInfo->getName() == "qsort" ) && IsStdLibIncluded){
-     Diag(TheCall->getExprLoc(), diag::ext_misra_c20_std_bsearch_and_qsort_not_allowed);
+  // MISRA C Rule 21.8
+  if (IsStdLibIncluded &&
+      (FnInfo->getName() == "exit" || 
+       FnInfo->getName() == "abort" || 
+       FnInfo->getName() == "atexit" || 
+       FnInfo->getName() == "quick_exit" || 
+       FnInfo->getName() == "_Exit" || 
+       FnInfo->getName() == "exit" || 
+       FnInfo->getName() == "longjmp" || 
+       FnInfo->getName() == "setjmp")) {
+    Diag(TheCall->getExprLoc(), diag::misra_c20_std_termination_func_not_allowed)
+      << TheCall->getSourceRange();
   }
-  // ------------------ MISRA C R.21.7 ------------------ //
-  if((FnInfo->getName() == "atoi" ||FnInfo->getName() == "atol" || FnInfo->getName() == "atof" || FnInfo->getName() == "atoll") && IsStdLibIncluded){
-     Diag(TheCall->getExprLoc(), diag::ext_misra_c20_std_converter_not_allowed);
+  // MISRA C Rule 21.9
+  if (IsStdLibIncluded && (FnInfo->getName() == "bsearch" || FnInfo->getName() == "qsort")) {
+    Diag(TheCall->getExprLoc(), diag::misra_c20_std_bsearch_and_qsort_not_allowed)
+      << TheCall->getSourceRange();
   }
-  // ------------------ MISRA C R.21.8 ------------------ //
-  if( (FnInfo->getName() == "exit" || 
-    FnInfo->getName() == "abort" || 
-    FnInfo->getName() == "atexit" || 
-    FnInfo->getName() == "quick_exit" || 
-    FnInfo->getName() == "_Exit" || 
-    FnInfo->getName() == "exit" || 
-    FnInfo->getName() == "longjmp" || 
-    FnInfo->getName() == "setjmp") && IsStdLibIncluded
-    ){
-     Diag(TheCall->getExprLoc(), diag::ext_misra_c20_std_termination_func_not_allowed);
+  // MISRA C Rule 21.10
+  if (IsStdTimeIncluded &&
+      (FnInfo->getName() == "time" || 
+       FnInfo->getName() == "clock" || 
+       FnInfo->getName() == "difftime" || 
+       FnInfo->getName() == "mktime" || 
+       FnInfo->getName() == "asctime" || 
+       FnInfo->getName() == "ctime" || 
+       FnInfo->getName() == "gmtime" || 
+       FnInfo->getName() == "localtime" || 
+       FnInfo->getName() == "strftime" || 
+       FnInfo->getName() == "strptime" || 
+       FnInfo->getName() == "tzset" || 
+       FnInfo->getName() == "clock_gettime" || 
+       FnInfo->getName() == "clock_settime" || 
+       FnInfo->getName() == "clock_getres" || 
+       FnInfo->getName() == "nanosleep")) {
+    Diag(TheCall->getExprLoc(), diag::misra_c20_std_date_and_time_not_allowed)
+      << TheCall->getSourceRange();
   }
-  // ------------------ MISRA C R.21.21 ------------------ //
-  if((FnInfo->getName() == "system") && IsStdLibIncluded){
-     Diag(TheCall->getExprLoc(), diag::ext_misra_c20_std_system_func_not_allowed);
+  // MISRA C Rule 21.21
+  if (IsStdLibIncluded && FnInfo->getName() == "system") {
+    Diag(TheCall->getExprLoc(), diag::misra_c20_std_system_func_not_allowed)
+      << TheCall->getSourceRange();
   }
 
   // Enforce TCB except for builtin calls, which are always allowed.
@@ -13476,7 +13476,7 @@ void Sema::CheckMemaccessArguments(const CallExpr *Call,
                                    unsigned BId,
                                    IdentifierInfo *FnName) {
   assert(BId != 0);
-  
+
   // It is possible to have a non-standard definition of memset.  Validate
   // we have enough arguments, and if not, abort further checking.
   unsigned ExpectedNumArgs =
@@ -16444,7 +16444,7 @@ static bool CheckForReference(Sema &SemaRef, const Expr *E,
   E = E->IgnoreParenImpCasts();
 
   const FunctionDecl *FD = nullptr;
-  
+
   if (const DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(E)) {
     if (!DRE->getDecl()->getType()->isReferenceType())
       return false;

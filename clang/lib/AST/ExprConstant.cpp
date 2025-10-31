@@ -2779,6 +2779,7 @@ static bool CheckedIntArithmetic(EvalInfo &Info, const Expr *E,
   }
   return true;
 }
+
 static void checkUnsignedIntegerWrapAround(EvalInfo &Info, const BinaryOperator *E,
                               const APSInt &LHS, BinaryOperatorKind Opcode,
                               APSInt RHS, APSInt &Result){
@@ -2816,8 +2817,8 @@ static void checkUnsignedIntegerWrapAround(EvalInfo &Info, const BinaryOperator 
     default:
       break;
     }
-    if(HasUnsignedOverflow){
-      Info.Ctx.getDiagnostics().Report(E->getBeginLoc(), diag::ext_misra_c20_unsigned_overflow)
+    if (HasUnsignedOverflow) {
+      Info.Ctx.getDiagnostics().Report(E->getBeginLoc(), diag::misra_c20_unsigned_overflow)
             << E->getSourceRange();
     }
   }

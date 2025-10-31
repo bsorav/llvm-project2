@@ -2910,18 +2910,19 @@ static void DiagnoseBadFunctionCast(Sema &Self, const ExprResult &SrcExpr,
 void CastOperation::CheckCStyleCast() {
   assert(!Self.getLangOpts().CPlusPlus);
 
-  // Apply this check only in C mode
+  // MISRA C Rule 11.4
+  QualType SrcTy = SrcExpr.get()->getType();
+  QualType DestTy = DestType;
   auto isIntegerLike = [](QualType T) {
     return T->isIntegerType() || T->isEnumeralType() || T->isBooleanType();
   };
-
-  QualType SrcTy = SrcExpr.get()->getType();
-  QualType DestTy = DestType;
-
-  if ((SrcTy->isPointerType() && isIntegerLike(DestTy)) ||
-      (isIntegerLike(SrcTy) && DestTy->isPointerType())) {
-    Self.Diag(OpRange.getBegin(), diag::ext_misra_c20_warn_pointer_integer_conversion)
-        << SrcTy << DestTy << OpRange;
+  if (SrcTy->isPointerType() && isIntegerLike(DestTy)) {
+    Self.Diag(OpRange.getBegin(), diag::misra_c20_warn_pointer_integer_conversion)
+      << SrcTy << DestTy << OpRange;
+  }
+  if (isIntegerLike(SrcTy) && DestTy->isPointerType()) {
+    Self.Diag(OpRange.getBegin(), diag::misra_c20_warn_pointer_integer_conversion)
+      << DestTy << SrcTy << OpRange;
   }
 
   // C-style casts can resolve __unknown_any types.
@@ -2931,6 +2932,7 @@ void CastOperation::CheckCStyleCast() {
                                        ValueKind, BasePath);
     return;
   }
+
   // C99 6.5.4p2: the cast type needs to be void or scalar and the expression
   // type needs to be scalar.
   if (DestType->isVoidType()) {
@@ -3131,87 +3133,56 @@ void CastOperation::CheckCStyleCast() {
     return;
   }
   
-  // A cast shall not remove any const or volatile qualification from the type pointed to by a pointer
+  // MISRA C Rule 11.8: A cast shall not remove any const or volatile qualification from the type pointed to by a pointer
   if (SrcType->isPointerType() && DestType->isPointerType()) {
-    if (SrcType->getPointeeType().isConstQualified() ^ DestType->getPointeeType().isConstQualified()) {
-      Self.Diag(SrcExpr.get()->getBeginLoc(),
-                diag::warn_cast_pointer_to_pointer_remove_const)
+    if (SrcType->getPointeeType().isConstQualified() && !DestType->getPointeeType().isConstQualified()) {
+      Self.Diag(SrcExpr.get()->getBeginLoc(), diag::misra_c20_warn_cast_pointer_to_pointer_remove_const)
           << SrcType << DestType << SrcExpr.get()->getSourceRange();
     }
-    if (SrcType->getPointeeType().isVolatileQualified() ^ DestType->getPointeeType().isVolatileQualified()) {
-      Self.Diag(SrcExpr.get()->getBeginLoc(),
-                diag::warn_cast_pointer_to_pointer_remove_volatile)
+    if (SrcType->getPointeeType().isVolatileQualified() && !DestType->getPointeeType().isVolatileQualified()) {
+      Self.Diag(SrcExpr.get()->getBeginLoc(), diag::misra_c20_warn_cast_pointer_to_pointer_remove_volatile)
           << SrcType << DestType << SrcExpr.get()->getSourceRange();
     }
   }
-  // A cast shall not be performed between pointer to object and a non-integer arithmetic type
-  if ((SrcType->isPointerType() && DestType->isArithmeticType()) && (!SrcType->isVoidPointerType()) && (!DestType->isIntegerType())) {
-    Self.Diag(SrcExpr.get()->getBeginLoc(),
-              diag::warn_cast_non_int_arithmetic_to_obj_pointer)
+  // MISRA C Rule 11.7: A cast shall not be performed between pointer to object and a non-integer arithmetic type
+  if ((SrcType->isPointerType() && DestType->isArithmeticType() && !SrcType->isVoidPointerType() && !DestType->isIntegerType()) ||
+      (SrcType->isArithmeticType() && DestType->isPointerType() && !SrcType->isIntegerType() && !DestType->isVoidPointerType())) {
+    Self.Diag(SrcExpr.get()->getBeginLoc(), diag::misra_c20_warn_cast_non_int_arithmetic_to_obj_pointer)
           << SrcType << DestType << SrcExpr.get()->getSourceRange();
   }
-  if ((SrcType->isArithmeticType() && DestType->isPointerType()) && (!SrcType->isIntegerType()) && (!DestType->isVoidPointerType())) {
-    Self.Diag(SrcExpr.get()->getBeginLoc(),
-              diag::warn_cast_non_int_arithmetic_to_obj_pointer)
-          << SrcType << DestType << SrcExpr.get()->getSourceRange();
-  }
-
-  // check if src type is arithmetic type and dest type is void pointer type or vice versa
 
   if ((SrcType->isArithmeticType() && DestType->isVoidPointerType()) || (SrcType->isVoidPointerType() && DestType->isArithmeticType())) {
     auto srcExpr = SrcExpr.get();
     if (SrcType->isArithmeticType() && (!(SrcExpr.get()->isNullPointerConstant(Self.Context, Expr::NPC_ValueDependentIsNotNull) && srcExpr->getExprLoc().isMacroID()))) {
-      Self.Diag(SrcExpr.get()->getBeginLoc(),
-                diag::warn_cast_pointer_to_void_and_arithmetic)
+      Self.Diag(SrcExpr.get()->getBeginLoc(), diag::misra_c20_warn_cast_pointer_to_void_and_arithmetic)
             << SrcType << DestType << SrcExpr.get()->getSourceRange();
-    }
-    else{
+    } else {
       if (DestType->isArithmeticType()){
-        Self.Diag(SrcExpr.get()->getBeginLoc(),
-                diag::warn_cast_pointer_to_void_and_arithmetic)
+        Self.Diag(SrcExpr.get()->getBeginLoc(), diag::misra_c20_warn_cast_pointer_to_void_and_arithmetic)
             << SrcType << DestType << SrcExpr.get()->getSourceRange();
       } 
     }
   }
-  // A cast shall not be performed between a pointer to object type and a pointer to a different object type
-  if ((SrcType->isPointerType() && DestType->isPointerType()) && (!SrcType->isVoidPointerType() && !DestType->isVoidPointerType())) {
-    if (SrcType->getPointeeType()!= DestType->getPointeeType()) {
-      Self.Diag(SrcExpr.get()->getBeginLoc(),
-              diag::warn_cast_pointer_to_pointer_of_diff_obj)
+  // MISRA C Rule 11.3: A cast shall not be performed between a pointer to object type and a pointer to a different object type
+  if (SrcType->isPointerType() && DestType->isPointerType()) {
+    if (!SrcType->isVoidPointerType() && !DestType->isVoidPointerType() && SrcType->getPointeeType() != DestType->getPointeeType()) {
+      Self.Diag(SrcExpr.get()->getBeginLoc(), diag::misra_c20_warn_cast_pointer_to_pointer_of_diff_obj)
           << SrcType << DestType << SrcExpr.get()->getSourceRange();
     }
   }
-  if (SrcType->isFunctionPointerType()) {
-    if (!DestType->isFunctionPointerType()) {
-      // raise a warning here
-      Self.Diag(SrcExpr.get()->getBeginLoc(),
-                diag::warn_cast_function_to_non_function_pointer)
+  if (( SrcType->isFunctionPointerType() && !DestType->isFunctionPointerType()) ||
+      (!SrcType->isFunctionPointerType() && DestType->isFunctionPointerType())) {
+    Self.Diag(SrcExpr.get()->getBeginLoc(), diag::misra_c20_warn_cast_function_to_non_function_pointer)
           << SrcType << DestType << SrcExpr.get()->getSourceRange();
-    }
-  }
-  if (!SrcType->isFunctionPointerType()) {
-    if (DestType->isFunctionPointerType()) {
-      Self.Diag(SrcExpr.get()->getBeginLoc(),
-                diag::warn_cast_function_to_non_function_pointer)
-          << SrcType << DestType << SrcExpr.get()->getSourceRange();
-    }
   }
   if (SrcType->isPointerType() && DestType->isPointerType()) {
-    if (SrcType->getPointeeType()->isIncompleteType()) {
-      if (!DestType->getPointeeType()->isIncompleteType()) {
-        Self.Diag(SrcExpr.get()->getExprLoc(),
-                  diag::warn_cast_pointer_to_incomplete)
-            << SrcType << DestType << SrcExpr.get()->getSourceRange();
-      }
-    }
-    if (DestType->getPointeeType()->isIncompleteType()) {
-      if (!SrcType->getPointeeType()->isIncompleteType()) {
-        Self.Diag(SrcExpr.get()->getExprLoc(),
-                  diag::warn_cast_pointer_to_incomplete)
-            << SrcType << DestType << SrcExpr.get()->getSourceRange();
-      }
+    if (( SrcType->getPointeeType()->isIncompleteType() && !DestType->getPointeeType()->isIncompleteType()) ||
+        (!SrcType->getPointeeType()->isIncompleteType() &&  DestType->getPointeeType()->isIncompleteType())) {
+      Self.Diag(SrcExpr.get()->getExprLoc(), diag::misra_c20_warn_cast_pointer_to_incomplete)
+        << SrcType << DestType << SrcExpr.get()->getSourceRange();
     }
   }
+
   if (SrcType->isVectorType()) {
     if (Self.CheckVectorCast(OpRange, SrcType, DestType, Kind))
       SrcExpr = ExprError();

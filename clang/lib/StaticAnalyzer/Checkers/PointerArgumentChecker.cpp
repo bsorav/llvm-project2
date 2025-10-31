@@ -1,6 +1,5 @@
 //===-- PointerArgumentChecker.cpp ----------------------------------------*- C++ -*-//
 //
-// Part of the MISRA Project
 //
 //===----------------------------------------------------------------------===//
 
@@ -146,7 +145,6 @@ private:
   }
 
   void memcmpArgPointerCheck(const CallEvent &Call, CheckerContext &C) const {
-    ASTContext &ACtx = C.getASTContext();
     for (unsigned i = 0; i < 2; ++i) {
       const SVal Arg = Call.getArgSVal(i);
 

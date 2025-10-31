@@ -713,7 +713,7 @@ IdentifierInfo *Preprocessor::LookUpIdentifierInfo(Token &Identifier) const {
       II = getIdentifierInfo(CleanedStr);
     }
   }
-  
+
   // Update the token info (identifier info and appropriate token kind).
   // FIXME: the raw_identifier may contain leading whitespace which is removed
   // from the cleaned identifier token. The SourceLocation should be updated to
@@ -723,7 +723,6 @@ IdentifierInfo *Preprocessor::LookUpIdentifierInfo(Token &Identifier) const {
   // still 3 and the SourceLocation refers to the location of the backslash.
   Identifier.setIdentifierInfo(II);
   Identifier.setKind(II->getTokenID());
-  // llvm::errs() << "preprocessor.cpp , identifier info  726:: " << II->getName() << "\n";
 
   return II;
 }
@@ -876,23 +875,32 @@ void Preprocessor::Lex(Token &Result) {
     // RESTRICTED FILENAMES
     if (filename_len > 2 && filename[0] == '<' && filename[filename_len - 1] == '>') {
       if (strncmp(filename, "<signal.h>", filename_len) == 0) {
-        Diag(Result, diag::ext_misra_c215_include_signal_h);
+        Diag(Result, diag::misra_c215_include_signal_h);
       }
-      if (strncmp(filename, "<setjmp.h>", filename_len) == 0) {
-        Diag(Result, diag::ext_misra_c214_include_setjmp_h);
+      else if (strncmp(filename, "<setjmp.h>", filename_len) == 0) {
+        Diag(Result, diag::misra_c214_include_setjmp_h);
       }
-      if ((strncmp(filename, "<stdnoreturn.h>", filename_len) == 0) || (strncmp(filename, "<stdatomic.h>", filename_len) == 0) || (strncmp(filename, "<thread.h>", filename_len) == 0) || (strncmp(filename, "<stdalign.h>", filename_len) == 0)) {
-        Diag(Result, diag::ext_misra_c_1_4_emergent_feature_not_allowed);
+      else if (strncmp(filename, "<tgmath.h>", filename_len) == 0) {
+        Diag(Result, diag::misra_c21_11_include_tgmath_h);
+      }
+      else if ((strncmp(filename, "<stdnoreturn.h>", filename_len) == 0) ||
+               (strncmp(filename, "<stdatomic.h>", filename_len) == 0) ||
+               (strncmp(filename, "<thread.h>", filename_len) == 0) ||
+               (strncmp(filename, "<stdalign.h>", filename_len) == 0)) {
+        Diag(Result, diag::misra_c_1_4_emergent_headers_not_allowed) << std::string_view(filename+1, filename_len-2);
+      }
+      else if (strncmp(filename, "<stdarg.h>", filename_len) == 0) {
+        Diag(Result, diag::misra_c20_stdarg_should_not_be_used);
       }
     }
     if (memchr(filename, ',', filename_len)) {
-      Diag(Result, diag::ext_misra_c20_comma_in_include_filename);
+      Diag(Result, diag::misra_c20_comma_in_include_filename);
     }
     if (memchr(filename, '\\', filename_len)) {
-      Diag(Result, diag::ext_misra_c20_backslash_in_include_filename);
+      Diag(Result, diag::misra_c20_backslash_in_include_filename);
     }
     if (memmem(filename, filename_len, "/*", 2) || memmem(filename, filename_len, "//", 2)) {
-      Diag(Result, diag::ext_misra_c20_comment_in_include_filename);
+      Diag(Result, diag::misra_c20_comment_in_include_filename);
     }
   }
 
@@ -907,18 +915,6 @@ void Preprocessor::Lex(Token &Result) {
     // identifiers and completion tokens.
     Result.setIdentifierInfo(nullptr);
   }
-
-  // ********* S_NO -> 113  ********************* MISRA_C RULE : R.21.3  && D.4.12  ************************** //
-  if(Result.is(tok::identifier)){
-    IdentifierInfo &II2 = *Result.getIdentifierInfo();
-    StringRef Text2 = II2.getName();
-    if(Text2.equals("malloc") || Text2.equals("free") || Text2.equals("realloc") || Text2.equals("calloc")) {
-      auto TokSpelling = getSpelling(Result);
-      Diag(Result, diag::ext_misra_c20_warn_forbidden_function_usage) << TokSpelling;
-    }
-  }
-  // ********* S_NO -> 113  ********************* MISRA_C RULE : R.21.3   && D.4.12  ************************** //
-  
 
   // Update StdCXXImportSeqState to track our position within a C++20 import-seq
   // if this token is being produced as a result of phase 4 of translation.

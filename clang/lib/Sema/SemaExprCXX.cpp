@@ -8924,23 +8924,18 @@ ExprResult Sema::ActOnFinishFullExpr(Expr *FE, SourceLocation CC,
     CheckIfAnyEnclosingLambdasMustCaptureAnyPotentialCaptures(FE, CurrentLSI,
                                                               *this);
   // Check all expressions, even non-discarded ones
-  if ( FE && !getLangOpts().CPlusPlus) { // C-only check
-        CheckForNestedAssignment(FE, DiscardedValue);
+  if (FE && !getLangOpts().CPlusPlus) { // C-only check
+    CheckForNestedAssignment(FE, DiscardedValue);
   }
-  if (FE &&  ContainsIncrementDecrement(FE)) {
+  // MISRA C Rule 13.3
+  if (FE && ContainsIncrementDecrement(FE)) {
     std::vector<Expr *> SideEffects;
     CollectSideEffectExprs(FE, SideEffects);
-    
     for (Expr *SE : SideEffects) {
-      if (auto *UO = dyn_cast<UnaryOperator>(SE)) {
-        if (!UO->isIncrementDecrementOp()) {
-          Diag(SE->getBeginLoc(), diag::ext_misra_c20_extra_potenital_side_effects)
-              << SE->getSourceRange();
-          break;
-        }
-      } else {
-        Diag(SE->getBeginLoc(), diag::ext_misra_c20_extra_potenital_side_effects)
-            << SE->getSourceRange();
+      auto *UO = dyn_cast<UnaryOperator>(SE);
+      if (!UO || !UO->isIncrementDecrementOp()) {
+        Diag(SE->getBeginLoc(), diag::misra_c20_extra_potential_side_effects)
+          << SE->getSourceRange();
         break;
       }
     }
@@ -8959,8 +8954,8 @@ void Sema::CheckForNestedAssignment(const Expr *E, bool IsDiscarded) {
   // Check current node first
   if (const auto *BO = dyn_cast<BinaryOperator>(E)) {
     if (BO->getOpcode() == BO_Assign && !IsDiscarded) {
-      Diag(BO->getOperatorLoc(), diag::ext_misra_c20_warn_assignment_result_used)
-          << BO->getSourceRange();
+      Diag(BO->getOperatorLoc(), diag::misra_c20_warn_assignment_result_used)
+        << BO->getSourceRange();
     }
 
     // Recurse with proper context:
