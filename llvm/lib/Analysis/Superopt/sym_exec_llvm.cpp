@@ -3270,6 +3270,7 @@ sym_exec_llvm::get_tfg(llvm::Function& F, llvm::Module const *M, string const &n
   t->set_string_contents_for_touched_symbols_at_zero_offset(*se.m_string_contents, se.m_touched_symbols);
 
   t->remove_function_name_from_symbols(name);
+  t->populate_pc_var_versions();
   t->populate_exit_return_values_for_llvm_method();
   t->canonicalize_llvm_nextpcs(src_llvm_tfg);
   t->tfg_llvm_interpret_intrinsic_fcalls();
@@ -3281,6 +3282,7 @@ sym_exec_llvm::get_tfg(llvm::Function& F, llvm::Module const *M, string const &n
 
   //cout << timestamp() << ": " << _FNLN_ << ": calling tfg_preprocess()\n";
   t->tfg_preprocess();
+  t->populate_pc_var_versions();
   //cout << timestamp() << ": " << _FNLN_ << ": done tfg_preprocess()\n";
 
   return t;
