@@ -3282,7 +3282,6 @@ sym_exec_llvm::get_tfg(llvm::Function& F, llvm::Module const *M, string const &n
 
   //cout << timestamp() << ": " << _FNLN_ << ": calling tfg_preprocess()\n";
   t->tfg_preprocess();
-  t->populate_pc_var_versions();
   //cout << timestamp() << ": " << _FNLN_ << ": done tfg_preprocess()\n";
 
   return t;
