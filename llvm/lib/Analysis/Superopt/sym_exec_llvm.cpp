@@ -1355,8 +1355,6 @@ sym_exec_llvm::function_get_num_bbls(const Function *F)
 //  }
 //  //cout << __func__ << " " << __LINE__ << endl;
 //  context *ctx = g_ctx; //new context(context::config(600, 600));
-//  //ctx->parse_consts_db(CONSTS_DB_FILENAME);
-//  //ctx->parse_consts_db("~/superopt/consts_db.in"); //XXX: fixme
 //
 //  cout << __func__ << " " << __LINE__ << ": getting callee summary for " << fun_name << ": function_call_chain.size() = " << function_call_chain.size() << ", chain:";
 //  for (const auto &f : function_call_chain) {
