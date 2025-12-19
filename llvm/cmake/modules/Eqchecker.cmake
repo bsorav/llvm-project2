@@ -31,6 +31,10 @@ set(z3_pkgname ${z3_ver}-x64-glibc-2.31)
 set(z3_binpath ${z3_dir}/${z3_pkgname})
 set(z3_include ${z3_binpath}/include)
 set(z3_lib ${z3_binpath}/bin)
+
+set(immer_ver immer-v0.8.1)
+set(immer_dir ${third_party_dir}/${immer_ver})
+
 link_directories(${z3_lib})
 link_directories(${binutils_install_dir}/lib)
 
@@ -41,6 +45,7 @@ INCLUDE_DIRECTORIES(${SUPEROPT_DIR}/lib/expr)
 INCLUDE_DIRECTORIES(${SUPEROPT_DIR}/lib/support)
 INCLUDE_DIRECTORIES(${EQ_BINARY_DIR})
 INCLUDE_DIRECTORIES(${z3_include})
+INCLUDE_DIRECTORIES(${immer_dir})
 
 list(APPEND CMAKE_BUILD_RPATH ${EQ_BINARY_DIR})
 list(APPEND CMAKE_INSTALL_RPATH ${EQ_BINARY_DIR})
