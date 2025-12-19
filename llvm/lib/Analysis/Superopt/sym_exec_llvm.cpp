@@ -235,8 +235,8 @@ sym_exec_common::get_symbol_expr_for_global_var(string const &name, sort_ref con
   return ret;
 }
 
-pair<expr_ref,unordered_set<expr_ref>>
-sym_exec_llvm::get_const_value_expr(const llvm::Value& v, string const& vname, const state& state_in, unordered_set<expr_ref> const& state_assumes, dshared_ptr<tfg_node const> &from_node, bool model_llvm_semantics, tfg &t, map<llvm_value_id_t, string_ref>* value_to_name_map)
+pair<expr_ref,preds_t>
+sym_exec_llvm::get_const_value_expr(const llvm::Value& v, string const& vname, const state& state_in, preds_t const& state_assumes, dshared_ptr<tfg_node const> &from_node, bool model_llvm_semantics, tfg &t, map<llvm_value_id_t, string_ref>* value_to_name_map)
 {
   assert(isa<const llvm::Constant>(&v));
   if(const ConstantInt* c = dyn_cast<const ConstantInt>(&v))
@@ -266,7 +266,6 @@ sym_exec_llvm::get_const_value_expr(const llvm::Value& v, string const& vname, c
         NOT_IMPLEMENTED();
       }
       return make_pair(m_ctx->mk_float_const(s->get_size(), d), state_assumes);
-      //return make_pair(m_ctx->mk_float_const(ai.getBitWidth(), mbs), state_assumes);
     } else if (s->is_floatx_kind()) {
       APInt ai = c->getValueAPF().bitcastToAPInt();
       mybitset mbs = get_mybitset_from_apint(ai, ai.getBitWidth(), false);
@@ -280,7 +279,7 @@ sym_exec_llvm::get_const_value_expr(const llvm::Value& v, string const& vname, c
     //ASSERT(B);
     //ASSERT(F);
     vector<expr_ref> expr_args;
-    unordered_set<expr_ref> assumes = state_assumes;
+    auto assumes = state_assumes;
     tie(expr_args, assumes) = get_expr_args(*i_sp, vname, state_in, assumes, from_node, model_llvm_semantics, t, value_to_name_map);
     expr_ref ce_expr;
     tie(ce_expr, assumes) = exec_gen_expr(*i_sp, vname, expr_args, state_in, assumes, from_node, model_llvm_semantics, t, value_to_name_map);
@@ -798,8 +797,8 @@ void sym_exec_common::get_state_template(const pc& p, state& st)
   st.set_value_expr_map(value_expr_map);
 }
 
-pair<expr_ref,unordered_set<expr_ref>>
-sym_exec_llvm::get_expr_adding_edges_for_intermediate_vals(const Value& v, string const& vname, const state& state_in, unordered_set<expr_ref> const& state_assumes, dshared_ptr<tfg_node const> &from_node, bool model_llvm_semantics, tfg& t, map<llvm_value_id_t, string_ref>* value_to_name_map)
+pair<expr_ref,preds_t>
+sym_exec_llvm::get_expr_adding_edges_for_intermediate_vals(const Value& v, string const& vname, const state& state_in, preds_t const& state_assumes, dshared_ptr<tfg_node const> &from_node, bool model_llvm_semantics, tfg& t, map<llvm_value_id_t, string_ref>* value_to_name_map)
 {
   if (isa<const UndefValue>(&v)) {
 
@@ -840,8 +839,8 @@ sym_exec_llvm::get_expr_adding_edges_for_intermediate_vals(const Value& v, strin
   }
 }
 
-//pair<expr_ref,unordered_set<expr_ref>>
-//sym_exec_llvm::get_expr_adding_edges_for_intermediate_vals(const Value& v/*, string vname*/, const state& state_in, unordered_set<expr_ref> const& assumes, shared_ptr<tfg_node> &from_node, pc const &pc_to, llvm::BasicBlock const &B, llvm::Function const &F, tfg &t, map<llvm_value_id_t, string_ref>* value_to_name_map)
+//pair<expr_ref,preds_t>
+//sym_exec_llvm::get_expr_adding_edges_for_intermediate_vals(const Value& v/*, string vname*/, const state& state_in, preds_t const& assumes, shared_ptr<tfg_node> &from_node, pc const &pc_to, llvm::BasicBlock const &B, llvm::Function const &F, tfg &t, map<llvm_value_id_t, string_ref>* value_to_name_map)
 //{
 //  return __get_expr_adding_edges_for_intermediate_vals_helper(v/*, vname*/, state_in, assumes, &from_node, pc_to, &B, &F, t, value_to_name_map);
 //}
@@ -1016,11 +1015,11 @@ expr_ref sym_exec_llvm::icmp_to_expr(ICmpInst::Predicate cmp_kind, const vector<
   return ret;
 }
 
-pair<vector<expr_ref>, unordered_set<expr_ref>>
-sym_exec_llvm::get_expr_args(const llvm::Instruction& I, string const& vname, const state& st, unordered_set<expr_ref> const& state_assumes, dshared_ptr<tfg_node const> &from_node, bool model_llvm_semantics, tfg &t, map<llvm_value_id_t, string_ref>* value_to_name_map)
+pair<vector<expr_ref>, preds_t>
+sym_exec_llvm::get_expr_args(const llvm::Instruction& I, string const& vname, const state& st, preds_t const& state_assumes, dshared_ptr<tfg_node const> &from_node, bool model_llvm_semantics, tfg &t, map<llvm_value_id_t, string_ref>* value_to_name_map)
 {
   vector<expr_ref> args;
-  unordered_set<expr_ref> assumes = state_assumes;
+  auto assumes = state_assumes;
   //pc orig_from_pc = from_node->get_pc();
   for (unsigned i = 0; i < I.getNumOperands(); ++i) {
     //string avname = vname;
@@ -1034,8 +1033,8 @@ sym_exec_llvm::get_expr_args(const llvm::Instruction& I, string const& vname, co
   return make_pair(args, assumes);
 }
 
-pair<expr_ref,unordered_set<expr_ref>>
-sym_exec_llvm::exec_gen_expr_casts(const llvm::CastInst& I, expr_ref arg, unordered_set<expr_ref> const& state_assumes, pc const &from_pc, bool model_llvm_semantics, tfg &t)
+pair<expr_ref,preds_t>
+sym_exec_llvm::exec_gen_expr_casts(const llvm::CastInst& I, expr_ref arg, preds_t const& state_assumes, pc const &from_pc, bool model_llvm_semantics, tfg &t)
 {
   unsigned src_size = get_bv_bool_size(get_type_sort(I.getSrcTy(), m_module->getDataLayout()));
   unsigned dst_size = get_bv_bool_size(get_type_sort(I.getDestTy(), m_module->getDataLayout()));
@@ -1064,7 +1063,7 @@ sym_exec_llvm::exec_gen_expr_casts(const llvm::CastInst& I, expr_ref arg, unorde
   case Instruction::BitCast:  // it's a nop cast
   {
     assert(src_size == dst_size);
-    unordered_set<expr_ref> assumes = state_assumes;
+    auto assumes = state_assumes;
     //Value *v = I.getOperand(0);
     //Type *typ = I.getType();
     //string typeString = getTypeString(typ);
@@ -1091,7 +1090,7 @@ sym_exec_llvm::exec_gen_expr_casts(const llvm::CastInst& I, expr_ref arg, unorde
     else if(dst_size > src_size)
       after_cast = m_ctx->expr_do_simplify(m_ctx->mk_bvzero_ext(src_expr, dst_size - src_size));
 
-    unordered_set<expr_ref> assumes = state_assumes;
+    auto assumes = state_assumes;
     //Value *v = I.getOperand(0);
     //Type *typ = I.getType();
     //string typeString = getTypeString(typ);
@@ -1120,8 +1119,8 @@ sym_exec_llvm::exec_gen_expr_casts(const llvm::CastInst& I, expr_ref arg, unorde
   }
 }
 
-pair<unordered_set<expr_ref>,unordered_set<expr_ref>>
-sym_exec_llvm::apply_memset_function(const CallInst* c, expr_ref fun_name_expr, string const &fun_name, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, Function *F, state const &state_in, state &state_out, unordered_set<expr_ref> const& state_assumes, string const &cur_function_name, dshared_ptr<tfg_node const> &from_node, bool model_llvm_semantics, llvm::Function const &curF, tfg &t/*, map<string, pair<callee_summary_t, dshared_ptr<tfg_llvm_t>>> *function_tfg_map*/, map<llvm_value_id_t, string_ref>* value_to_name_map/*, set<string> const *function_call_chain*/, map<string, value_scev_map_t> const& scev_map, context::xml_output_format_t xml_output_format)
+pair<preds_t,preds_t>
+sym_exec_llvm::apply_memset_function(const CallInst* c, expr_ref fun_name_expr, string const &fun_name, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, Function *F, state const &state_in, state &state_out, preds_t const& state_assumes, string const &cur_function_name, dshared_ptr<tfg_node const> &from_node, bool model_llvm_semantics, llvm::Function const &curF, tfg &t/*, map<string, pair<callee_summary_t, dshared_ptr<tfg_llvm_t>>> *function_tfg_map*/, map<llvm_value_id_t, string_ref>* value_to_name_map/*, set<string> const *function_call_chain*/, map<string, value_scev_map_t> const& scev_map, context::xml_output_format_t xml_output_format)
 {
   const auto& memset_dst = c->getArgOperand(0);
   const auto& memset_val = c->getArgOperand(1);
@@ -1129,21 +1128,21 @@ sym_exec_llvm::apply_memset_function(const CallInst* c, expr_ref fun_name_expr, 
   const auto& memset_volatile = c->getArgOperand(3);
 
   pc const &from_pc = from_node->get_pc();
-  unordered_set<expr_ref> assumes = state_assumes;
+  auto assumes = state_assumes;
   expr_ref memset_dst_expr, memset_val_expr, memset_nbytes_expr, memset_volatile_expr;
 
-  tie(memset_dst_expr, assumes)    = get_expr_adding_edges_for_intermediate_vals(*memset_dst, "", state_out, assumes, from_node, model_llvm_semantics, t, value_to_name_map);
-  tie(memset_val_expr, assumes)    = get_expr_adding_edges_for_intermediate_vals(*memset_val, "", state_out, assumes, from_node, model_llvm_semantics, t, value_to_name_map);
-  tie(memset_nbytes_expr, assumes)  = get_expr_adding_edges_for_intermediate_vals(*memset_nbytes, "", state_out, assumes, from_node, model_llvm_semantics, t, value_to_name_map);
-	tie(memset_volatile_expr, assumes)  = get_expr_adding_edges_for_intermediate_vals(*memset_volatile, "", state_out, assumes, from_node, model_llvm_semantics, t, value_to_name_map);
+  tie(memset_dst_expr, assumes)      = get_expr_adding_edges_for_intermediate_vals(*memset_dst, "", state_out, assumes, from_node, model_llvm_semantics, t, value_to_name_map);
+  tie(memset_val_expr, assumes)      = get_expr_adding_edges_for_intermediate_vals(*memset_val, "", state_out, assumes, from_node, model_llvm_semantics, t, value_to_name_map);
+  tie(memset_nbytes_expr, assumes)   = get_expr_adding_edges_for_intermediate_vals(*memset_nbytes, "", state_out, assumes, from_node, model_llvm_semantics, t, value_to_name_map);
+	tie(memset_volatile_expr, assumes) = get_expr_adding_edges_for_intermediate_vals(*memset_volatile, "", state_out, assumes, from_node, model_llvm_semantics, t, value_to_name_map);
 
-  unordered_set<expr_ref> succ_assumes;
+  preds_t succ_assumes;
   if (memset_nbytes_expr->is_const()) {
     uint64_t memset_align_int = F->getParamAlign(0).valueOrOne().value();
     DYN_DEBUG(llvm2tfg_memset, cout << "memset_align_int = " << memset_align_int << endl);
     int count = memset_nbytes_expr->get_int64_value();
     if (count != 0) {
-      add_state_assume("", gen_is_aligned_assume_expr(memset_dst_expr, memset_align_int), state_in, assumes, from_node, model_llvm_semantics, t, value_to_name_map);
+      add_state_assume("", expr_with_fail(gen_is_aligned_assume_expr(memset_dst_expr, memset_align_int), fails::safety_memset_tgt_aligned), state_in, assumes, from_node, model_llvm_semantics, t, value_to_name_map);
 
       if (   !memset_volatile_expr->is_const()
           || (memset_volatile_expr->is_bv_sort() && memset_volatile_expr != m_ctx->mk_zerobv(memset_volatile_expr->get_sort()->get_size()))
@@ -1161,7 +1160,7 @@ sym_exec_llvm::apply_memset_function(const CallInst* c, expr_ref fun_name_expr, 
 
     pc cur_pc = from_node->get_pc();
     dshared_ptr<tfg_node const> intermediate_node = get_next_intermediate_subsubindex_pc_node(t, from_node);
-    shared_ptr<tfg_edge const> e = mk_tfg_edge(cur_pc, intermediate_node->get_pc(), expr_true(m_ctx), state_out, vector<expr_ref>{assumes.begin(), assumes.end()}, {}, this->instruction_to_te_comment(*c, from_pc));
+    shared_ptr<tfg_edge const> e = mk_tfg_edge(cur_pc, intermediate_node->get_pc(), expr_true(m_ctx), state_out, assumes, {}, this->instruction_to_te_comment(*c, from_pc));
     t.add_edge(e);
     DYN_DEBUG(llvm2tfg_memset, cout << "added edge " << e->to_string_concise() << " for alignment assume" << endl);
     expr_ref mem = state_get_expr(state_out, m_mem_reg, this->get_mem_sort());
@@ -1178,15 +1177,15 @@ sym_exec_llvm::apply_memset_function(const CallInst* c, expr_ref fun_name_expr, 
   return make_pair(state_assumes, succ_assumes);
 }
 
-pair<unordered_set<expr_ref>,unordered_set<expr_ref>>
-sym_exec_llvm::apply_memcpy_function(const CallInst* c, expr_ref fun_name_expr, string const &fun_name, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, Function *F, state const &state_in, state &state_out, unordered_set<expr_ref> const& state_assumes, string const &cur_function_name, dshared_ptr<tfg_node const> &from_node, bool model_llvm_semantics, llvm::Function const &curF, tfg &t/*, map<string, pair<callee_summary_t, dshared_ptr<tfg_llvm_t>>> *function_tfg_map*/, map<llvm_value_id_t, string_ref>* value_to_name_map/*, set<string> const *function_call_chain*/, map<string, value_scev_map_t> const& scev_map, context::xml_output_format_t xml_output_format)
+pair<preds_t,preds_t>
+sym_exec_llvm::apply_memcpy_function(const CallInst* c, expr_ref fun_name_expr, string const &fun_name, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, Function *F, state const &state_in, state &state_out, preds_t const& state_assumes, string const &cur_function_name, dshared_ptr<tfg_node const> &from_node, bool model_llvm_semantics, llvm::Function const &curF, tfg &t, map<llvm_value_id_t, string_ref>* value_to_name_map, map<string, value_scev_map_t> const& scev_map, context::xml_output_format_t xml_output_format)
 {
   const auto& memcpy_dst = c->getArgOperand(0);
   const auto& memcpy_src = c->getArgOperand(1);
   const auto& memcpy_nbytes = c->getArgOperand(2);
   const auto& memcpy_align = c->getArgOperand(3);
   pc const &from_pc = from_node->get_pc();
-  unordered_set<expr_ref> assumes = state_assumes;
+  auto assumes = state_assumes;
   expr_ref memcpy_src_expr, memcpy_dst_expr, memcpy_nbytes_expr, memcpy_align_expr;
 
   tie(memcpy_src_expr, assumes)    = get_expr_adding_edges_for_intermediate_vals(*memcpy_src, "", state_out, assumes, from_node, model_llvm_semantics, t, value_to_name_map);
@@ -1207,7 +1206,7 @@ sym_exec_llvm::apply_memcpy_function(const CallInst* c, expr_ref fun_name_expr, 
     ASSERT(memcpy_align_int > 0);
   }
 
-  unordered_set<expr_ref> succ_assumes;
+  preds_t succ_assumes;
   if (memcpy_nbytes_expr->is_const()) {
     uint64_t memcpy_dst_align = F->getParamAlign(0).valueOrOne().value();
     uint64_t memcpy_src_align = F->getParamAlign(1).valueOrOne().value();
@@ -1215,12 +1214,12 @@ sym_exec_llvm::apply_memcpy_function(const CallInst* c, expr_ref fun_name_expr, 
     DYN_DEBUG(llvm2tfg_memcpy, cout << "memcpy_src_align = " << memcpy_src_align << "; memcpy_dst_align = " << memcpy_dst_align << endl);
     int count = memcpy_nbytes_expr->get_int64_value();
     if (count != 0) {
-      add_state_assume("", gen_is_aligned_assume_expr(memcpy_src_expr, memcpy_src_align), state_in, assumes, from_node, model_llvm_semantics, t, value_to_name_map);
-      add_state_assume("", gen_is_aligned_assume_expr(memcpy_dst_expr, memcpy_dst_align), state_in, assumes, from_node, model_llvm_semantics, t, value_to_name_map);
+      add_state_assume("", expr_with_fail(gen_is_aligned_assume_expr(memcpy_src_expr, memcpy_src_align), fails::safety_memcpy_src_aligned), state_in, assumes, from_node, model_llvm_semantics, t, value_to_name_map);
+      add_state_assume("", expr_with_fail(gen_is_aligned_assume_expr(memcpy_dst_expr, memcpy_dst_align), fails::safety_memcpy_tgt_aligned), state_in, assumes, from_node, model_llvm_semantics, t, value_to_name_map);
     }
     pc cur_pc = from_node->get_pc();
     dshared_ptr<tfg_node const> intermediate_node = get_next_intermediate_subsubindex_pc_node(t, from_node);
-    shared_ptr<tfg_edge const> e = mk_tfg_edge(cur_pc, intermediate_node->get_pc(), expr_true(m_ctx), state_out, vector<expr_ref>{assumes.begin(), assumes.end()}, {}, this->instruction_to_te_comment(*c, from_pc));
+    shared_ptr<tfg_edge const> e = mk_tfg_edge(cur_pc, intermediate_node->get_pc(), expr_true(m_ctx), state_out, assumes, {}, this->instruction_to_te_comment(*c, from_pc));
     t.add_edge(e);
     DYN_DEBUG(llvm2tfg_memcpy, cout << "added edge " << e->to_string_concise() << " for alignment assume" << endl);
 
@@ -1238,15 +1237,15 @@ sym_exec_llvm::apply_memcpy_function(const CallInst* c, expr_ref fun_name_expr, 
   return make_pair(state_assumes, succ_assumes);
 }
 
-pair<unordered_set<expr_ref>,unordered_set<expr_ref>>
-sym_exec_llvm::apply_fmuladd_function(const CallInst* c, expr_ref fun_name_expr, string const &fun_name, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, Function *F, state const &state_in, state &state_out, unordered_set<expr_ref> const& state_assumes, string const &cur_function_name, dshared_ptr<tfg_node const> &from_node, bool model_llvm_semantics, llvm::Function const &curF, tfg &t/*, map<string, pair<callee_summary_t, dshared_ptr<tfg_llvm_t>>> *function_tfg_map*/, map<llvm_value_id_t, string_ref>* value_to_name_map/*, set<string> const *function_call_chain*/, map<string, value_scev_map_t> const& scev_map, context::xml_output_format_t xml_output_format)
+pair<preds_t,preds_t>
+sym_exec_llvm::apply_fmuladd_function(const CallInst* c, expr_ref fun_name_expr, string const &fun_name, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, Function *F, state const &state_in, state &state_out, preds_t const& state_assumes, string const &cur_function_name, dshared_ptr<tfg_node const> &from_node, bool model_llvm_semantics, llvm::Function const &curF, tfg &t/*, map<string, pair<callee_summary_t, dshared_ptr<tfg_llvm_t>>> *function_tfg_map*/, map<llvm_value_id_t, string_ref>* value_to_name_map/*, set<string> const *function_call_chain*/, map<string, value_scev_map_t> const& scev_map, context::xml_output_format_t xml_output_format)
 {
   /* computes a*b+c */
   const auto& fmuladd_a = c->getArgOperand(0);
   const auto& fmuladd_b = c->getArgOperand(1);
   const auto& fmuladd_c = c->getArgOperand(2);
   //pc const &from_pc = from_node->get_pc();
-  unordered_set<expr_ref> assumes = state_assumes;
+  auto assumes = state_assumes;
   expr_ref fmuladd_a_expr, fmuladd_b_expr, fmuladd_c_expr;
 
   tie(fmuladd_a_expr, assumes)    = get_expr_adding_edges_for_intermediate_vals(*fmuladd_a, "", state_out, assumes, from_node, model_llvm_semantics, t, value_to_name_map);
@@ -1255,7 +1254,7 @@ sym_exec_llvm::apply_fmuladd_function(const CallInst* c, expr_ref fun_name_expr,
   string const iname = get_value_name(*c);
   expr_ref result = m_ctx->mk_fadd(this->get_cur_rounding_mode_var(), m_ctx->mk_fmul(this->get_cur_rounding_mode_var(), fmuladd_a_expr, fmuladd_b_expr), fmuladd_c_expr);
   state_set_expr(state_out, iname, result);
-  unordered_set<expr_ref> succ_assumes;
+  preds_t succ_assumes;
 
   //pc cur_pc = from_node->get_pc();
   //{
@@ -1285,23 +1284,23 @@ sym_exec_llvm::apply_fmuladd_function(const CallInst* c, expr_ref fun_name_expr,
 
 
 
-pair<unordered_set<expr_ref>,unordered_set<expr_ref>>
-sym_exec_llvm::apply_break_statement_marker_function(state &state_out, unordered_set<expr_ref> const& state_assumes)
+pair<preds_t,preds_t>
+sym_exec_llvm::apply_break_statement_marker_function(state &state_out, preds_t const& state_assumes)
 {
   string code_marker_reg = m_srcdst_keyword + "." G_CODE_MARKER_VARNAME;
   state_set_expr(state_out, code_marker_reg, m_ctx->mk_code_marker_break_statement(m_ctx->mk_var(code_marker_reg, m_ctx->mk_code_marker_sort())));
-  return make_pair(state_assumes, unordered_set<expr_ref>());
+  return make_pair(state_assumes, preds_t());
 }
 
-pair<unordered_set<expr_ref>,unordered_set<expr_ref>>
-sym_exec_llvm::apply_va_start_function(const CallInst* c, state const& state_in, state &state_out, unordered_set<expr_ref> const& state_assumes, string const& cur_function_name, dshared_ptr<tfg_node const>& from_node, bool model_llvm_semantics, tfg& t, map<llvm_value_id_t,string_ref>* value_to_name_map)
+pair<preds_t,preds_t>
+sym_exec_llvm::apply_va_start_function(const CallInst* c, state const& state_in, state &state_out, preds_t const& state_assumes, string const& cur_function_name, dshared_ptr<tfg_node const>& from_node, bool model_llvm_semantics, tfg& t, map<llvm_value_id_t,string_ref>* value_to_name_map)
 {
   const auto& va_list_ptr = c->getArgOperand(0);
   expr_ref va_list_ptr_expr;
   //string_ref const& fname = t.get_name();
 
   ASSERT(va_list_ptr);
-  unordered_set<expr_ref> assumes = state_assumes;
+  preds_t assumes = state_assumes;
   // store vararg addr at the location pointed to by va_list_ptr
   tie(va_list_ptr_expr, assumes) = get_expr_adding_edges_for_intermediate_vals(*va_list_ptr, "", state_out, assumes, from_node, model_llvm_semantics, t, value_to_name_map);
 
@@ -1311,11 +1310,11 @@ sym_exec_llvm::apply_va_start_function(const CallInst* c, state const& state_in,
   memlabel_t ml_top = memlabel_t::memlabel_top();
   unsigned count = get_word_length()/get_memory_addressable_size();
   state_set_expr(state_out, m_mem_reg, m_ctx->mk_store(state_get_expr(state_in, m_mem_reg, this->get_mem_sort()), mem_alloc, ml_top, va_list_ptr_expr, vararg_addr, count, false));
-  return make_pair(assumes, unordered_set<expr_ref>());
+  return make_pair(assumes, preds_t());
 }
 
-pair<unordered_set<expr_ref>,unordered_set<expr_ref>>
-sym_exec_llvm::apply_va_copy_function(const CallInst* c, state const& state_in, state &state_out, unordered_set<expr_ref> const& state_assumes, string const& cur_function_name, dshared_ptr<tfg_node const>& from_node, bool model_llvm_semantics, tfg& t, map<llvm_value_id_t,string_ref>* value_to_name_map)
+pair<preds_t,preds_t>
+sym_exec_llvm::apply_va_copy_function(const CallInst* c, state const& state_in, state &state_out, preds_t const& state_assumes, string const& cur_function_name, dshared_ptr<tfg_node const>& from_node, bool model_llvm_semantics, tfg& t, map<llvm_value_id_t,string_ref>* value_to_name_map)
 {
   const auto& dst_va_list_ptr = c->getArgOperand(0);
   const auto& src_va_list_ptr = c->getArgOperand(1);
@@ -1323,7 +1322,7 @@ sym_exec_llvm::apply_va_copy_function(const CallInst* c, state const& state_in, 
   ASSERT(dst_va_list_ptr);
   ASSERT(src_va_list_ptr);
   // copy word-legnth bytes from [src_va_list_ptr] to [dst_va_list_ptr]
-  unordered_set<expr_ref> assumes = state_assumes;
+  preds_t assumes = state_assumes;
   tie(src_va_list_ptr_expr, assumes) = get_expr_adding_edges_for_intermediate_vals(*src_va_list_ptr, "", state_out, assumes, from_node, model_llvm_semantics, t, value_to_name_map);
   tie(dst_va_list_ptr_expr, assumes) = get_expr_adding_edges_for_intermediate_vals(*dst_va_list_ptr, "", state_out, assumes, from_node, model_llvm_semantics, t, value_to_name_map);
 
@@ -1334,7 +1333,7 @@ sym_exec_llvm::apply_va_copy_function(const CallInst* c, state const& state_in, 
   expr_ref va_list_expr = m_ctx->mk_select(mem_expr, mem_alloc, ml_top, src_va_list_ptr_expr, count, false);
   state_set_expr(state_out, m_mem_reg, m_ctx->mk_store(mem_expr, mem_alloc, ml_top, dst_va_list_ptr_expr, va_list_expr, count, false));
 
-  return make_pair(assumes, unordered_set<expr_ref>());
+  return make_pair(assumes, preds_t());
 }
 
 size_t
@@ -1385,8 +1384,8 @@ sym_exec_common::function_belongs_to_program(string const &fun_name) const
   return false;
 }
 
-pair<unordered_set<expr_ref>,unordered_set<expr_ref>>
-sym_exec_llvm::apply_general_function(const CallInst* c, expr_ref fun_name_expr, string const &fun_name, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, Function *F, state const &state_in, state &state_out, unordered_set<expr_ref> const& state_assumes, string const &cur_function_name, dshared_ptr<tfg_node const> &from_node, bool model_llvm_semantics, tfg &t/*, map<string, pair<callee_summary_t, dshared_ptr<tfg_llvm_t>>> *function_tfg_map*/, map<llvm_value_id_t, string_ref>* value_to_name_map/*, set<string> const *function_call_chain*/, map<string, value_scev_map_t> const& scev_map, context::xml_output_format_t xml_output_format)
+pair<preds_t,preds_t>
+sym_exec_llvm::apply_general_function(const CallInst* c, expr_ref fun_name_expr, string const &fun_name, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, Function *F, state const &state_in, state &state_out, preds_t const& state_assumes, string const &cur_function_name, dshared_ptr<tfg_node const> &from_node, bool model_llvm_semantics, tfg &t/*, map<string, pair<callee_summary_t, dshared_ptr<tfg_llvm_t>>> *function_tfg_map*/, map<llvm_value_id_t, string_ref>* value_to_name_map/*, set<string> const *function_call_chain*/, map<string, value_scev_map_t> const& scev_map, context::xml_output_format_t xml_output_format)
 {
   vector<expr_ref> args;
   vector<sort_ref> args_type;
@@ -1446,7 +1445,7 @@ sym_exec_llvm::apply_general_function(const CallInst* c, expr_ref fun_name_expr,
   args_type.push_back(eax_regid->get_sort());
 
   int argnum = 0;
-  unordered_set<expr_ref> assumes = state_assumes;
+  preds_t assumes = state_assumes;
   for (const auto& arg : c->args()) {
     expr_ref expr;
     tie(expr, assumes) = get_expr_adding_edges_for_intermediate_vals(*arg, "", state_in, assumes, from_node, model_llvm_semantics, t, value_to_name_map);
@@ -1513,7 +1512,7 @@ sym_exec_llvm::apply_general_function(const CallInst* c, expr_ref fun_name_expr,
     }
   }
 
-  unordered_set<expr_ref> succ_assumes;
+  preds_t succ_assumes;
   if (!c->getType()->isVoidTy()) {
     Type *retType;
     if (F) {
@@ -1551,7 +1550,9 @@ sym_exec_llvm::apply_general_function(const CallInst* c, expr_ref fun_name_expr,
       }
 
       set_expr(Elname, c_expr, state_out);
-      unordered_set_union(succ_assumes, gen_ptr_align_assumes(Elname, ElTy, c_expr->get_sort()));
+      if (auto align_assume = gen_ptr_align_assume(Elname, ElTy, c_expr->get_sort())) {
+        succ_assumes.emplace_back(align_assume, fails::safety_fcall_retval_ptr_aligned);
+      }
       DYN_DEBUG2(llvm2tfg, errs() << "\n\nfun sort: " << m_ctx->expr_to_string_table(fun) << "\n");
     }
   }
@@ -1642,10 +1643,19 @@ alloca_instruction_is_alloca_operator_in_src(llvm::Module const* M, llvm::Instru
   return false;
 }
 
+expr_ref
+fp_val_within_limits_assume(expr_ref const& e, float_max_t const& min_limit, float_max_t const& max_limit)
+{
+  context* ctx = e->get_context();
+  expr_ref ge_min = ctx->mk_fcmp_oge(e, ctx->mk_float_const(e->get_sort()->get_size(), min_limit));
+  expr_ref lt_max = ctx->mk_fcmp_olt(e, ctx->mk_float_const(e->get_sort()->get_size(), max_limit));
+  return ctx->mk_and(ge_min, lt_max);
+}
+
 void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dshared_ptr<tfg_node const> from_node, llvm::BasicBlock const &B, llvm::Function const &F, size_t next_insn_id, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, bool model_llvm_semantics, tfg_llvm_t &t, map<llvm_value_id_t, string_ref>* value_to_name_map/*, set<string> const *function_call_chain*/, map<shared_ptr<tfg_edge const>, Instruction const*>& eimap, map<string, value_scev_map_t> const& scev_map, context::xml_output_format_t xml_output_format)
 {
   DYN_DEBUG(llvm2tfg, errs() << __func__ << " " << __LINE__ << " " << get_timestamp(as1, sizeof as1) << ": sym exec doing: " << I << "\n");
-  unordered_set<expr_ref> state_assumes;
+  preds_t state_assumes;
   vector<control_flow_transfer> cfts;
   state state_out = state_in;
   string const &cur_function_name = F.getName().str();
@@ -1669,7 +1679,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     else if(i->isConditional())
     {
       expr_ref e;
-      unordered_set<expr_ref> cond_assumes;
+      preds_t cond_assumes;
       tie(e, cond_assumes) = get_expr_adding_edges_for_intermediate_vals(*i->getCondition(), "", state_in, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map);
       ASSERT(e->is_bool_sort());
       control_flow_transfer cft1(from_node->get_pc(), get_pc_from_bbindex_and_insn_id(get_basicblock_index(*i->getSuccessor(0)), 0), e, cond_assumes);
@@ -1697,7 +1707,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     Value* Cond = SI->getCondition();
     //Type *ElTy = Cond->getType();
     expr_ref CondVal;
-    unordered_set<expr_ref> cond_assumes;
+    preds_t cond_assumes;
     tie(CondVal, cond_assumes) = get_expr_adding_edges_for_intermediate_vals(*Cond, "", state_in, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map);
     //string typeString = getTypeString(ElTy);
     //langtype_ref lt = mk_langtype_ref(typeString);
@@ -1710,7 +1720,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     // Check to see if any of the cases match...
     for (auto Case : SI->cases()) {
       expr_ref CaseVal;
-      unordered_set<expr_ref> CaseAssumes;
+      preds_t CaseAssumes;
       tie(CaseVal, CaseAssumes) = get_expr_adding_edges_for_intermediate_vals(*Case.getCaseValue(), "", state_in, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map);
       ASSERT(CondVal->get_sort() == CaseVal->get_sort());
       expr_ref cond = m_ctx->mk_eq(CondVal, CaseVal);
@@ -1818,16 +1828,16 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
 
         if (is_alloca) {
           // add size != 0 assume
-          expr_ref size_is_nonzero = m_ctx->mk_not(m_ctx->mk_eq(local_size_val, m_ctx->mk_zerobv(bvlen)));
-          add_state_assume(iname, size_is_nonzero, state_in, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map); //state_assumes.insert(size_is_positive_assume);
+          auto size_is_nonzero = expr_with_fail(m_ctx->mk_not(m_ctx->mk_eq(local_size_val, m_ctx->mk_zerobv(bvlen))), fails::safety_alloca_size_nonzero);
+          add_state_assume(iname, size_is_nonzero, state_in, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map);
         } else {
           // add size > 0 assume
-          expr_ref size_is_positive_assume = m_ctx->mk_bvsgt(local_size_val, m_ctx->mk_zerobv(bvlen));
-          add_state_assume(iname, size_is_positive_assume, state_in, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map); //state_assumes.insert(size_is_positive_assume);
+          auto size_is_positive_assume = expr_with_fail(m_ctx->mk_bvsgt(local_size_val, m_ctx->mk_zerobv(bvlen)), fails::safety_alloc_size_positive);
+          add_state_assume(iname, size_is_positive_assume, state_in, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map);
         }
         // add no overflow assume for (varsize_expr * local_type_alloc_size)
-        expr_ref no_overflow = gen_no_mul_overflow_assume_expr(varsize_expr, local_type_alloc_size_expr, /*varsize_expr is positive*/true);
-        add_state_assume(iname, no_overflow, state_in, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map); //state_assumes.insert(no_overflow);
+        auto no_overflow = expr_with_fail(gen_no_mul_overflow_assume_expr(varsize_expr, local_type_alloc_size_expr, /*varsize_expr is positive*/true), fails::safety_alloc_no_size_overflow);
+        add_state_assume(iname, no_overflow, state_in, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map);
       } else {
         local_size_val = m_ctx->mk_bv_const(get_word_length(), local_size);
       }
@@ -1840,7 +1850,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
           t.add_node(intermediate_node);
 
           ASSERT(intermediate_node);
-          tfg_edge_ref e = mk_tfg_edge(from_node->get_pc(), intermediate_node->get_pc(), expr_true(m_ctx), state_out, vector<expr_ref>{state_assumes.begin(),state_assumes.end()}, {}, te_comment);
+          tfg_edge_ref e = mk_tfg_edge(from_node->get_pc(), intermediate_node->get_pc(), expr_true(m_ctx), state_out, state_assumes, {}, te_comment);
           t.add_edge(e);
 
           from_node = intermediate_node;
@@ -1868,8 +1878,8 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
       state_set_expr(state_out, local_addr_key, alloc_ptr_expr);
       state_set_expr(state_out, local_alloc_count_ssa_varname, local_alloc_count_var);
       if (m_ctx->get_config().prefer_friendly_counterexamples) {
-        expr_ref alloc_ptr_expr_ne_zero = m_ctx->mk_not(m_ctx->mk_eq(alloc_ptr_expr, m_ctx->mk_zerobv(alloc_ptr_expr->get_sort()->get_size())));
-        add_state_assume(iname, alloc_ptr_expr_ne_zero, state_in, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map); //state_assumes.insert(no_overflow);
+        auto alloc_ptr_expr_ne_zero = expr_with_fail(m_ctx->mk_not(m_ctx->mk_eq(alloc_ptr_expr, m_ctx->mk_zerobv(alloc_ptr_expr->get_sort()->get_size()))), fails::safety_alloc_addr_neq_zero);
+        add_state_assume(iname, alloc_ptr_expr_ne_zero, state_in, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map);
       }
       add_edge_with_state();
 
@@ -1931,7 +1941,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
 
     transfer_poison_value_on_store(new_mem, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map);
 
-    add_state_assume("", gen_dereference_assume_expr(addr), state_in, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map);
+    add_state_assume("", expr_with_fail(gen_dereference_assume_expr(addr), fails::safety_store_nonull_deref), state_in, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map);
 
     //Type *ElTy = Addr->getType();
     //string typeString = getTypeString(ElTy);
@@ -1948,7 +1958,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     //t.add_assume_pred(from_node->get_pc(), p2);
 
     if (align != 0) {
-      add_state_assume("", gen_is_aligned_assume_expr(addr, align), state_in, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map);
+      add_state_assume("", expr_with_fail(gen_is_aligned_assume_expr(addr, align),fails::safety_store_aligned), state_in, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map);
     }
 
     transfer_poison_values("", addr, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map);
@@ -1996,7 +2006,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     }
     set_expr(lname, read_value, state_out);
 
-    add_state_assume(lname, gen_dereference_assume_expr(addr), state_in, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map);
+    add_state_assume(lname, expr_with_fail(gen_dereference_assume_expr(addr), fails::safety_load_nonull_deref), state_in, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map);
 
     //Type *ElTy = Addr->getType();
     //string typeString = getTypeString(ElTy);
@@ -2006,20 +2016,18 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     //t.add_assume_pred(from_node->get_pc(), p1);
 
     size_t align = l->getAlign().value();
-    if (align != 0) {
-      // alignment restriction for the load value type
-      add_state_assume(lname, gen_is_aligned_assume_expr(addr, align), state_in, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map); //state_assumes.insert(isaligned_assume);
+    if (align != 0) { // alignment restriction for the load value type
+      add_state_assume(lname, expr_with_fail(gen_is_aligned_assume_expr(addr, align), fails::safety_load_aligned), state_in, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map);
     }
     Type *lTy = (*l).getType();
     //add_align_assumes(lname, lTy, read_value, pc_to/*from_node->get_pc()*/, t);
     // create extra edge for adding assumes related to the load target
     dshared_ptr<tfg_node const> intermediate_node = get_next_intermediate_subsubindex_pc_node(t, from_node);
-    tfg_edge_ref e = mk_tfg_edge(from_node->get_pc(), intermediate_node->get_pc(), expr_true(m_ctx), state_out, vector<expr_ref>{state_assumes.begin(), state_assumes.end()}, {}, te_comment);
+    tfg_edge_ref e = mk_tfg_edge(from_node->get_pc(), intermediate_node->get_pc(), expr_true(m_ctx), state_out, state_assumes, {}, te_comment);
     t.add_edge(e);
 
-    unordered_set<expr_ref> align_assumes = gen_ptr_align_assumes(lname, lTy, read_value->get_sort());
-    for (auto const& align_assume : align_assumes) {
-      add_state_assume(lname, align_assume, state_in, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map); //state_assumes.insert(align_assume);
+    if (auto align_assume = gen_ptr_align_assume(lname, lTy, read_value->get_sort())) {
+      add_state_assume(lname, expr_with_fail(align_assume, fails::safety_ptr_aligned), state_in, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map);
     }
     state_out = state_in;
     from_node = t.find_node(intermediate_node->get_pc());
@@ -2077,7 +2085,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     string memcpy_fn = LLVM_FUNCTION_NAME_PREFIX G_LLVM_MEMCPY_FUNCTION;
     string memset_fn = LLVM_FUNCTION_NAME_PREFIX G_LLVM_MEMSET_FUNCTION;
     string break_statement_marker_fn = LLVM_FUNCTION_NAME_PREFIX G_LLVM_BREAK_STATEMENT_MARKER_FUNCTION;
-    unordered_set<expr_ref> succ_assumes;
+    preds_t succ_assumes;
 
 
     //if (isa<CallInst>(I) && cast<CallInst>(I).getIntrinsicID() == Intrinsic::break_statement_marker) {
@@ -2123,7 +2131,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     if (succ_assumes.size()) {
       // create extra edge for adding assumes related to the function return value target
       dshared_ptr<tfg_node const> intermediate_node = get_next_intermediate_subsubindex_pc_node(t, from_node);
-      tfg_edge_ref e = mk_tfg_edge(from_node->get_pc(), intermediate_node->get_pc(), expr_true(m_ctx), state_out, vector<expr_ref>{state_assumes.begin(), state_assumes.end()}, {}, te_comment);
+      tfg_edge_ref e = mk_tfg_edge(from_node->get_pc(), intermediate_node->get_pc(), expr_true(m_ctx), state_out, state_assumes, {}, te_comment);
       t.add_edge(e);
 
       state_assumes = succ_assumes;
@@ -2133,10 +2141,10 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     }
 
     state state_out_heap_allocfree;
-    unordered_set<expr_ref> heap_allocfree_assumes;
+    preds_t heap_allocfree_assumes;
     if (ftmap_t::function_name_represents_mallocfree(cur_function_name, fname, from_node->get_pc(), fcall_state, m_mem_alloc_reg, m_mem_reg, m_word_length, state_out_heap_allocfree, heap_allocfree_assumes)) {
       dshared_ptr<tfg_node const> intermediate_node = get_next_intermediate_subsubindex_pc_node(t, from_node);
-      tfg_edge_ref e = mk_tfg_edge(from_node->get_pc(), intermediate_node->get_pc(), expr_true(m_ctx), state_out, vector<expr_ref>{state_assumes.begin(), state_assumes.end()}, {}, te_comment);
+      tfg_edge_ref e = mk_tfg_edge(from_node->get_pc(), intermediate_node->get_pc(), expr_true(m_ctx), state_out, state_assumes, {}, te_comment);
       t.add_edge(e);
 
       state_assumes = heap_allocfree_assumes;
@@ -2269,22 +2277,12 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     expr_ref e0;
     tie(e0, state_assumes) = get_expr_adding_edges_for_intermediate_vals(op0, iname, state(), state_assumes, from_node, model_llvm_semantics, t, value_to_name_map);
 
-    float_max_t max_limit = LLVM_FP_TO_UI_MAX_LIMIT;
-    float_max_t min_limit = LLVM_FP_TO_UI_MIN_LIMIT;
-
     if (e0->is_floatx_sort()) {
       e0 = m_ctx->mk_floatx_to_float(e0);
     }
-
-    ASSERT(e0->is_float_sort());
-    unordered_set<expr_ref> float_assumes;
-    //add to float_assumes the conditions that op0 is within limits
-    float_assumes.insert(m_ctx->mk_fcmp_oge(e0, m_ctx->mk_float_const(e0->get_sort()->get_size(), min_limit)));
-    float_assumes.insert(m_ctx->mk_fcmp_olt(e0, m_ctx->mk_float_const(e0->get_sort()->get_size(), max_limit)));
-
-    for (auto const& float_assume : float_assumes) {
-      add_state_assume(iname, float_assume, state_in, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map);
-    }
+    //add assumption that op0 is within limits
+    auto assume = expr_with_fail(fp_val_within_limits_assume(e0, LLVM_FP_TO_UI_MIN_LIMIT, LLVM_FP_TO_UI_MAX_LIMIT), fails::safety_fp_to_ui_within_limits);
+    add_state_assume(iname, assume, state_in, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map);
 
     expr_ref e = m_ctx->mk_fp_to_ubv(m_ctx->mk_rounding_mode_const(rounding_mode_t::round_towards_zero_aka_truncate()), e0, target_size);
 
@@ -2306,28 +2304,12 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     expr_ref e0;
     tie(e0, state_assumes) = get_expr_adding_edges_for_intermediate_vals(op0, iname, state(), state_assumes, from_node, model_llvm_semantics, t, value_to_name_map);
 
-    float_max_t max_limit = LLVM_FP_TO_SI_MAX_LIMIT;
-    float_max_t min_limit = LLVM_FP_TO_SI_MIN_LIMIT;
-
-    expr_ref min_limit_expr = m_ctx->mk_float_const(e0->get_sort()->get_size(), min_limit);
-    expr_ref max_limit_expr = m_ctx->mk_float_const(e0->get_sort()->get_size(), max_limit);
-
-    //cout << _FNLN_ << ": min_limit_expr = " << expr_string(min_limit_expr) << endl;
-    //cout << _FNLN_ << ": max_limit_expr = " << expr_string(max_limit_expr) << endl;
-
     if (e0->is_floatx_sort()) {
       e0 = m_ctx->mk_floatx_to_float(e0);
     }
-
-    ASSERT(e0->is_float_sort());
-    unordered_set<expr_ref> float_assumes;
-    //add to float_assumes the conditions that op0 is within limits
-    float_assumes.insert(m_ctx->mk_fcmp_oge(e0, min_limit_expr));
-    float_assumes.insert(m_ctx->mk_fcmp_olt(e0, max_limit_expr));
-
-    for (auto const& float_assume : float_assumes) {
-      add_state_assume(iname, float_assume, state_in, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map);
-    }
+    //add assumption that e0 is within limits
+    auto assume = expr_with_fail(fp_val_within_limits_assume(e0, LLVM_FP_TO_SI_MIN_LIMIT, LLVM_FP_TO_SI_MAX_LIMIT), fails::safety_fp_to_si_within_limits);
+    add_state_assume(iname, assume, state_in, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map);
 
     expr_ref e = m_ctx->mk_fp_to_sbv(m_ctx->mk_rounding_mode_const(rounding_mode_t::round_towards_zero_aka_truncate()), e0, target_size);
 
@@ -2477,7 +2459,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
   }
   }
   DYN_DEBUG(llvm2tfg, errs() << __func__ << " " << __LINE__ << " " << get_timestamp(as1, sizeof as1) << ": sym exec done\n");
-  process_cfts(t, value_to_name_map, from_node, pc_to, state_out, state_assumes, model_llvm_semantics, te_comment, &I, cfts, B, F, eimap);
+  process_cfts(t, value_to_name_map, from_node, pc_to, state_out, state_assumes, model_llvm_semantics, te_comment, &I, std::move(cfts), B, F, eimap);
 }
 
 te_comment_t
@@ -2512,8 +2494,8 @@ sym_exec_common::instruction_to_te_comment(llvm::Instruction const& I, pc const&
 //exec_gen_expr(): this is shared common logic for general instruction computation and constant-expression computation;
 //thus these common opcodes are encapsulated in a separate function
 //Returns: resulting expression EXPR_REF, set of UB assumes UNORDERED_SET<EXPR_REF>
-pair<expr_ref,unordered_set<expr_ref>>
-sym_exec_llvm::exec_gen_expr(const llvm::Instruction& I, string const& Iname, const vector<expr_ref>& args, state const &state_in, unordered_set<expr_ref> const& state_assumes, dshared_ptr<tfg_node const> &from_node, bool model_llvm_semantics, tfg &t, map<llvm_value_id_t, string_ref>* value_to_name_map)
+pair<expr_ref,preds_t>
+sym_exec_llvm::exec_gen_expr(const llvm::Instruction& I, string const& Iname, const vector<expr_ref>& args, state const &state_in, preds_t const& state_assumes, dshared_ptr<tfg_node const> &from_node, bool model_llvm_semantics, tfg &t, map<llvm_value_id_t, string_ref>* value_to_name_map)
 {
   //errs() << "exec_gen_expr: " << I << " (function " << F.getName() << ")\n";
   pc const &from_pc = from_node->get_pc();
@@ -2540,26 +2522,26 @@ sym_exec_llvm::exec_gen_expr(const llvm::Instruction& I, string const& Iname, co
     //errs() << "arg1: " << args[1]->to_string_table() << "\n";
     assert(args[0]->get_sort() == args[1]->get_sort());
     expr_ref ret = m_ctx->mk_app(binary_op_to_expr_kind(i->getOpcode(), args[0]->is_bool_sort()), args);
-    unordered_set<expr_ref> assumes = state_assumes;
+    preds_t assumes = state_assumes;
     if (   I.getOpcode() == Instruction::Shl
         || I.getOpcode() == Instruction::LShr
         || I.getOpcode() == Instruction::AShr) {
       ASSERT(args[0]->is_bv_sort());
-      add_state_assume(Iname, gen_shiftcount_assume_expr(args[1], args[0]->get_sort()->get_size()), state_in, assumes, from_node, model_llvm_semantics, t, value_to_name_map);
+      add_state_assume(Iname, expr_with_fail(gen_shiftcount_assume_expr(args[1], args[0]->get_sort()->get_size()), fails::safety_valid_shiftcount), state_in, assumes, from_node, model_llvm_semantics, t, value_to_name_map);
     }
     if (   I.getOpcode() == Instruction::UDiv
         || I.getOpcode() == Instruction::SDiv
         || I.getOpcode() == Instruction::URem
         || I.getOpcode() == Instruction::SRem) {
       ASSERT(args[0]->is_bv_sort());
-      add_state_assume(Iname, gen_no_divbyzero_assume_expr(args[1]), state_in, assumes, from_node, model_llvm_semantics, t, value_to_name_map);
+      add_state_assume(Iname, expr_with_fail(gen_no_divbyzero_assume_expr(args[1]), fails::safety_no_div_by_zero), state_in, assumes, from_node, model_llvm_semantics, t, value_to_name_map);
       if (   I.getOpcode() == Instruction::SDiv
           || I.getOpcode() == Instruction::SRem) {
-        add_state_assume(Iname, gen_div_no_overflow_assume_expr(args[0], args[1]), state_in, assumes, from_node, model_llvm_semantics, t, value_to_name_map);
+        add_state_assume(Iname, expr_with_fail(gen_div_no_overflow_assume_expr(args[0], args[1]), fails::safety_no_overflow_in_signed_div), state_in, assumes, from_node, model_llvm_semantics, t, value_to_name_map);
       }
       if (   (I.getOpcode() == Instruction::SDiv || I.getOpcode() == Instruction::UDiv)
           && I.isExact()) {
-        add_state_assume(Iname, gen_div_is_exact_assume_expr(args[0], args[1], I.getOpcode() == Instruction::SDiv), state_in, assumes, from_node, model_llvm_semantics, t, value_to_name_map);
+        add_state_assume(Iname, expr_with_fail(gen_div_is_exact_assume_expr(args[0], args[1], I.getOpcode() == Instruction::SDiv), fails::safety_exact_div), state_in, assumes, from_node, model_llvm_semantics, t, value_to_name_map);
       }
     }
     return make_pair(ret, assumes);
@@ -2622,7 +2604,7 @@ sym_exec_llvm::exec_gen_expr(const llvm::Instruction& I, string const& Iname, co
       }
       ASSERT(index->get_sort()->get_size() == get_word_length());
       expr_ref offset_expr;
-      unordered_set<expr_ref> assumes = state_assumes;
+      preds_t assumes = state_assumes;
 
       if (itype.isStruct()) {
         //StructType* s = dyn_cast<StructType>(typ)
@@ -2646,7 +2628,7 @@ sym_exec_llvm::exec_gen_expr(const llvm::Instruction& I, string const& Iname, co
           // scaling cannot have signed overflow
           bool index_is_positive = false/*itype.isBoundedSequential()*/; // if base is array then index must be positive
           expr_ref overflow_expr = gen_no_mul_overflow_assume_expr(index, size_expr, index_is_positive);
-          expr_ref assume = m_ctx->mk_isindexforsize(overflow_expr, size);
+          auto assume = expr_with_fail(m_ctx->mk_isindexforsize(overflow_expr, size), fails::safety_ptr_arith_no_signed_overflow_in_scaling);
           add_state_assume(Iname, assume, state_in, assumes, from_node, model_llvm_semantics, t, value_to_name_map);
         }
       } else {
@@ -2669,12 +2651,12 @@ sym_exec_llvm::exec_gen_expr(const llvm::Instruction& I, string const& Iname, co
         // TL;DR The result of the additions within the offset calculation cannot have signed overflow,
         // but when applied to the base pointer, there can be signed overflow.
         expr_ref gep_expr = m_ctx->mk_bvadd(ptr, new_cur_expr);
-        expr_ref assume = m_ctx->mk_isgepoffset(gep_expr, offset_expr);
+        auto assume = expr_with_fail(m_ctx->mk_isgepoffset(gep_expr, offset_expr), fails::safety_ptr_arith_no_signed_overflow_in_addition);
         add_state_assume(Iname, assume, state_in, assumes, from_node, model_llvm_semantics, t, value_to_name_map);
       }
 
       dshared_ptr<tfg_node const> intermediate_node = get_next_intermediate_subsubindex_pc_node(t, from_node);
-      shared_ptr<tfg_edge const> e = mk_tfg_edge(cur_pc, intermediate_node->get_pc(), expr_true(m_ctx), state_to_intermediate_val, vector<expr_ref>{assumes.begin(), assumes.end()}, {}, this->instruction_to_te_comment(I, from_node->get_pc()/*, bbo*/));
+      shared_ptr<tfg_edge const> e = mk_tfg_edge(cur_pc, intermediate_node->get_pc(), expr_true(m_ctx), state_to_intermediate_val, assumes, {}, this->instruction_to_te_comment(I, from_node->get_pc()/*, bbo*/));
       t.add_edge(e);
 
       cur_expr = mk_fresh_expr(total_offset_name, G_INPUT_KEYWORD, m_ctx->mk_bv_sort(get_word_length()));
@@ -2696,7 +2678,7 @@ sym_exec_llvm::exec_gen_expr(const llvm::Instruction& I, string const& Iname, co
     from_node = t.find_node(cur_pc);
     ASSERT(from_node);
 
-    return make_pair(cur_expr, unordered_set<expr_ref>());
+    return make_pair(cur_expr, preds_t());
   }
   default:
     errs() << I << "\n";
@@ -2772,11 +2754,11 @@ sym_exec_llvm::gen_div_is_exact_assume_expr(expr_ref const& dividend, expr_ref c
   return ctx->mk_eq(dividend, ctx->mk_bvmul(divisor, quotient));
 }
 
-unordered_set<expr_ref>
-sym_exec_llvm::gen_ptr_align_assumes(string const &Elname, Type *ElTy, sort_ref const& s) const
+expr_ref
+sym_exec_llvm::gen_ptr_align_assume(string const &Elname, Type *ElTy, sort_ref const& s) const
 {
-  return {};
-  //unordered_set<expr_ref> ret;
+  return nullptr;
+  //preds_t ret;
   //expr_ref Elexpr = m_ctx->mk_var(string(G_INPUT_KEYWORD ".") + Elname, s);
   //if (isa<const PointerType>(ElTy)) {
   //  PointerType *ElTyPointer = cast<PointerType>(ElTy);
@@ -3245,8 +3227,7 @@ sym_exec_llvm::get_tfg(llvm::Function& F, llvm::Module const *M, string const &n
   pc start_pc = sym_exec_llvm::get_start_pc(se.m_function);
   t->add_extra_node_at_start_pc(start_pc);
 
-  unordered_set<expr_ref> const& arg_assumes = se.gen_arg_assumes();
-  t->add_assumes_to_start_edge(arg_assumes);
+  t->add_assumes_to_start_edge(se.gen_arg_assumes());
 
   t->tfg_initialize_rounding_mode_on_start_edge(se.get_cur_rounding_mode_varname(), se.m_rounding_mode_at_start_pc);
 
@@ -3293,9 +3274,9 @@ sym_exec_common::get_pc_from_bbindex_and_insn_id(string const &bbindex/*llvm::Ba
 }
 
 vector<control_flow_transfer>
-sym_exec_llvm::expand_switch(tfg &t, map<llvm_value_id_t, string_ref>* value_to_name_map, dshared_ptr<tfg_node const> const &from_node, vector<control_flow_transfer> const &cfts, state const &state_to, unordered_set<expr_ref> const& assumes, te_comment_t const& te_comment, llvm::Instruction const* I, const llvm::BasicBlock& B, const llvm::Function& F, map<shared_ptr<tfg_edge const>, llvm::Instruction const*>& eimap)
+sym_exec_llvm::expand_switch(tfg &t, map<llvm_value_id_t, string_ref>* value_to_name_map, dshared_ptr<tfg_node const> const &from_node, vector<control_flow_transfer> const &cfts, state const &state_to, preds_t const& assumes, te_comment_t const& te_comment, llvm::Instruction const* I, const llvm::BasicBlock& B, const llvm::Function& F, map<shared_ptr<tfg_edge const>, llvm::Instruction const*>& eimap)
 {
-  unordered_set<expr_ref> cond_assumes = assumes;
+  preds_t cond_assumes = assumes;
   vector<control_flow_transfer> new_cfts;
   pc from_pc = from_node->get_pc();
   dshared_ptr<tfg_node const> cur_node = from_node;
@@ -3320,11 +3301,11 @@ sym_exec_llvm::expand_switch(tfg &t, map<llvm_value_id_t, string_ref>* value_to_
     expr_ref switch_tmpvar = get_input_expr(switch_tmpvar_name, m_ctx->mk_bool_sort());
 
     // edge for setting switch tmpvar
-    unordered_set<expr_ref> assumes = cft.get_assumes();
-    unordered_set_union(assumes, cond_assumes);
+    preds_t assumes = cft.get_assumes();
+    preds_union(assumes, std::move(cond_assumes));
     state state_to_newvar;
     state_set_expr(state_to_newvar, switch_tmpvar_name, cft.get_condition());
-    shared_ptr<tfg_edge const> e1 = mk_tfg_edge(cur_node->get_pc(), intermediate_pc, expr_true(m_ctx), state_to_newvar, vector<expr_ref>{assumes.begin(), assumes.end()}, {}, te_comment);
+    shared_ptr<tfg_edge const> e1 = mk_tfg_edge(cur_node->get_pc(), intermediate_pc, expr_true(m_ctx), state_to_newvar, assumes, {}, te_comment);
     t.add_edge(e1);
     DYN_DEBUG2(llvm2tfg, cout << __func__ << ':' << __LINE__ << ": Added edge e1 = " << e1->to_string() << endl);
 
@@ -3351,7 +3332,7 @@ sym_exec_llvm::expand_switch(tfg &t, map<llvm_value_id_t, string_ref>* value_to_
 //template<typename FUNCTION, typename BASICBLOCK, typename INSTRUCTION>
 //pair<shared_ptr<tfg_node>, map<string, sort_ref>>
 void
-sym_exec_llvm::process_cft(tfg &t, map<llvm_value_id_t, string_ref>* value_to_name_map, dshared_ptr<tfg_node const> const &from_node, pc const &pc_to, expr_ref target, expr_ref to_condition, state const &state_to, unordered_set<expr_ref> const& assumes, bool model_llvm_semantics, te_comment_t const& te_comment, Instruction const* I, const llvm::BasicBlock& B, const llvm::Function& F, map<shared_ptr<tfg_edge const>, Instruction const*>& eimap)
+sym_exec_llvm::process_cft(tfg &t, map<llvm_value_id_t, string_ref>* value_to_name_map, dshared_ptr<tfg_node const> const &from_node, pc const &pc_to, expr_ref target, expr_ref to_condition, state const &state_to, preds_t const& assumes, bool model_llvm_semantics, te_comment_t const& te_comment, Instruction const* I, const llvm::BasicBlock& B, const llvm::Function& F, map<shared_ptr<tfg_edge const>, Instruction const*>& eimap)
 {
   DYN_DEBUG2(llvm2tfg, errs() << _FNLN_ << ": state_to: " << state_to.state_to_string_for_eq() << "\n");
 
@@ -3362,7 +3343,7 @@ sym_exec_llvm::process_cft(tfg &t, map<llvm_value_id_t, string_ref>* value_to_na
   }
   if (target) {
     state_set_expr(state_to_cft, m_srcdst_keyword + "." LLVM_STATE_INDIR_TARGET_KEY_ID, target);
-    auto e = mk_tfg_edge(from_pc, pc_to, to_condition, state_to_cft, vector<expr_ref>{assumes.begin(), assumes.end()}, {}, te_comment);
+    auto e = mk_tfg_edge(from_pc, pc_to, to_condition, state_to_cft, assumes, {}, te_comment);
     eimap.insert(make_pair(e, I));
     t.add_edge(e);
     return;//make_pair(from_node, map<string, sort_ref>());
@@ -3370,7 +3351,7 @@ sym_exec_llvm::process_cft(tfg &t, map<llvm_value_id_t, string_ref>* value_to_na
     process_phi_nodes(t, value_to_name_map, &B, pc_to, from_node, model_llvm_semantics, to_condition, assumes, te_comment, I, F, eimap);
     return;
   } else {
-    auto e = mk_tfg_edge(from_pc, pc_to, to_condition, state_to_cft, vector<expr_ref>{assumes.begin(), assumes.end()}, {}, te_comment);
+    auto e = mk_tfg_edge(from_pc, pc_to, to_condition, state_to_cft, assumes, {}, te_comment);
     eimap.insert(make_pair(e, I));
     t.add_edge(e);
     return;//make_pair(from_node, map<string, sort_ref>());
@@ -3379,7 +3360,7 @@ sym_exec_llvm::process_cft(tfg &t, map<llvm_value_id_t, string_ref>* value_to_na
 
 //template<typename FUNCTION, typename BASICBLOCK, typename INSTRUCTION>
 //void
-//sym_exec_llvm::process_cft_second_half(tfg &t, shared_ptr<tfg_node> const &from_node, pc const &pc_to, expr_ref target, expr_ref to_condition, unordered_set<expr_ref> const& assumes, te_comment_t const& te_comment, Instruction * I, const llvm::BasicBlock& B, const llvm::Function& F, map<std::string, sort_ref> const &phi_regnames, map<shared_ptr<tfg_edge const>, Instruction *>& eimap)
+//sym_exec_llvm::process_cft_second_half(tfg &t, shared_ptr<tfg_node> const &from_node, pc const &pc_to, expr_ref target, expr_ref to_condition, preds_t const& assumes, te_comment_t const& te_comment, Instruction * I, const llvm::BasicBlock& B, const llvm::Function& F, map<std::string, sort_ref> const &phi_regnames, map<shared_ptr<tfg_edge const>, Instruction *>& eimap)
 //{
 //  if (pc_to.is_label() && pc_to.get_subindex() == PC_SUBINDEX_FIRST_INSN_IN_BB) {
 //    process_phi_nodes_second_half(t, &B, pc_to, from_node, F, to_condition, phi_regnames, assumes, te_comment, I, eimap);
@@ -3388,32 +3369,21 @@ sym_exec_llvm::process_cft(tfg &t, map<llvm_value_id_t, string_ref>* value_to_na
 
 //template<typename FUNCTION, typename BASICBLOCK, typename INSTRUCTION>
 void
-sym_exec_llvm::process_cfts(tfg &t, map<llvm_value_id_t, string_ref>* value_to_name_map, dshared_ptr<tfg_node const> const &from_node, pc const &pc_to, state const &state_to, unordered_set<expr_ref> const& state_assumes, bool model_llvm_semantics, te_comment_t const& te_comment, Instruction const* I, vector<control_flow_transfer> const &cfts, llvm::BasicBlock const &B, llvm::Function const &F, map<shared_ptr<tfg_edge const>, Instruction const*>& eimap)
+sym_exec_llvm::process_cfts(tfg &t, map<llvm_value_id_t, string_ref>* value_to_name_map, dshared_ptr<tfg_node const> const &from_node, pc const &pc_to, state const &state_to, preds_t const& state_assumes, bool model_llvm_semantics, te_comment_t const& te_comment, Instruction const* I, vector<control_flow_transfer>&& cfts, llvm::BasicBlock const &B, llvm::Function const &F, map<shared_ptr<tfg_edge const>, Instruction const*>& eimap)
 {
   map<pc, map<string, sort_ref>> pc_to_phi_regnames_map;
   if (cfts.size() == 0) {
-    //pc pc_to(pc::insn_label, get_pc_from_bb_and_insn_id(B, next_insn_id));
-    /*auto n = */process_cft(t, value_to_name_map, from_node, pc_to, nullptr, expr_true(m_ctx), state_to, state_assumes, model_llvm_semantics, te_comment, I, B, F, eimap);
-    //ASSERT(n.first == from_node);
-    //ASSERT(n.second.size() == 0);
+    process_cft(t, value_to_name_map, from_node, pc_to, nullptr, expr_true(m_ctx), state_to, state_assumes, model_llvm_semantics, te_comment, I, B, F, eimap);
   } else {
-    //pc const &bb_last_pc = cfts.at(cfts.size() - 1).get_from_pc();
-    //dshared_ptr<tfg_node const> bb_last_node = t.find_node(bb_last_pc);
-    //ASSERT(bb_last_node);
-    for(const control_flow_transfer& cft : cfts) {
+    for(control_flow_transfer& cft : cfts) {
       //first half performs all the computation required in the successor phi nodes, as part of the current basic block
-      unordered_set<expr_ref> assumes = state_assumes;
-      unordered_set_union(assumes, cft.get_assumes());
+      preds_t assumes = state_assumes;
+      preds_t cft_assumes = cft.get_assumes();
+      preds_union(assumes, std::move(cft_assumes));
       dshared_ptr<tfg_node const> cft_from_node = t.find_node(cft.get_from_pc());
       ASSERT(cft_from_node);
-      /*auto r = */process_cft(t, value_to_name_map, cft_from_node, cft.get_to_pc(), cft.get_target(), cft.get_condition(), state_to, assumes, model_llvm_semantics, te_comment, I, B, F, eimap);
-      //pc_to_phi_regnames_map.insert(make_pair(cft.get_to_pc(), r.second));
-      //bb_last_node = r.first;
+      process_cft(t, value_to_name_map, cft_from_node, cft.get_to_pc(), cft.get_target(), cft.get_condition(), state_to, assumes, model_llvm_semantics, te_comment, I, B, F, eimap);
     }
-    //for(const control_flow_transfer& cft : cfts) {
-    //  //second half creates control-flow edges from the current basic block to the successor(s), while copying the computed phi expressions from their temporary registers to their actual registers. This division of labour between first-half and second-half mimics LLC's code generator
-    //  process_cft_second_half(t, (bb_last_pc == cft.get_from_pc()) ? bb_last_node : t.find_node(cft.get_from_pc()), cft.get_to_pc(), cft.get_target(), cft.get_condition(), cft.get_assumes(), te_comment, I, B, F, pc_to_phi_regnames_map.at(cft.get_to_pc()), eimap);
-    //}
   }
 }
 
@@ -3689,7 +3659,7 @@ sym_exec_common::sync_next_intermediate_subsubindex_map(pc const& in_p)
 //template<typename FUNCTION, typename BASICBLOCK, typename INSTRUCTION>
 //pair<shared_ptr<tfg_node>, map<string, sort_ref>>
 void
-sym_exec_llvm::process_phi_nodes(tfg &t, map<llvm_value_id_t, string_ref>* value_to_name_map, const llvm::BasicBlock* B_from, const pc& pc_to, dshared_ptr<tfg_node const> const &from_node, bool model_llvm_semantics, expr_ref edgecond, unordered_set<expr_ref> const& assumes, te_comment_t const& te_comment, Instruction const* I, const llvm::Function& F, map<shared_ptr<tfg_edge const>, Instruction const*>& eimap)
+sym_exec_llvm::process_phi_nodes(tfg &t, map<llvm_value_id_t, string_ref>* value_to_name_map, const llvm::BasicBlock* B_from, const pc& pc_to, dshared_ptr<tfg_node const> const &from_node, bool model_llvm_semantics, expr_ref edgecond, preds_t const& assumes, te_comment_t const& te_comment, Instruction const* I, const llvm::Function& F, map<shared_ptr<tfg_edge const>, Instruction const*>& eimap)
 {
   DYN_DEBUG2(llvm2tfg, cout << __func__ << " " << __LINE__ << " " << get_timestamp(as1, sizeof as1) << ": searching for BB representing " << pc_to.to_string() << endl);
   const llvm::BasicBlock* B_to = 0;
@@ -3699,7 +3669,7 @@ sym_exec_llvm::process_phi_nodes(tfg &t, map<llvm_value_id_t, string_ref>* value
   dshared_ptr<tfg_node const> pc_to_phi_node = from_node;
 
   dshared_ptr<tfg_node const> pc_to_phi_start_node = get_next_intermediate_subsubindex_pc_node(t, from_node);
-  auto e1 = mk_tfg_edge(pc_to_phi_node->get_pc(), pc_to_phi_start_node->get_pc(), edgecond, state(), vector<expr_ref>{assumes.begin(), assumes.end()}, {}, te_comment);
+  auto e1 = mk_tfg_edge(pc_to_phi_node->get_pc(), pc_to_phi_start_node->get_pc(), edgecond, state(), assumes, {}, te_comment);
   eimap.insert(make_pair(e1, I));
   t.add_edge(e1);
   pc_to_phi_node = pc_to_phi_start_node;
@@ -3729,7 +3699,7 @@ sym_exec_llvm::process_phi_nodes(tfg &t, map<llvm_value_id_t, string_ref>* value
     DYN_DEBUG2(llvm2tfg, cout << __func__ << " " << __LINE__ << " " << get_timestamp(as1, sizeof as1) << ": phi varname = " << varname << endl);
 
     state state_out;
-    unordered_set<expr_ref> state_assumes;
+    preds_t state_assumes;
     expr_ref val;
     tie(val, state_assumes) = phiInstructionGetIncomingBlockValue(I/*, t.get_start_state()*/, pc_to_phi_node/*, pc_to*/, B_from, F, model_llvm_semantics, t, value_to_name_map);
     DYN_DEBUG2(llvm2tfg, cout << __func__ << " " << __LINE__ << " " << get_timestamp(as1, sizeof as1) << ": found phi instruction: from_node = " << from_node->get_pc() << ": pc_to_phi_node = " << pc_to_phi_node->get_pc() << endl);
@@ -3760,7 +3730,7 @@ sym_exec_llvm::process_phi_nodes(tfg &t, map<llvm_value_id_t, string_ref>* value
     DYN_DEBUG2(llvm2tfg, cout << __func__ << " " << __LINE__ << " " << get_timestamp(as1, sizeof as1) << ": from_node = " << from_node->get_pc() << ": pc_to_phi_node = " << pc_to_phi_node->get_pc() << ", pc_to_phi_dst_node = " << pc_to_phi_dst_node->get_pc() << endl);
     //string const& bbindex = get_basicblock_index(*B_to);
     //bbl_order_descriptor_t const& bbo = this->m_bbl_order_map.at(mk_string_ref(bbindex));
-    auto e = mk_tfg_edge(pc_to_phi_node->get_pc(), pc_to_phi_dst_node->get_pc(), expr_true(m_ctx), state_out, vector<expr_ref>{state_assumes.begin(), state_assumes.end()}, {}, phi_node_to_te_comment(/*bbo, */inum, I));
+    auto e = mk_tfg_edge(pc_to_phi_node->get_pc(), pc_to_phi_dst_node->get_pc(), expr_true(m_ctx), state_out, state_assumes, {}, phi_node_to_te_comment(/*bbo, */inum, I));
     eimap.insert(make_pair(e, &I));
     t.add_edge(e);
     DYN_DEBUG2(llvm2tfg, cout << __func__ << " " << __LINE__ << " " << get_timestamp(as1, sizeof as1) << ": adding phi edge: " << e->to_string(/*&t.get_start_state()*/) << endl);
@@ -3808,7 +3778,7 @@ sym_exec_llvm::process_phi_nodes(tfg &t, map<llvm_value_id_t, string_ref>* value
 
 //template<typename FUNCTION, typename BASICBLOCK, typename INSTRUCTION>
 //void
-//sym_exec_llvm::process_phi_nodes_second_half(tfg &t, const llvm::BasicBlock* B_from, const pc& pc_to, shared_ptr<tfg_node> const &from_node, const llvm::Function& F, expr_ref edgecond, map<string, sort_ref> const &phi_regnames, unordered_set<expr_ref> const& assumes, te_comment_t const& te_comment, Instruction * I, map<shared_ptr<tfg_edge const>, Instruction *>& eimap)
+//sym_exec_llvm::process_phi_nodes_second_half(tfg &t, const llvm::BasicBlock* B_from, const pc& pc_to, shared_ptr<tfg_node> const &from_node, const llvm::Function& F, expr_ref edgecond, map<string, sort_ref> const &phi_regnames, preds_t const& assumes, te_comment_t const& te_comment, Instruction * I, map<shared_ptr<tfg_edge const>, Instruction *>& eimap)
 //{
 //  shared_ptr<tfg_node> pc_to_phi_node = from_node;
 //
@@ -3906,7 +3876,7 @@ sym_exec_llvm::get_cur_rounding_mode_var() const
 //  pc start_pc = sym_exec_llvm::get_start_pc(m_function);
 //  t_src.add_extra_node_at_start_pc(start_pc);
 //
-//  unordered_set<expr_ref> const& arg_assumes = this->gen_arg_assumes();
+//  preds_t const& arg_assumes = this->gen_arg_assumes();
 //  t_src.add_assumes_to_start_edge(arg_assumes);
 //
 //  t_src.tfg_initialize_rounding_mode_on_start_edge(this->get_cur_rounding_mode_varname(), m_rounding_mode_at_start_pc);
@@ -3940,15 +3910,17 @@ sym_exec_common::update_function_call_args_and_retvals_with_atlocals(dshared_ptr
   return false; //NOT_IMPLEMENTED();
 }
 
-unordered_set<expr_ref>
+preds_t
 sym_exec_llvm::gen_arg_assumes() const
 {
-  unordered_set<expr_ref> arg_assumes;
+  preds_t arg_assumes;
   for (const auto& arg : m_function.args()) {
     pair<argnum_t, expr_ref> const &a = m_arguments.at(get_value_name(arg));
     string Elname = get_value_name(arg)/* + SRC_INPUT_ARG_NAME_SUFFIX*/;
     Type *ElTy = arg.getType();
-    unordered_set_union(arg_assumes, gen_ptr_align_assumes(Elname, ElTy, a.second->get_sort()));
+    if (auto align_assume = gen_ptr_align_assume(Elname, ElTy, a.second->get_sort())) {
+      arg_assumes.emplace_back(align_assume, fails::safety_ptr_aligned);
+    }
   }
   return arg_assumes;
 }
@@ -4406,7 +4378,7 @@ sym_exec_common::get_tfg_common(tfg &t)
 //  return ss.str();
 //}
 
-pair<expr_ref, unordered_set<expr_ref>>
+pair<expr_ref, preds_t>
 sym_exec_llvm::phiInstructionGetIncomingBlockValue(llvm::Instruction const &I, dshared_ptr<tfg_node const> &pc_to_phi_node/*, pc const &pc_to*/, llvm::BasicBlock const *B_from, llvm::Function const &F, bool model_llvm_semantics, tfg &t, map<llvm_value_id_t, string_ref>* value_to_name_map)
 {
   const PHINode* phi = dyn_cast<const PHINode>(&I);
@@ -4417,7 +4389,7 @@ sym_exec_llvm::phiInstructionGetIncomingBlockValue(llvm::Instruction const &I, d
       continue;
     }
     expr_ref e;
-    unordered_set<expr_ref> assumes;
+    preds_t assumes;
     tie(e, assumes) = get_expr_adding_edges_for_intermediate_vals(*phi->getIncomingValue(i), "", state()/*t.get_start_state()*/, assumes, pc_to_phi_node, model_llvm_semantics, t, value_to_name_map);
     return make_pair(e, assumes);
   }
@@ -4727,7 +4699,7 @@ sym_exec_llvm::getParent(const Value *V) {
 //}
 //
 //vector<expr_ref>
-//sym_exec_llvm::get_poison_args(const llvm::Instruction& I/*, string vname*/, const state& st, unordered_set<expr_ref> const& state_assumes, dshared_ptr<tfg_node const> &from_node/*, pc const &pc_to, llvm::BasicBlock const &B, llvm::Function const &F*/, tfg &t, map<llvm_value_id_t, string_ref>* value_to_name_map)
+//sym_exec_llvm::get_poison_args(const llvm::Instruction& I/*, string vname*/, const state& st, preds_t const& state_assumes, dshared_ptr<tfg_node const> &from_node/*, pc const &pc_to, llvm::BasicBlock const &B, llvm::Function const &F*/, tfg &t, map<llvm_value_id_t, string_ref>* value_to_name_map)
 //{
 //  vector<expr_ref> args;
 //  for (unsigned i = 0; i < I.getNumOperands(); ++i) {
@@ -4768,7 +4740,7 @@ sym_exec_llvm::get_poison_value_var(string const& varname) const
 }
 
 void
-sym_exec_llvm::transfer_poison_values(string const& varname, expr_ref const& e, unordered_set<expr_ref>& state_assumes, dshared_ptr<tfg_node const>& from_node, bool model_llvm_semantics, tfg& t, map<llvm_value_id_t, string_ref>* value_to_name_map)
+sym_exec_llvm::transfer_poison_values(string const& varname, expr_ref const& e, preds_t& state_assumes, dshared_ptr<tfg_node const>& from_node, bool model_llvm_semantics, tfg& t, map<llvm_value_id_t, string_ref>* value_to_name_map)
 {
   if (!model_llvm_semantics) {
     return;
@@ -4793,7 +4765,7 @@ sym_exec_llvm::transfer_poison_values(string const& varname, expr_ref const& e, 
   expr_ref poison_expr;
   for (auto const& poison_var : poison_vars) {
     if (varname == "") {
-      state_assumes.insert(m_ctx->mk_not(poison_var));
+      state_assumes.emplace_back(m_ctx->mk_not(poison_var), fails::safety_llvm_val_not_poison);
     } else {
       if (poison_expr) {
         poison_expr = expr_or(poison_expr, poison_var);
@@ -4821,7 +4793,7 @@ sym_exec_llvm::transfer_poison_values(string const& varname, expr_ref const& e, 
 }
 
 void
-sym_exec_llvm::add_state_assume(string const& varname, expr_ref const& assume, state const& state_in, unordered_set<expr_ref>& assumes, dshared_ptr<tfg_node const>& from_node, bool model_llvm_semantics, tfg& t, map<llvm_value_id_t, string_ref>* value_to_name_map)
+sym_exec_llvm::add_state_assume(string const& varname, expr_with_fail const& assume, state const& state_in, preds_t& assumes, dshared_ptr<tfg_node const>& from_node, bool model_llvm_semantics, tfg& t, map<llvm_value_id_t, string_ref>* value_to_name_map)
 {
   if (model_llvm_semantics && varname != "") {
     string poison_varname = get_poison_value_varname(varname);
@@ -4829,27 +4801,27 @@ sym_exec_llvm::add_state_assume(string const& varname, expr_ref const& assume, s
 
     if (set_belongs(m_poison_varnames_seen, poison_varname)) {
       expr_ref poison_var = get_input_expr(poison_varname, m_ctx->mk_bool_sort());
-      poison_expr = m_ctx->mk_or(poison_var, assume);
+      poison_expr = m_ctx->mk_or(poison_var, assume.expr());
     } else {
-      poison_expr = assume;
+      poison_expr = assume.expr();
     }
     m_poison_varnames_seen.insert(poison_varname);
 
     state state_to_intermediate_val;
     state_set_expr(state_to_intermediate_val, poison_varname, poison_expr);
     dshared_ptr<tfg_node const> intermediate_node = get_next_intermediate_subsubindex_pc_node(t, from_node);
-    shared_ptr<tfg_edge const> e = mk_tfg_edge(from_node->get_pc(), intermediate_node->get_pc(), expr_true(m_ctx), state_to_intermediate_val, {}, {}, te_comment_t(-1,-1,"poison"));
+    shared_ptr<tfg_edge const> e = mk_tfg_edge(from_node->get_pc(), intermediate_node->get_pc(), expr_true(m_ctx), state_to_intermediate_val, {}, {}, te_comment_t(-1,-1,string("poison.")+assume.fail().to_string()));
     t.add_edge(e);
     from_node = intermediate_node;
   } else {
-    if (!assume->is_const_bool_true()) {
-      assumes.insert(assume);
+    if (!assume.expr()->is_const_bool_true()) {
+      assumes.emplace_back(assume);
     }
   }
 }
 
 void
-sym_exec_llvm::transfer_poison_value_on_load(string const& varname, expr_ref const& load_expr, unordered_set<expr_ref>& state_assumes, dshared_ptr<tfg_node const>& from_node, bool model_llvm_semantics, tfg& t, map<llvm_value_id_t, string_ref>* value_to_name_map)
+sym_exec_llvm::transfer_poison_value_on_load(string const& varname, expr_ref const& load_expr, preds_t& state_assumes, dshared_ptr<tfg_node const>& from_node, bool model_llvm_semantics, tfg& t, map<llvm_value_id_t, string_ref>* value_to_name_map)
 {
   if (!model_llvm_semantics) {
     return;
@@ -4877,7 +4849,7 @@ sym_exec_llvm::transfer_poison_value_on_load(string const& varname, expr_ref con
 
 
 void
-sym_exec_llvm::transfer_poison_value_on_store(expr_ref const& store_expr, unordered_set<expr_ref>& state_assumes, dshared_ptr<tfg_node const>& from_node, bool model_llvm_semantics, tfg& t, map<llvm_value_id_t, string_ref>* value_to_name_map)
+sym_exec_llvm::transfer_poison_value_on_store(expr_ref const& store_expr, preds_t& state_assumes, dshared_ptr<tfg_node const>& from_node, bool model_llvm_semantics, tfg& t, map<llvm_value_id_t, string_ref>* value_to_name_map)
 {
   if (!model_llvm_semantics) {
     return;
