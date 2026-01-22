@@ -37,10 +37,12 @@ calling_conventions_from_string(string const& s)
     return calling_conventions_t::LINUX_I386;
   if (s == "linux-amd64")
     return calling_conventions_t::LINUX_AMD64;
+  if (s == "borland-i386")
+    return calling_conventions_t::BORLAND_I386;
   return nullopt;
 }
 
-optional<dst_compiler_t>
+dst_compiler_t
 dst_compiler_from_string(string const& s)
 {
   if (s == "gcc")
@@ -57,9 +59,9 @@ dst_compiler_from_string(string const& s)
     return dst_compiler_t::ICX;
   if (s == "ack")
     return dst_compiler_t::ACK;
-  //if (s == "unknown")
+  if (s == "borland")
+    return dst_compiler_t::BORLAND;
   return dst_compiler_t::UNKNOWN;
-  // return nullopt;
 }
 
 sort_ref sym_exec_common::get_mem_domain() const

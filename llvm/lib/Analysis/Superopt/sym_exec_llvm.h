@@ -55,11 +55,11 @@ namespace eqspace {
   class llptfg_t;
 }
 
-enum class calling_conventions_t { LINUX_I386, LINUX_AMD64 };
-enum class dst_compiler_t { GCC, CLANG, ICC, ICX, ACK, UNKNOWN };
+enum class calling_conventions_t { LINUX_I386, LINUX_AMD64, BORLAND_I386 };
+enum class dst_compiler_t { GCC, CLANG, ICC, ICX, ACK, BORLAND, UNKNOWN };
 
 optional<calling_conventions_t> calling_conventions_from_string(string const& s);
-optional<dst_compiler_t> dst_compiler_from_string(string const& s);
+dst_compiler_t dst_compiler_from_string(string const& s);
 
 class sym_exec_llvm : public sym_exec_common
 {
@@ -265,8 +265,8 @@ private:
 
   int m_cur_undef_varname_idx = 0;
   //string const m_local_alloc_count_varname = "local_alloc_count";
-  calling_conventions_t const& m_cc;
-  dst_compiler_t const& m_dst_compiler;
+  calling_conventions_t const m_cc;
+  dst_compiler_t const m_dst_compiler;
 };
 
 #endif
