@@ -120,6 +120,10 @@ static std::unique_ptr<TargetLoweringObjectFile> createTLOF(const Triple &TT) {
 }
 
 static std::string computeDataLayout(const Triple &TT) {
+  if (TT.getEnvironment() == Triple::Borland) {
+    return "e-m:e-p:32:32-i64:64-f80:128-n8:16:32-a:0:8-S32";
+  }
+
   // X86 is little endian
   std::string Ret = "e";
 

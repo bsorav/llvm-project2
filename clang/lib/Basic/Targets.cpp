@@ -570,6 +570,8 @@ std::unique_ptr<TargetInfo> AllocateTarget(const llvm::Triple &Triple,
         return std::make_unique<CygwinX86_32TargetInfo>(Triple, Opts);
       case llvm::Triple::GNU:
         return std::make_unique<MinGWX86_32TargetInfo>(Triple, Opts);
+      case llvm::Triple::Borland:
+        return std::make_unique<Borland5X86_32TargetInfo>(Triple, Opts);
       case llvm::Triple::Itanium:
       case llvm::Triple::MSVC:
       default: // Assume MSVC for unknown environments

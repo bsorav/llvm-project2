@@ -250,6 +250,7 @@ public:
     MuslEABIHF,
     MuslX32,
 
+    Borland,
     MSVC,
     Itanium,
     Cygnus,

@@ -217,6 +217,7 @@ StringRef Triple::getVendorTypeName(VendorType Kind) {
 
   case AMD: return "amd";
   case Apple: return "apple";
+  case Borland: return "borland";
   case CSR: return "csr";
   case Freescale: return "fsl";
   case IBM: return "ibm";
@@ -671,6 +672,7 @@ static Triple::EnvironmentType parseEnvironment(StringRef EnvironmentName) {
       .StartsWith("musleabi", Triple::MuslEABI)
       .StartsWith("muslx32", Triple::MuslX32)
       .StartsWith("musl", Triple::Musl)
+      .StartsWith("borland", Triple::Borland)
       .StartsWith("msvc", Triple::MSVC)
       .StartsWith("itanium", Triple::Itanium)
       .StartsWith("cygnus", Triple::Cygnus)
