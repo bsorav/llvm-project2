@@ -7168,6 +7168,8 @@ Clang::ConstructCommand(Compilation & C, const JobAction &JA,
   // -fno-common is the default, set -fcommon only when that flag is set.
   Args.addOptInFlag(CmdArgs, options::OPT_fcommon, options::OPT_fno_common);
 
+  Args.AddLastArg(CmdArgs, options::OPT_fno_merge_string_literals);
+
   // -fsigned-bitfields is default, and clang doesn't yet support
   // -funsigned-bitfields.
   if (!Args.hasFlag(options::OPT_fsigned_bitfields,

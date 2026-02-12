@@ -3181,6 +3181,10 @@ def fno_builtin_ : Joined<["-"], "fno-builtin-">, Group<f_Group>,
 def fno_common : Flag<["-"], "fno-common">, Group<f_Group>,
   Visibility<[ClangOption, CC1Option]>,
     HelpText<"Compile common globals like normal definitions">;
+def fno_merge_string_literals : Flag<["-"], "fno-merge-string-literals">,
+  Group<f_Group>, Visibility<[ClangOption, CC1Option]>,
+  HelpText<"Do not merge identical string literals into a single global definition">,
+  MarshallingInfoFlag<CodeGenOpts<"NoMergeStringLiterals">>;
 defm digraphs : BoolFOption<"digraphs",
   LangOpts<"Digraphs">, Default<std#".hasDigraphs()">,
   PosFlag<SetTrue, [], [ClangOption], "Enable alternative token representations '<:', ':>', '<%', '%>', '%:', '%:%:' (default)">,
