@@ -4094,9 +4094,8 @@ sym_exec_common::get_constant_bytes(Constant const* c)
   const ConstantAggregateZero *Zero;
 
   //XXX: handle all cases using lib/IR/AsmWriter.cpp:WriteConstantInternal()
-  if ((Sequential = dyn_cast<ConstantDataSequential>(c))/* && Array->isString()*/) {
-    StringRef str;
-    str = Sequential->getRawDataValues();
+  if ((Sequential = dyn_cast<ConstantDataSequential>(c))) {
+    StringRef str = Sequential->getRawDataValues();
     vector<char> v;
     for (size_t i = 0; i < str.size(); i++) {
       v.push_back(str[i]);
@@ -4113,7 +4112,7 @@ sym_exec_common::get_constant_bytes(Constant const* c)
       val = val >> BYTE_LEN;
     }
     return v;
-  } else if ((Struct = dyn_cast<ConstantStruct>(c))/* && Array->isString()*/) {
+  } else if ((Struct = dyn_cast<ConstantStruct>(c))) {
     vector<char> v;
     for (size_t i = 0; i < Struct->getNumOperands(); i++) {
       Constant* field = Struct->getAggregateElement(i);
@@ -4127,17 +4126,14 @@ sym_exec_common::get_constant_bytes(Constant const* c)
     for (size_t i = 0; i < elemNum; i++) {
       Constant* ZSeq = Zero->getSequentialElement();
       ASSERT(ZSeq);
-      vector<char> fv;
-      if (ZSeq) {
-        fv = get_constant_bytes(ZSeq);
-      } else NOT_REACHED();
-      vector_append(v, fv);
+      vector_append(v, get_constant_bytes(ZSeq));
     }
     return v;
   } else if ((FP = dyn_cast<ConstantFP>(c))/* && Array->isString()*/) {
-    dbgs() << _FNLN_ << ": Unhandled FP constant\n";
+    dbgs() << _FNLN_ << ": Unhandled FP constant:" << *FP << '\n';
     NOT_IMPLEMENTED();
   } else {
+    dbgs() << _FNLN_ << ": Unhandled constant:" << *c << '\n';
     NOT_IMPLEMENTED();
   }
 }
