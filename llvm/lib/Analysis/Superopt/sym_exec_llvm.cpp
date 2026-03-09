@@ -4093,18 +4093,10 @@ sym_exec_common::get_constant_bytes(Constant const* c)
   const ConstantFP *FP;
   const ConstantAggregateZero *Zero;
 
-  //cout << __func__ << " " << __LINE__ << ": Array = " << Array << endl;
   //XXX: handle all cases using lib/IR/AsmWriter.cpp:WriteConstantInternal()
   if ((Sequential = dyn_cast<ConstantDataSequential>(c))/* && Array->isString()*/) {
-    // Get the number of elements in the array
-    //uint64_t NumElts = Array->getType()->getArrayNumElements();
-
-    // Start out with the entire array in the StringRef.
-    //str = Array->getAsString();
     StringRef str;
     str = Sequential->getRawDataValues();
-    //cout << __func__ << " " << __LINE__ << ": name = " << name << ", str = " << str.data() << "\n";
-    //m_string_contents[name] = str;
     vector<char> v;
     for (size_t i = 0; i < str.size(); i++) {
       v.push_back(str[i]);
@@ -4120,7 +4112,6 @@ sym_exec_common::get_constant_bytes(Constant const* c)
       v.push_back(val & MAKE_MASK(BYTE_LEN));
       val = val >> BYTE_LEN;
     }
-    //cout << __func__ << " " << __LINE__ << ": name = " << name << ", str = " << str.data() << ", val = " << val << ", bitwidth = " << bitwidth << "\n";
     return v;
   } else if ((Struct = dyn_cast<ConstantStruct>(c))/* && Array->isString()*/) {
     vector<char> v;
@@ -4131,20 +4122,14 @@ sym_exec_common::get_constant_bytes(Constant const* c)
     }
     return v;
   } else if ((Zero = dyn_cast<ConstantAggregateZero>(c))) {
-    //dbgs() << "zero element\n";
-    //unsigned elemNum = Zero->getNumElements();
     unsigned elemNum = Zero->getElementCount().getKnownMinValue();
     vector<char> v;
     for (size_t i = 0; i < elemNum; i++) {
       Constant* ZSeq = Zero->getSequentialElement();
       ASSERT(ZSeq);
-      //Constant* ZStruct = Zero->getStructElement(i);
-      //ASSERT(!ZSeq || !ZStruct);
       vector<char> fv;
       if (ZSeq) {
         fv = get_constant_bytes(ZSeq);
-      /*} else if (ZStruct) {
-        fv = get_constant_bytes(ZStruct);*/
       } else NOT_REACHED();
       vector_append(v, fv);
     }
