@@ -167,7 +167,7 @@ void FunctionLoweringInfo::set(const Function &fn, MachineFunction &mf,
                                           TFI->getStackIDForScalableVectors());
 
           StaticAllocaMap[AI] = FrameIndex;
-          errs() << __func__ << ' ' << __LINE__ << ": function " << Fn->getName().data() << " alloc " << AI->getName() << " at FI " << FrameIndex << '\n';
+          if (!AI->getName().empty()) errs() << __func__ << ' ' << __LINE__ << ": function " << Fn->getName().data() << " alloc " << AI->getName() << " at FI " << FrameIndex << '\n';
           // Update the catch handler information.
           if (Iter != CatchObjects.end()) {
             for (int *CatchObjPtr : Iter->second)
