@@ -480,14 +480,6 @@ DerivedArgList *Driver::TranslateInputArgs(const InputArgList &Args) const {
       continue;
     }
 
-    //if (CCCIsQCC()) {
-    //  if (   A->getOption().matches(options::OPT_O)
-    //      || A->getOption().matches(options::OPT_Ofast)
-    //      || A->getOption().matches(options::OPT_O4)) {
-    //      DAL->AddSeparateArg(A, Opts->getOption(options::OPT_O), "0");
-    //  }
-    //}
-
     DAL->append(A);
   }
 
@@ -1506,11 +1498,6 @@ Compilation *Driver::BuildCompilation(ArrayRef<const char *> ArgList) {
   // The compilation takes ownership of Args.
   Compilation *C = new Compilation(*this, TC, UArgs.release(), TranslatedArgs,
                                    ContainsError);
-
-  //DYN_DEBUG(clang_driver, llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": checking QCC. C->getJobs().size() = " << C->getJobs().size() << "\n");
-  //if (CCCIsQCC()) {
-  //  DYN_DEBUG(clang_driver, llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": TODO: need to add QCC handling. C->getJobs().size() = " << C->getJobs().size() << "\n");
-  //}
 
   if (!HandleImmediateArgs(*C))
     return C;
@@ -4803,9 +4790,6 @@ Action *Driver::ConstructPhaseAction(
     return C.MakeAction<CompileJobAction>(Input, types::TY_LLVM_BC);
   }
   case phases::Backend: {
-    //if (CCCIsQCC()) {
-    //  return C.MakeAction<QCCCodegenAction>(Input, types::TY_PP_Asm);
-    //}
     if (isUsingLTO() && TargetDeviceOffloadKind == Action::OFK_None) {
       types::ID Output;
       if (Args.hasArg(options::OPT_ffat_lto_objects) &&

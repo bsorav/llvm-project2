@@ -681,13 +681,15 @@ static bool handleBuffer(StringRef Filename, MemoryBufferRef Buffer,
   };
   if (auto *Obj = dyn_cast<ObjectFile>(BinOrErr->get())) {
     unsigned pointer_size = Obj->getBytesInAddress();
+    /*
     if (pointer_size == DWORD_LEN/BYTE_LEN) {
-      g_ctx->parse_consts_db(SUPEROPTDBS_DIR "/../etfg_i386/consts_db");
+      g_ctx->set_addr_size(DWORD_LEN);
     } else if (pointer_size == QWORD_LEN/BYTE_LEN) {
-      g_ctx->parse_consts_db(SUPEROPTDBS_DIR "/../etfg_x64/consts_db");
+      g_ctx->set_addr_size(QWORD_LEN);
     } else {
       NOT_REACHED();
     }
+    */
     std::unique_ptr<DWARFContext> DICtx =
       DWARFContext::create(*Obj, nullptr, "", RecoverableErrorHandler);
     if (!HandleObj(*Obj, *DICtx, Filename, OS))

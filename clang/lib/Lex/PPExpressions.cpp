@@ -883,8 +883,9 @@ Preprocessor::EvaluateDirectiveExpression(IdentifierInfo *&IfNDefMacro) {
 
   // Peek ahead one token.
   Token Tok;
+  Token StartTok;
   LexNonComment(Tok);
-
+  StartTok = Tok;
   // C99 6.10.1p3 - All expressions are evaluated as intmax_t or uintmax_t.
   unsigned BitWidth = getTargetInfo().getIntMaxTWidth();
 
@@ -900,6 +901,9 @@ Preprocessor::EvaluateDirectiveExpression(IdentifierInfo *&IfNDefMacro) {
     // Restore 'DisableMacroExpansion'.
     DisableMacroExpansion = DisableMacroExpansionAtStartOfDirective;
 
+    // MISRA C Rule 20.8
+    if (!ResVal.Val.isOne() && !ResVal.Val.isZero()) Diag(StartTok, diag::misra_c20_macro_if_elif_non_binary);
+ 
     // We cannot trust the source range from the value because there was a
     // parse error. Track the range manually -- the end of the directive is the
     // end of the condition range.
@@ -919,6 +923,10 @@ Preprocessor::EvaluateDirectiveExpression(IdentifierInfo *&IfNDefMacro) {
 
     // Restore 'DisableMacroExpansion'.
     DisableMacroExpansion = DisableMacroExpansionAtStartOfDirective;
+
+    // MISRA C Rule 20.8
+    if(!ResVal.Val.isOne() && !ResVal.Val.isZero()) Diag(StartTok, diag::misra_c20_macro_if_elif_non_binary);
+    
     return {ResVal.Val != 0, DT.IncludedUndefinedIds, ResVal.getRange()};
   }
 
@@ -932,6 +940,10 @@ Preprocessor::EvaluateDirectiveExpression(IdentifierInfo *&IfNDefMacro) {
 
     // Restore 'DisableMacroExpansion'.
     DisableMacroExpansion = DisableMacroExpansionAtStartOfDirective;
+
+    // MISRA C Rule 20.8
+    if(!ResVal.Val.isOne() && !ResVal.Val.isZero()) Diag(StartTok, diag::misra_c20_macro_if_elif_non_binary);
+
     return {false, DT.IncludedUndefinedIds, ResVal.getRange()};
   }
 
@@ -944,5 +956,9 @@ Preprocessor::EvaluateDirectiveExpression(IdentifierInfo *&IfNDefMacro) {
 
   // Restore 'DisableMacroExpansion'.
   DisableMacroExpansion = DisableMacroExpansionAtStartOfDirective;
+
+  // MISRA C Rule 20.8
+  if(!ResVal.Val.isOne() && !ResVal.Val.isZero()) Diag(StartTok, diag::misra_c20_macro_if_elif_non_binary);
+
   return {ResVal.Val != 0, DT.IncludedUndefinedIds, ResVal.getRange()};
 }

@@ -872,14 +872,35 @@ void Preprocessor::Lex(Token &Result) {
   if (CurLexer && CurLexer->ParsingFilename && Result.isLiteral()) {
     char const* filename = Result.getLiteralData();
     unsigned filename_len = Result.getLength();
+    // RESTRICTED FILENAMES
+    if (filename_len > 2 && filename[0] == '<' && filename[filename_len - 1] == '>') {
+      if (strncmp(filename, "<signal.h>", filename_len) == 0) {
+        Diag(Result, diag::misra_c215_include_signal_h);
+      }
+      else if (strncmp(filename, "<setjmp.h>", filename_len) == 0) {
+        Diag(Result, diag::misra_c214_include_setjmp_h);
+      }
+      else if (strncmp(filename, "<tgmath.h>", filename_len) == 0) {
+        Diag(Result, diag::misra_c21_11_include_tgmath_h);
+      }
+      else if ((strncmp(filename, "<stdnoreturn.h>", filename_len) == 0) ||
+               (strncmp(filename, "<stdatomic.h>", filename_len) == 0) ||
+               (strncmp(filename, "<thread.h>", filename_len) == 0) ||
+               (strncmp(filename, "<stdalign.h>", filename_len) == 0)) {
+        Diag(Result, diag::misra_c_1_4_emergent_headers_not_allowed) << std::string_view(filename+1, filename_len-2);
+      }
+      else if (strncmp(filename, "<stdarg.h>", filename_len) == 0) {
+        Diag(Result, diag::misra_c20_stdarg_should_not_be_used);
+      }
+    }
     if (memchr(filename, ',', filename_len)) {
-      Diag(Result, diag::ext_misra_c20_comma_in_include_filename);
+      Diag(Result, diag::misra_c20_comma_in_include_filename);
     }
     if (memchr(filename, '\\', filename_len)) {
-      Diag(Result, diag::ext_misra_c20_backslash_in_include_filename);
+      Diag(Result, diag::misra_c20_backslash_in_include_filename);
     }
     if (memmem(filename, filename_len, "/*", 2) || memmem(filename, filename_len, "//", 2)) {
-      Diag(Result, diag::ext_misra_c20_comment_in_include_filename);
+      Diag(Result, diag::misra_c20_comment_in_include_filename);
     }
   }
 

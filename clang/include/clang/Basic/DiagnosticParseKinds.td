@@ -1732,4 +1732,15 @@ def ext_hlsl_access_specifiers : ExtWarn<
   "access specifiers are a clang HLSL extension">,
   InGroup<HLSLExtension>;
 
+//MISRA C warnings
+def misra_warn_comment_contains_comment : Warning<
+  "MISRA C Rule 3.1 : Comment is not permitted inside a comment">,
+  InGroup<MisraC20R_3_1>, DefaultIgnore;
+def ext_misra_warn_inline_comments_line_sliced : Warning<
+  "MISRA C Rule 3.2 : Line-splicing is not permitted in // comments.">,
+  InGroup<MisraC20R_3_2>, DefaultIgnore;
+
+def misra_c20_static_keyword_in_array_parameter_declaration : Warning<
+  "MISRA C Rule 17.6: static keyword not permitted in array parameter decaration.">,
+  InGroup<MisraC20R_17_6>, DefaultIgnore;
 } // end of Parser diagnostics

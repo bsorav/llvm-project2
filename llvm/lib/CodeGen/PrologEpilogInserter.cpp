@@ -712,7 +712,6 @@ static inline void AdjustStackOffset(MachineFrameInfo &MFI, int FrameIdx,
                                      bool StackGrowsDown, int64_t &Offset,
                                      Align &MaxAlign,
                                      std::string const& FnName = "") {
-  //errs() << __func__ << " " << __LINE__ << ": PrologEpilogInserter AdjustStackOffset() called.\n";
   // If the stack grows down, add the object size to find the lowest address.
   auto ObjSz = MFI.getObjectSize(FrameIdx);
   if (StackGrowsDown)

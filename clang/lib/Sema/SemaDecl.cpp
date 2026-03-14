@@ -3722,6 +3722,32 @@ bool Sema::MergeFunctionDecl(FunctionDecl *New, NamedDecl *&OldD, Scope *S,
       return true;
     }
   }
+  // MISRA C Rule 8.3: Check parameter names and qualifiers
+  unsigned NumParams = New->getNumParams();
+  for (unsigned i = 0; i < NumParams; ++i) {
+    ParmVarDecl *OldParam = Old->getParamDecl(i);
+    ParmVarDecl *NewParam = New->getParamDecl(i);
+
+    // Check parameter names
+    if (OldParam->getIdentifier() != NewParam->getIdentifier()) {
+      Diag(NewParam->getLocation(), diag::misra_c20_misra_param_name_mismatch)
+        << (i + 1)
+        << (OldParam->getIdentifier() ? OldParam->getIdentifier()->getName() : "")
+        << (NewParam->getIdentifier() ? NewParam->getIdentifier()->getName() : "");
+      Diag(OldParam->getLocation(), diag::note_previous_declaration);
+    }
+
+    // Check parameter type qualifiers (const, volatile, etc.)
+    QualType OldParamTy = OldParam->getType();
+    QualType NewParamTy = NewParam->getType();
+    if (OldParamTy.getLocalQualifiers() != NewParamTy.getLocalQualifiers()) {
+      Diag(NewParam->getLocation(), diag::misra_c20_misra_param_qual_mismatch)
+          << (i + 1)
+          << OldParamTy.getQualifiers().getAsString()
+          << NewParamTy.getQualifiers().getAsString();
+      Diag(OldParam->getLocation(), diag::note_previous_declaration);
+    }
+  }
 
   // If the old declaration was found in an inline namespace and the new
   // declaration was qualified, update the DeclContext to match.
@@ -6220,6 +6246,12 @@ Decl *Sema::ActOnDeclarator(Scope *S, Declarator &D) {
 
   Decl *Dcl = HandleDeclarator(S, D, MultiTemplateParamsArg());
 
+  if (NamedDecl *ND = dyn_cast<NamedDecl>(Dcl)) {
+    if (ND->hasExternalFormalLinkage()) {
+      CheckDuplicateExternalIdentifier(*this, ND);
+    }
+  }
+
   if (OriginalLexicalContext && OriginalLexicalContext->isObjCContainer() &&
       Dcl && Dcl->getDeclContext()->isFileContext())
     Dcl->setTopLevelDeclInObjCContainer();
@@ -6227,7 +6259,34 @@ Decl *Sema::ActOnDeclarator(Scope *S, Declarator &D) {
   if (!Bases.empty())
     ActOnFinishedFunctionDefinitionInOpenMPDeclareVariantScope(Dcl, Bases);
 
+  if (VarDecl *VD = dyn_cast<VarDecl>(Dcl)) {
+    if (VD->getType()->isVariableArrayType()) {
+      Diag(Dcl->getLocation(), diag::misra_c20_variable_array_type)
+        << Dcl->getSourceRange();
+    }
+  }
   return Dcl;
+}
+
+void Sema::CheckDuplicateExternalIdentifier(Sema &SemaRef, const NamedDecl *ND) {
+  if (const clang::VarDecl *VD = llvm::dyn_cast<clang::VarDecl>(ND)) {
+    if(VD->getStorageClass() != clang::SC_Extern) return;
+  }
+  if (const clang::FunctionDecl *FD = llvm::dyn_cast<clang::FunctionDecl>(ND)) {
+    if(FD->getStorageClass() != clang::SC_Extern) return;
+  }
+
+  constexpr unsigned C99_EXTERNAL_IDENTIFIERS_SIGNIFICANT_CHARS = 31;
+  StringRef Name = ND->getName().substr(0,C99_EXTERNAL_IDENTIFIERS_SIGNIFICANT_CHARS);
+  SourceLocation Loc = ND->getLocation();
+
+  auto It = ExternalIdentifiers.find(Name);
+  if (It != ExternalIdentifiers.end()) {
+    Diag(Loc, diag::misra_c20_duplicate_external_identifier) << ND->getIdentifier();
+    Diag(It->second, diag::note_previous_declaration);
+  } else {
+    ExternalIdentifiers[Name] = Loc;
+  }
 }
 
 /// DiagnoseClassNameShadow - Implement C++ [class.mem]p13:
@@ -7561,6 +7620,13 @@ NamedDecl *Sema::ActOnVariableDeclarator(
   DeclarationName Name = GetNameForDeclarator(D).getName();
 
   IdentifierInfo *II = Name.getAsIdentifierInfo();
+  
+  // MISRA C Rule 8.14
+  if (TInfo->getType().isRestrictQualified()) {
+    Diag(D.getDeclSpec().getTypeSpecTypeLoc(), diag::misra_c20_restrict_qualifier)
+      << D.getIdentifier()->getName();
+  }
+
   bool IsPlaceholderVariable = false;
 
   if (D.isDecompositionDeclarator()) {
@@ -7651,6 +7717,11 @@ NamedDecl *Sema::ActOnVariableDeclarator(
   if (!getLangOpts().CPlusPlus) {
     NewVD = VarDecl::Create(Context, DC, D.getBeginLoc(), D.getIdentifierLoc(),
                             II, R, TInfo, SC);
+
+    SourceLocation Loc = NewVD->getLocation();
+    if (Loc.isMacroID()) {
+      Diag(NewVD->getLocation(), diag::misra_c20_macro_as_identifier_used);
+    }
 
     if (R->getContainedDeducedType())
       ParsingInitForAutoVars.insert(NewVD);
@@ -9837,6 +9908,14 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
                                               isVirtualOkay);
   if (!NewFD) return nullptr;
 
+  // MISRA C Rule 8.10
+  if (D.getDeclSpec().isInlineSpecified()) {
+    if (SC != SC_Static) {
+      Diag(D.getIdentifierLoc(), diag::misra_c20_inline_not_static)
+        << D.getIdentifier()->getName();
+    }
+  }
+
   if (OriginalLexicalContext && OriginalLexicalContext->isObjCContainer())
     NewFD->setTopLevelDeclInObjCContainer();
 
@@ -10353,10 +10432,21 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
   // Finally, we know we have the right number of parameters, install them.
   NewFD->setParams(Params);
 
+  // MISRA C Rule 8.2: Check for unnamed parameters
+  for (const auto *Param : NewFD->parameters()) {
+    if (Param->getName().empty()) {
+      Diag(Param->getLocation(), diag::misra_C20_warn_missing_parameter_name)
+          << NewFD->getIdentifier();
+    }
+  }
+
   if (D.getDeclSpec().isNoreturnSpecified())
+  {
+    Diag(D.getDeclSpec().getNoreturnSpecLoc(), diag::misra_c_1_4_emergent_feature_noreturn_not_allowed);
     NewFD->addAttr(
         C11NoReturnAttr::Create(Context, D.getDeclSpec().getNoreturnSpecLoc()));
 
+  }
   // Functions returning a variably modified type violate C99 6.7.5.2p2
   // because all functions have linkage.
   if (!NewFD->isInvalidDecl() &&
@@ -15125,6 +15215,12 @@ Decl *Sema::ActOnParamDeclarator(Scope *S, Declarator &D,
 
   // Check for redeclaration of parameters, e.g. int foo(int x, int x);
   IdentifierInfo *II = D.getIdentifier();
+  // MISRA C Rule 8.14
+  if (parmDeclType.isRestrictQualified()) {
+    Diag(DS.getTypeSpecTypeLoc(), diag::misra_c20_restrict_qualifier)
+      << D.getIdentifier()->getName();
+  }
+
   if (II) {
     LookupResult R(*this, II, D.getIdentifierLoc(), LookupOrdinaryName,
                    ForVisibleRedeclaration);
@@ -18220,8 +18316,31 @@ void Sema::ActOnStartCXXMemberDeclarations(Scope *S, Decl *TagD,
          "Broken injected-class-name");
 }
 
+static FieldDecl const* HasFlexibleArrayMember(const RecordDecl *RD) {
+  for (const auto *Field : RD->fields()) {
+    if (const auto *AT = dyn_cast<ArrayType>(Field->getType().getTypePtr())) {
+      if (AT->isIncompleteArrayType()) {
+        return Field;
+      }
+      if (const auto *CAT = dyn_cast<ConstantArrayType>(AT)) {
+        if (CAT->getSize().getZExtValue() == 1) {
+          return Field;
+        }
+      }
+    }
+  }
+  return nullptr;
+}
+
 void Sema::ActOnTagFinishDefinition(Scope *S, Decl *TagD,
                                     SourceRange BraceRange) {
+  if (RecordDecl *RD = dyn_cast_or_null<RecordDecl>(TagD)) {
+    if (FieldDecl const* FD = HasFlexibleArrayMember(RD)) {
+      Diag(FD->getLocation(), diag::misra_c20_flexible_array_type)
+        << FD->getSourceRange();
+      Diag(RD->getLocation(), diag::note_defined_here) << "in struct";
+    }
+  }
   AdjustDeclIfTemplate(TagD);
   TagDecl *Tag = cast<TagDecl>(TagD);
   Tag->setBraceRange(BraceRange);
@@ -18431,6 +18550,10 @@ FieldDecl *Sema::HandleField(Scope *S, RecordDecl *Record,
 
   TypeSourceInfo *TInfo = GetTypeForDeclarator(D);
   QualType T = TInfo->getType();
+  if (Loc.isMacroID()) {
+    Diag(Loc, diag::misra_c20_macro_as_identifier_used);
+  }
+
   if (getLangOpts().CPlusPlus) {
     CheckExtraCXXDefaultArguments(D);
 
@@ -19395,6 +19518,21 @@ void Sema::ActOnFields(Scope *S, SourceLocation RecLoc, Decl *EnclosingDecl,
     // Keep track of the number of named members.
     if (FD->getIdentifier())
       ++NumNamedMembers;
+
+    // MISRA C Rule 6.1, 6.2
+    if (FD->isBitField()) {
+      QualType FT_B_Field = FD->getType();
+      if (FT_B_Field->isSpecificBuiltinType(clang::BuiltinType::Int)) {
+        ASTContext &Context_new = EnclosingDecl->getASTContext();
+        unsigned int bit_field_length = FD->getBitWidthValue(Context_new);
+        if(bit_field_length < 2) {
+          Diag(FD->getLocation(), diag::misra_c20_bit_fields_of_signed_must_be_greater) << FD->getDeclName();        
+        }
+      }
+      else if(!(FT_B_Field->isSpecificBuiltinType(clang::BuiltinType::UInt))) {
+        Diag(FD->getLocation(), diag::misra_c20_bit_fields_must_be_signed_or_unsigned) << FD->getDeclName();
+      }
+    }
   }
 
   // Okay, we successfully defined 'Record'.

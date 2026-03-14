@@ -54,6 +54,7 @@
 #include "clang/Basic/TargetInfo.h"
 #include "clang/Basic/TypeTraits.h"
 #include "clang/Lex/Lexer.h" // TODO: Extract static functions to fix layering.
+#include "clang/Lex/Preprocessor.h"
 #include "clang/Sema/Initialization.h"
 #include "clang/Sema/Lookup.h"
 #include "clang/Sema/Ownership.h"
@@ -7676,6 +7677,86 @@ bool Sema::CheckFunctionCall(FunctionDecl *FDecl, CallExpr *TheCall,
   // simple names (e.g., C++ conversion functions).
   if (!FnInfo)
     return false;
+
+  clang::Preprocessor& pp = this->getPreprocessor();
+  auto headerFiles  = pp.getIncludedHeaderFileNames();
+  bool IsStdIOIncluded   = headerFiles.count("<stdio.h>");
+  bool IsStdLibIncluded  = headerFiles.count("<stdlib.h>");
+  bool IsStdTimeIncluded = headerFiles.count("<time.h>");
+  // MISRA C Rule 21.6
+  if (IsStdIOIncluded &&
+      (FnInfo->getName() == "scanf" || 
+       FnInfo->getName() == "fscanf" || 
+       FnInfo->getName() == "sscanf" || 
+       FnInfo->getName() == "gets" || 
+       FnInfo->getName() == "fgets" || 
+       FnInfo->getName() == "printf" || 
+       FnInfo->getName() == "fprintf" || 
+       FnInfo->getName() == "sprintf" || 
+       FnInfo->getName() == "snprintf" || 
+       FnInfo->getName() == "puts" || 
+       FnInfo->getName() == "fputs" || 
+       FnInfo->getName() == "fopen" || 
+       FnInfo->getName() == "fclose" || 
+       FnInfo->getName() == "fread" || 
+       FnInfo->getName() == "fwrite" || 
+       FnInfo->getName() == "fgetc" || 
+       FnInfo->getName() == "fputc" || 
+       FnInfo->getName() == "ungetc" || 
+       FnInfo->getName() == "feof" || 
+       FnInfo->getName() == "ferror" || 
+       FnInfo->getName() == "fflush")) {
+    Diag(TheCall->getExprLoc(), diag::misra_c20_std_io_not_allowed)
+      << TheCall->getSourceRange();
+  }
+  // MISRA C Rule 21.7
+  if (IsStdLibIncluded && (FnInfo->getName() == "atoi" || FnInfo->getName() == "atol" || FnInfo->getName() == "atof" || FnInfo->getName() == "atoll")) {
+    Diag(TheCall->getExprLoc(), diag::misra_c20_std_converter_not_allowed)
+      << TheCall->getSourceRange();
+  }
+  // MISRA C Rule 21.8
+  if (IsStdLibIncluded &&
+      (FnInfo->getName() == "exit" || 
+       FnInfo->getName() == "abort" || 
+       FnInfo->getName() == "atexit" || 
+       FnInfo->getName() == "quick_exit" || 
+       FnInfo->getName() == "_Exit" || 
+       FnInfo->getName() == "exit" || 
+       FnInfo->getName() == "longjmp" || 
+       FnInfo->getName() == "setjmp")) {
+    Diag(TheCall->getExprLoc(), diag::misra_c20_std_termination_func_not_allowed)
+      << TheCall->getSourceRange();
+  }
+  // MISRA C Rule 21.9
+  if (IsStdLibIncluded && (FnInfo->getName() == "bsearch" || FnInfo->getName() == "qsort")) {
+    Diag(TheCall->getExprLoc(), diag::misra_c20_std_bsearch_and_qsort_not_allowed)
+      << TheCall->getSourceRange();
+  }
+  // MISRA C Rule 21.10
+  if (IsStdTimeIncluded &&
+      (FnInfo->getName() == "time" || 
+       FnInfo->getName() == "clock" || 
+       FnInfo->getName() == "difftime" || 
+       FnInfo->getName() == "mktime" || 
+       FnInfo->getName() == "asctime" || 
+       FnInfo->getName() == "ctime" || 
+       FnInfo->getName() == "gmtime" || 
+       FnInfo->getName() == "localtime" || 
+       FnInfo->getName() == "strftime" || 
+       FnInfo->getName() == "strptime" || 
+       FnInfo->getName() == "tzset" || 
+       FnInfo->getName() == "clock_gettime" || 
+       FnInfo->getName() == "clock_settime" || 
+       FnInfo->getName() == "clock_getres" || 
+       FnInfo->getName() == "nanosleep")) {
+    Diag(TheCall->getExprLoc(), diag::misra_c20_std_date_and_time_not_allowed)
+      << TheCall->getSourceRange();
+  }
+  // MISRA C Rule 21.21
+  if (IsStdLibIncluded && FnInfo->getName() == "system") {
+    Diag(TheCall->getExprLoc(), diag::misra_c20_std_system_func_not_allowed)
+      << TheCall->getSourceRange();
+  }
 
   // Enforce TCB except for builtin calls, which are always allowed.
   if (FDecl->getBuiltinID() == 0)

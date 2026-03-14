@@ -36,6 +36,33 @@ public:
   explicit ActionCommentHandler(Sema &S) : S(S) { }
 
   bool HandleComment(Preprocessor &PP, SourceRange Comment) override {
+
+    // MISRA C Rule 3.1
+    StringRef CommentText = Lexer::getSourceText(CharSourceRange::getTokenRange(Comment), PP.getSourceManager(), PP.getLangOpts());
+    if (CommentText.find("/*") != StringRef::npos){
+      if (CommentText.find("/*", CommentText.find("/*") + 1) != StringRef::npos){
+        S.Diag(Comment.getBegin().getLocWithOffset(CommentText.find("/*", CommentText.find("/*") + 1)), diag::misra_warn_comment_contains_comment);
+      }
+      if (CommentText.find("//", CommentText.find("/*") + 1) != StringRef::npos){
+        S.Diag(Comment.getBegin().getLocWithOffset(CommentText.find("//", CommentText.find("/*") + 1)), diag::misra_warn_comment_contains_comment);
+      }
+    }
+    if (CommentText.find("//") != StringRef::npos){
+        if (CommentText.find("//", CommentText.find("//") + 1) != StringRef::npos){
+          S.Diag(Comment.getBegin().getLocWithOffset(CommentText.find("//", CommentText.find("//") + 1)), diag::misra_warn_comment_contains_comment);
+        }
+        if (CommentText.find("/*", CommentText.find("//") + 1) != StringRef::npos){
+          S.Diag(Comment.getBegin().getLocWithOffset(CommentText.find("/*", CommentText.find("//") + 1)), diag::misra_warn_comment_contains_comment);
+        }
+    }
+    if (CommentText.find("//") == 0){
+      int index_of_next_line_char = CommentText.find("\n");
+      int index_of_backslash = CommentText.rfind('\\', index_of_next_line_char);
+      if (index_of_next_line_char != -1){
+        S.Diag(Comment.getBegin().getLocWithOffset(index_of_backslash), diag::ext_misra_warn_inline_comments_line_sliced);
+      }
+    }
+
     S.ActOnComment(Comment);
     return false;
   }

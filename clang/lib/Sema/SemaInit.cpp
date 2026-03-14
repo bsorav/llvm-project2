@@ -1210,6 +1210,8 @@ static void warnBracedScalarInit(Sema &S, const InitializedEntity &Entity,
   }
 }
 
+static bool IsZeroInitializer(Expr *Initializer, Sema &S);
+
 /// Check whether the initializer \p IList (that was written with explicit
 /// braces) can be used to initialize an object of type \p T.
 ///
@@ -1222,6 +1224,34 @@ void InitListChecker::CheckExplicitInitList(const InitializedEntity &Entity,
   unsigned Index = 0, StructuredIndex = 0;
   CheckListElementTypes(Entity, IList, T, /*SubobjectIsDesignatorContext=*/true,
                         Index, StructuredList, StructuredIndex, TopLevelObject);
+  // MISRA C Rule 13.1: Check for persistent side effect in Initializer list
+  if (StructuredList) {
+    ASTContext &Context = SemaRef.Context;
+    for (Expr *Init : IList->inits()) {
+      if (Init->HasSideEffects(Context, /*IncludePossibleEffects=*/true)) {
+        SemaRef.Diag(Init->getBeginLoc(), diag::misra_c20_initializer_list_contain_persistent_side_effects) << Init->getType() << Init->getSourceRange();
+      }
+    }
+  }
+
+  auto InitSz = IList->getNumInits();
+  if (StructuredList && T->isArrayType() && InitSz &&
+      T->getPointeeOrArrayElementType()->getTypeClass() == IList->inits()[0]->getType()->getTypeClass()) {
+    unsigned DesignatedCnt = 0;
+    for (Expr *Init : IList->inits()) DesignatedCnt += !!dyn_cast<DesignatedInitExpr>(Init);
+    // MISRA C Rule 9.3: against partial initialization (except {0}, string initialization and only designated initialization)
+    if (const ConstantArrayType *CAT = dyn_cast<ConstantArrayType>(T)) {
+      auto ArraySize = CAT->getSize().getZExtValue();
+      if (InitSz < ArraySize && DesignatedCnt != InitSz &&
+          (InitSz != 1 || !IsZeroInitializer(IList->inits()[0], SemaRef))) {
+        SemaRef.Diag(IList->getBeginLoc(), diag::misra_c20_partial_array_initialization)
+          << InitSz << ArraySize;
+      }
+    }
+    if (dyn_cast<IncompleteArrayType>(T) && DesignatedCnt) {
+      SemaRef.Diag(IList->getBeginLoc(), diag::misra_c20_array_designated_initialization_without_specified_size_explicitly);
+    }
+  }
   if (StructuredList) {
     QualType ExprTy = T;
     if (!ExprTy->isArrayType())
@@ -8478,6 +8508,15 @@ static void CheckForNullPointerDereference(Sema &S, const Expr *E) {
   }
 }
 
+static void CheckForFilePointerDereference(Sema &S, Expr *E) {
+  const auto *UO = dyn_cast<UnaryOperator>(E->IgnoreParenCasts());
+  if (UO && UO->getOpcode() == UO_Deref &&
+      UO->getSubExpr()->getType()->isPointerType()) {
+      //QualType PointeeType = UO->getSubExpr()->getType()->getPointeeType();
+      // NOT_IMPLEMENTED()
+    }
+}
+
 MaterializeTemporaryExpr *
 Sema::CreateMaterializeTemporaryExpr(QualType T, Expr *Temporary,
                                      bool BoundToLvalueReference) {
@@ -8815,6 +8854,8 @@ ExprResult InitializationSequence::Perform(Sema &S,
       }
 
       CheckForNullPointerDereference(S, CurInit.get());
+      CheckForFilePointerDereference(S, CurInit.get());
+
       break;
 
     case SK_BindReferenceToTemporary: {

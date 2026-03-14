@@ -85,13 +85,6 @@ def warn_c99_keyword : Warning<"'%0' is a keyword in C99">,
 def warn_c23_keyword : Warning<"'%0' is a keyword in C23">,
   InGroup<C23Compat>, DefaultIgnore;
 
-def ext_misra_c20_comma_in_include_filename : ExtWarn<
-  "MISRA-C20: comma not permitted in include filename.">, InGroup<MisraC20ImproperIncludeFilename>;
-def ext_misra_c20_backslash_in_include_filename : ExtWarn<
-  "MISRA-C20: backslash not permitted in include filename.">, InGroup<MisraC20ImproperIncludeFilename>;
-def ext_misra_c20_comment_in_include_filename : ExtWarn<
-  "MISRA-C20: comment not permitted in include filename.">, InGroup<MisraC20ImproperIncludeFilename>;
-
 def ext_unterminated_char_or_string : ExtWarn<
   "missing terminating %select{'|'\"'}0 character">, InGroup<InvalidPPToken>;
 def ext_empty_character : ExtWarn<"empty character constant">,
@@ -217,7 +210,6 @@ def warn_ucn_not_valid_in_c89 : Warning<
   "treating as '\\' followed by identifier">, InGroup<Unicode>;
 def warn_ucn_not_valid_in_c89_literal : ExtWarn<
   "universal character names are only valid in C99 or C++">, InGroup<Unicode>;
-
 
 // Literal
 def ext_nonstandard_escape : Extension<
@@ -382,7 +374,7 @@ def pp_macro_not_used : Warning<"macro is not used">, DefaultIgnore,
   InGroup<DiagGroup<"unused-macros">>;
 def warn_pp_undef_identifier : Warning<
   "%0 is not defined, evaluates to 0">,
-  InGroup<DiagGroup<"undef">>, DefaultIgnore;
+  InGroup<PPUndefIdentifier>, DefaultIgnore;
 def warn_pp_undef_prefix : Warning<
   "%0 is not defined, evaluates to 0">,
   InGroup<DiagGroup<"undef-prefix">>, DefaultIgnore;
@@ -490,7 +482,7 @@ def ext_pp_gnu_line_directive : Extension<
 def err_pp_invalid_directive : Error<
   "invalid preprocessing directive%select{|, did you mean '#%1'?}0">;
 def warn_pp_invalid_directive : Warning<
-  err_pp_invalid_directive.Summary>, InGroup<DiagGroup<"unknown-directives">>;
+  err_pp_invalid_directive.Summary>, InGroup<PPUnknownDirectives>;
 def err_pp_directive_required : Error<
   "%0 must be used within a preprocessing directive">;
 def err_pp_file_not_found : Error<"'%0' file not found">, DefaultFatal;
@@ -986,4 +978,56 @@ Error<"'#pragma unsafe_buffer_usage' was not ended">;
 
 def err_pp_pragma_unsafe_buffer_usage_syntax :
 Error<"Expected 'begin' or 'end'">;
+
+// MISRA C warnings
+def misra_c20_repeated_include_filename : Warning<
+  "MISRA C Directive 4.10: repeated filename %0 not permitted in include filename.">,
+  InGroup<MisraC20D_4_10>, DefaultIgnore;
+
+def misra_c_1_4_emergent_headers_not_allowed : Warning<
+  "MISRA C Rule 1.4: Emergent language header %0 is not permitted.">,
+  InGroup<MisraC20R_1_4>, DefaultIgnore;
+
+def misra_c20_warn_octal_literal : Warning<
+  "MISRA C Rule 7.1: use of octal constants is not permitted">,
+  InGroup<MisraC20R_7_1>, DefaultIgnore;
+def misra_c20_warn_lowercase_l_suffix : Warning<
+  "MISRA C Rule 7.3: The lowercase character 'l' shall not be used in a literal suffix">,
+  InGroup<MisraC20R_7_3>, DefaultIgnore;
+
+def misra_c20_stdarg_should_not_be_used : Warning<
+  "MISRA C Rule 17.1: The header file stdarg.h should not be used.">,
+  InGroup<MisraC20R_17_1>, DefaultIgnore;
+
+def misra_c20_comma_in_include_filename : Warning<
+  "MISRA C Rule 20.2: comma not permitted in include filename.">,
+  InGroup<MisraC20R_20_2>, DefaultIgnore;
+def misra_c20_backslash_in_include_filename : Warning<
+  "MISRA C Rule 20.2: backslash not permitted in include filename.">,
+  InGroup<MisraC20R_20_2>, DefaultIgnore;
+def misra_c20_comment_in_include_filename : Warning<
+  "MISRA C Rule 20.2: comment not permitted in include filename.">,
+  InGroup<MisraC20R_20_2>, DefaultIgnore;
+def misra_c20_preprocessing_directive_token_within_macro_argument : Warning<
+  "MISRA C Rule 20.6: Preprocessing Directive Token within Macro Argument.">,
+  InGroup<MisraC20R_20_6>, DefaultIgnore;
+def misra_c20_missing_macro_parenthesis : Warning<
+  "MISRA C Rule 20.7: Expression resulting from macro expansion shall have parameters enclosed in parenthesis">,
+  InGroup<MisraC20R_20_7>, DefaultIgnore;
+def misra_c20_macro_if_elif_non_binary : Warning<
+  "MISRA C Rule 20.8: The conditional does not evaluate to one or zero">,
+  InGroup<MisraC20R_20_8>, DefaultIgnore;
+def misra_c20_hashash_after_hash : Warning<
+  "MISRA C Rule 20.11: ## used after #">,
+  InGroup<MisraC20R_20_11>, DefaultIgnore;
+
+def misra_c214_include_setjmp_h : Warning<
+  "MISRA C Rule 21.4: setjmp.h is not permitted to use.">,
+  InGroup<MisraC20R_21_4>, DefaultIgnore;
+def misra_c215_include_signal_h : Warning<
+  "MISRA C Rule 21.5: signal.h is not permitted to use.">,
+  InGroup<MisraC20R_21_5>, DefaultIgnore;
+def misra_c21_11_include_tgmath_h : Warning<
+  "MISRA C Rule 21.11: tgmath.h is not permitted to use.">,
+  InGroup<MisraC20R_21_11>, DefaultIgnore;
 }

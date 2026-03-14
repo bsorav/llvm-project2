@@ -4757,10 +4757,6 @@ Clang::ConstructCommand(Compilation & C, const JobAction &JA,
   CmdArgs.push_back("-triple");
   CmdArgs.push_back(Args.MakeArgString(TripleStr));
 
-  //if (C.getDriver().CCCIsQCC()) { //for QCC, Clang should disable all optimizations
-  //  CmdArgs.push_back("-disable-O0-optnone");
-  //}
-
   if (const Arg *MJ = Args.getLastArg(options::OPT_MJ)) {
     DumpCompilationDatabase(C, MJ->getValue(), TripleStr, Output, Input, Args);
     Args.ClaimAllArgs(options::OPT_MJ);
@@ -5155,13 +5151,11 @@ Clang::ConstructCommand(Compilation & C, const JobAction &JA,
 
     // Optimization level for CodeGen.
     if (const Arg *A = Args.getLastArg(options::OPT_O_Group)) {
-      /*if (!C.getDriver().CCCIsQCC()) */{ //for QCC, Clang should disable all optimizations
-        if (A->getOption().matches(options::OPT_O4)) {
-          CmdArgs.push_back("-O3");
-          D.Diag(diag::warn_O4_is_O3);
-        } else {
-          A->render(Args, CmdArgs);
-        }
+      if (A->getOption().matches(options::OPT_O4)) {
+        CmdArgs.push_back("-O3");
+        D.Diag(diag::warn_O4_is_O3);
+      } else {
+        A->render(Args, CmdArgs);
       }
     }
 
@@ -6079,13 +6073,11 @@ Clang::ConstructCommand(Compilation & C, const JobAction &JA,
   // Manually translate -O4 to -O3; let clang reject others.
 
   if (Arg *A = Args.getLastArg(options::OPT_O_Group)) {
-    /*if (!C.getDriver().CCCIsQCC()) */{ //for QCC, Clang should disable all optimizations
-      if (A->getOption().matches(options::OPT_O4)) {
-        CmdArgs.push_back("-O3");
-        D.Diag(diag::warn_O4_is_O3);
-      } else {
-        A->render(Args, CmdArgs);
-      }
+    if (A->getOption().matches(options::OPT_O4)) {
+      CmdArgs.push_back("-O3");
+      D.Diag(diag::warn_O4_is_O3);
+    } else {
+      A->render(Args, CmdArgs);
     }
   }
 
@@ -7215,7 +7207,7 @@ Clang::ConstructCommand(Compilation & C, const JobAction &JA,
   // Enable vectorization per default according to the optimization level
   // selected. For optimization levels that want vectorization we use the alias
   // option to simplify the hasFlag logic.
-  bool EnableVec = /*!C.getDriver().CCCIsQCC() && */shouldEnableVectorizerAtOLevel(Args, false);
+  bool EnableVec = shouldEnableVectorizerAtOLevel(Args, false);
   OptSpecifier VectorizeAliasOption =
       EnableVec ? options::OPT_O_Group : options::OPT_fvectorize;
   if (Args.hasFlag(options::OPT_fvectorize, VectorizeAliasOption,
@@ -7639,7 +7631,7 @@ Clang::ConstructCommand(Compilation & C, const JobAction &JA,
       bool IsOptLevelSupported = false;
 
       Arg *A = Args.getLastArg(options::OPT_O_Group);
-      if (/*!C.getDriver().CCCIsQCC() && */Triple.getArch() == llvm::Triple::aarch64) {
+      if (Triple.getArch() == llvm::Triple::aarch64) {
         if (!A || A->getOption().matches(options::OPT_O0))
           IsOptLevelSupported = true;
       }

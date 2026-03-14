@@ -234,25 +234,24 @@ main(int argc, char **argv)
     errs() << "could not open input filename:" << InputFilename1 << "\n";
   }
 
-  assert(M1 /*&& M2*/);
+  assert(M1);
   DYN_DEBUG(llvm2tfg, errs() << "InputFilename = " << InputFilename1 << "\n");
-
-  g_ctx_init(false);
-  g_query_dir_init();
-  solver_init();
-  context *ctx = g_ctx;
   DataLayout const& dl = M1->getDataLayout();
   unsigned pointer_size = dl.getPointerSize();
-  //cout << __func__ << " " << __LINE__ << ": pointer_size = " << pointer_size << endl;
-  MSG("Parsing consts db...");
+  unsigned addr_size = 0;
+  MSG("Initializing context...");
   if (pointer_size == QWORD_LEN/BYTE_LEN) {
-    ctx->parse_consts_db(SUPEROPTDBS_DIR "/../etfg_x64/consts_db");
+    addr_size = QWORD_LEN;
   } else if (pointer_size == DWORD_LEN/BYTE_LEN) {
-    ctx->parse_consts_db(SUPEROPTDBS_DIR "/../etfg_i386/consts_db");
+    addr_size = DWORD_LEN;
   } else {
     NOT_REACHED();
   }
-  MSG("done Parsing consts db...");
+  g_ctx_init(addr_size);
+  g_query_dir_init();
+  solver_init();
+  context *ctx = g_ctx;
+  MSG("done initializing context...");
 
   string OutputFilename_tmp = [](){
       ostringstream ss;

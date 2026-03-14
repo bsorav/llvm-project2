@@ -1978,7 +1978,15 @@ void Preprocessor::HandleIncludeDirective(SourceLocation HashLoc,
       DiscardUntilEndOfDirective();
     return;
   }
-
+  auto Filename = getSpelling(FilenameTok);
+  // Check if the filename has already been included
+  if (IncludedHeaderFileNames.count(Filename) > 0) {
+    // Handle repeated inclusion warning
+    Diag(IncludeTok.getLocation(), diag::misra_c20_repeated_include_filename) << Filename;
+  } else {
+    // Add the filename to the set of included header files
+    IncludedHeaderFileNames.insert(Filename);
+  }
   // Verify that there is nothing after the filename, other than EOD.  Note
   // that we allow macros that expand to nothing after the filename, because
   // this falls into the category of "#include pp-tokens new-line" specified
@@ -2689,7 +2697,7 @@ void Preprocessor::HandleIncludeMacrosDirective(SourceLocation HashLoc,
 /// parsing the param list.
 bool Preprocessor::ReadMacroParameterList(MacroInfo *MI, Token &Tok) {
   SmallVector<IdentifierInfo*, 32> Parameters;
-
+  static std::set<llvm::StringRef> PreprocessingDirectiveTokens = {"define","ifdef","undef","include","ifndef","endif","if","else","error","warning","region","endregion"};
   while (true) {
     LexUnexpandedNonComment(Tok);
     switch (Tok.getKind()) {
@@ -2744,6 +2752,12 @@ bool Preprocessor::ReadMacroParameterList(MacroInfo *MI, Token &Tok) {
 
       // Add the parameter to the macro info.
       Parameters.push_back(II);
+
+      // MISRA C Rule 20.6
+      StringRef MacroParamName = II->getName();
+      if (PreprocessingDirectiveTokens.count(MacroParamName)) {
+        Diag(Tok, diag::misra_c20_preprocessing_directive_token_within_macro_argument);
+      }
 
       // Lex the token after the identifier.
       LexUnexpandedNonComment(Tok);
@@ -3090,10 +3104,24 @@ void Preprocessor::HandleDefineDirective(
       MacroNameTok, ImmediatelyAfterHeaderGuard);
 
   if (!MI) return;
+  
+  // MISRA C Rule 20.11
+  if (MI->CheckForHash(*this)) {
+    Diag(MacroNameTok, diag::misra_c20_hashash_after_hash);
+  }
 
   if (MacroShadowsKeyword &&
       !isConfigurationPattern(MacroNameTok, MI, getLangOpts())) {
     Diag(MacroNameTok, diag::warn_pp_macro_hides_keyword);
+  }
+  // if starts with '__' or '_[A-Z]' warn about hiding keywords
+  bool isReserved=II->getName().starts_with("__") || (II->getName().starts_with("_") && II->getName().size() > 1 &&isUppercase(II->getName()[1])) 
+      || II->getName().starts_with("_") || ((II->getName().starts_with("str") || II->getName().starts_with("mem") || II->getName().starts_with("wcs")) &&
+      II->getName().size() > 3 && islower(II->getName()[3]));
+  if(isReserved) {
+    if (!II->getName().starts_with("__GCC_HAVE_DWARF2_CFI_ASM")) {
+      Diag(MacroNameTok, diag::warn_pp_macro_hides_keyword);
+    }
   }
   // Check that there is no paste (##) operator at the beginning or end of the
   // replacement list.
@@ -3119,6 +3147,11 @@ void Preprocessor::HandleDefineDirective(
     // Issue the diagnostic but allow the change if msvc extensions are enabled
     if (!LangOpts.MicrosoftExt)
       return;
+  }
+  // MISRA C Rule 20.7
+  if (MI->checkMacroParams(*this)) {
+    Diag(MI->getDefinitionLoc(), diag::misra_c20_missing_macro_parenthesis)
+      << MacroNameTok.getIdentifierInfo();
   }
 
   // Finally, if this identifier already had a macro defined for it, verify that
@@ -3249,7 +3282,15 @@ void Preprocessor::HandleUndefDirective() {
 
     Undef = AllocateUndefMacroDirective(MacroNameTok.getLocation());
   }
-
+  // if starts with '__' or '_[A-Z]' warn about hiding keywords
+  bool isReserved=II->getName().starts_with("__") || (II->getName().starts_with("_") && II->getName().size() > 1 &&isUppercase(II->getName()[1])) 
+      || II->getName().starts_with("_") || ((II->getName().starts_with("str") || II->getName().starts_with("mem") || II->getName().starts_with("wcs")) &&
+      II->getName().size() > 3 && islower(II->getName()[3]));
+  if(isReserved) {
+    if (!II->getName().starts_with("__GCC_HAVE_DWARF2_CFI_ASM")) {
+      Diag(MacroNameTok, diag::warn_pp_macro_hides_keyword);
+    }
+  }
   // If the callbacks want to know, tell them about the macro #undef.
   // Note: no matter if the macro was defined or not.
   if (Callbacks)

@@ -4,21 +4,21 @@
 #include "expr/pc.h"
 #include "expr/expr.h"
 
-#include <unordered_set>
+#include "gsupport/edge_with_assumes_and_wfconds.h"
 
 using namespace eqspace;
 
 class control_flow_transfer
 {
 public:
-  control_flow_transfer(pc const &p_from, pc const &p_to, expr_ref const& cond, expr_ref const& tgt = nullptr, std::unordered_set<expr_ref> const& assumes = {})
+  control_flow_transfer(pc const &p_from, pc const &p_to, expr_ref const& cond, expr_ref const& tgt = nullptr, preds_t const& assumes = {})
     : m_pc_from(p_from), m_pc_to(p_to),
       m_condition(cond),
       m_target(tgt),
       m_assumes(assumes)
   { }
 
-  control_flow_transfer(pc const &p_from, pc const &p_to, expr_ref const& cond, std::unordered_set<expr_ref> const& assumes)
+  control_flow_transfer(pc const &p_from, pc const &p_to, expr_ref const& cond, preds_t const& assumes)
     : control_flow_transfer(p_from, p_to, cond, nullptr, assumes)
   { }
 
@@ -27,14 +27,14 @@ public:
   expr_ref const &get_target() const { return m_target; }
   expr_ref const &get_condition() const { ASSERT(m_condition); return m_condition; }
   bool is_indir_type() const { return m_target != nullptr; }
-  std::unordered_set<expr_ref> const& get_assumes() const { return m_assumes; }
+  preds_t const& get_assumes() const { return m_assumes; }
 
 private:
   pc m_pc_from;
   pc m_pc_to;
   expr_ref m_condition;
   expr_ref m_target;
-  std::unordered_set<expr_ref> m_assumes;
+  preds_t m_assumes;
 };
 
 inline ostream& operator<<(ostream& os, control_flow_transfer const& cft)

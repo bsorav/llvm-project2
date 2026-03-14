@@ -200,7 +200,7 @@ Lexer *Lexer::Create_PragmaLexer(SourceLocation SpellingLoc,
                                  SourceLocation ExpansionLocEnd,
                                  unsigned TokLen, Preprocessor &PP) {
   SourceManager &SM = PP.getSourceManager();
-
+  
   // Create the lexer as if we were going to lex the file normally.
   FileID SpellingFID = SM.getFileID(SpellingLoc);
   llvm::MemoryBufferRef InputFile = SM.getBufferOrFake(SpellingFID);
@@ -1994,6 +1994,10 @@ bool Lexer::LexNumericConstant(Token &Result, const char *CurPtr) {
       CurPtr -= Size;
       break;
     }
+    if (C == 'l') {  // Check if the last character is a lowercase 'l'.
+      Diag(CurPtr-Size, diag::misra_c20_warn_lowercase_l_suffix);
+    }
+    
     C = getCharAndSize(CurPtr, Size);
   }
 

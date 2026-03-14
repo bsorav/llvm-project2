@@ -2780,24 +2780,76 @@ static bool CheckedIntArithmetic(EvalInfo &Info, const Expr *E,
   return true;
 }
 
+static void checkUnsignedIntegerWrapAround(EvalInfo &Info, const BinaryOperator *E,
+                              const APSInt &LHS, BinaryOperatorKind Opcode,
+                              APSInt RHS, APSInt &Result){
+  QualType LHSType = E->getLHS()->getType();
+  if (LHSType->isUnsignedIntegerType()) {
+    // Perform operation and check for overflow
+    bool HasUnsignedOverflow=false;
+    switch (Opcode) {
+    case BO_Add:
+      if (Result < LHS)
+        HasUnsignedOverflow = true;
+      break;
+    case BO_Sub:
+      if (LHS < RHS)
+        HasUnsignedOverflow = true;
+      break;
+    case BO_Mul:
+      if (RHS != 0 && (Result / RHS) != LHS)
+        HasUnsignedOverflow = true;
+      break;
+    case BO_Shl: {
+      uint64_t ShiftAmount = RHS.getZExtValue();
+      unsigned BitWidth = LHS.getBitWidth();
+
+      if (ShiftAmount >= BitWidth) {
+        // Shift amount >= bit width → overflow
+        HasUnsignedOverflow = true;
+      } else {
+        // Check if any bits shifted out would be set
+        APSInt Mask(APInt::getHighBitsSet(LHS.getBitWidth(), ShiftAmount), /*IsUnsigned=*/true);
+        HasUnsignedOverflow = (LHS & Mask) != 0;
+      }
+      break;
+    }
+    default:
+      break;
+    }
+    if (HasUnsignedOverflow) {
+      Info.Ctx.getDiagnostics().Report(E->getBeginLoc(), diag::misra_c20_unsigned_overflow)
+            << E->getSourceRange();
+    }
+  }
+  //............................................................
+}
+
 /// Perform the given binary integer operation.
 static bool handleIntIntBinOp(EvalInfo &Info, const BinaryOperator *E,
                               const APSInt &LHS, BinaryOperatorKind Opcode,
                               APSInt RHS, APSInt &Result) {
   bool HandleOverflowResult = true;
+  bool Success;
   switch (Opcode) {
   default:
     Info.FFDiag(E);
     return false;
   case BO_Mul:
-    return CheckedIntArithmetic(Info, E, LHS, RHS, LHS.getBitWidth() * 2,
+    Success=CheckedIntArithmetic(Info, E, LHS, RHS, LHS.getBitWidth() * 2,
                                 std::multiplies<APSInt>(), Result);
+    checkUnsignedIntegerWrapAround(Info,E,LHS,Opcode,RHS,Result);
+    return Success;
   case BO_Add:
-    return CheckedIntArithmetic(Info, E, LHS, RHS, LHS.getBitWidth() + 1,
+    Success= CheckedIntArithmetic(Info, E, LHS, RHS, LHS.getBitWidth() + 1,
                                 std::plus<APSInt>(), Result);
+    checkUnsignedIntegerWrapAround(Info,E,LHS,Opcode,RHS,Result);
+    return Success;
   case BO_Sub:
-    return CheckedIntArithmetic(Info, E, LHS, RHS, LHS.getBitWidth() + 1,
+    Success= CheckedIntArithmetic(Info, E, LHS, RHS, LHS.getBitWidth() + 1,
                                 std::minus<APSInt>(), Result);
+    checkUnsignedIntegerWrapAround(Info,E,LHS,Opcode,RHS,Result);
+    return Success;
   case BO_And: Result = LHS & RHS; return true;
   case BO_Xor: Result = LHS ^ RHS; return true;
   case BO_Or:  Result = LHS | RHS; return true;
@@ -2847,6 +2899,7 @@ static bool handleIntIntBinOp(EvalInfo &Info, const BinaryOperator *E,
         Info.CCEDiag(E, diag::note_constexpr_lshift_discards);
     }
     Result = LHS << SA;
+    checkUnsignedIntegerWrapAround(Info,E,LHS,Opcode,RHS,Result);
     return true;
   }
   case BO_Shr: {

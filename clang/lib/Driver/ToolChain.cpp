@@ -434,12 +434,6 @@ unsigned ToolChain::GetDefaultDwarfVersion() const {
   return getTriple().isRISCV() ? 4 : 5;
 }
 
-//Tool *ToolChain::getQcc() const {
-//  if (!Qcc)
-//    Qcc.reset(new tools::Qcc(*this));
-//  return Qcc.get();
-//}
-
 Tool *ToolChain::getClang() const {
   if (!Clang)
     Clang.reset(new tools::Clang(*this, useIntegratedBackend()));

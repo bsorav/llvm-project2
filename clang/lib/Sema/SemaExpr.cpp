@@ -585,6 +585,25 @@ static void CheckForNullPointerDereference(Sema &S, Expr *E) {
   }
 }
 
+// MISRA C Rule 22.5:check is we are dereferencing a file pointer
+// If so then raise a warning.  Handled only for unary case.
+static void CheckForFilePointerDereference(Sema &S, Expr *E) {
+  const auto *UO = dyn_cast<UnaryOperator>(E->IgnoreParenCasts());
+  if (UO && UO->getOpcode() == UO_Deref &&
+      UO->getSubExpr()->getType()->isPointerType()){
+    QualType PointeeType = UO->getSubExpr()->getType()->getPointeeType();
+    if (PointeeType.getAsString() == "FILE") {
+      // Emit a diagnostic for dereferencing a FILE pointer.
+      S.Diag(UO->getOperatorLoc(), diag::misra_c20_dereferencing_file_pointer)
+        << UO->getSubExpr()->getSourceRange();
+      return; // Issue detected, no need to check further.
+    }
+  }
+}
+
+
+
+
 static void DiagnoseDirectIsaAccess(Sema &S, const ObjCIvarRefExpr *OIRE,
                                     SourceLocation AssignLoc,
                                     const Expr* RHS) {
@@ -688,6 +707,8 @@ ExprResult Sema::DefaultLvalueConversion(Expr *E) {
   }
 
   CheckForNullPointerDereference(*this, E);
+  CheckForFilePointerDereference(*this, E);
+
   if (const ObjCIsaExpr *OISA = dyn_cast<ObjCIsaExpr>(E->IgnoreParenCasts())) {
     NamedDecl *ObjectGetClass = LookupSingleName(TUScope,
                                      &Context.Idents.get("object_getClass"),
@@ -7175,6 +7196,23 @@ ExprResult Sema::ActOnCallExpr(Scope *Scope, Expr *Fn, SourceLocation LParenLoc,
     if (const auto *CE = dyn_cast<CallExpr>(Call.get()))
       DiagnosedUnqualifiedCallsToStdFunctions(*this, CE);
   }
+  
+  // MISRA C Rule 21.3 && Directive 4.12
+  if (LangOpts.C99) {
+    if (CallExpr *CE = dyn_cast<CallExpr>(Call.get())) {
+      if (FunctionDecl *CalleeFnDecl = CE->getDirectCallee()) {
+        if (CalleeFnDecl->getIdentifier()) {
+          auto Name = CalleeFnDecl->getName();
+          if(Name.equals("malloc") || Name.equals("free") || Name.equals("realloc") || Name.equals("calloc") || Name.equals("aligned_alloc")) {
+            Diag(Fn->getExprLoc(), diag::misra_c20_warn_dynamic_alloc) << Fn->getSourceRange();
+            Diag(Fn->getExprLoc(), diag::misra_c20_warn_alloc_dealloc_stdlib) << Fn->getSourceRange();
+          }
+        }
+      }
+    }
+  }
+
+
   return Call;
 }
 
@@ -14677,6 +14715,7 @@ QualType Sema::CheckAssignmentOperands(Expr *LHSExpr, ExprResult &RHS,
     return QualType();
 
   CheckForNullPointerDereference(*this, LHSExpr);
+  CheckForFilePointerDereference(*this, LHSExpr);
 
   if (getLangOpts().CPlusPlus20 && LHSType.isVolatileQualified()) {
     if (CompoundType.isNull()) {
@@ -16065,6 +16104,30 @@ ExprResult Sema::ActOnBinOp(Scope *S, SourceLocation TokLoc,
   assert(LHSExpr && "ActOnBinOp(): missing left expression");
   assert(RHSExpr && "ActOnBinOp(): missing right expression");
 
+  // MISRA C Rule 10.1: check types of operands: bools
+  if (Opc == BO_And || Opc == BO_Or || Opc == BO_Xor || Opc == BO_AndAssign || Opc == BO_OrAssign || Opc == BO_XorAssign) {
+    if (RHSExpr && RHSExpr->getType()->isBooleanType()) {
+      Diag(RHSExpr->getExprLoc(), diag::misra_c20_bool_operand_for_bitwise_operator);
+    }
+    if (LHSExpr && LHSExpr->getType()->isBooleanType()) {
+      Diag(LHSExpr->getExprLoc(), diag::misra_c20_bool_operand_for_bitwise_operator);
+    }
+  }
+  // MISRA Rule 13.5: Check if RHS of &&,|| contains persistent side effects
+  if (Opc == BO_LAnd || Opc == BO_LOr) {
+    if (RHSExpr->HasSideEffects(Context, /*IncludePossibleEffects=*/true)) {
+      Diag(RHSExpr->getExprLoc(), diag::misra_c20_side_effects_logical_rhs) << RHSExpr->getType() << RHSExpr->getSourceRange();
+    }
+  }
+  // MISRA Rule 10.4: Check if the LHS and RHS have same essential type in usual arithmetic conversions
+  std::unordered_set<BinaryOperatorKind> ArithmeticOperators = {BO_Mul,BO_Div,BO_Rem,BO_Add,BO_Sub,BO_MulAssign,BO_DivAssign,BO_RemAssign,BO_AddAssign,BO_SubAssign};
+  if (ArithmeticOperators.count(Opc) && LHSExpr && RHSExpr && LHSExpr->getType() != RHSExpr->getType()){
+    bool LHSFlag = LHSExpr->getType()->isAnyCharacterType();
+    bool RHSFlag = (RHSExpr->getType()->isIntegralOrEnumerationType() || RHSExpr->getType()->isUnsignedIntegerType());
+    if (!(LHSFlag && RHSFlag && (Opc == BO_Add || Opc == BO_AddAssign || Opc == BO_Sub || Opc == BO_SubAssign))){
+      Diag(TokLoc, diag::misra_c20_distinct_operand_type_in_usual_arithmetic_conversions);
+    }
+  }
   // Emit warnings for tricky precedence issues, e.g. "bitfield & 0x4 == 0"
   DiagnoseBinOpPrecedence(*this, Opc, TokLoc, LHSExpr, RHSExpr);
 
@@ -16262,6 +16325,15 @@ ExprResult Sema::BuildBinOp(Scope *S, SourceLocation OpLoc,
     return BinaryOperator::Create(Context, LHSExpr, RHSExpr, Opc, ResultType,
                                   VK_PRValue, OK_Ordinary, OpLoc,
                                   CurFPFeatureOverrides());
+  }
+
+  // MISRA C Rule 10.2: restrictions on essentially char objects operations
+  QualType LHSType = LHSExpr->getType();
+  QualType RHSType = RHSExpr->getType();
+  if (Opc == BO_Add) {
+    if (LHSType->isCharType() && RHSType->isCharType()) {
+      Diag(OpLoc, diag::misra_c20_char_type_in_arithmetic);
+    }
   }
 
   // Build a built-in binary operation.
@@ -17656,6 +17728,10 @@ bool Sema::DiagnoseAssignmentResult(AssignConvertType ConvTy,
                                     bool *Complained) {
   if (Complained)
     *Complained = false;
+  
+  if (IsStringLiteralToNonConstPointerConversion(SrcExpr, DstType) ) {
+    Diag(SrcExpr->getExprLoc(), diag::misra_c20_warn_non_const_char_pointer) << DstType << SrcType << SrcExpr->getSourceRange();
+  }
 
   // Decode the result (notice that AST's are still created for extensions).
   bool CheckInferredResultType = false;

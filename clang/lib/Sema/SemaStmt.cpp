@@ -26,6 +26,7 @@
 #include "clang/AST/TypeLoc.h"
 #include "clang/AST/TypeOrdering.h"
 #include "clang/Basic/TargetInfo.h"
+#include "clang/Basic/OperatorPrecedence.h"
 #include "clang/Lex/Preprocessor.h"
 #include "clang/Sema/Initialization.h"
 #include "clang/Sema/Lookup.h"
@@ -245,7 +246,6 @@ void Sema::DiagnoseUnusedExprResult(const Stmt *S, unsigned DiagID) {
   SourceRange R1, R2;
   if (!E->isUnusedResultAWarning(WarnExpr, Loc, R1, R2, Context))
     return;
-
   // If this is a GNU statement expression expanded from a macro, it is probably
   // unused because it is a function-like macro that can be used as either an
   // expression or statement.  Don't warn, because it is almost certainly a
@@ -906,6 +906,30 @@ StmtResult Sema::ActOnIfStmt(SourceLocation IfLoc,
   if (!ConstevalOrNegatedConsteval && !elseStmt)
     DiagnoseEmptyStmtBody(RParenLoc, thenStmt, diag::warn_empty_if_body);
 
+  // MISRA C Rule 15.6
+  if (thenStmt && !isa<CompoundStmt>(thenStmt)) {
+    Diag(thenStmt->getBeginLoc(), diag::misra_c20_iteration_or_selection_body_not_compound)
+      << thenStmt->getSourceRange();
+  }
+  if (elseStmt && !isa<IfStmt>(elseStmt) && !isa<CompoundStmt>(elseStmt)) {
+    Diag(elseStmt->getBeginLoc(), diag::misra_c20_iteration_or_selection_body_not_compound)
+      << elseStmt->getSourceRange();
+  }
+
+  // MISRA C Rule 15.7
+  if (elseStmt && isa<IfStmt>(elseStmt)) {
+    IfStmt *ifStmt = cast<IfStmt>(elseStmt);
+    if (!ifStmt->hasElseStorage()) {
+      Diag(elseStmt->getEndLoc(), diag::misra_c20_else_not_found);
+    }
+  }
+
+  // MISRA C Rule 14.4: controlling expression shall have essentially boolean type
+  if (CondExpr && !CondExpr->isTypeDependent() &&
+      CondExpr->getType()->isIntegralOrEnumerationType() && CondExpr->isKnownToHaveBooleanValue()) {
+    Diag(IfLoc, diag::misra_c20_controlling_expr_must_be_boolean) << CondExpr->getSourceRange();
+  }
+
   if (ConstevalOrNegatedConsteval ||
       StatementKind == IfStatementKind::Constexpr) {
     auto DiagnoseLikelihood = [&](const Stmt *S) {
@@ -1236,6 +1260,12 @@ Sema::ActOnFinishSwitchStmt(SourceLocation SwitchLoc, Stmt *Switch,
 
   QualType CondType = CondExpr->getType();
 
+  // MISRA C Rule 15.6
+  if (BodyStmt && !isa<CompoundStmt>(BodyStmt)) {
+    Diag(BodyStmt->getBeginLoc(), diag::misra_c20_iteration_or_selection_body_not_compound)
+      << BodyStmt->getSourceRange();
+  }
+
   // C++ 6.4.2.p2:
   // Integral promotions are performed (on the switch condition).
   //
@@ -1276,14 +1306,21 @@ Sema::ActOnFinishSwitchStmt(SourceLocation SwitchLoc, Stmt *Switch,
   DefaultStmt *TheDefaultStmt = nullptr;
 
   bool CaseListIsErroneous = false;
-
+  // MISRA C Rule 16.5: We have to look for the following pattern:
+  // case --> default --> case
+  // denote cnd1 and cnd2.
+  bool cnd1 = false, cnd2 = false;
+  bool hasCase = false;
+  bool hasRaised = false;
+  int total = 0;
   // FIXME: We'd better diagnose missing or duplicate default labels even
   // in the dependent case. Because default labels themselves are never
   // dependent.
   for (SwitchCase *SC = SS->getSwitchCaseList(); SC && !HasDependentValue;
        SC = SC->getNextSwitchCase()) {
-
+    total++;
     if (DefaultStmt *DS = dyn_cast<DefaultStmt>(SC)) {
+      if(hasCase) cnd1 = true; // default comes after a case.
       if (TheDefaultStmt) {
         Diag(DS->getDefaultLoc(), diag::err_multiple_default_labels_defined);
         Diag(TheDefaultStmt->getDefaultLoc(), diag::note_duplicate_case_prev);
@@ -1297,6 +1334,14 @@ Sema::ActOnFinishSwitchStmt(SourceLocation SwitchLoc, Stmt *Switch,
       TheDefaultStmt = DS;
 
     } else {
+      // MISRA C Rule 16.5
+      hasCase = true;
+      if (TheDefaultStmt) { cnd2 = true;/* case comes after a default*/ }
+      if (cnd1 && cnd2 && !hasRaised) {
+        Diag(TheDefaultStmt->getDefaultLoc(), diag::misra_c20_switch_default_not_at_extreme);
+        hasRaised = true;
+      }
+
       CaseStmt *CS = cast<CaseStmt>(SC);
 
       Expr *Lo = CS->getLHS();
@@ -1334,6 +1379,10 @@ Sema::ActOnFinishSwitchStmt(SourceLocation SwitchLoc, Stmt *Switch,
       } else
         CaseVals.push_back(std::make_pair(LoVal, CS));
     }
+  }
+  // MISRA C Rule 16.6: less than 2 clauses
+  if(total < 2) {
+    Diag(SwitchLoc, diag::misra_c20_switch_not_enough_clauses);
   }
 
   if (!HasDependentValue) {
@@ -1709,6 +1758,19 @@ StmtResult Sema::ActOnWhileStmt(SourceLocation WhileLoc,
   if (isa<NullStmt>(Body))
     getCurCompoundScope().setHasEmptyLoopBodies();
 
+  // MISRA C Rule 14.4: controlling expression shall have essentially boolean type
+  Expr* CondExpr = CondVal.second;
+  if (CondExpr && !CondExpr->isTypeDependent() &&
+      CondExpr->getType()->isIntegralOrEnumerationType() && CondExpr->isKnownToHaveBooleanValue()) {
+    Diag(WhileLoc, diag::misra_c20_controlling_expr_must_be_boolean) << CondExpr->getSourceRange();
+  }
+  // MISRA C Rule 15.6
+  if (Body && !isa<CompoundStmt>(Body)) {
+    Diag(Body->getBeginLoc(), diag::misra_c20_iteration_or_selection_body_not_compound)
+        << Body->getSourceRange();
+  }
+
+  CheckBreakGotoCount(Body, WhileLoc);
   return WhileStmt::Create(Context, CondVal.first, CondVal.second, Body,
                            WhileLoc, LParenLoc, RParenLoc);
 }
@@ -1734,6 +1796,17 @@ Sema::ActOnDoStmt(SourceLocation DoLoc, Stmt *Body,
   if (Cond && !getLangOpts().C99 && !getLangOpts().CPlusPlus &&
       !Diags.isIgnored(diag::warn_comma_operator, Cond->getExprLoc()))
     CommaVisitor(*this).Visit(Cond);
+
+  // MISRA C Rule 14.4: controlling expression shall have essentially boolean type
+  if (Cond && !Cond->isTypeDependent() &&
+      Cond->getType()->isIntegralOrEnumerationType() && Cond->isKnownToHaveBooleanValue()) {
+    Diag(WhileLoc, diag::misra_c20_controlling_expr_must_be_boolean) << Cond->getSourceRange();
+  }
+  // MISRA C Rule 15.6
+  if (Body && !isa<CompoundStmt>(Body)) {
+    Diag(Body->getBeginLoc(), diag::misra_c20_iteration_or_selection_body_not_compound)
+        << Body->getSourceRange();
+  }
 
   return new (Context) DoStmt(Body, Cond, DoLoc, WhileLoc, CondRParen);
 }
@@ -2137,6 +2210,64 @@ void Sema::CheckBreakContinueBinding(Expr *E) {
         << "continue";
   }
 }
+void clang::getLoopCounterVariables(const Expr *E, llvm::SmallVectorImpl<const VarDecl *> &Vars) {
+  if (!E)
+    return;
+
+  if (const DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(E)) {
+    if (const VarDecl *VD = dyn_cast<VarDecl>(DRE->getDecl())) {
+      Vars.push_back(VD);
+    }
+  } else if (const BinaryOperator *BO = dyn_cast<BinaryOperator>(E)) {
+    getLoopCounterVariables(BO->getLHS(), Vars);
+    getLoopCounterVariables(BO->getRHS(), Vars);
+  } else if (const UnaryOperator *UO = dyn_cast<UnaryOperator>(E)) {
+    getLoopCounterVariables(UO->getSubExpr(), Vars);
+  } else if (const ParenExpr *PE = dyn_cast<ParenExpr>(E)) {
+    getLoopCounterVariables(PE->getSubExpr(), Vars);
+  }else if (const ImplicitCastExpr *ICE = dyn_cast<ImplicitCastExpr>(E)) {
+    getLoopCounterVariables(ICE->getSubExpr(), Vars);
+  }
+
+}
+
+std::unordered_set<std::string> CountBreakGoto(Stmt *S, bool inNested, int& BreakCount, int& GotoCount) {
+  std::unordered_set<std::string> insideGotoLabels;
+  if (!S) return insideGotoLabels;
+  for (Stmt *SubStmt : S->children()) {
+    if (!SubStmt) continue;
+    if (isa<BreakStmt>(SubStmt)) {
+      if (!inNested) BreakCount++;
+    } else if (isa<GotoStmt>(SubStmt)) {
+      if (!inNested) GotoCount++;
+      GotoStmt* g = dyn_cast<GotoStmt>(SubStmt);   
+      if (inNested) insideGotoLabels.insert(g->getLabel()->getNameAsString());
+    } else if(isa<LabelStmt>(SubStmt)){
+      LabelStmt* ls  = dyn_cast<LabelStmt>(SubStmt); 
+      if(insideGotoLabels.find(ls->getName()) != insideGotoLabels.end()){
+        insideGotoLabels.erase(ls->getName());
+      }
+    } else if (SubStmt != nullptr && (isa<ForStmt>(SubStmt) || isa<WhileStmt>(SubStmt))){
+      std::unordered_set<std::string>  nestedGotoLabels = CountBreakGoto(SubStmt, true, BreakCount, GotoCount);
+      if (nestedGotoLabels.size() > 0) insideGotoLabels.insert(nestedGotoLabels.begin(), nestedGotoLabels.end());
+    } else {
+      std::unordered_set<std::string>  nestedGotoLabels =  CountBreakGoto(SubStmt, inNested, BreakCount, GotoCount);
+      if(nestedGotoLabels.size() > 0) insideGotoLabels.insert(nestedGotoLabels.begin(), nestedGotoLabels.end());
+    }
+  }
+  return insideGotoLabels;
+}
+
+// Helper function to count break and goto statements
+void Sema::CheckBreakGotoCount(Stmt *Body, SourceLocation LoopLoc) {
+  int BreakCount = 0;
+  int GotoCount = 0;
+  std::unordered_set<std::string> nestedGotoLabels = CountBreakGoto(Body, false, BreakCount, GotoCount);
+  if (nestedGotoLabels.size() > 0 || (BreakCount + GotoCount > 1)) {
+    Diag(LoopLoc, diag::ext_more_than_one_break_or_goto_used);
+  }
+  return;
+}
 
 StmtResult Sema::ActOnForStmt(SourceLocation ForLoc, SourceLocation LParenLoc,
                               Stmt *First, ConditionResult Second,
@@ -2173,6 +2304,29 @@ StmtResult Sema::ActOnForStmt(SourceLocation ForLoc, SourceLocation LParenLoc,
         Diag(NonVarSeen->getLocation(), diag::err_non_variable_decl_in_for);
     }
   }
+  {
+  llvm::SmallVector<const VarDecl *, 4> SecondLoopVars;
+  llvm::SmallVector<const VarDecl *, 4> ThirdLoopVars;
+  if (Second.get().second)
+    getLoopCounterVariables(Second.get().second->IgnoreParens(), SecondLoopVars);
+  if (third.get())
+    getLoopCounterVariables(third.get()->IgnoreParens(), ThirdLoopVars);
+
+  std::set<const VarDecl *> IntersectionVars;
+  std::set_intersection(SecondLoopVars.begin(), SecondLoopVars.end(),
+                        ThirdLoopVars.begin(), ThirdLoopVars.end(),
+                        std::inserter(IntersectionVars, IntersectionVars.begin()));
+
+  
+  // Check if any of the loop variables are of floating-point type
+  for (const VarDecl *VD : IntersectionVars) {
+    QualType QT = VD->getType();
+    if (QT->isFloatingType()) {
+      Diag(VD->getLocation(), diag::misra_c20_float_loop_counter)
+        << QT;
+    }
+  }
+  }
 
   CheckBreakContinueBinding(Second.get().second);
   CheckBreakContinueBinding(third.get());
@@ -2190,6 +2344,19 @@ StmtResult Sema::ActOnForStmt(SourceLocation ForLoc, SourceLocation LParenLoc,
   Expr *Third  = third.release().getAs<Expr>();
   if (isa<NullStmt>(Body))
     getCurCompoundScope().setHasEmptyLoopBodies();
+
+  CheckBreakGotoCount(Body, ForLoc);
+  // MISRA C Rule 14.4: controlling expression shall have essentially boolean type
+  Expr* CondExpr = Second.get().second;
+  if (CondExpr && !CondExpr->isTypeDependent() &&
+      CondExpr->getType()->isIntegralOrEnumerationType() && CondExpr->isKnownToHaveBooleanValue()) {
+    Diag(ForLoc, diag::misra_c20_controlling_expr_must_be_boolean) << CondExpr->getSourceRange();
+  }
+  // MISRA C Rule 15.6
+  if (Body && !isa<CompoundStmt>(Body)) {
+    Diag(Body->getBeginLoc(), diag::misra_c20_iteration_or_selection_body_not_compound)
+        << Body->getSourceRange();
+  }
 
   return new (Context)
       ForStmt(Context, First, Second.get().second, Second.get().first, Third,
@@ -3292,8 +3459,13 @@ StmtResult Sema::FinishCXXForRangeStmt(Stmt *S, Stmt *B) {
 StmtResult Sema::ActOnGotoStmt(SourceLocation GotoLoc,
                                SourceLocation LabelLoc,
                                LabelDecl *TheDecl) {
+  Diag(GotoLoc, diag::ext_goto_statmemt_used);
   setFunctionHasBranchIntoScope();
   TheDecl->markUsed(Context);
+  if (TheDecl->getStmt()) {
+    Diag(GotoLoc, diag::misra_c20_label_before_goto);
+    Diag(TheDecl->getStmt()->getBeginLoc(), diag::note_defined_here) << "label";
+  } 
   return new (Context) GotoStmt(TheDecl, GotoLoc, LabelLoc);
 }
 
@@ -4761,6 +4933,61 @@ buildCapturedStmtCaptureList(Sema &S, CapturedRegionScopeInfo *RSI,
   return false;
 }
 
+void Sema::CheckOperatorPrecedence(Expr *E,bool IsRoot) {
+  if (!E || getLangOpts().CPlusPlus) // Apply only to C files
+    return;
+
+  // Ignore parentheses and implicit casts to focus on the actual operator
+  E = E->IgnoreParenImpCasts();
+
+  if (auto *BO = dyn_cast<BinaryOperator>(E)) {
+    if (!(IsRoot && BO->getOpcode() == BO_Assign)) {
+      CheckOperand(BO->getLHS(), E);
+      CheckOperand(BO->getRHS(), E);
+    }
+    CheckOperatorPrecedence(BO->getLHS(),false);
+    CheckOperatorPrecedence(BO->getRHS(),false);
+  }else if (auto *CO = dyn_cast<ConditionalOperator>(E)) {
+    // Check ternary operator (?:)
+    CheckOperand(CO->getCond(), E);
+    CheckOperand(CO->getTrueExpr(), E);
+    CheckOperand(CO->getFalseExpr(), E);
+    CheckOperatorPrecedence(CO->getCond(),false);
+    CheckOperatorPrecedence(CO->getTrueExpr(),false);
+    CheckOperatorPrecedence(CO->getFalseExpr(),false);
+  }
+}
+
+void Sema::CheckOperand(Expr *Operand, Expr *Parent) {
+  if (!Operand || isa<ParenExpr>(Operand)) return;
+
+  if (auto *ParentBO = dyn_cast<BinaryOperator>(Parent)) {
+    // Check if the operand is a binary operator without parentheses
+    if (auto *ChildBO = dyn_cast<BinaryOperator>(Operand->IgnoreParenImpCasts())) {
+      // Get precedence levels directly from BinaryOperatorKind
+      auto ParentPrec =ParentBO->getOpcode();
+      auto ChildPrec = ChildBO->getOpcode();
+
+      // Warn if precedences differ and operand is not explicitly parenthesized
+      if (ParentPrec != ChildPrec) {
+        Diag(Operand->getBeginLoc(), diag::misra_c20_precedence_not_explicit)
+          << Parent << Operand << Parent->getSourceRange();
+      }
+    } else if(auto *ChildCO = dyn_cast<ConditionalOperator>(Operand->IgnoreParenImpCasts())) {
+      Diag(Operand->getBeginLoc(), diag::misra_c20_precedence_not_explicit)
+        << Parent << Operand << Parent->getSourceRange();
+    }
+  } else if(auto *CO = dyn_cast<ConditionalOperator>(Parent)) {
+    if(auto *ChildBO = dyn_cast<BinaryOperator>(Operand->IgnoreParenImpCasts())) {
+      Diag(Operand->getBeginLoc(), diag::misra_c20_precedence_not_explicit)
+        << Parent << Operand << Parent->getSourceRange();
+    } else if (auto *ChildCO = dyn_cast<ConditionalOperator>(Operand->IgnoreParenImpCasts())) {
+      Diag(Operand->getBeginLoc(), diag::misra_c20_precedence_not_explicit)
+        << Parent << Operand << Parent->getSourceRange();
+    }
+  }
+}
+
 void Sema::ActOnCapturedRegionStart(SourceLocation Loc, Scope *CurScope,
                                     CapturedRegionKind Kind,
                                     unsigned NumParams) {
@@ -4890,4 +5117,35 @@ StmtResult Sema::ActOnCapturedRegionEnd(Stmt *S) {
   RD->completeDefinition();
 
   return Res;
+}
+
+bool Sema::ContainsIncrementDecrement(Expr *E) {
+  if (!E) return false;
+  E = E->IgnoreParens();
+
+  if (auto *UO = dyn_cast<UnaryOperator>(E)) {
+    if (UO->isIncrementDecrementOp())
+      return true;
+  }
+
+  for (Stmt *Child : E->children()) {
+    if (Expr *ChildExpr = dyn_cast<Expr>(Child)) {
+      if (ContainsIncrementDecrement(ChildExpr))
+        return true;
+    }
+  }
+  return false;
+}
+
+void Sema::CollectSideEffectExprs(Expr *E, std::vector<Expr *> &SideEffects) {
+  if (!E) return;
+  E = E->IgnoreParens();
+
+  if (E->HasSideEffects(getASTContext()))
+    SideEffects.push_back(E);
+
+  for (Stmt *Child : E->children()) {
+    if (Expr *ChildExpr = dyn_cast<Expr>(Child))
+      CollectSideEffectExprs(ChildExpr, SideEffects);
+  }
 }
