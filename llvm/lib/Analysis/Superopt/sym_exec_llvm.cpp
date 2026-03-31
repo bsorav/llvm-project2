@@ -33,12 +33,11 @@ static char as1[40960];
 namespace {
 
 static bool
-callconv_is_linux_i386(llvm::Function const* F)
+callconv_is_cdecl_x86(llvm::Function const* F)
 {
   llvm::Triple triple{F->getParent()->getTargetTriple()};
    return    F->getCallingConv() == llvm::CallingConv::C
-          && triple.getArch() == Triple::x86
-          && triple.getOS() == Triple::Linux;
+          && triple.getArch() == Triple::x86;
 }
 
 }
@@ -1448,8 +1447,8 @@ sym_exec_llvm::apply_general_function(const CallInst* c, expr_ref fun_name_expr,
       expr = m_ctx->get_input_expr_for_key(mk_string_ref(float_fcall_arg_name), bv_expr->get_sort());
     } else if (c->paramHasAttr(argnum, Attribute::ByVal)) {
       Type *elTy = c->getParamByValType(argnum);
-      if (callconv_is_linux_i386(F)) {
-        // In Linux I386, the structure is passed on the stack regardless of size
+      if (callconv_is_cdecl_x86(F)) {
+        // In cdecl I386 (Linux), the structure is passed on the stack regardless of size
         // So, we pass-by-value by reading the byval pointer
         // Note that count below corresponds to size of the struct which can be quite large! (but, hey, the programmer _chose_ to do this)
         unsigned count = m_module->getDataLayout().getTypeAllocSize(elTy);
@@ -3065,7 +3064,7 @@ sym_exec_llvm::get_dilocal_for_alloca(llvm::AllocaInst const* AI) const
 bool
 sym_exec_llvm::parameter_alloca_should_be_replaced_with_parameter_address(AllocaInst const& a, DILocalVariable const& dilocal) const
 {
-  if (!callconv_is_linux_i386(a.getFunction())) {
+  if (!callconv_is_cdecl_x86(a.getFunction())) {
     NOT_IMPLEMENTED();
   }
 
