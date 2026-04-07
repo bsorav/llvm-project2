@@ -3176,8 +3176,8 @@ void CastOperation::CheckCStyleCast() {
           << SrcType << DestType << SrcExpr.get()->getSourceRange();
   }
   if (SrcType->isPointerType() && DestType->isPointerType()) {
-    if (( SrcType->getPointeeType()->isIncompleteType() && !DestType->getPointeeType()->isIncompleteType()) ||
-        (!SrcType->getPointeeType()->isIncompleteType() &&  DestType->getPointeeType()->isIncompleteType())) {
+    if (( (SrcType->getPointeeType()->isIncompleteType() && !SrcType->isVoidPointerType()) && !DestType->getPointeeType()->isIncompleteType()) ||
+        (!SrcType->getPointeeType()->isIncompleteType() &&  (DestType->getPointeeType()->isIncompleteType() && !DestType->isVoidPointerType()))) {
       Self.Diag(SrcExpr.get()->getExprLoc(), diag::misra_c20_warn_cast_pointer_to_incomplete)
         << SrcType << DestType << SrcExpr.get()->getSourceRange();
     }
