@@ -1,6 +1,5 @@
 set(SUPEROPT_PROJECT_DIR "${LLVM_BINARY_DIR}/../..")
 set(SUPEROPT_DIR "${SUPEROPT_PROJECT_DIR}/superopt")
-set(THIRD_PARTY_DIR "${SUPEROPT_DIR}/build/third_party")
 
 list(APPEND CMAKE_MODULE_PATH "${SUPEROPT_DIR}/cmake")
 include(Base)
