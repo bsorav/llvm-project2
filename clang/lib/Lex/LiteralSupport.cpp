@@ -1394,8 +1394,11 @@ void NumericLiteralParser::ParseNumberStartingWithZero(SourceLocation TokLoc) {
   if (s != PossibleNewDigitStart)
     DigitsBegin = PossibleNewDigitStart;
 
-  if (s == ThisTokEnd)
+  if (   s == ThisTokEnd
+      && s != PossibleNewDigitStart /* do not warn on just "0" */)
   {
+    //llvm::dbgs() << "s = " << s << "\n";
+    //llvm::dbgs() << "PossibleNewDigitStart = " << PossibleNewDigitStart << "\n";
     Diags.Report(TokLoc, diag::misra_c20_warn_octal_literal);
     return; // Done, simple octal number like 01234
   }

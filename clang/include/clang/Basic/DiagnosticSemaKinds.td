@@ -12229,7 +12229,7 @@ def misra_c20_warn_cast_function_to_non_function_pointer : Warning<
   "MISRA C Rule 11.1: Conversion is not allowed between pointer to a function and any other type">,
   InGroup<MisraC20R_11_1>, DefaultIgnore;
 def misra_c20_warn_cast_pointer_to_incomplete : Warning<
-  "MISRA C Rule 11.2: Conversion is not allowed between pointer to a incomplete and any other type">,
+  "MISRA C Rule 11.2: Conversion is not allowed between pointer to an incomplete type and any other type">,
   InGroup<MisraC20R_11_2>, DefaultIgnore;
 def misra_c20_warn_cast_pointer_to_pointer_of_diff_obj : Warning<
   "MISRA C Rule 11.3: Conversion is not allowed between pointer to object type and pointer to another object type">,

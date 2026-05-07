@@ -15,6 +15,7 @@
 #include "support/globals.h"
 #include "support/dshared_ptr.h"
 #include "support/mybitset.h"
+#include "support/running_status.h"
 
 #include "expr/expr.h"
 

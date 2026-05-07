@@ -42,6 +42,7 @@ using namespace llvm;
 #include "support/timers.h"
 #include "support/dyn_debug.h"
 #include "support/globals.h"
+#include "support/running_status.h"
 
 #include "expr/consts_struct.h"
 #include "expr/expr.h"

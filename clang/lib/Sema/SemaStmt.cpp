@@ -926,7 +926,8 @@ StmtResult Sema::ActOnIfStmt(SourceLocation IfLoc,
 
   // MISRA C Rule 14.4: controlling expression shall have essentially boolean type
   if (CondExpr && !CondExpr->isTypeDependent() &&
-      CondExpr->getType()->isIntegralOrEnumerationType() && CondExpr->isKnownToHaveBooleanValue()) {
+      CondExpr->getType()->isIntegralOrEnumerationType() && !CondExpr->isKnownToHaveBooleanValue()) {
+    //llvm::dbgs() << __FILE__ << " " << __LINE__ << ": emitting misra_c20_controlling_expr_must_boolean\n";
     Diag(IfLoc, diag::misra_c20_controlling_expr_must_be_boolean) << CondExpr->getSourceRange();
   }
 
@@ -1761,7 +1762,8 @@ StmtResult Sema::ActOnWhileStmt(SourceLocation WhileLoc,
   // MISRA C Rule 14.4: controlling expression shall have essentially boolean type
   Expr* CondExpr = CondVal.second;
   if (CondExpr && !CondExpr->isTypeDependent() &&
-      CondExpr->getType()->isIntegralOrEnumerationType() && CondExpr->isKnownToHaveBooleanValue()) {
+      CondExpr->getType()->isIntegralOrEnumerationType() && !CondExpr->isKnownToHaveBooleanValue()) {
+    //llvm::dbgs() << __FILE__ << " " << __LINE__ << ": emitting misra_c20_controlling_expr_must_boolean\n";
     Diag(WhileLoc, diag::misra_c20_controlling_expr_must_be_boolean) << CondExpr->getSourceRange();
   }
   // MISRA C Rule 15.6
@@ -1799,7 +1801,8 @@ Sema::ActOnDoStmt(SourceLocation DoLoc, Stmt *Body,
 
   // MISRA C Rule 14.4: controlling expression shall have essentially boolean type
   if (Cond && !Cond->isTypeDependent() &&
-      Cond->getType()->isIntegralOrEnumerationType() && Cond->isKnownToHaveBooleanValue()) {
+      Cond->getType()->isIntegralOrEnumerationType() && !Cond->isKnownToHaveBooleanValue()) {
+    //llvm::dbgs() << __FILE__ << " " << __LINE__ << ": emitting misra_c20_controlling_expr_must_boolean\n";
     Diag(WhileLoc, diag::misra_c20_controlling_expr_must_be_boolean) << Cond->getSourceRange();
   }
   // MISRA C Rule 15.6
@@ -2349,7 +2352,8 @@ StmtResult Sema::ActOnForStmt(SourceLocation ForLoc, SourceLocation LParenLoc,
   // MISRA C Rule 14.4: controlling expression shall have essentially boolean type
   Expr* CondExpr = Second.get().second;
   if (CondExpr && !CondExpr->isTypeDependent() &&
-      CondExpr->getType()->isIntegralOrEnumerationType() && CondExpr->isKnownToHaveBooleanValue()) {
+      CondExpr->getType()->isIntegralOrEnumerationType() && !CondExpr->isKnownToHaveBooleanValue()) {
+    //llvm::dbgs() << __FILE__ << " " << __LINE__ << ": emitting misra_c20_controlling_expr_must_boolean\n";
     Diag(ForLoc, diag::misra_c20_controlling_expr_must_be_boolean) << CondExpr->getSourceRange();
   }
   // MISRA C Rule 15.6
