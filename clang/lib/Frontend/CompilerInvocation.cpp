@@ -54,6 +54,7 @@
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/ADT/StringSet.h"
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/Config/llvm-config.h"
@@ -4877,10 +4878,157 @@ clang::createVFSFromCompilerInvocation(const CompilerInvocation &CI,
                                          llvm::vfs::getRealFileSystem());
 }
 
+static bool isWindowsBorlandTarget(const TargetOptions &TargetOpts) {
+  llvm::Triple T(TargetOpts.Triple);
+  return T.isOSWindows() && T.getEnvironment() == llvm::Triple::Borland;
+}
+
+static void addCaseInsensitiveVFSRoot(
+    StringRef Path, llvm::vfs::FileSystem &FS,
+    SmallVectorImpl<std::string> &Roots, llvm::StringSet<> &SeenRoots) {
+  if (Path.empty())
+    return;
+
+  SmallString<256> AbsPath(Path);
+  if (FS.makeAbsolute(AbsPath))
+    return;
+  llvm::sys::path::remove_dots(AbsPath, /*remove_dot_dot=*/true);
+
+  auto Status = FS.status(AbsPath);
+  if (!Status ||
+      Status->getType() != llvm::sys::fs::file_type::directory_file)
+    return;
+
+  StringRef AbsPathRef(AbsPath.data(), AbsPath.size());
+  if (SeenRoots.insert(AbsPathRef).second)
+    Roots.push_back(AbsPathRef.str());
+}
+
+static SmallVector<std::string, 16> collectBorlandCaseInsensitiveVFSRoots(
+    const CompilerInvocation &CI, llvm::vfs::FileSystem &FS) {
+  SmallVector<std::string, 16> Roots;
+  llvm::StringSet<> SeenRoots;
+
+  const HeaderSearchOptions &HSOpts = CI.getHeaderSearchOpts();
+  bool HasSysroot = !(HSOpts.Sysroot.empty() || HSOpts.Sysroot == "/");
+  for (const HeaderSearchOptions::Entry &Entry : HSOpts.UserEntries) {
+    if (Entry.IsFramework)
+      continue;
+
+    // The generated overlay is POSIX-host only, so this mirrors the POSIX
+    // sysroot rule from InitHeaderSearch: absolute paths with IgnoreSysRoot
+    // clear are interpreted under HeaderSearchOptions::Sysroot.
+    SmallString<256> Path;
+    if (!Entry.IgnoreSysRoot && HasSysroot &&
+        llvm::sys::path::is_absolute(Entry.Path)) {
+      Path = HSOpts.Sysroot;
+      Path += Entry.Path;
+    } else {
+      Path = Entry.Path;
+    }
+    addCaseInsensitiveVFSRoot(Path, FS, Roots, SeenRoots);
+  }
+
+  // Quoted includes are searched relative to the including source file. Add the
+  // source parents so those lookups get the same case-insensitive treatment.
+  for (const FrontendInputFile &Input : CI.getFrontendOpts().Inputs) {
+    if (!Input.isFile() || Input.getFile() == "-" ||
+        Input.getKind().getFormat() != InputKind::Source)
+      continue;
+
+    SmallString<256> InputPath(Input.getFile());
+    if (FS.makeAbsolute(InputPath))
+      continue;
+    llvm::sys::path::remove_dots(InputPath, /*remove_dot_dot=*/true);
+    StringRef Parent = llvm::sys::path::parent_path(InputPath);
+    if (Parent.empty())
+      Parent = ".";
+    addCaseInsensitiveVFSRoot(Parent, FS, Roots, SeenRoots);
+  }
+
+  return Roots;
+}
+
+static llvm::sys::fs::file_type
+getVFSDirEntryType(llvm::vfs::FileSystem &FS,
+                   const llvm::vfs::directory_entry &Entry) {
+  llvm::sys::fs::file_type Type = Entry.type();
+  if (Type != llvm::sys::fs::file_type::type_unknown)
+    return Type;
+  if (auto Status = FS.status(Entry.path()))
+    return Status->getType();
+  return Type;
+}
+
+static IntrusiveRefCntPtr<llvm::vfs::FileSystem>
+createBorlandCaseInsensitiveVFS(const CompilerInvocation &CI,
+                                IntrusiveRefCntPtr<llvm::vfs::FileSystem> FS) {
+  // Native Windows filesystems already provide case-insensitive lookup.
+  if (!FS || !isWindowsBorlandTarget(CI.getTargetOpts()) ||
+      !llvm::sys::path::is_style_posix(llvm::sys::path::Style::native))
+    return FS;
+
+  // Model Windows header spelling with the existing VFS overlay machinery
+  // rather than adding target-specific lookup rules to HeaderSearch.
+  SmallVector<std::string, 16> Roots =
+      collectBorlandCaseInsensitiveVFSRoots(CI, *FS);
+  if (Roots.empty())
+    return FS;
+
+  llvm::vfs::YAMLVFSWriter Writer;
+  Writer.setCaseSensitivity(false);
+  Writer.setUseExternalNames(false);
+
+  llvm::StringSet<> SeenFiles;
+  bool HasMappings = false;
+  for (const std::string &Root : Roots) {
+    // Directory remaps still delegate unmatched names to the external
+    // filesystem, which remains case-sensitive on POSIX hosts. Add file-level
+    // mappings so the redirecting VFS sees each component it needs to match
+    // case-insensitively.
+    std::error_code EC;
+    for (llvm::vfs::recursive_directory_iterator It(*FS, Root, EC), End;
+         It != End && !EC; It.increment(EC)) {
+      if (getVFSDirEntryType(*FS, *It) !=
+          llvm::sys::fs::file_type::regular_file)
+        continue;
+
+      SmallString<256> Path(It->path());
+      if (FS->makeAbsolute(Path))
+        continue;
+      llvm::sys::path::remove_dots(Path, /*remove_dot_dot=*/true);
+
+      StringRef PathRef(Path.data(), Path.size());
+      if (!SeenFiles.insert(PathRef).second)
+        continue;
+
+      Writer.addFileMapping(PathRef, PathRef);
+      HasMappings = true;
+    }
+  }
+
+  if (!HasMappings)
+    return FS;
+
+  std::string Overlay;
+  llvm::raw_string_ostream OS(Overlay);
+  Writer.write(OS);
+  OS.flush();
+
+  IntrusiveRefCntPtr<llvm::vfs::FileSystem> OverlayFS =
+      llvm::vfs::getVFSFromYAML(
+          llvm::MemoryBuffer::getMemBufferCopy(
+              Overlay, "<borland-case-insensitive-vfs>"),
+          /*DiagHandler=*/nullptr, "<borland-case-insensitive-vfs>",
+          /*DiagContext=*/nullptr, FS);
+  return OverlayFS ? OverlayFS : FS;
+}
+
 IntrusiveRefCntPtr<llvm::vfs::FileSystem>
 clang::createVFSFromCompilerInvocation(
     const CompilerInvocation &CI, DiagnosticsEngine &Diags,
     IntrusiveRefCntPtr<llvm::vfs::FileSystem> BaseFS) {
+  BaseFS = createBorlandCaseInsensitiveVFS(CI, std::move(BaseFS));
   return createVFSFromOverlayFiles(CI.getHeaderSearchOpts().VFSOverlayFiles,
                                    Diags, std::move(BaseFS));
 }
