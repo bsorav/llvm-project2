@@ -1033,7 +1033,10 @@ public:
                         MacroBuilder &Builder) const override {
     Builder.defineMacro("__BORLANDC__", "0x0500");
     Builder.defineMacro("__TURBOC__", "0x0500");
+    Builder.defineMacro("__int64", "long long");
+    Builder.defineMacro("_M_IX86", "300");
     Builder.defineMacro("_WIN32");
+    Builder.defineMacro("__WIN32__");
     Builder.defineMacro("__FLAT__"); // Indicates 32-bit flat memory model
   }
 };
