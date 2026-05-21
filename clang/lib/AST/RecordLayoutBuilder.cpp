@@ -705,7 +705,11 @@ protected:
         PaddedFieldSize(CharUnits::Zero()), PrimaryBase(nullptr),
         PrimaryBaseIsVirtual(false), HasOwnVFPtr(false), HasPackedField(false),
         HandledFirstNonOverlappingEmptyField(false),
-        FirstNearlyEmptyVBase(nullptr) {}
+        FirstNearlyEmptyVBase(nullptr) {
+    if (Context.getTargetInfo().getTriple().getEnvironment() == llvm::Triple::Borland) {
+      MaxFieldAlignment = CharUnits::One();
+    }
+  }
 
   void Layout(const RecordDecl *D);
   void Layout(const CXXRecordDecl *D);

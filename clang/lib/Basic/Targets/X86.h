@@ -1001,6 +1001,43 @@ public:
     LongDoubleFormat = &llvm::APFloat::IEEEquad();
   }
 };
+
+// x86-32 Borland5 target
+class LLVM_LIBRARY_VISIBILITY Borland5X86_32TargetInfo
+    : public X86_32TargetInfo {
+public:
+  Borland5X86_32TargetInfo(const llvm::Triple &Triple, const TargetOptions &Opts)
+      : X86_32TargetInfo(Triple, Opts) {
+    // e: little-endian
+    // m:e: Itanium name mangling
+    // p:32:32: 32-bit pointers
+    // i64:64: 64-bit integers aligned to 8 bytes (Standard for BC5 Win32)
+    // f80:128: 80-bit floats (long double) padded to 128-bit
+    // n8:16:32: native integer widths
+    // a:0:8: 1 byte default alignment for aggregates
+    // S32: 4-byte stack alignment
+    resetDataLayout("e-m:e-p:32:32-i64:64-f80:128-n8:16:32-a:0:8-S32");
+
+    DoubleAlign = LongLongAlign = 64;
+    LongDoubleWidth = 80;
+    LongDoubleAlign = 128; // Usually 16-byte aligned in memory for BC5 32-bit
+    SuitableAlign = 32;
+    LongDoubleFormat = &llvm::APFloat::x87DoubleExtended();
+  }
+
+  CallingConv getDefaultCallingConv() const override {
+    return CC_C; // cdecl
+  }
+
+  void getTargetDefines(const LangOptions &Opts,
+                        MacroBuilder &Builder) const override {
+    Builder.defineMacro("__BORLANDC__", "0x0500");
+    Builder.defineMacro("__TURBOC__", "0x0500");
+    Builder.defineMacro("_WIN32");
+    Builder.defineMacro("__FLAT__"); // Indicates 32-bit flat memory model
+  }
+};
+
 } // namespace targets
 } // namespace clang
 #endif // LLVM_CLANG_LIB_BASIC_TARGETS_X86_H

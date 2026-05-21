@@ -118,6 +118,7 @@ class X86_32ABIInfo : public ABIInfo {
   bool IsSoftFloatABI;
   bool IsMCUABI;
   bool IsLinuxABI;
+  bool IsBorlandABI;
   unsigned DefaultNumRegisterParameters;
 
   static bool isRegisterSize(unsigned Size) {
@@ -185,6 +186,8 @@ public:
         IsMCUABI(CGT.getTarget().getTriple().isOSIAMCU()),
         IsLinuxABI(CGT.getTarget().getTriple().isOSLinux() ||
                    CGT.getTarget().getTriple().isOSCygMing()),
+        IsBorlandABI(CGT.getTarget().getTriple().getEnvironment() ==
+                     llvm::Triple::Borland),
         DefaultNumRegisterParameters(NumRegisterParameters) {}
 };
 
@@ -530,6 +533,10 @@ ABIArgInfo X86_32ABIInfo::classifyReturnType(QualType RetTy,
     // Ignore empty structs/unions.
     if (isEmptyRecord(getContext(), RetTy, true))
       return ABIArgInfo::getIgnore();
+
+    if (IsBorlandABI && !RetTy->isAnyComplexType() &&
+        getContext().getTypeSize(RetTy) > 32)
+      return getIndirectReturnResult(RetTy, State);
 
     // Return complex of _Float16 as <2 x half> so the backend will use xmm0.
     if (const ComplexType *CT = RetTy->getAs<ComplexType>()) {

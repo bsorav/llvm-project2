@@ -6335,7 +6335,7 @@ CodeGenModule::GetAddrOfConstantStringFromLiteral(const StringLiteral *S,
 
   llvm::Constant *C = GetConstantArrayFromStringLiteral(S);
   llvm::GlobalVariable **Entry = nullptr;
-  if (!LangOpts.WritableStrings) {
+  if (!LangOpts.WritableStrings && !getCodeGenOpts().NoMergeStringLiterals) {
     Entry = &ConstantStringMap[C];
     if (auto GV = *Entry) {
       if (uint64_t(Alignment.getQuantity()) > GV->getAlignment())
