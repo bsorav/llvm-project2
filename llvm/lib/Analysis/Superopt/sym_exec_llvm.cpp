@@ -16,6 +16,7 @@
 #include "support/dshared_ptr.h"
 #include "support/mybitset.h"
 #include "support/running_status.h"
+#include "support/crypto.h"
 
 #include "expr/expr.h"
 
