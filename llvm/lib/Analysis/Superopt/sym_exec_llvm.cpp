@@ -4075,6 +4075,7 @@ sym_exec_common::get_constant_bytes(Constant const* c)
   const ConstantStruct *Struct;
   const ConstantFP *FP;
   const ConstantAggregateZero *Zero;
+  const ConstantAggregate *Aggregate;
 
   //XXX: handle all cases using lib/IR/AsmWriter.cpp:WriteConstantInternal()
   if ((Sequential = dyn_cast<ConstantDataSequential>(c))) {
@@ -4110,6 +4111,14 @@ sym_exec_common::get_constant_bytes(Constant const* c)
       Constant* ZSeq = Zero->getSequentialElement();
       ASSERT(ZSeq);
       vector_append(v, get_constant_bytes(ZSeq));
+    }
+    return v;
+  } else if ((Aggregate = dyn_cast<ConstantAggregate>(c))) {
+    vector<char> v;
+    for (size_t i = 0; i < Aggregate->getNumOperands(); i++) {
+      Constant* elem = dyn_cast<Constant>(Aggregate->getOperand(i));
+      ASSERT(elem);
+      vector_append(v, get_constant_bytes(elem));
     }
     return v;
   } else if ((FP = dyn_cast<ConstantFP>(c))/* && Array->isString()*/) {
