@@ -19,6 +19,7 @@
 #include "clang/Basic/Module.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/SourceManager.h"
+#include "clang/Basic/TargetInfo.h"
 #include "clang/Basic/TokenKinds.h"
 #include "clang/Lex/CodeCompletionHandler.h"
 #include "clang/Lex/HeaderSearch.h"
@@ -1896,6 +1897,12 @@ static bool trySimplifyPath(SmallVectorImpl<StringRef> &Components,
   return SuggestReplacement;
 }
 
+static bool isBorlandOnWindows(const TargetInfo &Target) {
+  const llvm::Triple &TargetTriple = Target.getTriple();
+  return TargetTriple.isOSWindows() &&
+         TargetTriple.getEnvironment() == llvm::Triple::Borland;
+}
+
 bool Preprocessor::checkModuleIsAvailable(const LangOptions &LangOpts,
                                           const TargetInfo &TargetInfo,
                                           const Module &M,
@@ -2210,11 +2217,13 @@ Preprocessor::ImportAction Preprocessor::HandleHeaderIncludeOrImport(
   SourceLocation FilenameLoc = FilenameTok.getLocation();
   StringRef LookupFilename = Filename;
 
-  // Normalize slashes when compiling with -fms-extensions on non-Windows. This
-  // is unnecessary on Windows since the filesystem there handles backslashes.
+  // Normalize slashes when compiling with -fms-extensions or targeting Borland
+  // Windows on non-Windows. This is unnecessary on Windows since the filesystem
+  // there handles backslashes.
   SmallString<128> NormalizedPath;
   llvm::sys::path::Style BackslashStyle = llvm::sys::path::Style::native;
-  if (is_style_posix(BackslashStyle) && LangOpts.MicrosoftExt) {
+  if (is_style_posix(BackslashStyle) &&
+      (LangOpts.MicrosoftExt || isBorlandOnWindows(getTargetInfo()))) {
     NormalizedPath = Filename.str();
     llvm::sys::path::native(NormalizedPath);
     LookupFilename = NormalizedPath;

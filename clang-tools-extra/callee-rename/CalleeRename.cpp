@@ -1,7 +1,8 @@
 #include "clang/ASTMatchers/ASTMatchers.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
-#include "clang/Frontend/FrontendActions.h"
 #include "clang/Frontend/CompilerInstance.h"
+#include "clang/Frontend/CompilerInvocation.h"
+#include "clang/Frontend/FrontendActions.h"
 #include "clang/Rewrite/Core/Rewriter.h"
 #include "clang/Tooling/CommonOptionsParser.h"
 #include "clang/Tooling/Tooling.h"
@@ -81,6 +82,43 @@ private:
     std::map<std::string,std::string> Subs;
 };
 
+class CalleeRenameActionFactory : public FrontendActionFactory {
+public:
+    std::unique_ptr<FrontendAction> create() override {
+        return std::make_unique<CalleeRenameAction>();
+    }
+
+    bool runInvocation(std::shared_ptr<CompilerInvocation> Invocation,
+                       FileManager *Files,
+                       std::shared_ptr<PCHContainerOperations> PCHContainerOps,
+                       DiagnosticConsumer *DiagConsumer) override {
+        CompilerInstance Compiler(std::move(PCHContainerOps));
+        Compiler.setInvocation(std::move(Invocation));
+
+        Compiler.createDiagnostics(DiagConsumer, /*ShouldOwnClient=*/false);
+        if (!Compiler.hasDiagnostics())
+          return false;
+
+        // ClangTool creates its FileManager before the CompilerInvocation is
+        // parsed. Build the invocation VFS here so callee-rename observes
+        // normal -vfsoverlay handling and Borland's generated include overlay.
+        IntrusiveRefCntPtr<llvm::vfs::FileSystem> VFS =
+            createVFSFromCompilerInvocation(Compiler.getInvocation(),
+                                            Compiler.getDiagnostics(),
+                                            Files->getVirtualFileSystemPtr());
+        IntrusiveRefCntPtr<FileManager> InvocationFiles =
+            new FileManager(Files->getFileSystemOpts(), std::move(VFS));
+        Compiler.setFileManager(&*InvocationFiles);
+        Compiler.createSourceManager(*InvocationFiles);
+
+        std::unique_ptr<FrontendAction> ScopedToolAction(create());
+        const bool Success = Compiler.ExecuteAction(*ScopedToolAction);
+
+        InvocationFiles->clearStatCache();
+        return Success;
+    }
+};
+
 int main(int argc, const char **argv) {
     auto ExpectedParser = CommonOptionsParser::create(argc, argv, CalleeRenameCategory);
     if (!ExpectedParser) {
@@ -91,6 +129,6 @@ int main(int argc, const char **argv) {
     }
     CommonOptionsParser &OptionsParser = *ExpectedParser;
     ClangTool Tool(OptionsParser.getCompilations(), OptionsParser.getSourcePathList());
-    return Tool.run(newFrontendActionFactory<CalleeRenameAction>().get());
+    CalleeRenameActionFactory Factory;
+    return Tool.run(&Factory);
 }
-

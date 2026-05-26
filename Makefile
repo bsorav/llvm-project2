@@ -20,6 +20,22 @@ tidy:
 	#run-clang-tidy -p build -checks='-*,clang-analyzer-core*,clang-analyzer-cplusplus*,cppcoreguidelines*,modernize-*'
 	run-clang-tidy -clang-tidy-binary ./build/bin/clang-tidy -p build -checks='-*,clang-analyzer-core*'
 
+LOCAL_LIT_TESTS := \
+	clang/test/Driver/borland-no-extensions.c \
+	clang/test/Preprocessor/borland-windows-include-backslash.c \
+	clang/test/Preprocessor/borland-windows-include-case-insensitive.c \
+	clang/test/Preprocessor/borland-windows-include-quoted.c \
+	clang/test/Preprocessor/borland-windows-include-sysroot.c \
+	clang-tools-extra/test/callee-rename/borland-windows-include-backslash.c \
+	clang-tools-extra/test/callee-rename/borland-windows-include-case-insensitive.c \
+	clang-tools-extra/test/callee-rename/borland-windows-include-quoted.c \
+	clang-tools-extra/test/callee-rename/borland-windows-include-sysroot.c
+
+.PHONY: test
+test:
+	ninja -C build clang callee-rename
+	build/bin/llvm-lit -sv $(LOCAL_LIT_TESTS)
+
 .PHONY: install
 install: build
 	# ninja -C build llc opt llvm-config llvm-dis llvm-link llvm-as llvm2tfg harvest-dwarf LLVMSuperopt.so LLVMLockstep.so harvest-dwarf clang scan-build scan-view #UnsequencedAliasVisitor.so 

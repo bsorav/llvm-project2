@@ -35,6 +35,7 @@ set(CLANG_TOOLS_TEST_DEPS
   llvm-bcanalyzer
 
   # Individual tools we test.
+  callee-rename
   clang-apply-replacements
   clang-change-namespace
   clang-doc
