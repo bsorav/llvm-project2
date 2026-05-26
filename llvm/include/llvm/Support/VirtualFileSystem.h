@@ -1053,6 +1053,47 @@ protected:
                  unsigned IndentLevel) const override;
 };
 
+class RemoteFileSystem : public vfs::FileSystem {
+private:
+  // The underlying filesystem
+  IntrusiveRefCntPtr<RedirectingFileSystem> RedirectingFS;
+
+private:
+  RemoteFileSystem(IntrusiveRefCntPtr<RedirectingFileSystem> RedirectingFS);
+
+public:
+  static std::unique_ptr<RemoteFileSystem>
+  create(SourceMgr::DiagHandlerTy DiagHandler, StringRef ServerURL,
+         void *DiagContext, IntrusiveRefCntPtr<FileSystem> ExternalFS);
+
+  ErrorOr<Status> status(const Twine &Path) override;
+  //bool exists(const Twine &Path) override { return RedirectingFS->exists(Path); }
+  ErrorOr<std::unique_ptr<File>> openFileForRead(const Twine &Path) override;
+
+  std::error_code getRealPath(const Twine &Path,
+                              SmallVectorImpl<char> &Output) const override
+  {
+    return RedirectingFS->getRealPath(Path, Output);
+  }
+  llvm::ErrorOr<std::string> getCurrentWorkingDirectory() const override
+  {
+    return RedirectingFS->getCurrentWorkingDirectory();
+  }
+  std::error_code setCurrentWorkingDirectory(const Twine &Path) override
+  {
+    return RedirectingFS->setCurrentWorkingDirectory(Path);
+  }
+  std::error_code isLocal(const Twine &Path, bool &Result) override
+  {
+    return RedirectingFS->isLocal(Path, Result);
+  }
+  std::error_code makeAbsolute(SmallVectorImpl<char> &Path) const override;
+  directory_iterator dir_begin(const Twine &Dir, std::error_code &EC) override
+  {
+    return RedirectingFS->dir_begin(Dir, EC);
+  }
+};
+
 /// Collect all pairs of <virtual path, real path> entries from the
 /// \p YAMLFilePath. This is used by the module dependency collector to forward
 /// the entries into the reproducer output VFS YAML file.

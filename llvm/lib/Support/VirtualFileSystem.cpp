@@ -590,6 +590,60 @@ void ProxyFileSystem::anchor() {}
 namespace llvm {
 namespace vfs {
 
+RemoteFileSystem::RemoteFileSystem(IntrusiveRefCntPtr<RedirectingFileSystem> redirectingFS) : RedirectingFS(redirectingFS)
+{ }
+
+std::unique_ptr<RemoteFileSystem>
+RemoteFileSystem::create(SourceMgr::DiagHandlerTy DiagHandler, StringRef serverURL,
+        void *DiagContext, IntrusiveRefCntPtr<FileSystem> ExternalFS)
+{
+  llvm::vfs::YAMLVFSWriter Writer;
+  std::string Overlay;
+  llvm::raw_string_ostream OS(Overlay);
+  Writer.write(OS);
+  OS.flush();
+
+  std::unique_ptr<llvm::MemoryBuffer> Buffer =
+      llvm::MemoryBuffer::getMemBufferCopy(Overlay, "<remote-vfs>");
+
+  IntrusiveRefCntPtr<RedirectingFileSystem> RedirectingFS =
+      llvm::vfs::RedirectingFileSystem::create(std::move(Buffer), DiagHandler,
+      "<remote-vfs>", DiagContext, std::move(ExternalFS));
+
+  llvm::errs() << __func__ << " " << __LINE__ << ": RedirectingS = " << ((bool)RedirectingFS) << "\n";
+
+  if (RedirectingFS) {
+    std::unique_ptr<RemoteFileSystem> RemoteFS(
+        new RemoteFileSystem(RedirectingFS));
+    return RemoteFS;
+  } else {
+    return std::unique_ptr<RemoteFileSystem>();
+  }
+}
+
+ErrorOr<Status>
+RemoteFileSystem::status(const Twine &Path) {
+  ErrorOr<Status> ret = RedirectingFS->status(Path);
+  if (std::error_code ec = ret.getError()) {
+    //ec.message()
+  } else {
+    //print ret->getName int(ret->getType()) getPermissions getLastModificationTime
+  }
+  return ret;
+}
+
+ErrorOr<std::unique_ptr<File>>
+RemoteFileSystem::openFileForRead(const Twine &Path) {
+  llvm::errs() << "RemoteFileSystem::" << __func__ << " " << __LINE__ << ": Path = " << Path.str() << "\n";
+  return RedirectingFS->openFileForRead(Path);
+}
+
+std::error_code
+RemoteFileSystem::makeAbsolute(SmallVectorImpl<char> &Path) const {
+  //We assume that a remote path is always absolute, so nothing to do here
+  return {};
+}
+
 namespace detail {
 
 enum InMemoryNodeKind {
