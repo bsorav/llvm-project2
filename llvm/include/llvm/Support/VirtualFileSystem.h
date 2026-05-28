@@ -24,6 +24,7 @@
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/SourceMgr.h"
+#include "llvm/Support/remotefs.h"
 #include <cassert>
 #include <cstdint>
 #include <ctime>
@@ -1060,6 +1061,10 @@ private:
 
 private:
   RemoteFileSystem(IntrusiveRefCntPtr<RedirectingFileSystem> RedirectingFS);
+
+private:
+  static llvm::sys::fs::perms mode_to_perms(mode_t const& mode);
+  static llvm::sys::fs::file_type get_file_type(bool accessible, remotefs_file_type_t type);
 
 public:
   static std::unique_ptr<RemoteFileSystem>

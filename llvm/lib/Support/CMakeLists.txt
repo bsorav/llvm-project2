@@ -247,6 +247,7 @@ add_llvm_component_library(LLVMSupport
   UnicodeNameToCodepointGenerated.cpp
   VersionTuple.cpp
   VirtualFileSystem.cpp
+  remotefs.cpp
   WithColor.cpp
   YAMLParser.cpp
   YAMLTraits.cpp

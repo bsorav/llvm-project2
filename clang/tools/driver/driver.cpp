@@ -47,6 +47,7 @@
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Support/Timer.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Support/remotefs.h"
 #include "llvm/TargetParser/Host.h"
 #include <memory>
 #include <optional>
@@ -395,6 +396,21 @@ int clang_main(int Argc, char **Argv, const llvm::ToolContext &ToolContext) {
     if (iter != Args.end()) {
       init_dyn_debug_from_string(std::string(*iter).substr(dyn_debug_prefix.size()));
       CPP_DBG_EXEC(DYN_DEBUG, print_debug_class_levels());
+    }
+  }
+  {
+    std::string remotefs_dir_prefix = "--remotefs-dir=";
+    auto iter_dir = llvm::find_if(Args, [&remotefs_dir_prefix](char const* F) {
+      return F && std::string(F).substr(0, remotefs_dir_prefix.size()) == remotefs_dir_prefix;
+    });
+    auto remotefs_dir = std::string(*iter_dir).substr(remotefs_url_prefix.size());
+    std::string remotefs_url_prefix = "--remotefs-url=";
+    auto iter_url = llvm::find_if(Args, [&remotefs_url_prefix](char const* F) {
+      return F && std::string(F).substr(0, remotefs_url_prefix.size()) == remotefs_url_prefix;
+    });
+    auto remotefs_url = std::string(*iter_url).substr(remotefs_url_prefix.size());
+    if (iter_dir != Args.end() && iter_url != Args.end()) {
+      remotefs_activate(remotefs_url, remotefs_dir);
     }
   }
 

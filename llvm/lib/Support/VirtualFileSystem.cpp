@@ -37,6 +37,7 @@
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/YAMLParser.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Support/remotefs.h"
 #include <algorithm>
 #include <atomic>
 #include <cassert>
@@ -50,6 +51,7 @@
 #include <system_error>
 #include <utility>
 #include <vector>
+#include "support/debug.h"
 
 using namespace llvm;
 using namespace llvm::vfs;
@@ -621,21 +623,61 @@ RemoteFileSystem::create(SourceMgr::DiagHandlerTy DiagHandler, StringRef serverU
   }
 }
 
+llvm::sys::fs::perms
+RemoteFileSystem::mode_to_perms(mode_t const& mode)
+{
+  return static_cast<llvm::sys::fs::perms>(mode & 07777);
+}
+
+llvm::sys::fs::file_type
+RemoteFileSystem::get_file_type(bool accessible, remotefs_file_type_t type)
+{
+  if (!accessible) {
+    return llvm::sys::fs::file_type::file_not_found;
+  }
+  switch (type) {
+    case file: return llvm::sys::fs::file_type::regular_file;
+    case directory: return llvm::sys::fs::file_type::directory_file;
+    case other: return llvm::sys::fs::file_type::type_unknown;
+    default: NOT_REACHED();
+  }
+  NOT_REACHED();
+}
+
 ErrorOr<Status>
 RemoteFileSystem::status(const Twine &Path) {
-  ErrorOr<Status> ret = RedirectingFS->status(Path);
-  if (std::error_code ec = ret.getError()) {
-    //ec.message()
+  remotefs_file_status_t remotefs_file_status;
+  if (remotefs_get_status(Path.str(), remotefs_file_status)) {
+    llvm::sys::fs::UniqueID UID(remotefs_file_status.m_device, remotefs_file_status.m_file);
+    struct timespec const& mod = remotefs_file_status.m_last_modified_time;
+    llvm::sys::TimePoint<> MTime(std::chrono::seconds(mod.tv_sec) + std::chrono::nanoseconds(mod.tv_nsec));
+    uint32_t User = remotefs_file_status.m_user;
+    uint32_t Group = remotefs_file_status.m_group;
+    uint32_t Size = remotefs_file_status.m_size;
+    bool accessible = remotefs_file_status.m_accessible;
+    llvm::sys::fs::file_type Type = get_file_type(accessible, remotefs_file_status.m_type);
+    llvm::sys::fs::perms Perms = mode_to_perms(remotefs_file_status.m_mode);
+    return Status(Path, UID, MTime, User, Group, Size, Type, Perms);
   } else {
-    //print ret->getName int(ret->getType()) getPermissions getLastModificationTime
+    ErrorOr<Status> ret = RedirectingFS->status(Path);
+    if (std::error_code ec = ret.getError()) {
+      //ec.message()
+    } else {
+      //print ret->getName int(ret->getType()) getPermissions getLastModificationTime
+    }
+    return ret;
   }
-  return ret;
 }
 
 ErrorOr<std::unique_ptr<File>>
 RemoteFileSystem::openFileForRead(const Twine &Path) {
   llvm::errs() << "RemoteFileSystem::" << __func__ << " " << __LINE__ << ": Path = " << Path.str() << "\n";
-  return RedirectingFS->openFileForRead(Path);
+  std::string local_pathname;
+  if (remotefs_get_local_pathname(Path.str(), local_pathname)) {
+    return RedirectingFS->openFileForRead(local_pathname);
+  } else {
+    return RedirectingFS->openFileForRead(Path);
+  }
 }
 
 std::error_code
