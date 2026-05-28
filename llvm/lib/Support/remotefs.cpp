@@ -2,6 +2,11 @@
 #include <cstdlib>
 #include <fstream>
 #include <iomanip>
+#include <string>
+#include <set>
+#include <unordered_set>
+#include <map>
+#include <unordered_map>
 
 #include <curlpp/cURLpp.hpp>
 #include <curlpp/Easy.hpp>
@@ -11,19 +16,22 @@
 
 #include "llvm/ADT/SmallString.h"
 #include "llvm/Support/Path.h"
+#include "llvm/Support/remotefs.h"
 
 #include "support/debug.h"
-#include "remotefs.h"
+#include "support/utils.h"
 
-static std::string serverURL;
-static std::string dirPath;
-static const char* server_pathname_to_local_filename = "server_pathname_to_local_filename";
+using namespace std;
+
+static char const* serverURL = nullptr;
+static char const* dirPath = nullptr;
+static const char* const server_pathname_to_local_filename = "server_pathname_to_local_filename";
 
 void
 remotefs_activate(std::string const& url, std::string const& dir)
 {
-  serverURL = url;
-  dirPath = dir;
+  serverURL = strdup(url.c_str());
+  dirPath = strdup(dir.c_str());
 }
 
 static bool
@@ -107,6 +115,16 @@ add_mapped_local_filename(std::string const& pathname, std::string const& local_
   return mapping_file.good();
 }
 
+static remotefs_file_type_t
+get_type_from_string(string const& s)
+{
+  if (s == "file") return file;
+  if (s == "directory") return directory;
+  if (s == "other") return other;
+  //llvm::errs() << _FNLN_ << ": s = " << s << "\n";
+  NOT_REACHED();
+}
+
 //returns true if success
 bool
 remotefs_get_status(std::string const& pathname, remotefs_file_status_t& status)
@@ -119,7 +137,7 @@ remotefs_get_status(std::string const& pathname, remotefs_file_status_t& status)
   if (!perform_request(url, response)) {
     return false;
   }
-  vector<string> response_sections = response.splitOnChar(s, '\n');
+  vector<string> response_sections = splitOnChar(response, '\n');
   status.m_accessible = string_to_bool(response_sections[0]);
   status.m_type = get_type_from_string(response_sections[1]);
   status.m_mode = static_cast<mode_t>(std::stoul(response_sections[2], nullptr, 16));
@@ -130,10 +148,10 @@ remotefs_get_status(std::string const& pathname, remotefs_file_status_t& status)
   status.m_file = string_to_int(response_sections[7]);
 
   std::string const& mod = response_sections[8];
-  struct tm tm = {}
+  struct tm tm = {};
   char* res = strptime(mod.c_str(), "%Y-%m-%dT%H:%M:%S", &tm);
   status.m_last_modified_time.tv_sec = 0;
-  status.m_last_modified_time.tv_usec = 0;
+  status.m_last_modified_time.tv_nsec = 0;
   if (res) {
     time_t secs = timegm(&tm); // timegm: UTC as in ISO8601
     status.m_last_modified_time.tv_sec = secs;

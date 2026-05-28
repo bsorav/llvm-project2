@@ -403,7 +403,7 @@ int clang_main(int Argc, char **Argv, const llvm::ToolContext &ToolContext) {
     auto iter_dir = llvm::find_if(Args, [&remotefs_dir_prefix](char const* F) {
       return F && std::string(F).substr(0, remotefs_dir_prefix.size()) == remotefs_dir_prefix;
     });
-    auto remotefs_dir = std::string(*iter_dir).substr(remotefs_url_prefix.size());
+    auto remotefs_dir = std::string(*iter_dir).substr(remotefs_dir_prefix.size());
     std::string remotefs_url_prefix = "--remotefs-url=";
     auto iter_url = llvm::find_if(Args, [&remotefs_url_prefix](char const* F) {
       return F && std::string(F).substr(0, remotefs_url_prefix.size()) == remotefs_url_prefix;

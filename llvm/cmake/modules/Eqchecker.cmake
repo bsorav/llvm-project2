@@ -18,6 +18,7 @@ set(SUPEROPT_RUNTIME_LIBDIR "lib-${SUPEROPT_RELEVANT_ABUILD}")
 
 link_directories(${z3_lib})
 link_directories(${binutils_install_dir}/lib)
+link_directories(${curlpp_lib_dir})
 
 INCLUDE_DIRECTORIES(${SUPEROPT_DIR}/include)
 INCLUDE_DIRECTORIES(${SUPEROPT_DIR}/lib)
