@@ -30,8 +30,18 @@ static const char* const server_pathname_to_local_filename = "server_pathname_to
 void
 remotefs_activate(std::string const& url, std::string const& dir)
 {
-  serverURL = strdup(url.c_str());
-  dirPath = strdup(dir.c_str());
+  if (!url.empty()) {
+    serverURL = strdup(url.c_str());
+  }
+  if (!dir.empty()) {
+    dirPath = strdup(dir.c_str());
+  }
+}
+
+bool
+remotefs_active()
+{
+  return serverURL != nullptr && dirPath != nullptr;
 }
 
 static bool

@@ -1068,7 +1068,7 @@ private:
 
 public:
   static std::unique_ptr<RemoteFileSystem>
-  create(SourceMgr::DiagHandlerTy DiagHandler, StringRef ServerURL,
+  create(SourceMgr::DiagHandlerTy DiagHandler,
          void *DiagContext, IntrusiveRefCntPtr<FileSystem> ExternalFS);
 
   ErrorOr<Status> status(const Twine &Path) override;

@@ -5025,8 +5025,7 @@ createBorlandCaseInsensitiveVFS(const CompilerInvocation &CI,
 }
 
 static IntrusiveRefCntPtr<llvm::vfs::FileSystem>
-createRemoteVFS(CompilerInvocation const& CI,
-        IntrusiveRefCntPtr<llvm::vfs::FileSystem> ExternalFS) {
+createRemoteVFS(IntrusiveRefCntPtr<llvm::vfs::FileSystem> ExternalFS) {
   //llvm::vfs::YAMLVFSWriter Writer;
   //std::string Overlay;
   //llvm::raw_string_ostream OS(Overlay);
@@ -5038,7 +5037,7 @@ createRemoteVFS(CompilerInvocation const& CI,
 
   IntrusiveRefCntPtr<llvm::vfs::FileSystem> OverlayFS =
       llvm::vfs::RemoteFileSystem::create(/*DiagHandler=*/nullptr,
-      "<server-url>", /*DiagContext=*/nullptr,
+      /*DiagContext=*/nullptr,
       std::move(ExternalFS));
   return OverlayFS ? OverlayFS : ExternalFS;
 }
@@ -5048,7 +5047,9 @@ clang::createVFSFromCompilerInvocation(
     const CompilerInvocation &CI, DiagnosticsEngine &Diags,
     IntrusiveRefCntPtr<llvm::vfs::FileSystem> BaseFS) {
   BaseFS = createBorlandCaseInsensitiveVFS(CI, std::move(BaseFS));
-  BaseFS = createRemoteVFS(CI, BaseFS);
+  if (remotefs_active()) {
+    BaseFS = createRemoteVFS(BaseFS);
+  }
   return createVFSFromOverlayFiles(CI.getHeaderSearchOpts().VFSOverlayFiles,
                                    Diags, std::move(BaseFS));
 }

@@ -22,5 +22,6 @@ struct remotefs_file_status_t {
 };
 
 void remotefs_activate(std::string const& url, std::string const& dir);
+bool remotefs_active();
 bool remotefs_get_status(std::string const& pathname, remotefs_file_status_t& status); //returns true if success
 bool remotefs_get_local_pathname(std::string const& pathname, std::string& local_pathname); //returns true if success

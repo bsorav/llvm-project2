@@ -596,7 +596,7 @@ RemoteFileSystem::RemoteFileSystem(IntrusiveRefCntPtr<RedirectingFileSystem> red
 { }
 
 std::unique_ptr<RemoteFileSystem>
-RemoteFileSystem::create(SourceMgr::DiagHandlerTy DiagHandler, StringRef serverURL,
+RemoteFileSystem::create(SourceMgr::DiagHandlerTy DiagHandler,
         void *DiagContext, IntrusiveRefCntPtr<FileSystem> ExternalFS)
 {
   llvm::vfs::YAMLVFSWriter Writer;
