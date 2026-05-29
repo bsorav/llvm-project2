@@ -25,13 +25,18 @@ using namespace std;
 
 static char const* serverURL = nullptr;
 static char const* dirPath = nullptr;
+static const char* const server_url_path = "/api/eqchecker/submit_eqcheck";
 static const char* const server_pathname_to_local_filename = "server_pathname_to_local_filename";
+//static const char* const commandGetClientFileStatus = "getClientFileStatus";
+//static const char* const commandGetClientFileContents = "getClientFileContents";
+//static const char* const cmdSpecifier = "serverCommand";
+//static const char* const pathnameSpecifier = "dirPath";
 
 void
 remotefs_activate(std::string const& url, std::string const& dir)
 {
   if (!url.empty()) {
-    serverURL = strdup(url.c_str());
+    serverURL = strdup((url + server_url_path).c_str());
   }
   if (!dir.empty()) {
     dirPath = strdup(dir.c_str());
@@ -45,13 +50,25 @@ remotefs_active()
 }
 
 static bool
-perform_request(std::string const& url, std::string& response_str)
+perform_request(std::string const& url, std::string const& jsonRequest, std::string& response_str)
 {
   try {
     curlpp::Easy request;
+
+    std::cout << "url = " << url << std::endl;
+    request.setOpt(new curlpp::options::Url(url));  //set the url
+    request.setOpt(new curlpp::options::PostFields(jsonRequest));
+    request.setOpt(new curlpp::options::PostFieldSize(jsonRequest.length()));
+
+    // Headers
+    std::list<std::string> headers;
+    headers.push_back("Content-Type: application/json");
+    headers.push_back("Accept: application/json");
+
+    request.setOpt(new curlpp::options::HttpHeader(headers));
+
     std::ostringstream response;
 
-    request.setOpt(new curlpp::options::Url(url));  //set the url
     request.setOpt(new curlpp::options::WriteStream(&response)); //response target
 
     request.perform(); //executes the GET request, blocking till response recvd
@@ -140,14 +157,25 @@ bool
 remotefs_get_status(std::string const& pathname, remotefs_file_status_t& status)
 {
   std::ostringstream url_stream;
-  url_stream << serverURL << "/?cmd=status&path=" << curlpp::escape(pathname);
+  url_stream << serverURL; // << "/?" << cmdSpecifier << "=" << commandGetClientFileStatus << "&" << pathnameSpecifier << "=" << curlpp::escape(pathname);
   std::string url = url_stream.str();
 
+  std::string jsonRequest = R"({
+    "serverCommand": "getClientFileStatus",
+    "dirPath":")" + pathname + R"("
+  })";
+
+
   std::string response;
-  if (!perform_request(url, response)) {
+  if (!perform_request(url, jsonRequest, response)) {
     return false;
   }
   vector<string> response_sections = splitOnChar(response, '\n');
+  std::cout << _FNLN_ << ": response = " << response << "\n";
+  std::cout << _FNLN_ << ": response_sections.size() = " << response_sections.size() << "\n";
+  if (response_sections.size() != 9) {
+    return false;
+  }
   status.m_accessible = string_to_bool(response_sections[0]);
   status.m_type = get_type_from_string(response_sections[1]);
   status.m_mode = static_cast<mode_t>(std::stoul(response_sections[2], nullptr, 16));
@@ -189,11 +217,17 @@ remotefs_get_local_pathname(std::string const& pathname, std::string& local_path
   }
 
   std::ostringstream url_stream;
-  url_stream << serverURL << "/?cmd=open&path=" << curlpp::escape(pathname);
+  url_stream << serverURL; // << "/?" << cmdSpecifier << "=" << commandGetClientFileContents << "&" << pathnameSpecifier << "=" << curlpp::escape(pathname);
   std::string url = url_stream.str();
 
+  std::string jsonRequest = R"({
+    "serverCommand": "getClientFileContents",
+    "dirPath":")" + pathname + R"("
+  })";
+
+
   std::string response;
-  if (!perform_request(url, response)) {
+  if (!perform_request(url, jsonRequest, response)) {
     return false;
   }
 
