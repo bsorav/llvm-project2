@@ -37,7 +37,6 @@
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/YAMLParser.h"
 #include "llvm/Support/raw_ostream.h"
-#include "llvm/Support/remotefs.h"
 #include <algorithm>
 #include <atomic>
 #include <cassert>
@@ -52,6 +51,7 @@
 #include <utility>
 #include <vector>
 #include "support/debug.h"
+#include "support/remotefs.h"
 
 using namespace llvm;
 using namespace llvm::vfs;

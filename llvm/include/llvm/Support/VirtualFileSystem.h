@@ -24,7 +24,6 @@
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/SourceMgr.h"
-#include "llvm/Support/remotefs.h"
 #include <cassert>
 #include <cstdint>
 #include <ctime>
@@ -35,6 +34,8 @@
 #include <system_error>
 #include <utility>
 #include <vector>
+
+#include "support/remotefs.h"
 
 namespace llvm {
 
