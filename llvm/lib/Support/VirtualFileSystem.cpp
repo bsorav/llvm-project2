@@ -37,6 +37,7 @@
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/YAMLParser.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Support/Signals.h"
 #include <algorithm>
 #include <atomic>
 #include <cassert>
@@ -648,6 +649,9 @@ ErrorOr<Status>
 RemoteFileSystem::status(const Twine &Path) {
   remotefs_file_status_t remotefs_file_status;
   if (remotefs_get_status(Path.str(), remotefs_file_status)) {
+
+    llvm::sys::PrintStackTrace(llvm::errs());
+
     llvm::sys::fs::UniqueID UID(remotefs_file_status.m_device, remotefs_file_status.m_file);
     struct timespec const& mod = remotefs_file_status.m_last_modified_time;
     llvm::sys::TimePoint<> MTime(std::chrono::seconds(mod.tv_sec) + std::chrono::nanoseconds(mod.tv_nsec));
@@ -674,7 +678,7 @@ RemoteFileSystem::openFileForRead(const Twine &Path) {
   llvm::errs() << "RemoteFileSystem::" << __func__ << " " << __LINE__ << ": Path = " << Path.str() << "\n";
   std::string local_pathname;
   if (remotefs_get_local_pathname(Path.str(), local_pathname)) {
-    return RedirectingFS->openFileForRead(local_pathname);
+    return File::getWithPath(RedirectingFS->openFileForRead(local_pathname), Path);
   } else {
     return RedirectingFS->openFileForRead(Path);
   }

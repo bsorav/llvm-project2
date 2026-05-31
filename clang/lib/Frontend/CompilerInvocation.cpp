@@ -103,6 +103,9 @@
 #include <utility>
 #include <vector>
 
+#include "support/debug.h"
+#include "support/dyn_debug.h"
+
 using namespace clang;
 using namespace driver;
 using namespace options;
@@ -5048,7 +5051,10 @@ clang::createVFSFromCompilerInvocation(
     IntrusiveRefCntPtr<llvm::vfs::FileSystem> BaseFS) {
   BaseFS = createBorlandCaseInsensitiveVFS(CI, std::move(BaseFS));
   if (remotefs_active()) {
+    llvm::errs() << _FNLN_ << ": remotefs_active() returned true.\n";
     BaseFS = createRemoteVFS(BaseFS);
+  } else {
+    llvm::errs() << _FNLN_ << ": remotefs_active() returned false.\n";
   }
   return createVFSFromOverlayFiles(CI.getHeaderSearchOpts().VFSOverlayFiles,
                                    Diags, std::move(BaseFS));
