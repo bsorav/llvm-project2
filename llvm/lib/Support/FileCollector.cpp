@@ -269,6 +269,7 @@ public:
 
   llvm::ErrorOr<std::unique_ptr<llvm::vfs::File>>
   openFileForRead(const Twine &Path) override {
+    llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "():\n";
     auto Result = FS->openFileForRead(Path);
     if (Result && *Result)
       Collector->addFile(Path);

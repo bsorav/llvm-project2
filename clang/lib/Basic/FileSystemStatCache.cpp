@@ -38,16 +38,20 @@ FileSystemStatCache::get(StringRef Path, llvm::vfs::Status &Status,
   bool isForDir = !isFile;
   std::error_code RetCode;
 
+  llvm::errs() << __FILE__  << " " << __LINE__ << " " << __func__ << ":\n";
   // If we have a cache, use it to resolve the stat query.
   if (Cache)
     RetCode = Cache->getStat(Path, Status, isFile, F, FS);
   else if (isForDir || !F) {
     // If this is a directory or a file descriptor is not needed and we have
     // no cache, just go to the file system.
+    llvm::errs() << __FILE__  << " " << __LINE__ << " " << __func__ << ": calling FS.status(" << Path.str() << "\n";
     llvm::ErrorOr<llvm::vfs::Status> StatusOrErr = FS.status(Path);
     if (!StatusOrErr) {
+      llvm::errs() << __FILE__  << " " << __LINE__ << " " << __func__ << ": !StatusOrErr\n";
       RetCode = StatusOrErr.getError();
     } else {
+      llvm::errs() << __FILE__  << " " << __LINE__ << " " << __func__ << ": StatusOrErr is non-null\n";
       Status = *StatusOrErr;
     }
   } else {
@@ -58,12 +62,16 @@ FileSystemStatCache::get(StringRef Path, llvm::vfs::Status &Status,
     //
     // Because of this, check to see if the file exists with 'open'.  If the
     // open succeeds, use fstat to get the stat info.
+    llvm::errs() << __FILE__  << " " << __LINE__ << " " << __func__ << ": calling openFileForRead(" << Path.str() << "\n";
     auto OwnedFile = FS.openFileForRead(Path);
+    llvm::errs() << __FILE__  << " " << __LINE__ << " " << __func__ << ": returned from openFileForRead(" << Path.str() << "\n";
 
     if (!OwnedFile) {
+      llvm::errs() << __FILE__  << " " << __LINE__ << " " << __func__ << ": !OwnedFile\n";
       // If the open fails, our "stat" fails.
       RetCode = OwnedFile.getError();
     } else {
+      llvm::errs() << __FILE__  << " " << __LINE__ << " " << __func__ << ": OwnedFile is non-null\n";
       // Otherwise, the open succeeded.  Do an fstat to get the information
       // about the file.  We'll end up returning the open file descriptor to the
       // client to do what they please with it.

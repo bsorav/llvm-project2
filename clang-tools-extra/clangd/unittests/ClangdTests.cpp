@@ -1010,6 +1010,7 @@ TEST(ClangdTests, PreambleVFSStatCache) {
 
         llvm::ErrorOr<std::unique_ptr<llvm::vfs::File>>
         openFileForRead(const Twine &Path) override {
+          llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "():\n";
           ++CountStats[llvm::sys::path::filename(Path.str())];
           return ProxyFileSystem::openFileForRead(Path);
         }

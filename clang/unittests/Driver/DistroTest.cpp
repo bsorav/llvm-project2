@@ -354,6 +354,7 @@ TEST(DistroTest, DetectWindowsAndCrossCompile) {
     llvm::ErrorOr<std::unique_ptr<llvm::vfs::File>>
     openFileForRead(const llvm::Twine &Path) override {
       ++Count;
+      llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "():\n";
       return llvm::vfs::ProxyFileSystem::openFileForRead(Path);
     }
 

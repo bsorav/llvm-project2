@@ -182,10 +182,9 @@ int main(int argc, const char **argv) {
       remotefs_activate(RemoteFSUrl, RemoteFSDir);
     }
 
-    auto compilations = OptionsParser.getCompilations();
     auto source_path_list = OptionsParser.getSourcePathList();
     llvm::errs() << "source_path_list.size() = " << source_path_list.size() << "\n";
-    ClangTool Tool(compilations, source_path_list,
+    ClangTool Tool(OptionsParser.getCompilations(), source_path_list,
                    std::make_shared<PCHContainerOperations>(), createBaseFS());
     llvm::errs() << "Constructing CalleeRenameActionFactory\n";
     CalleeRenameActionFactory Factory;

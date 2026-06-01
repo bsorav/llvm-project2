@@ -432,6 +432,7 @@ public:
   }
   llvm::ErrorOr<std::unique_ptr<File>>
   openFileForRead(const Twine &Path) override {
+    llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "():\n";
     return FS->openFileForRead(Path);
   }
   directory_iterator dir_begin(const Twine &Dir, std::error_code &EC) override {
@@ -1058,10 +1059,10 @@ protected:
 class RemoteFileSystem : public vfs::FileSystem {
 private:
   // The underlying filesystem
-  IntrusiveRefCntPtr<RedirectingFileSystem> RedirectingFS;
+  IntrusiveRefCntPtr<FileSystem> ExternalFS;
 
 private:
-  RemoteFileSystem(IntrusiveRefCntPtr<RedirectingFileSystem> RedirectingFS);
+  RemoteFileSystem(IntrusiveRefCntPtr<FileSystem> ExternalFS);
 
 private:
   static llvm::sys::fs::perms mode_to_perms(mode_t const& mode);
@@ -1079,24 +1080,24 @@ public:
   std::error_code getRealPath(const Twine &Path,
                               SmallVectorImpl<char> &Output) const override
   {
-    return RedirectingFS->getRealPath(Path, Output);
+    return ExternalFS->getRealPath(Path, Output);
   }
   llvm::ErrorOr<std::string> getCurrentWorkingDirectory() const override
   {
-    return RedirectingFS->getCurrentWorkingDirectory();
+    return ExternalFS->getCurrentWorkingDirectory();
   }
   std::error_code setCurrentWorkingDirectory(const Twine &Path) override
   {
-    return RedirectingFS->setCurrentWorkingDirectory(Path);
+    return ExternalFS->setCurrentWorkingDirectory(Path);
   }
   std::error_code isLocal(const Twine &Path, bool &Result) override
   {
-    return RedirectingFS->isLocal(Path, Result);
+    return ExternalFS->isLocal(Path, Result);
   }
   std::error_code makeAbsolute(SmallVectorImpl<char> &Path) const override;
   directory_iterator dir_begin(const Twine &Dir, std::error_code &EC) override
   {
-    return RedirectingFS->dir_begin(Dir, EC);
+    return ExternalFS->dir_begin(Dir, EC);
   }
 };
 
