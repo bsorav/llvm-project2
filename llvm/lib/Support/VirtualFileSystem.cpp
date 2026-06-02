@@ -52,6 +52,7 @@
 #include <utility>
 #include <vector>
 #include "support/debug.h"
+#include "support/consts.h"
 #include "support/remotefs.h"
 
 using namespace llvm;
@@ -684,6 +685,9 @@ RemoteFileSystem::openFileForRead(const Twine &Path) {
   //llvm::sys::PrintStackTrace(llvm::errs());
   std::string local_pathname;
   if (remotefs_get_local_pathname(Path.str(), local_pathname)) {
+    if (local_pathname == NOT_FOUND_KEYWORD) {
+      return std::make_error_code(std::errc::no_such_file_or_directory);
+    }
     llvm::errs() << __func__ << " " << __LINE__ << ": Calling ExternalFS openFileForRead() using local_pathname " << local_pathname << " but with name " << Path.str() << "\n";
     ErrorOr<std::unique_ptr<File>> F = ExternalFS->openFileForRead(local_pathname);
     llvm::errs() << __func__ << " " << __LINE__ << ": returned from ExternalFS openFileForRead() using local_pathname " << local_pathname << " but with name " << Path.str() << "\n";
