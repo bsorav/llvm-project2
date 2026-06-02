@@ -318,7 +318,8 @@ ErrorOr<Status> RealFileSystem::status(const Twine &Path) {
 
 ErrorOr<std::unique_ptr<File>>
 RealFileSystem::openFileForRead(const Twine &Name) {
-  llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "():\n";
+  llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "(): Name = " << Name.str() << "\n";
+  llvm::sys::PrintStackTrace(llvm::errs());
   SmallString<256> RealName, Storage;
   Expected<file_t> FDOrErr = sys::fs::openNativeFileForRead(
       adjustPath(Name, Storage), sys::fs::OF_None, &RealName);
@@ -451,8 +452,12 @@ OverlayFileSystem::openFileForRead(const llvm::Twine &Path) {
   for (iterator I = overlays_begin(), E = overlays_end(); I != E; ++I) {
     llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "(): Path = " << Path.str() << "\n";
     auto Result = (*I)->openFileForRead(Path);
-    if (Result || Result.getError() != llvm::errc::no_such_file_or_directory)
+    llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "(): Path = " << Path.str() << "\n";
+    if (Result || Result.getError() != llvm::errc::no_such_file_or_directory) {
+      llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "(): Path = " << Path.str() << "\n";
       return Result;
+    }
+    llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "(): Path = " << Path.str() << "\n";
   }
   return make_error_code(llvm::errc::no_such_file_or_directory);
 }
@@ -684,9 +689,9 @@ RemoteFileSystem::openFileForRead(const Twine &Path) {
   std::string local_pathname;
   if (remotefs_get_local_pathname(Path.str(), local_pathname)) {
     llvm::errs() << __func__ << " " << __LINE__ << ": Calling ExternalFS openFileForRead() using local_pathname " << local_pathname << " but with name " << Path.str() << "\n";
-    auto F = ExternalFS->openFileForRead(local_pathname);
+    ErrorOr<std::unique_ptr<File>> F = ExternalFS->openFileForRead(local_pathname);
     llvm::errs() << __func__ << " " << __LINE__ << ": returned from ExternalFS openFileForRead() using local_pathname " << local_pathname << " but with name " << Path.str() << "\n";
-    return File::getWithPath(F, Path);
+    return File::getWithPath(std::move(F), Path);
   } else {
     llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "():\n";
     return ExternalFS->openFileForRead(Path);

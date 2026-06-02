@@ -5037,6 +5037,11 @@ createRemoteVFS(IntrusiveRefCntPtr<llvm::vfs::FileSystem> ExternalFS) {
 
   //std::unique_ptr<llvm::MemoryBuffer> Buffer =
   //    llvm::MemoryBuffer::getMemBufferCopy(Overlay, "<remote-vfs>");
+  if (ExternalFS->isRemoteFileSystem()) {
+    // Use RedirectingFS here as a pointer (e.g., RedirectingFS->getVFSEntries())
+    llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << ": is a remoteFS already\n";
+    return ExternalFS;
+  }
 
   IntrusiveRefCntPtr<llvm::vfs::FileSystem> OverlayFS =
       llvm::vfs::RemoteFileSystem::create(/*DiagHandler=*/nullptr,

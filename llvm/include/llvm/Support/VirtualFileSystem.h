@@ -320,6 +320,8 @@ public:
   ///          platform-specific error_code.
   virtual std::error_code makeAbsolute(SmallVectorImpl<char> &Path) const;
 
+  virtual bool isRemoteFileSystem() const { return false; }
+
   enum class PrintType { Summary, Contents, RecursiveContents };
   void print(raw_ostream &OS, PrintType Type = PrintType::Contents,
              unsigned IndentLevel = 0) const {
@@ -1072,6 +1074,8 @@ public:
   static std::unique_ptr<RemoteFileSystem>
   create(SourceMgr::DiagHandlerTy DiagHandler,
          void *DiagContext, IntrusiveRefCntPtr<FileSystem> ExternalFS);
+
+  bool isRemoteFileSystem() const override { return true; }
 
   ErrorOr<Status> status(const Twine &Path) override;
   //bool exists(const Twine &Path) override { return RedirectingFS->exists(Path); }

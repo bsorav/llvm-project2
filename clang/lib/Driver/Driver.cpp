@@ -90,6 +90,7 @@
 #include "llvm/Support/StringSaver.h"
 #include "llvm/Support/VirtualFileSystem.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Support/Signals.h"
 #include "llvm/TargetParser/Host.h"
 #include <cstdlib> // ::getenv
 #include <map>
@@ -206,10 +207,14 @@ Driver::Driver(StringRef ClangExecutable, StringRef TargetTriple,
       TargetTriple(TargetTriple), Saver(Alloc), PrependArg(nullptr),
       CheckInputsExist(true), ProbePrecompiled(true),
       SuppressMissingInputWarning(false) {
-  // Provide a sane fallback if no VFS is specified.
-  if (!this->VFS)
-    this->VFS = llvm::vfs::getRealFileSystem();
 
+  llvm::errs() << __FILE__ << " " << __LINE__ << ":\n";
+  llvm::sys::PrintStackTrace(llvm::errs());
+  // Provide a sane fallback if no VFS is specified.
+  if (!this->VFS) {
+    llvm::errs() << __FILE__ << " " << __LINE__ << ": !this->VFS\n";
+    this->VFS = llvm::vfs::getRealFileSystem();
+  }
   Name = std::string(llvm::sys::path::filename(ClangExecutable));
   Dir = std::string(llvm::sys::path::parent_path(ClangExecutable));
   InstalledDir = Dir; // Provide a sensible default installed dir.
@@ -2528,8 +2533,12 @@ bool Driver::DiagnoseInputExistence(const DerivedArgList &Args, StringRef Value,
       (ModulesModeCXX20 && Ty == types::TY_CXXHeader))
     return true;
 
-  if (getVFS().exists(Value))
+  llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << ": calling getVFS().exists(" << Value.str() << ")\n";
+  if (getVFS().exists(Value)) {
+    llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << ": getVFS().exists(" << Value.str() << ") returned true\n";
     return true;
+  }
+  llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << ": getVFS().exists(" << Value.str() << ") returned false\n";
 
   if (TypoCorrect) {
     // Check if the filename is a typo for an option flag. OptTable thinks

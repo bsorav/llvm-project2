@@ -47,6 +47,7 @@
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Support/Timer.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Support/VirtualFileSystem.h"
 #include "llvm/TargetParser/Host.h"
 #include <memory>
 #include <optional>
@@ -410,6 +411,7 @@ int clang_main(int Argc, char **Argv, const llvm::ToolContext &ToolContext) {
     if (iter_dir != Args.end() && iter_url != Args.end()) {
       auto remotefs_url = std::string(*iter_url).substr(remotefs_url_prefix.size());
       auto remotefs_dir = std::string(*iter_dir).substr(remotefs_dir_prefix.size());
+      llvm::errs() << "Initializing RemoteFS\n";
       remotefs_activate(remotefs_url, remotefs_dir);
     }
   }
@@ -518,7 +520,7 @@ int clang_main(int Argc, char **Argv, const llvm::ToolContext &ToolContext) {
 
   ProcessWarningOptions(Diags, *DiagOpts, /*ReportDiags=*/false);
 
-  Driver TheDriver(Path, llvm::sys::getDefaultTargetTriple(), Diags);
+  Driver TheDriver(Path, llvm::sys::getDefaultTargetTriple(), Diags, "RemoteFS", llvm::vfs::RemoteFileSystem::create(/*DiagHandler=*/nullptr, /*DiagContext=*/nullptr, llvm::vfs::createPhysicalFileSystem()));
   SetInstallDir(Args, TheDriver, CanonicalPrefixes);
   auto TargetAndMode = ToolChain::getTargetAndModeFromProgramName(ProgName);
   TheDriver.setTargetAndMode(TargetAndMode);
