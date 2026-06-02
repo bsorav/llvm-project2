@@ -319,7 +319,7 @@ ErrorOr<Status> RealFileSystem::status(const Twine &Path) {
 ErrorOr<std::unique_ptr<File>>
 RealFileSystem::openFileForRead(const Twine &Name) {
   llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "(): Name = " << Name.str() << "\n";
-  llvm::sys::PrintStackTrace(llvm::errs());
+  //llvm::sys::PrintStackTrace(llvm::errs());
   SmallString<256> RealName, Storage;
   Expected<file_t> FDOrErr = sys::fs::openNativeFileForRead(
       adjustPath(Name, Storage), sys::fs::OF_None, &RealName);
@@ -648,9 +648,7 @@ ErrorOr<Status>
 RemoteFileSystem::status(const Twine &Path) {
   remotefs_file_status_t remotefs_file_status;
   if (remotefs_get_status(Path.str(), remotefs_file_status)) {
-
-    llvm::sys::PrintStackTrace(llvm::errs());
-
+    //llvm::sys::PrintStackTrace(llvm::errs());
     llvm::sys::fs::UniqueID UID(remotefs_file_status.m_device, remotefs_file_status.m_file);
     struct timespec const& mod = remotefs_file_status.m_last_modified_time;
     llvm::sys::TimePoint<> MTime(std::chrono::seconds(mod.tv_sec) + std::chrono::nanoseconds(mod.tv_nsec));
@@ -683,9 +681,7 @@ RemoteFileSystem::status(const Twine &Path) {
 ErrorOr<std::unique_ptr<File>>
 RemoteFileSystem::openFileForRead(const Twine &Path) {
   llvm::errs() << "RemoteFileSystem::" << __func__ << " " << __LINE__ << ": Path = " << Path.str() << "\n";
-
-  llvm::sys::PrintStackTrace(llvm::errs());
-
+  //llvm::sys::PrintStackTrace(llvm::errs());
   std::string local_pathname;
   if (remotefs_get_local_pathname(Path.str(), local_pathname)) {
     llvm::errs() << __func__ << " " << __LINE__ << ": Calling ExternalFS openFileForRead() using local_pathname " << local_pathname << " but with name " << Path.str() << "\n";

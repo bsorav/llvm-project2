@@ -209,7 +209,7 @@ Driver::Driver(StringRef ClangExecutable, StringRef TargetTriple,
       SuppressMissingInputWarning(false) {
 
   llvm::errs() << __FILE__ << " " << __LINE__ << ":\n";
-  llvm::sys::PrintStackTrace(llvm::errs());
+  //llvm::sys::PrintStackTrace(llvm::errs());
   // Provide a sane fallback if no VFS is specified.
   if (!this->VFS) {
     llvm::errs() << __FILE__ << " " << __LINE__ << ": !this->VFS\n";
