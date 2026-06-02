@@ -461,6 +461,7 @@ OptionalFileEntryRef DirectoryLookup::LookupFile(
   IsInHeaderMap = false;
   MappedName.clear();
 
+  llvm::errs() << __func__ << " " << __LINE__ << ": Filename = " << Filename.str() << "\n";
   SmallString<1024> TmpDir;
   if (isNormalDir()) {
     // Concatenate the requested file onto the directory.

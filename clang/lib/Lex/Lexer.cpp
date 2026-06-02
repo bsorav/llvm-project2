@@ -3668,6 +3668,8 @@ LexStart:
   // CurPtr - Cache BufferPtr in an automatic variable.
   const char *CurPtr = BufferPtr;
 
+  llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "(): CurPtr = " << CurPtr << "\n";
+
   // Small amounts of horizontal whitespace is very common between tokens.
   if (isHorizontalWhitespace(*CurPtr)) {
     do {
@@ -4150,6 +4152,7 @@ LexStart:
         // it's actually the start of a preprocessing directive.  Callback to
         // the preprocessor to handle it.
         // TODO: -fpreprocessed mode??
+        llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "():\n";
         if (TokAtPhysicalStartOfLine && !LexingRawMode && !Is_PragmaLexer)
           goto HandleDirective;
 
@@ -4432,6 +4435,7 @@ LexStart:
 HandleDirective:
   // We parsed a # character and it's the start of a preprocessing directive.
 
+  llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "():\n";
   FormTokenWithChars(Result, CurPtr, tok::hash);
   PP->HandleDirective(Result);
 

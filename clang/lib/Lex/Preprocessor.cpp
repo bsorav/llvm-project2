@@ -1235,6 +1235,7 @@ bool Preprocessor::LexAfterModuleImport(Token &Result) {
     ImportTok.setIdentifierInfo(getIdentifierInfo("import"));
     ImportTok.setLength(6);
 
+    llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "():\n";
     auto Action = HandleHeaderIncludeOrImport(
         /*HashLoc*/ SourceLocation(), ImportTok, Suffix.front(), SemiLoc);
     switch (Action.Kind) {

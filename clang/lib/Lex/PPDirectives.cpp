@@ -959,6 +959,8 @@ OptionalFileEntryRef Preprocessor::LookupFile(
   ConstSearchDirIterator CurDirLocal = nullptr;
   ConstSearchDirIterator &CurDir = CurDirArg ? *CurDirArg : CurDirLocal;
 
+  llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "(): Filename = " << Filename.str() << "\n";
+
   Module *RequestingModule = getModuleForLocation(
       FilenameLoc, LangOpts.ModulesValidateTextualHeaderIncludes);
 
@@ -1019,6 +1021,7 @@ OptionalFileEntryRef Preprocessor::LookupFile(
     // the include path until we find that file or run out of files.
     ConstSearchDirIterator TmpCurDir = CurDir;
     ConstSearchDirIterator TmpFromDir = nullptr;
+    llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "():\n";
     while (OptionalFileEntryRef FE = HeaderInfo.LookupFile(
                Filename, FilenameLoc, isAngled, TmpFromDir, &TmpCurDir,
                Includers, SearchPath, RelativePath, RequestingModule,
@@ -1036,6 +1039,7 @@ OptionalFileEntryRef Preprocessor::LookupFile(
     }
   }
 
+  llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "():\n";
   // Do a standard file entry lookup.
   OptionalFileEntryRef FE = HeaderInfo.LookupFile(
       Filename, FilenameLoc, isAngled, FromDir, &CurDir, Includers, SearchPath,
@@ -1103,6 +1107,7 @@ private:
 /// All other directives are completely discarded.
 void Preprocessor::HandleSkippedDirectiveWhileUsingPCH(Token &Result,
                                                        SourceLocation HashLoc) {
+  llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "():\n";
   if (const IdentifierInfo *II = Result.getIdentifierInfo()) {
     if (II->getPPKeywordID() == tok::pp_define) {
       return HandleDefineDirective(Result,
@@ -1110,6 +1115,7 @@ void Preprocessor::HandleSkippedDirectiveWhileUsingPCH(Token &Result,
     }
     if (SkippingUntilPCHThroughHeader &&
         II->getPPKeywordID() == tok::pp_include) {
+      llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "():\n";
       return HandleIncludeDirective(HashLoc, Result);
     }
     if (SkippingUntilPragmaHdrStop && II->getPPKeywordID() == tok::pp_pragma) {
@@ -1129,6 +1135,7 @@ void Preprocessor::HandleSkippedDirectiveWhileUsingPCH(Token &Result,
 void Preprocessor::HandleDirective(Token &Result) {
   // FIXME: Traditional: # with whitespace before it not recognized by K&R?
 
+  llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "():\n";
   // We just parsed a # character at the start of a line, so we're in directive
   // mode.  Tell the lexer this so any newlines we see will be converted into an
   // EOD token (which terminates the directive).
@@ -1185,9 +1192,11 @@ void Preprocessor::HandleDirective(Token &Result) {
   // and reset to previous state when returning from this function.
   ResetMacroExpansionHelper helper(this);
 
+  llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "():\n";
   if (SkippingUntilPCHThroughHeader || SkippingUntilPragmaHdrStop)
     return HandleSkippedDirectiveWhileUsingPCH(Result, SavedHash.getLocation());
 
+  llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "():\n";
   switch (Result.getKind()) {
   case tok::eod:
     // Ignore the null directive with regards to the multiple-include
@@ -1238,6 +1247,7 @@ void Preprocessor::HandleDirective(Token &Result) {
     // C99 6.10.2 - Source File Inclusion.
     case tok::pp_include:
       // Handle #include.
+      llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "():\n";
       return HandleIncludeDirective(SavedHash.getLocation(), Result);
     case tok::pp___include_macros:
       // Handle -imacros.
@@ -1302,6 +1312,7 @@ void Preprocessor::HandleDirective(Token &Result) {
     }
     break;
   }
+  llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "():\n";
 
   // If this is a .S file, treat unknown # directives as non-preprocessor
   // directives.  This is important because # may be a comment or introduce
@@ -1313,6 +1324,7 @@ void Preprocessor::HandleDirective(Token &Result) {
     Toks[0] = SavedHash;
     Toks[1] = Result;
 
+    llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "():\n";
     // If the second token is a hashhash token, then we need to translate it to
     // unknown so the token lexer doesn't try to perform token pasting.
     if (Result.is(tok::hashhash))
@@ -1325,6 +1337,7 @@ void Preprocessor::HandleDirective(Token &Result) {
     return;
   }
 
+  llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "():\n";
   // If we reached here, the preprocessing token is not valid!
   // Start suggesting if a similar directive found.
   Diag(Result, diag::err_pp_invalid_directive) << 0;
@@ -1332,6 +1345,7 @@ void Preprocessor::HandleDirective(Token &Result) {
   // Read the rest of the PP line.
   DiscardUntilEndOfDirective();
 
+  llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "():\n";
   // Okay, we're done parsing the directive.
 }
 
@@ -1975,6 +1989,7 @@ void Preprocessor::HandleIncludeDirective(SourceLocation HashLoc,
                                           Token &IncludeTok,
                                           ConstSearchDirIterator LookupFrom,
                                           const FileEntry *LookupFromFile) {
+  llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "():\n";
   Token FilenameTok;
   if (LexHeaderName(FilenameTok))
     return;
@@ -1986,10 +2001,12 @@ void Preprocessor::HandleIncludeDirective(SourceLocation HashLoc,
     return;
   }
   auto Filename = getSpelling(FilenameTok);
+  llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "(): Filename = " << Filename << "\n";
   // Check if the filename has already been included
   if (IncludedHeaderFileNames.count(Filename) > 0) {
     // Handle repeated inclusion warning
     Diag(IncludeTok.getLocation(), diag::misra_c20_repeated_include_filename) << Filename;
+    IncludedHeaderFileNames.insert(Filename);
   } else {
     // Add the filename to the set of included header files
     IncludedHeaderFileNames.insert(Filename);
@@ -2037,7 +2054,10 @@ OptionalFileEntryRef Preprocessor::LookupHeaderIncludeOrImport(
     const FileEntry *LookupFromFile, StringRef &LookupFilename,
     SmallVectorImpl<char> &RelativePath, SmallVectorImpl<char> &SearchPath,
     ModuleMap::KnownHeader &SuggestedModule, bool isAngled) {
+  llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "(): Filename = " << Filename.str() << "\n";
+  llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "(): LookupFilename = " << LookupFilename.str() << "\n";
   auto DiagnoseHeaderInclusion = [&](FileEntryRef FE) {
+    llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "(): Filename = " << Filename.str() << "\n";
     if (LangOpts.AsmPreprocessor)
       return;
 
@@ -2051,6 +2071,7 @@ OptionalFileEntryRef Preprocessor::LookupHeaderIncludeOrImport(
         Filename, FE);
   };
 
+  llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "(): LookupFilename = " << LookupFilename.str() << "\n";
   OptionalFileEntryRef File = LookupFile(
       FilenameLoc, LookupFilename, isAngled, LookupFrom, LookupFromFile, CurDir,
       Callbacks ? &SearchPath : nullptr, Callbacks ? &RelativePath : nullptr,
@@ -2071,6 +2092,7 @@ OptionalFileEntryRef Preprocessor::LookupHeaderIncludeOrImport(
   // brackets, we can attempt a lookup as though it were a quoted path to
   // provide the user with a possible fixit.
   if (isAngled) {
+    llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "(): LookupFilename = " << LookupFilename.str() << "\n";
     OptionalFileEntryRef File = LookupFile(
         FilenameLoc, LookupFilename, false, LookupFrom, LookupFromFile, CurDir,
         Callbacks ? &SearchPath : nullptr, Callbacks ? &RelativePath : nullptr,
@@ -2164,12 +2186,14 @@ Preprocessor::ImportAction Preprocessor::HandleHeaderIncludeOrImport(
   StringRef Filename = getSpelling(FilenameTok, FilenameBuffer);
   SourceLocation CharEnd = FilenameTok.getEndLoc();
 
+  llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "(): Filename = " << Filename.str() << "\n";
   CharSourceRange FilenameRange
     = CharSourceRange::getCharRange(FilenameTok.getLocation(), CharEnd);
   StringRef OriginalFilename = Filename;
   bool isAngled =
     GetIncludeFilenameSpelling(FilenameTok.getLocation(), Filename);
 
+  llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "(): Filename = " << Filename.str() << "\n";
   // If GetIncludeFilenameSpelling set the start ptr to null, there was an
   // error.
   if (Filename.empty())
@@ -2201,6 +2225,7 @@ Preprocessor::ImportAction Preprocessor::HandleHeaderIncludeOrImport(
     // map to anything, fall back on the filename we've already gotten the
     // spelling for.
     StringRef NewName = HeaderInfo.MapHeaderToIncludeAlias(OriginalFilename);
+    llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "(): NewName = " << NewName.str() << "\n";
     if (!NewName.empty())
       Filename = NewName;
   }
@@ -2230,6 +2255,7 @@ Preprocessor::ImportAction Preprocessor::HandleHeaderIncludeOrImport(
     BackslashStyle = llvm::sys::path::Style::windows;
   }
 
+  llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "(): Filename = " << Filename.str() << "\n";
   OptionalFileEntryRef File = LookupHeaderIncludeOrImport(
       &CurDir, Filename, FilenameLoc, FilenameRange, FilenameTok,
       IsFrameworkFound, IsImportDecl, IsMapped, LookupFrom, LookupFromFile,
@@ -2639,6 +2665,7 @@ void Preprocessor::HandleIncludeNextDirective(SourceLocation HashLoc,
   const FileEntry *LookupFromFile;
   std::tie(Lookup, LookupFromFile) = getIncludeNextStart(IncludeNextTok);
 
+  llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "():\n";
   return HandleIncludeDirective(HashLoc, IncludeNextTok, Lookup,
                                 LookupFromFile);
 }
@@ -2661,11 +2688,13 @@ void Preprocessor::HandleMicrosoftImportDirective(Token &Tok) {
 ///
 void Preprocessor::HandleImportDirective(SourceLocation HashLoc,
                                          Token &ImportTok) {
+  llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "():\n";
   if (!LangOpts.ObjC) {  // #import is standard for ObjC.
     if (LangOpts.MSVCCompat)
       return HandleMicrosoftImportDirective(ImportTok);
     Diag(ImportTok, diag::ext_pp_import_directive);
   }
+  llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "():\n";
   return HandleIncludeDirective(HashLoc, ImportTok);
 }
 
@@ -2675,6 +2704,7 @@ void Preprocessor::HandleImportDirective(SourceLocation HashLoc,
 /// effects on the preprocessor).
 void Preprocessor::HandleIncludeMacrosDirective(SourceLocation HashLoc,
                                                 Token &IncludeMacrosTok) {
+  llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "():\n";
   // This directive should only occur in the predefines buffer.  If not, emit an
   // error and reject it.
   SourceLocation Loc = IncludeMacrosTok.getLocation();
