@@ -1500,12 +1500,37 @@ Compilation *Driver::BuildCompilation(ArrayRef<const char *> ArgList) {
     }
   }
 
+  CPP_DBG_EXEC(ARGV_PRINT,
+      for (size_t i = 0; i < UArgs->getNumInputArgStrings(); i++) {
+        llvm::errs() << "Uargs InputArgStrings argv[" << i << "] = " << UArgs->getArgString(i) << "\n";
+      }
+      llvm::errs() << "\n";
+  );
+
+
+  CPP_DBG_EXEC(ARGV_PRINT,
+      for (size_t i = 0; i < TranslatedArgs->getNumInputArgStrings(); i++) {
+        llvm::errs() << "Uargs TranslatedArgs argv[" << i << "] = " << TranslatedArgs->getArgString(i) << "\n";
+      }
+      llvm::errs() << "\n";
+  );
+
+
   // The compilation takes ownership of Args.
   Compilation *C = new Compilation(*this, TC, UArgs.release(), TranslatedArgs,
                                    ContainsError);
 
   if (!HandleImmediateArgs(*C))
     return C;
+
+
+  CPP_DBG_EXEC(ARGV_PRINT,
+      for (size_t i = 0; i < C->getArgs().getNumInputArgStrings(); i++) {
+        llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "(): C->getArgs() argv[" << i << "] = " << C->getArgs().getArgString(i) << "\n";
+      }
+      llvm::errs() << "\n";
+  );
+
 
   DYN_DEBUG(clang_driver, llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": after call to HandleImmediateArgs, C->getJobs().size() = " << C->getJobs().size() << "\n");
 
@@ -1917,6 +1942,13 @@ int Driver::ExecuteCompilation(
 
     return 0;
   }
+
+  CPP_DBG_EXEC(ARGV_PRINT,
+      for (size_t i = 0; i < C.getArgs().getNumInputArgStrings(); i++) {
+        llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "(): C->getArgs() argv[" << i << "] = " << C.getArgs().getArgString(i) << "\n";
+      }
+      llvm::errs() << "\n";
+  );
 
   // Just print if -### was present.
   if (C.getArgs().hasArg(options::OPT__HASH_HASH_HASH)) {
@@ -5053,6 +5085,15 @@ void Driver::BuildJobs(Compilation &C) const {
       }
     }
   }
+
+  CPP_DBG_EXEC(ARGV_PRINT,
+      for (size_t i = 0; i < C.getArgs().getNumInputArgStrings(); i++) {
+        llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "(): C->getArgs() argv[" << i << "] = " << C.getArgs().getArgString(i) << "\n";
+      }
+      llvm::errs() << "\n";
+  );
+
+
   DYN_DEBUG(clang_driver, llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": exiting, C.getJobs().size() = " << C.getJobs().size() << "\n");
 }
 
@@ -5766,7 +5807,7 @@ InputInfoList Driver::BuildJobsForActionNoCache(
           C, *JA, Result, InputInfos,
           Args,
           LinkingOutput);
-      DYN_DEBUG(clang_driver, llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": after ConstructJob for JA->getKind() = " << Action::getClassName(JA->getKind()) << ", C.getJobs().size() = " << C.getJobs().size() << "\n");
+      DYN_DEBUG(clang_driver, llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": after ConstructJob for T->getName) = " << T->getName() << ", JA->getKind() = " << Action::getClassName(JA->getKind()) << ", C.getJobs().size() = " << C.getJobs().size() << "\n");
     } else {
       T->ConstructJobMultipleOutputs(
           C, *JA, UnbundlingResults, InputInfos,

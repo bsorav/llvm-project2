@@ -25,6 +25,7 @@
 #include "llvm/Support/Path.h"
 #include "llvm/Support/PrettyStackTrace.h"
 #include "llvm/Support/Program.h"
+#include "llvm/Support/Signals.h"
 #include "llvm/Support/raw_ostream.h"
 #include <algorithm>
 #include <cassert>
@@ -212,6 +213,7 @@ rewriteIncludes(const llvm::ArrayRef<const char *> &Args, size_t Idx,
 
 void Command::Print(raw_ostream &OS, const char *Terminator, bool Quote,
                     CrashReportInfo *CrashInfo) const {
+  llvm::sys::PrintStackTrace(llvm::errs());
   // Always quote the exe.
   OS << ' ';
   llvm::sys::printArg(OS, Executable, /*Quote=*/true);
@@ -230,6 +232,7 @@ void Command::Print(raw_ostream &OS, const char *Terminator, bool Quote,
   for (size_t i = 0, e = Args.size(); i < e; ++i) {
     const char *const Arg = Args[i];
 
+    //llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "(): Arg = " << Arg << "\n";
     if (CrashInfo) {
       int NumArgs = 0;
       bool IsInclude = false;
@@ -493,8 +496,12 @@ void CC1Command::setEnvironment(llvm::ArrayRef<const char *> NewEnvironment) {
 
 void JobList::Print(raw_ostream &OS, const char *Terminator, bool Quote,
                     CrashReportInfo *CrashInfo) const {
-  for (const auto &Job : *this)
+  size_t i = 0;
+  for (const auto &Job : *this) {
+    llvm::errs() << "Job #" << i << "\n";
     Job.Print(OS, Terminator, Quote, CrashInfo);
+    i++;
+  }
 }
 
 void JobList::clear() { Jobs.clear(); }

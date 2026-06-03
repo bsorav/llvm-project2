@@ -390,7 +390,7 @@ int clang_main(int Argc, char **Argv, const llvm::ToolContext &ToolContext) {
     return 1;
 
   {
-    std::string dyn_debug_prefix = "--dyn_debug=";
+    std::string dyn_debug_prefix = "--dyn-debug=";
     auto iter = llvm::find_if(Args, [&dyn_debug_prefix](const char *F) {
             return F && std::string(F).substr(0, dyn_debug_prefix.size()) == dyn_debug_prefix;
           });
@@ -545,6 +545,12 @@ int clang_main(int Argc, char **Argv, const llvm::ToolContext &ToolContext) {
     llvm::CrashRecoveryContext::Enable();
   }
 
+  CPP_DBG_EXEC(ARGV_PRINT,
+      for (size_t i = 0; i < Args.size(); i++) {
+        llvm::errs() << "before BuildCompilation argv[" << i << "] = " << Args[i] << "\n";
+      }
+      llvm::errs() << "\n";
+  );
   std::unique_ptr<Compilation> C(TheDriver.BuildCompilation(Args));
 
   Driver::ReproLevel ReproLevel = Driver::ReproLevel::OnCrash;
