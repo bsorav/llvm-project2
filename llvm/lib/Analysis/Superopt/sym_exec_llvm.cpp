@@ -4719,21 +4719,20 @@ sym_exec_llvm::transfer_poison_values(string const& varname, expr_ref const& e, 
     return;
   }
 
-  expr_list vars = m_ctx->expr_get_vars(e);
   set<expr_ref> poison_vars;
-  for (auto const& v : vars) {
+  expr_visit_vars(e, [this,&poison_vars](expr_ref const& v) {
     string varname = v->get_name()->get_str();
     if (!string_has_prefix(varname, G_INPUT_KEYWORD ".")) {
-      continue;
+      return;
     }
     varname = varname.substr(strlen(G_INPUT_KEYWORD "."));
     string poison_varname = get_poison_value_varname(varname);
     if (!set_belongs(m_poison_varnames_seen, poison_varname)) {
-      continue;
+      return;
     }
     expr_ref poison_var = get_input_expr(poison_varname, m_ctx->mk_bool_sort());
     poison_vars.insert(poison_var);
-  }
+  });
 
   expr_ref poison_expr;
   for (auto const& poison_var : poison_vars) {
@@ -4832,14 +4831,13 @@ sym_exec_llvm::transfer_poison_value_on_store(expr_ref const& store_expr, preds_
   ASSERT(store_expr->get_args().at(OP_STORE_ARGNUM_MEM)->get_name()->get_str() == string(G_INPUT_KEYWORD ".") + m_mem_reg);
 
   expr_ref data = store_expr->get_args().at(OP_STORE_ARGNUM_DATA);
-  expr_list vars = m_ctx->expr_get_vars(data);
 
   expr_ref poison_expr;
-  for (auto const& v : vars) {
+  expr_visit_vars(data, [this,&poison_expr](expr_ref const& v) {
     string const& vname = v->get_name()->get_str();
     string poison_vname = get_poison_value_varname(vname);
     if (!set_belongs(m_poison_varnames_seen, poison_vname)) {
-      continue;
+      return;
     }
     expr_ref poison_v = get_input_expr(poison_vname, m_ctx->mk_bool_sort());
 
@@ -4848,7 +4846,7 @@ sym_exec_llvm::transfer_poison_value_on_store(expr_ref const& store_expr, preds_
     } else {
       poison_expr = expr_or(poison_expr, poison_v);
     }
-  }
+  });
   if (!poison_expr) {
     poison_expr = expr_false(m_ctx);
   }

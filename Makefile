@@ -22,10 +22,14 @@ tidy:
 
 LOCAL_LIT_TESTS := \
 	clang/test/Driver/borland-no-extensions.c \
+	clang/test/Preprocessor/borland-predefined-macros.c \
 	clang/test/Preprocessor/borland-windows-include-backslash.c \
 	clang/test/Preprocessor/borland-windows-include-case-insensitive.c \
 	clang/test/Preprocessor/borland-windows-include-quoted.c \
 	clang/test/Preprocessor/borland-windows-include-sysroot.c \
+	clang/test/Sema/borland-attribute-identifier.c \
+	clang/test/Sema/borland-int64.c \
+	clang/test/Sema/gnu-attribute-spellings.c \
 	clang-tools-extra/test/callee-rename/borland-windows-include-backslash.c \
 	clang-tools-extra/test/callee-rename/borland-windows-include-case-insensitive.c \
 	clang-tools-extra/test/callee-rename/borland-windows-include-quoted.c \

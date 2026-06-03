@@ -438,7 +438,7 @@ KEYWORD(__null                      , KEYCXX)
 // __alignof returns the preferred alignment of a type, the alignment
 // clang will attempt to give an object of the type if allowed by ABI.
 UNARY_EXPR_OR_TYPE_TRAIT(__alignof, PreferredAlignOf, KEYALL)
-KEYWORD(__attribute                 , KEYALL)
+KEYWORD(__attribute                 , KEYGNU)
 KEYWORD(__builtin_choose_expr       , KEYALL)
 KEYWORD(__builtin_offsetof          , KEYALL)
 KEYWORD(__builtin_FILE              , KEYALL)
