@@ -47,6 +47,7 @@ my %Options = (
   Verbose => 0,              # Verbose output from this script.
   AnalyzeHeaders => 0,
   OutputDir => undef,        # Parent directory to store HTML files.
+  OutputHTMLInOutputDir => 0,# Do not create a new directory within OutputDir
   HtmlTitle => basename($CurrentDir)." - scan-build results",
   IgnoreErrors => 0,         # Ignore build errors.
   KeepCC => 0,               # Do not override CC and CXX make variables
@@ -160,6 +161,11 @@ sub GetHTMLRunDir {
 
   # Chop off any trailing '/' characters.
   while ($Dir =~ /\/$/) { chop $Dir; }
+
+  if ($Options{OutputHTMLInOutputDir}) {
+    mkpath($Dir);
+    return $Dir;
+  }
 
   # Get current date and time.
   my @CurrentTime = localtime();
@@ -1581,6 +1587,12 @@ sub ProcessArgs {
       mkpath($OutDir) unless (-e $OutDir);  # abs_path wants existing dir
       $Options{OutputDir} = abs_path($OutDir);
 
+      next;
+    }
+
+    if ($arg eq "-outputHtmlInOutputDir") {
+      shift @$Args;
+      $Options{OutputHTMLInOutputDir} = 1;
       next;
     }
 
