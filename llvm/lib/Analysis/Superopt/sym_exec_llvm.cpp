@@ -2064,12 +2064,15 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
       fun_name = LLVM_FUNCTION_NAME_PREFIX G_SELFCALL_IDENTIFIER;
       fun_expr = m_ctx->mk_var(fun_name, m_ctx->mk_bv_sort(get_word_length()));
     }
-    string memcpy_fn = LLVM_FUNCTION_NAME_PREFIX G_LLVM_MEMCPY_FUNCTION;
-    string memset_fn = LLVM_FUNCTION_NAME_PREFIX G_LLVM_MEMSET_FUNCTION;
-    string break_statement_marker_fn = LLVM_FUNCTION_NAME_PREFIX G_LLVM_BREAK_STATEMENT_MARKER_FUNCTION;
+    //TODO: need to support memmove too
+    string const llvm_memcpy_fn = LLVM_FUNCTION_NAME_PREFIX G_LLVM_MEMCPY_FUNCTION;
+    string const llvm_memset_fn = LLVM_FUNCTION_NAME_PREFIX G_LLVM_MEMSET_FUNCTION;
+    string const memcpy_fn = LLVM_FUNCTION_NAME_PREFIX G_MEMCPY_FUNCTION;
+    string const memset_fn = LLVM_FUNCTION_NAME_PREFIX G_MEMSET_FUNCTION;
+    string const llvm_break_statement_marker_fn = LLVM_FUNCTION_NAME_PREFIX G_LLVM_BREAK_STATEMENT_MARKER_FUNCTION;
     preds_t succ_assumes;
 
-
+    //llvm::errs() << "fun_name = " << fun_name << "\n";
     //if (isa<CallInst>(I) && cast<CallInst>(I).getIntrinsicID() == Intrinsic::break_statement_marker) {
     //  //NOT_IMPLEMENTED();
     //  if (ll_filename_parsed) {
@@ -2078,11 +2081,11 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     //  continue;
     //}
 
-    if (fun_name.substr(0, break_statement_marker_fn.length()) == break_statement_marker_fn) {
+    if (fun_name.substr(0, llvm_break_statement_marker_fn.length()) == llvm_break_statement_marker_fn) {
       tie(state_assumes, succ_assumes) = apply_break_statement_marker_function(state_out, state_assumes);
-    } else if (fun_name.substr(0, memcpy_fn.length()) == memcpy_fn) {
+    } else if (fun_name.substr(0, llvm_memcpy_fn.length()) == llvm_memcpy_fn || fun_name.substr(0, memcpy_fn.length()) == memcpy_fn) {
       tie(state_assumes, succ_assumes) = apply_memcpy_function(c, fun_expr, fun_name, src_llvm_tfg, calleeF, state_in, state_out, state_assumes, cur_function_name, from_node, model_llvm_semantics, F, t/*, function_tfg_map*/, value_to_name_map/*, function_call_chain*/, scev_map, xml_output_format);
-    } else if (fun_name.substr(0, memset_fn.length()) == memset_fn) {
+    } else if (fun_name.substr(0, llvm_memset_fn.length()) == llvm_memset_fn || fun_name.substr(0, memset_fn.length()) == memset_fn) {
       tie(state_assumes, succ_assumes) = apply_memset_function(c, fun_expr, fun_name, src_llvm_tfg, calleeF, state_in, state_out, state_assumes, cur_function_name, from_node, model_llvm_semantics, F, t/*, function_tfg_map*/, value_to_name_map/*, function_call_chain*/, scev_map, xml_output_format);
     } else if (string_has_prefix(fun_name, LLVM_FUNCTION_NAME_PREFIX G_LLVM_FMULADD_FUNCTION_PREFIX)) {
       tie(state_assumes, succ_assumes) = apply_fmuladd_function(c, fun_expr, fun_name, src_llvm_tfg, calleeF, state_in, state_out, state_assumes, cur_function_name, from_node, model_llvm_semantics, F, t/*, function_tfg_map*/, value_to_name_map/*, function_call_chain*/, scev_map, xml_output_format);
