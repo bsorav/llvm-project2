@@ -38,14 +38,14 @@ FileSystemStatCache::get(StringRef Path, llvm::vfs::Status &Status,
   bool isForDir = !isFile;
   std::error_code RetCode;
 
-  llvm::errs() << __FILE__  << " " << __LINE__ << " " << __func__ << ":\n";
+  llvm::errs() << __FILE__  << " " << __LINE__ << " " << __func__ << ": Path = " << Path.str() << '\n';
   // If we have a cache, use it to resolve the stat query.
   if (Cache)
     RetCode = Cache->getStat(Path, Status, isFile, F, FS);
   else if (isForDir || !F) {
     // If this is a directory or a file descriptor is not needed and we have
     // no cache, just go to the file system.
-    llvm::errs() << __FILE__  << " " << __LINE__ << " " << __func__ << ": calling FS.status(" << Path.str() << "\n";
+    llvm::errs() << __FILE__  << " " << __LINE__ << " " << __func__ << ": calling FS.status(" << Path.str() << ")\n";
     llvm::ErrorOr<llvm::vfs::Status> StatusOrErr = FS.status(Path);
     if (!StatusOrErr) {
       llvm::errs() << __FILE__  << " " << __LINE__ << " " << __func__ << ": !StatusOrErr\n";
