@@ -1107,16 +1107,20 @@ sym_exec_llvm::apply_memset_function(const CallInst* c, expr_ref fun_name_expr, 
   const auto& memset_dst = c->getArgOperand(0);
   const auto& memset_val = c->getArgOperand(1);
   const auto& memset_nbytes = c->getArgOperand(2);
-  const auto& memset_volatile = c->getArgOperand(3);
 
   pc const &from_pc = from_node->get_pc();
   auto assumes = state_assumes;
-  expr_ref memset_dst_expr, memset_val_expr, memset_nbytes_expr, memset_volatile_expr;
+  expr_ref memset_dst_expr, memset_val_expr, memset_nbytes_expr;
+  expr_ref memset_volatile_expr = expr_false(m_ctx);
 
   tie(memset_dst_expr, assumes)      = get_expr_adding_edges_for_intermediate_vals(*memset_dst, "", state_out, assumes, from_node, model_llvm_semantics, t, value_to_name_map);
   tie(memset_val_expr, assumes)      = get_expr_adding_edges_for_intermediate_vals(*memset_val, "", state_out, assumes, from_node, model_llvm_semantics, t, value_to_name_map);
   tie(memset_nbytes_expr, assumes)   = get_expr_adding_edges_for_intermediate_vals(*memset_nbytes, "", state_out, assumes, from_node, model_llvm_semantics, t, value_to_name_map);
-	tie(memset_volatile_expr, assumes) = get_expr_adding_edges_for_intermediate_vals(*memset_volatile, "", state_out, assumes, from_node, model_llvm_semantics, t, value_to_name_map);
+  if (c->arg_size() > 3 &&
+      c->getArgOperand(c->arg_size() - 1)->getType()->isIntegerTy(1)) {
+    const auto& memset_volatile = c->getArgOperand(c->arg_size() - 1);
+    tie(memset_volatile_expr, assumes) = get_expr_adding_edges_for_intermediate_vals(*memset_volatile, "", state_out, assumes, from_node, model_llvm_semantics, t, value_to_name_map);
+  }
 
   preds_t succ_assumes;
   if (memset_nbytes_expr->is_const()) {
