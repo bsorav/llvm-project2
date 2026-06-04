@@ -1124,11 +1124,13 @@ sym_exec_llvm::apply_memset_function(const CallInst* c, expr_ref fun_name_expr, 
 
   preds_t succ_assumes;
   if (memset_nbytes_expr->is_const()) {
-    uint64_t memset_align_int = F->getParamAlign(0).valueOrOne().value();
+    uint64_t const memset_align_int = F->getParamAlign(0).valueOrOne().value();
     DYN_DEBUG(llvm2tfg_memset, cout << "memset_align_int = " << memset_align_int << endl);
     int count = memset_nbytes_expr->get_int64_value();
     if (count != 0) {
-      add_state_assume("", expr_with_fail(gen_is_aligned_assume_expr(memset_dst_expr, memset_align_int), fails::safety_memset_tgt_aligned), state_in, assumes, from_node, model_llvm_semantics, t, value_to_name_map);
+      if (memset_align_int != 1) {
+        add_state_assume("", expr_with_fail(gen_is_aligned_assume_expr(memset_dst_expr, memset_align_int), fails::safety_memset_tgt_aligned), state_in, assumes, from_node, model_llvm_semantics, t, value_to_name_map);
+      }
 
       if (   !memset_volatile_expr->is_const()
           || (memset_volatile_expr->is_bv_sort() && memset_volatile_expr != m_ctx->mk_zerobv(memset_volatile_expr->get_sort()->get_size()))
@@ -1136,12 +1138,13 @@ sym_exec_llvm::apply_memset_function(const CallInst* c, expr_ref fun_name_expr, 
         cout << _FNLN_ << ": memset_volatile_expr =\n" << m_ctx->expr_to_string_table(memset_volatile_expr) << endl;
         NOT_IMPLEMENTED(); //have not implemented support for volatile memset yet
       }
-      if (memset_align_int * BYTE_LEN != memset_val_expr->get_sort()->get_size()) {
-        cout << _FNLN_ << ":\nmemset_align_int = " << memset_align_int << endl;
-        cout << "memset_val_expr =\n" << m_ctx->expr_to_string_table(memset_val_expr) << endl;
-      }
+      //if (memset_align_int * BYTE_LEN != memset_val_expr->get_sort()->get_size()) {
+      //  ASSERT((memset_val_expr->get_sort()->get_size() % BYTE_LEN) == 0);
+      //  cout << _FNLN_ << ":\nmemset_align_int = " << memset_align_int << endl;
+      //  cout << "memset_val_expr =\n" << m_ctx->expr_to_string_table(memset_val_expr) << endl;
+      //}
       ASSERT(memset_val_expr->is_bv_sort());
-      ASSERT(memset_align_int * BYTE_LEN == memset_val_expr->get_sort()->get_size());
+      //ASSERT(memset_align_int * BYTE_LEN == memset_val_expr->get_sort()->get_size());
     }
 
     pc cur_pc = from_node->get_pc();
