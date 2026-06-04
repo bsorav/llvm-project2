@@ -1165,34 +1165,35 @@ sym_exec_llvm::apply_memcpy_function(const CallInst* c, expr_ref fun_name_expr, 
   const auto& memcpy_dst = c->getArgOperand(0);
   const auto& memcpy_src = c->getArgOperand(1);
   const auto& memcpy_nbytes = c->getArgOperand(2);
-  const auto& memcpy_align = c->getArgOperand(3);
   pc const &from_pc = from_node->get_pc();
   auto assumes = state_assumes;
-  expr_ref memcpy_src_expr, memcpy_dst_expr, memcpy_nbytes_expr, memcpy_align_expr;
+  expr_ref memcpy_src_expr, memcpy_dst_expr, memcpy_nbytes_expr;
 
   tie(memcpy_src_expr, assumes)    = get_expr_adding_edges_for_intermediate_vals(*memcpy_src, "", state_out, assumes, from_node, model_llvm_semantics, t, value_to_name_map);
   tie(memcpy_dst_expr, assumes)    = get_expr_adding_edges_for_intermediate_vals(*memcpy_dst, "", state_out, assumes, from_node, model_llvm_semantics, t, value_to_name_map);
   tie(memcpy_nbytes_expr, assumes) = get_expr_adding_edges_for_intermediate_vals(*memcpy_nbytes, "", state_out, assumes, from_node, model_llvm_semantics, t, value_to_name_map);
-  tie(memcpy_align_expr, assumes)  = get_expr_adding_edges_for_intermediate_vals(*memcpy_align, "", state_out, assumes, from_node, model_llvm_semantics, t, value_to_name_map);
 
-  int memcpy_align_int;
-  if (memcpy_align_expr->is_bool_sort() || memcpy_align_expr->get_sort()->get_size() == 1) { //seems like the align operand was omitted; unsure if this is the correct check though.
-    memcpy_align_int = 1;
-  } else {
-    ASSERT(memcpy_align_expr->is_const());
-    int memcpy_align_int = memcpy_align_expr->get_int64_value();
-    if (memcpy_align_int == 0) {
-      cout << __func__ << " " << __LINE__ << ": memcpy_nbytes_expr = " << expr_string(memcpy_nbytes_expr) << endl;
-      cout << __func__ << " " << __LINE__ << ": memcpy_align_expr = " << expr_string(memcpy_align_expr) << endl;
+  uint64_t memcpy_align_int = 1;
+  if (c->arg_size() > 3) {
+    const auto& memcpy_align = c->getArgOperand(3);
+    expr_ref memcpy_align_expr;
+    tie(memcpy_align_expr, assumes)  = get_expr_adding_edges_for_intermediate_vals(*memcpy_align, "", state_out, assumes, from_node, model_llvm_semantics, t, value_to_name_map);
+    if (!(memcpy_align_expr->is_bool_sort() || memcpy_align_expr->get_sort()->get_size() == 1)) {
+      ASSERT(memcpy_align_expr->is_const());
+      memcpy_align_int = memcpy_align_expr->get_int64_value();
+      if (memcpy_align_int == 0) {
+        cout << __func__ << " " << __LINE__ << ": memcpy_nbytes_expr = " << expr_string(memcpy_nbytes_expr) << endl;
+        cout << __func__ << " " << __LINE__ << ": memcpy_align_expr = " << expr_string(memcpy_align_expr) << endl;
+      }
+      ASSERT(memcpy_align_int > 0);
     }
-    ASSERT(memcpy_align_int > 0);
   }
 
   preds_t succ_assumes;
   if (memcpy_nbytes_expr->is_const()) {
     uint64_t memcpy_dst_align = F->getParamAlign(0).valueOrOne().value();
     uint64_t memcpy_src_align = F->getParamAlign(1).valueOrOne().value();
-    uint64_t memcpy_align_int = max(memcpy_src_align, memcpy_dst_align); // satisfies alignment requirement of both src and dst
+    memcpy_align_int = max(memcpy_align_int, max(memcpy_src_align, memcpy_dst_align)); // satisfies alignment requirement of both src and dst
     DYN_DEBUG(llvm2tfg_memcpy, cout << "memcpy_src_align = " << memcpy_src_align << "; memcpy_dst_align = " << memcpy_dst_align << endl);
     int count = memcpy_nbytes_expr->get_int64_value();
     if (count != 0) {
