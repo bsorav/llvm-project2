@@ -4132,7 +4132,8 @@ bool Sema::MergeFunctionDecl(FunctionDecl *New, NamedDecl *&OldD, Scope *S,
     //   The first declaration of a function shall specify the noreturn
     //   attribute if any declaration of that function specifies the noreturn
     //   attribute.
-    if (const auto *NRA = New->getAttr<CXX11NoReturnAttr>())
+    if (const auto *NRA = New->getAttr<CXX11NoReturnAttr>();
+        NRA && !getLangOpts().IgnoreNoreturn)
       if (!Old->hasAttr<CXX11NoReturnAttr>()) {
         Diag(NRA->getLocation(), diag::err_attribute_missing_on_first_decl)
             << NRA;

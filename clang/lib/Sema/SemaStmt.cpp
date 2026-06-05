@@ -787,7 +787,8 @@ bool Sema::checkMustTailAttr(const Stmt *St, const Attr &MTA) {
   }
 
   const auto *CalleeDecl = CE->getCalleeDecl();
-  if (CalleeDecl && CalleeDecl->hasAttr<CXX11NoReturnAttr>()) {
+  if (!getLangOpts().IgnoreNoreturn && CalleeDecl &&
+      CalleeDecl->hasAttr<CXX11NoReturnAttr>()) {
     Diag(St->getBeginLoc(), diag::err_musttail_no_return) << &MTA;
     return false;
   }
@@ -3840,7 +3841,8 @@ StmtResult Sema::ActOnCapScopeReturnStmt(SourceLocation ReturnLoc,
   const VarDecl *NRVOCandidate = getCopyElisionCandidate(NRInfo, FnRetType);
 
   if (auto *CurBlock = dyn_cast<BlockScopeInfo>(CurCap)) {
-    if (CurBlock->FunctionType->castAs<FunctionType>()->getNoReturnAttr()) {
+    if (!getLangOpts().IgnoreNoreturn &&
+        CurBlock->FunctionType->castAs<FunctionType>()->getNoReturnAttr()) {
       Diag(ReturnLoc, diag::err_noreturn_block_has_return_expr);
       return StmtError();
     }
@@ -3849,7 +3851,8 @@ StmtResult Sema::ActOnCapScopeReturnStmt(SourceLocation ReturnLoc,
     return StmtError();
   } else {
     assert(CurLambda && "unknown kind of captured scope");
-    if (CurLambda->CallOperator->getType()
+    if (!getLangOpts().IgnoreNoreturn &&
+        CurLambda->CallOperator->getType()
             ->castAs<FunctionType>()
             ->getNoReturnAttr()) {
       Diag(ReturnLoc, diag::err_noreturn_lambda_has_return_expr);

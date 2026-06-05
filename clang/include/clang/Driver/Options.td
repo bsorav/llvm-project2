@@ -2065,6 +2065,10 @@ def fignore_exceptions : Flag<["-"], "fignore-exceptions">, Group<f_Group>,
   Visibility<[ClangOption, CC1Option]>,
   HelpText<"Enable support for ignoring exception handling constructs">,
   MarshallingInfoFlag<LangOpts<"IgnoreExceptions">>;
+def fignore_noreturn : Flag<["-"], "fignore-noreturn">, Group<f_Group>,
+  Visibility<[ClangOption, CC1Option]>,
+  HelpText<"Ignore source-level noreturn attributes">,
+  MarshallingInfoFlag<LangOpts<"IgnoreNoreturn">>;
 defm assume_nothrow_exception_dtor: BoolFOption<"assume-nothrow-exception-dtor",
   LangOpts<"AssumeNothrowExceptionDtor">, DefaultFalse,
   PosFlag<SetTrue, [], [ClangOption, CC1Option], "Assume that exception objects' destructors are non-throwing">,

@@ -2329,7 +2329,7 @@ void CodeGenModule::ConstructAttributeList(StringRef Name,
   // Collect function IR attributes from the CC lowering.
   // We'll collect the paramete and result attributes later.
   CallingConv = FI.getEffectiveCallingConvention();
-  if (FI.isNoReturn())
+  if (!getContext().getLangOpts().IgnoreNoreturn && FI.isNoReturn())
     FuncAttrs.addAttribute(llvm::Attribute::NoReturn);
   if (FI.isCmseNSCall())
     FuncAttrs.addAttribute("cmse_nonsecure_call");
@@ -2365,7 +2365,8 @@ void CodeGenModule::ConstructAttributeList(StringRef Name,
       FuncAttrs.addAttribute(llvm::Attribute::ReturnsTwice);
     if (TargetDecl->hasAttr<NoThrowAttr>())
       FuncAttrs.addAttribute(llvm::Attribute::NoUnwind);
-    if (TargetDecl->hasAttr<NoReturnAttr>())
+    if (!getContext().getLangOpts().IgnoreNoreturn &&
+        TargetDecl->hasAttr<NoReturnAttr>())
       FuncAttrs.addAttribute(llvm::Attribute::NoReturn);
     if (TargetDecl->hasAttr<ColdAttr>())
       FuncAttrs.addAttribute(llvm::Attribute::Cold);
@@ -3765,7 +3766,7 @@ llvm::Value *CodeGenFunction::EmitCMSEClearRecord(llvm::Value *Src,
 void CodeGenFunction::EmitFunctionEpilog(const CGFunctionInfo &FI,
                                          bool EmitRetDbgLoc,
                                          SourceLocation EndLoc) {
-  if (FI.isNoReturn()) {
+  if (!getLangOpts().IgnoreNoreturn && FI.isNoReturn()) {
     // Noreturn functions don't return.
     EmitUnreachable(EndLoc);
     return;

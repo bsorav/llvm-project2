@@ -3478,6 +3478,9 @@ bool FunctionDecl::isGlobal() const {
 }
 
 bool FunctionDecl::isNoReturn() const {
+  if (getASTContext().getLangOpts().IgnoreNoreturn)
+    return false;
+
   if (hasAttr<NoReturnAttr>() || hasAttr<CXX11NoReturnAttr>() ||
       hasAttr<C11NoReturnAttr>())
     return true;
