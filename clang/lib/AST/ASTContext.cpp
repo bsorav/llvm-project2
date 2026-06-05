@@ -11585,7 +11585,8 @@ QualType ASTContext::GetBuiltinType(unsigned Id,
 
   FunctionType::ExtInfo EI(getDefaultCallingConvention(
       Variadic, /*IsCXXMethod=*/false, /*IsBuiltin=*/true));
-  if (BuiltinInfo.isNoReturn(Id)) EI = EI.withNoReturn(true);
+  if (!getLangOpts().IgnoreNoreturn && BuiltinInfo.isNoReturn(Id))
+    EI = EI.withNoReturn(true);
 
 
   // We really shouldn't be making a no-proto type here.

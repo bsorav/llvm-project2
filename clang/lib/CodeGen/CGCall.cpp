@@ -2392,7 +2392,7 @@ void CodeGenModule::ConstructAttributeList(StringRef Name,
       // Don't use [[noreturn]], _Noreturn or [[no_builtin]] for a call to a
       // virtual function. These attributes are not inherited by overloads.
       if (!(AttrOnCallSite && IsVirtualCall)) {
-        if (Fn->isNoReturn())
+        if (!getContext().getLangOpts().IgnoreNoreturn && Fn->isNoReturn())
           FuncAttrs.addAttribute(llvm::Attribute::NoReturn);
         NBA = Fn->getAttr<NoBuiltinAttr>();
       }
