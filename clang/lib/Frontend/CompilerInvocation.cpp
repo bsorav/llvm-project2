@@ -3654,6 +3654,14 @@ void CompilerInvocationBase::GenerateLangArgs(const LangOptions &Opts,
     GenerateArg(Consumer, OPT_frandomize_layout_seed_EQ, Opts.RandstructSeed);
 }
 
+static bool isWindowsBorlandTriple(const llvm::Triple &T) {
+  return T.isOSWindows() && T.getEnvironment() == llvm::Triple::Borland;
+}
+
+static bool isWindowsBorlandTarget(const TargetOptions &TargetOpts) {
+  return isWindowsBorlandTriple(llvm::Triple(TargetOpts.Triple));
+}
+
 bool CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,
                                        InputKind IK, const llvm::Triple &T,
                                        std::vector<std::string> &Includes,
@@ -3759,6 +3767,10 @@ bool CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,
   PARSE_OPTION_WITH_MARSHALLING(Args, Diags, __VA_ARGS__)
 #include "clang/Driver/Options.inc"
 #undef LANG_OPTION_WITH_MARSHALLING
+
+  if (isWindowsBorlandTriple(T) &&
+      !Args.hasArg(OPT_fgnu_keywords, OPT_fno_gnu_keywords))
+    Opts.GNUKeywords = 0;
 
   if (const Arg *A = Args.getLastArg(OPT_fcf_protection_EQ)) {
     StringRef Name = A->getValue();
@@ -4876,11 +4888,6 @@ clang::createVFSFromCompilerInvocation(const CompilerInvocation &CI,
                                        DiagnosticsEngine &Diags) {
   return createVFSFromCompilerInvocation(CI, Diags,
                                          llvm::vfs::getRealFileSystem());
-}
-
-static bool isWindowsBorlandTarget(const TargetOptions &TargetOpts) {
-  llvm::Triple T(TargetOpts.Triple);
-  return T.isOSWindows() && T.getEnvironment() == llvm::Triple::Borland;
 }
 
 static void addCaseInsensitiveVFSRoot(
