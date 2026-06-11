@@ -4052,8 +4052,7 @@ sym_exec_llvm::get_symbol_map_and_string_contents(Module const *M, list<pair<str
     if (cv->hasExternalLinkage() && cv->isDeclaration()) {
       if (auto *arr = llvm::dyn_cast<llvm::ArrayType>(cv->getValueType());
           arr && arr->getNumElements() == 0) {
-        //cout << _FNLN_ << ": encountered incomplete external array declaration: " << name << ".\n"
-        //        "Such a variable has zero size prohibiting its modeling (dl.getTypeAllocSiize = " << symbol_size << ")" << endl;
+        ASSERT(symbol_size == 0);
         DYN_DEBUG2(llvm2tfg_syms, cout << "Added " << name << " to extsym_map\n");
         bool inserted = extsym_map.emplace(symbol_id, graph_extsym_t{mk_string_ref(name), symbol_alignment, symbol_is_constant}).second;
         ASSERT(inserted);
@@ -4062,6 +4061,10 @@ sym_exec_llvm::get_symbol_map_and_string_contents(Module const *M, list<pair<str
         continue;
       }
     }
+    // This pass expects Clang-produced C/C++ IR.  C/C++ globals have
+    // non-zero size; the zero-length external array case above represents an
+    // incomplete declaration where the size is unavailable.
+    ASSERT(symbol_size);
     bool inserted = smap.emplace(symbol_id, graph_symbol_t{mk_string_ref(name), symbol_size, symbol_alignment, symbol_is_constant}).second;
     DYN_DEBUG2(llvm2tfg_syms, cout << "Added " << name << " to graph_sym_map\n");
     ASSERT(inserted);
