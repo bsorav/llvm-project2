@@ -28,6 +28,11 @@
 class sym_exec_common
 {
 public:
+  struct memory_arg_info_t {
+    size_t size;
+    align_t align;
+  };
+
   sym_exec_common(context* ctx, dshared_ptr<list<pair<string, unsigned>> const> fun_names, dshared_ptr<map<symbol_id_t, graph_symbol_t> const> symbol_map, dshared_ptr<map<symbol_id_t,graph_extsym_t> const> extsym_map, dshared_ptr<map<pair<symbol_id_t, offset_t>, vector<char>> const> string_contents, unsigned memory_addressable_size, unsigned word_length, string const& srcdst_keyword)
   : m_ctx(ctx),
     m_cs(ctx->get_consts_struct()),
@@ -218,15 +223,14 @@ protected:
   string m_mem_reg;
   string m_mem_alloc_reg;
   string m_mem_poison_reg;
-  //string m_io_reg;
-  //allocsite_t m_local_num;
-  //string m_ret_reg;
   map<allocsite_t, graph_local_t> m_local_refs;
   //map<string, string> m_basicblock_name_map;
   map<string, int> m_basicblock_idx_map;
   list<pair<string, sort_ref>> m_state_templ;
   //map<string, string> m_value_name_map;
   map<string, pair<argnum_t, expr_ref>> m_arguments;
+  map<argnum_t, memory_arg_info_t> m_memory_arg_info;
+  optional<argnum_t> m_vararg_argnum;
   //map<string, callee_summary_t> m_callee_summaries;
   std::set<symbol_id_t> m_touched_syms;
   std::set<symbol_id_t> m_touched_extsyms;

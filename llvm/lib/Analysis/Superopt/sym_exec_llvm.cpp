@@ -638,24 +638,37 @@ sym_exec_llvm::populate_state_template(const llvm::Function& F, bool model_llvm_
 {
   argnum_t argnum = 0;
   const DataLayout &dl = m_module->getDataLayout();
-  for (Function::const_arg_iterator iter = F.arg_begin(); iter != F.arg_end(); ++iter) {
-    const Value& v = *iter;
+  for (auto const& v : F.args()) {
     if (isa<const Constant>(v)) {
       continue;
     }
-    string name = get_value_name(v);
-    sort_ref s = get_value_type(v, m_module->getDataLayout());
-    string argname = name/* + SRC_INPUT_ARG_NAME_SUFFIX*/;
-    expr_ref argvar = m_ctx->get_input_expr_for_key(mk_string_ref(argname), s);
-    m_arguments[name] = make_pair(argnum, argvar);
+    string const name = get_value_name(v);
+    sort_ref const s = get_value_type(v, m_module->getDataLayout());
+    allocsite_t const allocsite = allocsite_t::allocsite_arg(argnum);
 
-    allocsite_t allocsite = allocsite_t::allocsite_arg(argnum);
-    argnum++;
-
-    Type* ty = v.getType();
+    Type* const ty = v.getType();
     unsigned size = dl.getTypeAllocSize(ty);
     unsigned align = dl.getABITypeAlign(ty).value();
-    m_local_refs.insert(make_pair(allocsite, graph_local_t(argname, size, align)));
+
+    if (v.hasByValAttr()) {
+      if (!callconv_is_cdecl_x86(&F)) {
+        NOT_IMPLEMENTED();
+      }
+      Type* byval_ty = v.getParamByValType();
+      ASSERT(byval_ty);
+      size = dl.getTypeAllocSize(byval_ty);
+      align = v.getParamAlign().value_or(Align(4)).value();
+      allocstack_t allocstack = allocstack_t::allocstack_singleton(F.getName().str(), allocsite);
+      expr_ref argvar = m_cs.get_local_addr(allocstack, m_srcdst_keyword);
+      m_arguments[name] = make_pair(argnum, argvar);
+      m_memory_arg_info[argnum] = memory_arg_info_t{size, align};
+    } else {
+      expr_ref argvar = m_ctx->get_input_expr_for_key(mk_string_ref(name), s);
+      m_arguments[name] = make_pair(argnum, argvar);
+    }
+    argnum++;
+
+    m_local_refs.insert(make_pair(allocsite, graph_local_t(name, size, align)));
 
     if (model_llvm_semantics) {
       string arg_poison_varname = get_poison_value_varname(name);
@@ -668,11 +681,12 @@ sym_exec_llvm::populate_state_template(const llvm::Function& F, bool model_llvm_
     }
   }
   if (F.isVarArg()) {
-    expr_ref argvar = m_ctx->get_vararg_local_expr();
-    string_ref name = m_ctx->get_key_from_input_expr(argvar);
-    m_arguments[name->get_str()] = make_pair(argnum, argvar);
+    string name = graph_local_t::vararg_local_name(m_srcdst_keyword);
+    expr_ref argvar = m_ctx->mk_var(name, m_ctx->mk_addr_sort());
+    m_arguments[name] = make_pair(argnum, argvar);
+    m_vararg_argnum = argnum;
 
-    m_local_refs.insert(make_pair(graph_locals_map_t::vararg_local_id(), graph_local_t::vararg_local()));
+    m_local_refs.insert(make_pair(graph_locals_map_t::vararg_local_id(), graph_local_t::vararg_local(m_srcdst_keyword)));
   }
 
   //int bbnum = 1; //bbnum == 0 is reserved
@@ -4292,18 +4306,21 @@ void
 sym_exec_common::get_tfg_common(tfg &t)
 {
   map<string_ref, graph_arg_t> arg_exprs;
-  //unordered_set<predicate> assumes;
-  for (const auto& arg : m_arguments) {
-    pair<argnum_t, expr_ref> const &a = arg.second;
-    string argname = graph_arg_regs_t::get_argname_from_argnum(a.first);
+  for (const auto& [name,a] : m_arguments) {
+    string const argname = graph_arg_regs_t::get_argname_from_argnum(a.first);
 
-    allocsite_t allocsite = m_ctx->is_vararg_local_expr(a.second) ? graph_locals_map_t::vararg_local_id()
-                                                                  : allocsite_t::allocsite_arg(a.first);
+    allocsite_t allocsite = m_vararg_argnum && a.first == *m_vararg_argnum ? graph_locals_map_t::vararg_local_id()
+                                                                           : allocsite_t::allocsite_arg(a.first);
     allocstack_t allocstack = allocstack_t::allocstack_singleton(t.get_function_name()->get_str(), allocsite);
-    stringstream ss;
-    ss << string(G_INPUT_KEYWORD ".") << m_srcdst_keyword << "." << G_LOCAL_KEYWORD << "." << allocstack.allocstack_to_string();
-    expr_ref arg_addr = m_ctx->mk_var(ss.str(), m_ctx->mk_addr_sort());
-    arg_exprs.insert(make_pair(mk_string_ref(argname), graph_arg_t(arg_addr, a.second)));
+    expr_ref arg_addr = m_ctx->get_consts_struct().get_local_addr(allocstack, m_srcdst_keyword);
+    if (m_vararg_argnum && a.first == *m_vararg_argnum) {
+      arg_exprs.emplace(mk_string_ref(argname), graph_arg_t::vararg(arg_addr));
+    } else if (m_memory_arg_info.count(a.first)) {
+      auto const& mem_arg = m_memory_arg_info.at(a.first);
+      arg_exprs.emplace(mk_string_ref(argname), graph_arg_t(arg_addr, mem_arg.size, mem_arg.align));
+    } else {
+      arg_exprs.emplace(mk_string_ref(argname), graph_arg_t(arg_addr, a.second));
+    }
   }
 
   state start_state;
