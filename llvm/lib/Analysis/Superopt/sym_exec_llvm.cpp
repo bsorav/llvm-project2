@@ -42,6 +42,14 @@ callconv_is_cdecl_x86(llvm::Function const* F)
           && triple.getArch() == Triple::x86;
 }
 
+static bool
+callconv_is_cdecl_x86(llvm::CallInst const& c)
+{
+  llvm::Triple triple{c.getFunction()->getParent()->getTargetTriple()};
+   return    c.getCallingConv() == llvm::CallingConv::C
+          && triple.getArch() == Triple::x86;
+}
+
 }
 
 sort_ref sym_exec_common::get_mem_domain() const
@@ -1389,7 +1397,7 @@ sym_exec_common::function_belongs_to_program(string const &fun_name) const
 }
 
 pair<preds_t,preds_t>
-sym_exec_llvm::apply_general_function(const CallInst* c, expr_ref fun_name_expr, string const &fun_name, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, Function *F, state const &state_in, state &state_out, preds_t const& state_assumes, string const &cur_function_name, dshared_ptr<tfg_node const> &from_node, bool model_llvm_semantics, tfg &t/*, map<string, pair<callee_summary_t, dshared_ptr<tfg_llvm_t>>> *function_tfg_map*/, map<llvm_value_id_t, string_ref>* value_to_name_map/*, set<string> const *function_call_chain*/, map<string, value_scev_map_t> const& scev_map, context::xml_output_format_t xml_output_format)
+sym_exec_llvm::apply_general_function(const CallInst* c, expr_ref fun_name_expr, string const &fun_name, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, Function *F, state const &state_in, state &state_out, preds_t const& state_assumes, string const &cur_function_name, dshared_ptr<tfg_node const> &from_node, bool model_llvm_semantics, tfg &t, map<llvm_value_id_t, string_ref>* value_to_name_map, map<string, value_scev_map_t> const& scev_map, context::xml_output_format_t xml_output_format)
 {
   vector<expr_ref> args;
   vector<sort_ref> args_type;
@@ -1471,7 +1479,7 @@ sym_exec_llvm::apply_general_function(const CallInst* c, expr_ref fun_name_expr,
       expr = m_ctx->get_input_expr_for_key(mk_string_ref(float_fcall_arg_name), bv_expr->get_sort());
     } else if (c->paramHasAttr(argnum, Attribute::ByVal)) {
       Type *elTy = c->getParamByValType(argnum);
-      if (callconv_is_cdecl_x86(F)) {
+      if (callconv_is_cdecl_x86(*c)) {
         // In cdecl I386 (Linux), the structure is passed on the stack regardless of size
         // So, we pass-by-value by reading the byval pointer
         // Note that count below corresponds to size of the struct which can be quite large! (but, hey, the programmer _chose_ to do this)
@@ -1658,7 +1666,7 @@ fp_val_within_limits_assume(expr_ref const& e, float_max_t const& min_limit, flo
 
 void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dshared_ptr<tfg_node const> from_node, llvm::BasicBlock const &B, llvm::Function const &F, size_t next_insn_id, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, bool model_llvm_semantics, tfg_llvm_t &t, map<llvm_value_id_t, string_ref>* value_to_name_map/*, set<string> const *function_call_chain*/, map<shared_ptr<tfg_edge const>, Instruction const*>& eimap, map<string, value_scev_map_t> const& scev_map, context::xml_output_format_t xml_output_format)
 {
-  DYN_DEBUG(llvm2tfg, errs() << __func__ << " " << __LINE__ << " " << get_timestamp(as1, sizeof as1) << ": sym exec doing: " << I << "\n");
+  DYN_DEBUG(llvm2tfg, errs() << "sym exec doing: " << I << "\n");
   preds_t state_assumes;
   vector<control_flow_transfer> cfts;
   state state_out = state_in;
@@ -2044,7 +2052,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
   case Instruction::Call:
   {
     const CallInst* c =  cast<const CallInst>(&I);
-
+    ASSERT(c);
     Function *calleeF = c->getCalledFunction();
     string fun_name;
     expr_ref fun_expr;
@@ -2057,7 +2065,6 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
         fun_name = string(LLVM_FUNCTION_NAME_PREFIX) + fun_name;
         //fun_expr = m_ctx->mk_var(fun_name, m_ctx->mk_bv_sort(DWORD_LEN)); //shortcut the expression (we are assuming the casts are meaningless). This is a hack, and should be removed at some point.
       }
-
     } else {
       fun_name = calleeF->getName().str();
       fun_name = string(LLVM_FUNCTION_NAME_PREFIX) + fun_name;
@@ -2072,12 +2079,10 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     }
 
     if (string_has_prefix(fun_name, LLVM_FUNCTION_NAME_PREFIX G_LLVM_STACKSAVE_FUNCTION)) {
-      //cast<CallInst>(I).getIntrinsicID() == Intrinsic::stacksave
       state_out = this->parse_stacksave_intrinsic(I, t, from_node->get_pc());
       break;
     }
     if (string_has_prefix(fun_name, LLVM_FUNCTION_NAME_PREFIX G_LLVM_STACKRESTORE_FUNCTION)) {
-      //cast<CallInst>(I).getIntrinsicID() == Intrinsic::stackrestore
       state_out = this->parse_stackrestore_intrinsic(I, t, from_node->get_pc());
       break;
     }
@@ -3870,7 +3875,7 @@ sym_exec_llvm::gen_arg_assumes() const
   preds_t arg_assumes;
   for (const auto& arg : m_function.args()) {
     pair<argnum_t, expr_ref> const &a = m_arguments.at(get_value_name(arg));
-    string Elname = get_value_name(arg)/* + SRC_INPUT_ARG_NAME_SUFFIX*/;
+    string Elname = get_value_name(arg);
     Type *ElTy = arg.getType();
     if (auto align_assume = gen_ptr_align_assume(Elname, ElTy, a.second->get_sort())) {
       arg_assumes.emplace_back(align_assume, fails::safety_ptr_aligned);
