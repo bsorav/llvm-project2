@@ -4100,9 +4100,24 @@ sym_exec_llvm::get_symbol_map_and_string_contents(Module const *M, list<pair<str
   return make_tuple(smap, extsym_map, scontents);
 }
 
+const char*
+valueIDName(llvm::Value const* V)
+{
+  switch (V->getValueID()) {
+
+#define HANDLE_VALUE(Name) \
+    case llvm::Value::Name##Val: return #Name;
+
+#include "llvm/IR/Value.def"
+
+    default:                     return "Unknown";
+  }
+}
+
 vector<char>
 sym_exec_common::get_constant_bytes(Constant const* c)
 {
+  ASSERT(c);
   const ConstantDataSequential *Sequential;
   const ConstantInt *Int;
   const ConstantStruct *Struct;
@@ -4154,11 +4169,12 @@ sym_exec_common::get_constant_bytes(Constant const* c)
       vector_append(v, get_constant_bytes(elem));
     }
     return v;
-  } else if ((FP = dyn_cast<ConstantFP>(c))/* && Array->isString()*/) {
+  } else if ((FP = dyn_cast<ConstantFP>(c))) {
     dbgs() << _FNLN_ << ": Unhandled FP constant:" << *FP << '\n';
     NOT_IMPLEMENTED();
   } else {
-    dbgs() << _FNLN_ << ": Unhandled constant:" << *c << '\n';
+    dbgs() << _FNLN_ << ": Unhandled constant with ValueID " << valueIDName(c) << "\n"
+           << "Value = {{{ " << *c << " }}}\n";
     NOT_IMPLEMENTED();
   }
 }
