@@ -1176,7 +1176,7 @@ sym_exec_llvm::apply_memset_function(const CallInst* c, expr_ref fun_name_expr, 
     DYN_DEBUG(llvm2tfg_memset, cout << "added edge " << e->to_string_concise() << " for alignment assume" << endl);
     expr_ref mem = state_get_expr(state_out, m_mem_reg, this->get_mem_sort());
     expr_ref mem_alloc = state_get_expr(state_out, m_mem_alloc_reg, this->get_mem_alloc_sort());
-    cur_pc = t.model_memset(intermediate_node->get_pc(), mem, mem_alloc, memset_dst_expr, memset_val_expr, count, memset_align_int, get_word_length(), te_comment_t::te_comment_memset(nullopt));
+    cur_pc = t.model_memset(intermediate_node->get_pc(), mem, mem_alloc, memset_dst_expr, memset_val_expr, count, get_word_length(), te_comment_t::te_comment_memset(nullopt));
     this->sync_next_intermediate_subsubindex_map(cur_pc); // sync subsubindex info as model_memcpy() may have created intermediate PCs
     state_out = state_in;
     from_node = t.find_node(cur_pc);
@@ -1237,7 +1237,7 @@ sym_exec_llvm::apply_memcpy_function(const CallInst* c, expr_ref fun_name_expr, 
 
     expr_ref mem = state_get_expr(state_out, m_mem_reg, this->get_mem_sort());
     expr_ref mem_alloc = state_get_expr(state_out, m_mem_alloc_reg, this->get_mem_alloc_sort());
-    cur_pc = t.model_memcpy(intermediate_node->get_pc(), mem, mem_alloc, memcpy_src_expr, memcpy_dst_expr, count, memcpy_align_int, get_word_length(), te_comment_t::te_comment_memcpy(nullopt));
+    cur_pc = t.model_memcpy(intermediate_node->get_pc(), mem, mem_alloc, memcpy_src_expr, memcpy_dst_expr, count, get_word_length(), te_comment_t::te_comment_memcpy(nullopt));
     this->sync_next_intermediate_subsubindex_map(cur_pc); // sync subsubindex info as model_memcpy() may have created intermediate PCs
     state_out = state_in;
     from_node = t.find_node(cur_pc);
