@@ -408,11 +408,19 @@ int clang_main(int Argc, char **Argv, const llvm::ToolContext &ToolContext) {
     auto iter_url = llvm::find_if(Args, [&remotefs_url_prefix](char const* F) {
       return F && std::string(F).substr(0, remotefs_url_prefix.size()) == remotefs_url_prefix;
     });
+    std::string remotefs_client_id_prefix = "--remotefs-client-id=";
+    auto iter_client_id = llvm::find_if(Args, [&remotefs_client_id_prefix](char const* F) {
+      return F && std::string(F).substr(0, remotefs_client_id_prefix.size()) == remotefs_client_id_prefix;
+    });
     if (iter_dir != Args.end() && iter_url != Args.end()) {
       auto remotefs_url = std::string(*iter_url).substr(remotefs_url_prefix.size());
       auto remotefs_dir = std::string(*iter_dir).substr(remotefs_dir_prefix.size());
+      auto remotefs_client_id = iter_client_id == Args.end()
+                                    ? std::string()
+                                    : std::string(*iter_client_id).substr(
+                                          remotefs_client_id_prefix.size());
       llvm::errs() << "Initializing RemoteFS\n";
-      remotefs_activate(remotefs_url, remotefs_dir);
+      remotefs_activate(remotefs_url, remotefs_dir, remotefs_client_id);
     }
   }
 

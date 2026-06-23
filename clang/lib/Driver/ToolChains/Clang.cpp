@@ -7775,6 +7775,11 @@ Clang::ConstructCommand(Compilation & C, const JobAction &JA,
         Args.MakeArgString(Twine("--remotefs-dir=") + A->getValue()));
   }
 
+  if (const Arg *A = Args.getLastArg(options::OPT_remotefs_client_id)) {
+    CmdArgs.push_back(
+        Args.MakeArgString(Twine("--remotefs-client-id=") + A->getValue()));
+  }
+
   std::unique_ptr<Command> ret;
   if (D.CC1Main && !D.CCGenDiagnostics) {
     // Invoke the CC1 directly in this process

@@ -6154,6 +6154,10 @@ def remotefs_dir : JoinedOrSeparate<["--"], "remotefs-dir=">, Group<Preprocessor
   Flags<[HelpHidden]>,
   HelpText<"RemoteFS dir to store local files corresponding to remote client pathnames">;
 
+def remotefs_client_id : JoinedOrSeparate<["--"], "remotefs-client-id=">, Group<Preprocessor_Group>, Visibility<[ClangOption, CC1Option]>,
+  Flags<[HelpHidden]>,
+  HelpText<"RemoteFS client id">;
+
 // The default value matches BinutilsVersion in MCAsmInfo.h.
 def fbinutils_version_EQ : Joined<["-"], "fbinutils-version=">,
   MetaVarName<"<major.minor>">, Group<f_Group>,
