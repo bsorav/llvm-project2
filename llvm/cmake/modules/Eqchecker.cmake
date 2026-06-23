@@ -18,6 +18,7 @@ set(SUPEROPT_RUNTIME_LIBDIR "lib-${SUPEROPT_RELEVANT_ABUILD}")
 
 link_directories(${z3_lib})
 link_directories(${binutils_install_dir}/lib)
+#link_directories(${curlpp_lib_dir})
 
 INCLUDE_DIRECTORIES(${SUPEROPT_DIR}/include)
 INCLUDE_DIRECTORIES(${SUPEROPT_DIR}/lib)
@@ -27,6 +28,7 @@ INCLUDE_DIRECTORIES(${SUPEROPT_DIR}/lib/support)
 INCLUDE_DIRECTORIES(${EQ_BINARY_DIR})
 INCLUDE_DIRECTORIES(${z3_include_dir})
 INCLUDE_DIRECTORIES(${immer_include_dir})
+#INCLUDE_DIRECTORIES(${curlpp_include_dir})
 
 list(APPEND CMAKE_BUILD_RPATH ${EQ_BINARY_DIR})
 list(APPEND CMAKE_BUILD_RPATH "\$ORIGIN")

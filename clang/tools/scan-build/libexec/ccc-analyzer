@@ -34,6 +34,7 @@ sub silent_system {
   my ($TmpFH, $TmpFile) = tempfile("temp_buf_XXXXXX",
                                    DIR => $HtmlDir,
                                    UNLINK => 1);
+  print STDERR "Invoking $Command, @_\n";
   open(STDOUT, ">$TmpFile");
   open(STDERR, ">&", \*STDOUT);
 
@@ -680,6 +681,12 @@ foreach (my $i = 0; $i < scalar(@ARGV); ++$i) {
     ++$i;
     push @CompileOpts, $Arg;
     push @CompileOpts, $ARGV[$i];
+    next;
+  }
+
+  # RemoteFS args for eqchecker UI
+  if ($Arg =~ /^--remotefs-/) {
+    push @CompileOpts, $Arg;
     next;
   }
 

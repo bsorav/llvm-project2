@@ -35,6 +35,8 @@
 #include <utility>
 #include <vector>
 
+#include "support/remotefs.h"
+
 namespace llvm {
 
 class MemoryBuffer;
@@ -318,6 +320,8 @@ public:
   ///          platform-specific error_code.
   virtual std::error_code makeAbsolute(SmallVectorImpl<char> &Path) const;
 
+  virtual bool isRemoteFileSystem() const { return false; }
+
   enum class PrintType { Summary, Contents, RecursiveContents };
   void print(raw_ostream &OS, PrintType Type = PrintType::Contents,
              unsigned IndentLevel = 0) const {
@@ -430,6 +434,7 @@ public:
   }
   llvm::ErrorOr<std::unique_ptr<File>>
   openFileForRead(const Twine &Path) override {
+    llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "():\n";
     return FS->openFileForRead(Path);
   }
   directory_iterator dir_begin(const Twine &Dir, std::error_code &EC) override {
@@ -1051,6 +1056,53 @@ public:
 protected:
   void printImpl(raw_ostream &OS, PrintType Type,
                  unsigned IndentLevel) const override;
+};
+
+class RemoteFileSystem : public vfs::FileSystem {
+private:
+  // The underlying filesystem
+  IntrusiveRefCntPtr<FileSystem> ExternalFS;
+
+private:
+  RemoteFileSystem(IntrusiveRefCntPtr<FileSystem> ExternalFS);
+
+private:
+  static llvm::sys::fs::perms mode_to_perms(mode_t const& mode);
+  static llvm::sys::fs::file_type get_file_type(bool accessible, remotefs_file_type_t type);
+
+public:
+  static std::unique_ptr<RemoteFileSystem>
+  create(SourceMgr::DiagHandlerTy DiagHandler,
+         void *DiagContext, IntrusiveRefCntPtr<FileSystem> ExternalFS);
+
+  bool isRemoteFileSystem() const override { return true; }
+
+  ErrorOr<Status> status(const Twine &Path) override;
+  //bool exists(const Twine &Path) override { return RedirectingFS->exists(Path); }
+  ErrorOr<std::unique_ptr<File>> openFileForRead(const Twine &Path) override;
+
+  std::error_code getRealPath(const Twine &Path,
+                              SmallVectorImpl<char> &Output) const override
+  {
+    return ExternalFS->getRealPath(Path, Output);
+  }
+  llvm::ErrorOr<std::string> getCurrentWorkingDirectory() const override
+  {
+    return ExternalFS->getCurrentWorkingDirectory();
+  }
+  std::error_code setCurrentWorkingDirectory(const Twine &Path) override
+  {
+    return ExternalFS->setCurrentWorkingDirectory(Path);
+  }
+  std::error_code isLocal(const Twine &Path, bool &Result) override
+  {
+    return ExternalFS->isLocal(Path, Result);
+  }
+  std::error_code makeAbsolute(SmallVectorImpl<char> &Path) const override;
+  directory_iterator dir_begin(const Twine &Dir, std::error_code &EC) override
+  {
+    return ExternalFS->dir_begin(Dir, EC);
+  }
 };
 
 /// Collect all pairs of <virtual path, real path> entries from the

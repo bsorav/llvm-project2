@@ -33,6 +33,7 @@ public:
     llvm::SmallString<128> Path;
     InPath.toVector(Path);
 
+    llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "():\n";
     auto File = getUnderlyingFS().openFileForRead(Path);
     if (!File)
       return File;

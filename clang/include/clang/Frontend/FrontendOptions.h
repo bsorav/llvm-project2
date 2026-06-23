@@ -239,10 +239,10 @@ class FrontendInputFile {
 public:
   FrontendInputFile() = default;
   FrontendInputFile(StringRef File, InputKind Kind, bool IsSystem = false)
-      : File(File.str()), Kind(Kind), IsSystem(IsSystem) {}
+      : File(File.str()), Kind(Kind), IsSystem(IsSystem) { llvm::errs() << "FrontendInputFile constructor 2 : File = " << File.str() << "\n"; }
   FrontendInputFile(llvm::MemoryBufferRef Buffer, InputKind Kind,
                     bool IsSystem = false)
-      : Buffer(Buffer), Kind(Kind), IsSystem(IsSystem) {}
+      : Buffer(Buffer), Kind(Kind), IsSystem(IsSystem) { llvm::errs() << "FrontendInputFile constructor 3 : Buffer\n"; }
 
   InputKind getKind() const { return Kind; }
   bool isSystem() const { return IsSystem; }

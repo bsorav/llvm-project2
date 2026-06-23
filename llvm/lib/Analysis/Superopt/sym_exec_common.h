@@ -28,15 +28,28 @@
 class sym_exec_common
 {
 public:
-  sym_exec_common(context* ctx/*, consts_struct_t const &cs*/, dshared_ptr<list<pair<string, unsigned>> const> fun_names, dshared_ptr<map<symbol_id_t, graph_symbol_t> const> symbol_map, dshared_ptr<map<pair<symbol_id_t, offset_t>, vector<char>> const> string_contents/*, bool gen_callee_summary*/, unsigned memory_addressable_size, unsigned word_length, string const& srcdst_keyword) :
-    m_ctx(ctx), m_cs(ctx->get_consts_struct()), m_fun_names(fun_names), m_symbol_map(symbol_map), m_string_contents(string_contents)/*, m_gen_callee_summary(gen_callee_summary)*/, m_memory_addressable_size(memory_addressable_size), m_word_length(word_length), m_mem_reg(srcdst_keyword + "." LLVM_MEM_SYMBOL), m_mem_alloc_reg(srcdst_keyword + "." LLVM_MEM_SYMBOL "." G_ALLOC_SYMBOL), m_mem_poison_reg(srcdst_keyword + "." LLVM_MEM_SYMBOL "." G_POISON_SYMBOL), m_memlabel_varnum(0), m_srcdst_keyword(srcdst_keyword)
-  {
-    //list<pair<string, unsigned>> fun_names;
-    //sym_exec_common::get_fun_names(M, m_fun_names);
+  struct memory_arg_info_t {
+    size_t size;
+    align_t align;
+  };
 
-    //pair<graph_symbol_map_t, map<symbol_id_t, vector<char>>> symbol_map_and_string_contents = sym_exec_common::get_symbol_map_and_string_contents(M, fun_names);
-    //m_symbol_map = make_shared<graph_symbol_map_t const>(symbol_map_and_string_contents.first);
-    //m_string_contents = make_shared<map<symbol_id_t, vector<char>> const>(symbol_map_and_string_contents.second);
+  sym_exec_common(context* ctx, dshared_ptr<list<pair<string, unsigned>> const> fun_names, dshared_ptr<map<symbol_id_t, graph_symbol_t> const> symbol_map, dshared_ptr<map<symbol_id_t,graph_extsym_t> const> extsym_map, dshared_ptr<map<pair<symbol_id_t, offset_t>, vector<char>> const> string_contents, unsigned memory_addressable_size, unsigned word_length, string const& srcdst_keyword)
+  : m_ctx(ctx),
+    m_cs(ctx->get_consts_struct()),
+    m_fun_names(fun_names),
+    m_symbol_map(symbol_map),
+    m_extsym_map(extsym_map),
+    m_string_contents(string_contents),
+    m_memory_addressable_size(memory_addressable_size),
+    m_word_length(word_length),
+    m_mem_reg(srcdst_keyword + "." LLVM_MEM_SYMBOL),
+    m_mem_alloc_reg(srcdst_keyword + "." LLVM_MEM_SYMBOL "." G_ALLOC_SYMBOL),
+    m_mem_poison_reg(srcdst_keyword + "." LLVM_MEM_SYMBOL "." G_POISON_SYMBOL),
+    m_srcdst_keyword(srcdst_keyword)
+  {
+    ASSERT(m_symbol_map);
+    ASSERT(m_extsym_map);
+    ASSERT(m_string_contents);
   }
 
   //void exec(const state& state_in, const llvm::Instruction& I/*, state& state_out, vector<control_flow_transfer>& cfts, bool &expand_switch_flag, unordered_set<predicate> &assumes*/, shared_ptr<tfg_node> from_node, llvm::BasicBlock const &B, llvm::Function const &F, size_t next_insn_id, tfg &t, map<string, pair<callee_summary_t, tfg *>> &function_tfg_map, set<string> const &function_call_chain);
@@ -66,14 +79,9 @@ public:
   static bool update_function_call_args_and_retvals_with_atlocals(dshared_ptr<tfg> t_src);
 
   map<allocsite_t, graph_local_t> const &get_local_refs() { return m_local_refs; }
-  map<symbol_id_t, graph_symbol_t> const &sym_exec_get_symbol_map() { return *m_symbol_map; }
   string get_value_name(const llvm::Value& v) const;
   static string get_value_name_using_srcdst_keyword(const llvm::Value& v, string const& srcdst_keyword);
-  static list<pair<string, unsigned>> get_fun_names(llvm::Module const *M);
-  static pair<map<symbol_id_t, graph_symbol_t>, map<pair<symbol_id_t, offset_t>, vector<char>>> get_symbol_map_and_string_contents(llvm::Module const *M, list<pair<string, unsigned>> const &fun_names, dshared_ptr<tfg_llvm_t const> src_llvm_tfg);
   static vector<char> get_constant_bytes(llvm::Constant const* c);
-  static map<symbol_id_t, graph_symbol_t> sym_exec_get_symbol_map(llvm::Module const *M, dshared_ptr<tfg_llvm_t const> src_llvm_tfg);
-  static map<pair<symbol_id_t, offset_t>, vector<char>> get_string_contents(llvm::Module const *M, dshared_ptr<tfg_llvm_t const> src_llvm_tfg);
   static unsigned get_num_insn(const llvm::Function& f);
   context *get_context() const { return m_ctx; }
   list<pair<string, unsigned>> const &get_fun_names() const { return *m_fun_names; }
@@ -205,8 +213,8 @@ protected:
   consts_struct_t const &m_cs;
   //const std::unique_ptr<llvm::Module>& m_module;
   dshared_ptr<list<pair<string, unsigned>> const> m_fun_names;
-  //std::map<symbol_id_t, tuple<string, size_t, variable_constness_t>> const &m_symbol_map;
-  dshared_ptr<map<graph_loc_id_t, graph_symbol_t> const> m_symbol_map;
+  dshared_ptr<map<symbol_id_t, graph_symbol_t> const> m_symbol_map;
+  dshared_ptr<map<symbol_id_t, graph_extsym_t> const> m_extsym_map;
   dshared_ptr<std::map<pair<symbol_id_t, offset_t>, vector<char>> const> m_string_contents;
   //bool m_gen_callee_summary;
   unsigned m_memory_addressable_size;
@@ -215,18 +223,18 @@ protected:
   string m_mem_reg;
   string m_mem_alloc_reg;
   string m_mem_poison_reg;
-  //string m_io_reg;
-  //allocsite_t m_local_num;
-  //string m_ret_reg;
   map<allocsite_t, graph_local_t> m_local_refs;
   //map<string, string> m_basicblock_name_map;
   map<string, int> m_basicblock_idx_map;
   list<pair<string, sort_ref>> m_state_templ;
   //map<string, string> m_value_name_map;
   map<string, pair<argnum_t, expr_ref>> m_arguments;
+  map<argnum_t, memory_arg_info_t> m_memory_arg_info;
+  optional<argnum_t> m_vararg_argnum;
   //map<string, callee_summary_t> m_callee_summaries;
-  std::set<symbol_id_t> m_touched_symbols;
-  int m_memlabel_varnum;
+  std::set<symbol_id_t> m_touched_syms;
+  std::set<symbol_id_t> m_touched_extsyms;
+  int m_memlabel_varnum = 0;
   //map<pc, pc> m_next_phi_pc;
   map<pc, int> m_intermediate_subsubindex_map;
   string const m_srcdst_keyword;

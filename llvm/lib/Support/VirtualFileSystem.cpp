@@ -37,6 +37,7 @@
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/YAMLParser.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Support/Signals.h"
 #include <algorithm>
 #include <atomic>
 #include <cassert>
@@ -50,6 +51,9 @@
 #include <system_error>
 #include <utility>
 #include <vector>
+#include "support/debug.h"
+#include "support/consts.h"
+#include "support/remotefs.h"
 
 using namespace llvm;
 using namespace llvm::vfs;
@@ -118,6 +122,7 @@ FileSystem::~FileSystem() = default;
 ErrorOr<std::unique_ptr<MemoryBuffer>>
 FileSystem::getBufferForFile(const llvm::Twine &Name, int64_t FileSize,
                              bool RequiresNullTerminator, bool IsVolatile) {
+  llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "():\n";
   auto F = openFileForRead(Name);
   if (!F)
     return F.getError();
@@ -314,6 +319,8 @@ ErrorOr<Status> RealFileSystem::status(const Twine &Path) {
 
 ErrorOr<std::unique_ptr<File>>
 RealFileSystem::openFileForRead(const Twine &Name) {
+  llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "(): Name = " << Name.str() << "\n";
+  //llvm::sys::PrintStackTrace(llvm::errs());
   SmallString<256> RealName, Storage;
   Expected<file_t> FDOrErr = sys::fs::openNativeFileForRead(
       adjustPath(Name, Storage), sys::fs::OF_None, &RealName);
@@ -441,11 +448,17 @@ ErrorOr<Status> OverlayFileSystem::status(const Twine &Path) {
 
 ErrorOr<std::unique_ptr<File>>
 OverlayFileSystem::openFileForRead(const llvm::Twine &Path) {
+  llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "(): Path = " << Path.str() << "\n";
   // FIXME: handle symlinks that cross file systems
   for (iterator I = overlays_begin(), E = overlays_end(); I != E; ++I) {
+    llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "(): Path = " << Path.str() << "\n";
     auto Result = (*I)->openFileForRead(Path);
-    if (Result || Result.getError() != llvm::errc::no_such_file_or_directory)
+    llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "(): Path = " << Path.str() << "\n";
+    if (Result || Result.getError() != llvm::errc::no_such_file_or_directory) {
+      llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "(): Path = " << Path.str() << "\n";
       return Result;
+    }
+    llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "(): Path = " << Path.str() << "\n";
   }
   return make_error_code(llvm::errc::no_such_file_or_directory);
 }
@@ -589,6 +602,107 @@ void ProxyFileSystem::anchor() {}
 
 namespace llvm {
 namespace vfs {
+
+RemoteFileSystem::RemoteFileSystem(IntrusiveRefCntPtr<FileSystem> externalFS) : ExternalFS(externalFS)
+{ }
+
+std::unique_ptr<RemoteFileSystem>
+RemoteFileSystem::create(SourceMgr::DiagHandlerTy DiagHandler,
+        void *DiagContext, IntrusiveRefCntPtr<FileSystem> ExternalFS)
+{
+  llvm::vfs::YAMLVFSWriter Writer;
+  std::string Overlay;
+  llvm::raw_string_ostream OS(Overlay);
+  Writer.write(OS);
+  OS.flush();
+
+  std::unique_ptr<llvm::MemoryBuffer> Buffer =
+      llvm::MemoryBuffer::getMemBufferCopy(Overlay, "<remote-vfs>");
+
+  std::unique_ptr<RemoteFileSystem> RemoteFS(
+      new RemoteFileSystem(ExternalFS));
+  return RemoteFS;
+}
+
+llvm::sys::fs::perms
+RemoteFileSystem::mode_to_perms(mode_t const& mode)
+{
+  return static_cast<llvm::sys::fs::perms>(mode & 07777);
+}
+
+llvm::sys::fs::file_type
+RemoteFileSystem::get_file_type(bool accessible, remotefs_file_type_t type)
+{
+  if (!accessible) {
+    return llvm::sys::fs::file_type::file_not_found;
+  }
+  switch (type) {
+    case file: return llvm::sys::fs::file_type::regular_file;
+    case directory: return llvm::sys::fs::file_type::directory_file;
+    case other: return llvm::sys::fs::file_type::type_unknown;
+    default: NOT_REACHED();
+  }
+  NOT_REACHED();
+}
+
+ErrorOr<Status>
+RemoteFileSystem::status(const Twine &Path) {
+  remotefs_file_status_t remotefs_file_status;
+  if (remotefs_get_status(Path.str(), remotefs_file_status)) {
+    //llvm::sys::PrintStackTrace(llvm::errs());
+    llvm::sys::fs::UniqueID UID(remotefs_file_status.m_device, remotefs_file_status.m_file);
+    struct timespec const& mod = remotefs_file_status.m_last_modified_time;
+    llvm::sys::TimePoint<> MTime(std::chrono::seconds(mod.tv_sec) + std::chrono::nanoseconds(mod.tv_nsec));
+    uint32_t User = remotefs_file_status.m_user;
+    uint32_t Group = remotefs_file_status.m_group;
+    uint32_t Size = remotefs_file_status.m_size;
+    bool accessible = remotefs_file_status.m_accessible;
+    llvm::sys::fs::file_type Type = get_file_type(accessible, remotefs_file_status.m_type);
+    llvm::sys::fs::perms Perms = mode_to_perms(remotefs_file_status.m_mode);
+
+    if (!accessible) {
+      std::error_code EC = llvm::make_error_code(llvm::errc::no_such_file_or_directory);
+      llvm::errs() << __func__ << " " << __LINE__ << ": returning error code\n";
+      return EC;
+    } else {
+      llvm::errs() << __func__ << " " << __LINE__ << ": returning status\n";
+      return Status(Path, UID, MTime, User, Group, Size, Type, Perms);
+    }
+  } else {
+    ErrorOr<Status> ret = ExternalFS->status(Path);
+    if (std::error_code ec = ret.getError()) {
+      //ec.message()
+    } else {
+      //print ret->getName int(ret->getType()) getPermissions getLastModificationTime
+    }
+    return ret;
+  }
+}
+
+ErrorOr<std::unique_ptr<File>>
+RemoteFileSystem::openFileForRead(const Twine &Path) {
+  llvm::errs() << "RemoteFileSystem::" << __func__ << " " << __LINE__ << ": Path = " << Path.str() << "\n";
+  //llvm::sys::PrintStackTrace(llvm::errs());
+  std::string local_pathname;
+  if (remotefs_get_local_pathname(Path.str(), local_pathname)) {
+    if (local_pathname == NOT_FOUND_KEYWORD) {
+      return std::make_error_code(std::errc::no_such_file_or_directory);
+    }
+    llvm::errs() << __func__ << " " << __LINE__ << ": Calling ExternalFS openFileForRead() using local_pathname " << local_pathname << " but with name " << Path.str() << "\n";
+    ErrorOr<std::unique_ptr<File>> F = ExternalFS->openFileForRead(local_pathname);
+    llvm::errs() << __func__ << " " << __LINE__ << ": returned from ExternalFS openFileForRead() using local_pathname " << local_pathname << " but with name " << Path.str() << "\n";
+    return File::getWithPath(std::move(F), Path);
+  } else {
+    llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "():\n";
+    return ExternalFS->openFileForRead(Path);
+  }
+}
+
+std::error_code
+RemoteFileSystem::makeAbsolute(SmallVectorImpl<char> &Path) const {
+  //We assume that a remote path is always absolute, so nothing to do here
+  return {};
+}
 
 namespace detail {
 
@@ -1049,6 +1163,7 @@ llvm::ErrorOr<Status> InMemoryFileSystem::status(const Twine &Path) {
 
 llvm::ErrorOr<std::unique_ptr<File>>
 InMemoryFileSystem::openFileForRead(const Twine &Path) {
+  llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "():\n";
   auto Node = lookupNode(Path,/*FollowFinalSymlink=*/true);
   if (!Node)
     return Node.getError();
@@ -2452,6 +2567,7 @@ File::getWithPath(ErrorOr<std::unique_ptr<File>> Result, const Twine &P) {
 
 ErrorOr<std::unique_ptr<File>>
 RedirectingFileSystem::openFileForRead(const Twine &OriginalPath) {
+  llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "(): OriginalPath = " << OriginalPath.str() << "\n";
   SmallString<256> CanonicalPath;
   OriginalPath.toVector(CanonicalPath);
 
@@ -2489,6 +2605,7 @@ RedirectingFileSystem::openFileForRead(const Twine &OriginalPath) {
 
   auto *RE = cast<RedirectingFileSystem::RemapEntry>(Result->E);
 
+  llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "():\n";
   auto ExternalFile = File::getWithPath(
       ExternalFS->openFileForRead(CanonicalRemappedPath), ExtRedirect);
   if (!ExternalFile) {
@@ -2497,6 +2614,7 @@ RedirectingFileSystem::openFileForRead(const Twine &OriginalPath) {
       // Mapped the file but it wasn't found in the underlying filesystem,
       // fallthrough to using the original path if that was the specified
       // redirection type.
+      llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "():\n";
       return File::getWithPath(ExternalFS->openFileForRead(CanonicalPath),
                                OriginalPath);
     }

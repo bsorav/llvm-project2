@@ -314,6 +314,7 @@ void tools::gnutools::StaticLibTool::ConstructJob(
     Compilation &C, const JobAction &JA, const InputInfo &Output,
     const InputInfoList &Inputs, const ArgList &Args,
     const char *LinkingOutput) const {
+  llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "():\n";
   const Driver &D = getToolChain().getDriver();
 
   // Silence warning for "clang -g foo.o -o foo"

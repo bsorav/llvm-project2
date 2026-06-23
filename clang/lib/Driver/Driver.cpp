@@ -90,6 +90,7 @@
 #include "llvm/Support/StringSaver.h"
 #include "llvm/Support/VirtualFileSystem.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Support/Signals.h"
 #include "llvm/TargetParser/Host.h"
 #include <cstdlib> // ::getenv
 #include <map>
@@ -206,10 +207,14 @@ Driver::Driver(StringRef ClangExecutable, StringRef TargetTriple,
       TargetTriple(TargetTriple), Saver(Alloc), PrependArg(nullptr),
       CheckInputsExist(true), ProbePrecompiled(true),
       SuppressMissingInputWarning(false) {
-  // Provide a sane fallback if no VFS is specified.
-  if (!this->VFS)
-    this->VFS = llvm::vfs::getRealFileSystem();
 
+  llvm::errs() << __FILE__ << " " << __LINE__ << ":\n";
+  //llvm::sys::PrintStackTrace(llvm::errs());
+  // Provide a sane fallback if no VFS is specified.
+  if (!this->VFS) {
+    llvm::errs() << __FILE__ << " " << __LINE__ << ": !this->VFS\n";
+    this->VFS = llvm::vfs::getRealFileSystem();
+  }
   Name = std::string(llvm::sys::path::filename(ClangExecutable));
   Dir = std::string(llvm::sys::path::parent_path(ClangExecutable));
   InstalledDir = Dir; // Provide a sensible default installed dir.
@@ -1495,12 +1500,37 @@ Compilation *Driver::BuildCompilation(ArrayRef<const char *> ArgList) {
     }
   }
 
+  CPP_DBG_EXEC(ARGV_PRINT,
+      for (size_t i = 0; i < UArgs->getNumInputArgStrings(); i++) {
+        llvm::errs() << "Uargs InputArgStrings argv[" << i << "] = " << UArgs->getArgString(i) << "\n";
+      }
+      llvm::errs() << "\n";
+  );
+
+
+  CPP_DBG_EXEC(ARGV_PRINT,
+      for (size_t i = 0; i < TranslatedArgs->getNumInputArgStrings(); i++) {
+        llvm::errs() << "Uargs TranslatedArgs argv[" << i << "] = " << TranslatedArgs->getArgString(i) << "\n";
+      }
+      llvm::errs() << "\n";
+  );
+
+
   // The compilation takes ownership of Args.
   Compilation *C = new Compilation(*this, TC, UArgs.release(), TranslatedArgs,
                                    ContainsError);
 
   if (!HandleImmediateArgs(*C))
     return C;
+
+
+  CPP_DBG_EXEC(ARGV_PRINT,
+      for (size_t i = 0; i < C->getArgs().getNumInputArgStrings(); i++) {
+        llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "(): C->getArgs() argv[" << i << "] = " << C->getArgs().getArgString(i) << "\n";
+      }
+      llvm::errs() << "\n";
+  );
+
 
   DYN_DEBUG(clang_driver, llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": after call to HandleImmediateArgs, C->getJobs().size() = " << C->getJobs().size() << "\n");
 
@@ -1912,6 +1942,13 @@ int Driver::ExecuteCompilation(
 
     return 0;
   }
+
+  CPP_DBG_EXEC(ARGV_PRINT,
+      for (size_t i = 0; i < C.getArgs().getNumInputArgStrings(); i++) {
+        llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "(): C->getArgs() argv[" << i << "] = " << C.getArgs().getArgString(i) << "\n";
+      }
+      llvm::errs() << "\n";
+  );
 
   // Just print if -### was present.
   if (C.getArgs().hasArg(options::OPT__HASH_HASH_HASH)) {
@@ -2528,8 +2565,12 @@ bool Driver::DiagnoseInputExistence(const DerivedArgList &Args, StringRef Value,
       (ModulesModeCXX20 && Ty == types::TY_CXXHeader))
     return true;
 
-  if (getVFS().exists(Value))
+  llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << ": calling getVFS().exists(" << Value.str() << ")\n";
+  if (getVFS().exists(Value)) {
+    llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << ": getVFS().exists(" << Value.str() << ") returned true\n";
     return true;
+  }
+  llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << ": getVFS().exists(" << Value.str() << ") returned false\n";
 
   if (TypoCorrect) {
     // Check if the filename is a typo for an option flag. OptTable thinks
@@ -5044,6 +5085,15 @@ void Driver::BuildJobs(Compilation &C) const {
       }
     }
   }
+
+  CPP_DBG_EXEC(ARGV_PRINT,
+      for (size_t i = 0; i < C.getArgs().getNumInputArgStrings(); i++) {
+        llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "(): C->getArgs() argv[" << i << "] = " << C.getArgs().getArgString(i) << "\n";
+      }
+      llvm::errs() << "\n";
+  );
+
+
   DYN_DEBUG(clang_driver, llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": exiting, C.getJobs().size() = " << C.getJobs().size() << "\n");
 }
 
@@ -5757,7 +5807,7 @@ InputInfoList Driver::BuildJobsForActionNoCache(
           C, *JA, Result, InputInfos,
           Args,
           LinkingOutput);
-      DYN_DEBUG(clang_driver, llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": after ConstructJob for JA->getKind() = " << Action::getClassName(JA->getKind()) << ", C.getJobs().size() = " << C.getJobs().size() << "\n");
+      DYN_DEBUG(clang_driver, llvm::errs() << __FILE__ << " " << __func__ << " " << __LINE__ << ": after ConstructJob for T->getName) = " << T->getName() << ", JA->getKind() = " << Action::getClassName(JA->getKind()) << ", C.getJobs().size() = " << C.getJobs().size() << "\n");
     } else {
       T->ConstructJobMultipleOutputs(
           C, *JA, UnbundlingResults, InputInfos,

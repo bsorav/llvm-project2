@@ -47,12 +47,14 @@
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Support/Timer.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Support/VirtualFileSystem.h"
 #include "llvm/TargetParser/Host.h"
 #include <memory>
 #include <optional>
 #include <set>
 #include <system_error>
 #include "support/dyn_debug.h"
+#include "support/remotefs.h"
 #include "support/debug.h"
 
 using namespace clang;
@@ -388,13 +390,37 @@ int clang_main(int Argc, char **Argv, const llvm::ToolContext &ToolContext) {
     return 1;
 
   {
-    std::string dyn_debug_prefix = "--dyn_debug=";
+    std::string dyn_debug_prefix = "--dyn-debug=";
     auto iter = llvm::find_if(Args, [&dyn_debug_prefix](const char *F) {
             return F && std::string(F).substr(0, dyn_debug_prefix.size()) == dyn_debug_prefix;
           });
     if (iter != Args.end()) {
       init_dyn_debug_from_string(std::string(*iter).substr(dyn_debug_prefix.size()));
       CPP_DBG_EXEC(DYN_DEBUG, print_debug_class_levels());
+    }
+  }
+  {
+    std::string remotefs_dir_prefix = "--remotefs-dir=";
+    auto iter_dir = llvm::find_if(Args, [&remotefs_dir_prefix](char const* F) {
+      return F && std::string(F).substr(0, remotefs_dir_prefix.size()) == remotefs_dir_prefix;
+    });
+    std::string remotefs_url_prefix = "--remotefs-url=";
+    auto iter_url = llvm::find_if(Args, [&remotefs_url_prefix](char const* F) {
+      return F && std::string(F).substr(0, remotefs_url_prefix.size()) == remotefs_url_prefix;
+    });
+    std::string remotefs_client_id_prefix = "--remotefs-client-id=";
+    auto iter_client_id = llvm::find_if(Args, [&remotefs_client_id_prefix](char const* F) {
+      return F && std::string(F).substr(0, remotefs_client_id_prefix.size()) == remotefs_client_id_prefix;
+    });
+    if (iter_dir != Args.end() && iter_url != Args.end()) {
+      auto remotefs_url = std::string(*iter_url).substr(remotefs_url_prefix.size());
+      auto remotefs_dir = std::string(*iter_dir).substr(remotefs_dir_prefix.size());
+      auto remotefs_client_id = iter_client_id == Args.end()
+                                    ? std::string()
+                                    : std::string(*iter_client_id).substr(
+                                          remotefs_client_id_prefix.size());
+      llvm::errs() << "Initializing RemoteFS\n";
+      remotefs_activate(remotefs_url, remotefs_dir, remotefs_client_id);
     }
   }
 
@@ -502,7 +528,7 @@ int clang_main(int Argc, char **Argv, const llvm::ToolContext &ToolContext) {
 
   ProcessWarningOptions(Diags, *DiagOpts, /*ReportDiags=*/false);
 
-  Driver TheDriver(Path, llvm::sys::getDefaultTargetTriple(), Diags);
+  Driver TheDriver(Path, llvm::sys::getDefaultTargetTriple(), Diags, "RemoteFS", llvm::vfs::RemoteFileSystem::create(/*DiagHandler=*/nullptr, /*DiagContext=*/nullptr, llvm::vfs::createPhysicalFileSystem()));
   SetInstallDir(Args, TheDriver, CanonicalPrefixes);
   auto TargetAndMode = ToolChain::getTargetAndModeFromProgramName(ProgName);
   TheDriver.setTargetAndMode(TargetAndMode);
@@ -527,6 +553,12 @@ int clang_main(int Argc, char **Argv, const llvm::ToolContext &ToolContext) {
     llvm::CrashRecoveryContext::Enable();
   }
 
+  CPP_DBG_EXEC(ARGV_PRINT,
+      for (size_t i = 0; i < Args.size(); i++) {
+        llvm::errs() << "before BuildCompilation argv[" << i << "] = " << Args[i] << "\n";
+      }
+      llvm::errs() << "\n";
+  );
   std::unique_ptr<Compilation> C(TheDriver.BuildCompilation(Args));
 
   Driver::ReproLevel ReproLevel = Driver::ReproLevel::OnCrash;

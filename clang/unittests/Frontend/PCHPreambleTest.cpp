@@ -38,6 +38,7 @@ class ReadCountingInMemoryFileSystem : public vfs::InMemoryFileSystem
 public:
   ErrorOr<std::unique_ptr<vfs::File>> openFileForRead(const Twine &Path) override
   {
+    llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "():\n";
     ++ReadCounts[Canonicalize(Path)];
     return InMemoryFileSystem::openFileForRead(Path);
   }

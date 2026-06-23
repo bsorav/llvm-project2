@@ -6142,9 +6142,21 @@ defm : BooleanFFlag<"keep-inline-functions">, Group<clang_ignored_gcc_optimizati
 
 def fprofile_dir : Joined<["-"], "fprofile-dir=">, Group<f_Group>;
 
-def dyn_debug : JoinedOrSeparate<["--"], "dyn_debug=">, Group<Preprocessor_Group>,
+def dyn_debug : JoinedOrSeparate<["--"], "dyn-debug=">, Group<Preprocessor_Group>,
   Flags<[HelpHidden]>,
-  HelpText<"Enable dynamic debugging for debug-class(es).  Expects comma-separated list of debug-classes with optional level e.g. --dyn_debug=compute_liveness,sprels,alias_analysis=2">;
+  HelpText<"Enable dynamic debugging for debug-class(es).  Expects comma-separated list of debug-classes with optional level e.g. --dyn-debug=compute_liveness,sprels,alias_analysis=2">;
+
+def remotefs_url : JoinedOrSeparate<["--"], "remotefs-url=">, Group<Preprocessor_Group>, Visibility<[ClangOption, CC1Option]>,
+  Flags<[HelpHidden]>,
+  HelpText<"RemoteFS URL for reading client pathnames">;
+
+def remotefs_dir : JoinedOrSeparate<["--"], "remotefs-dir=">, Group<Preprocessor_Group>, Visibility<[ClangOption, CC1Option]>,
+  Flags<[HelpHidden]>,
+  HelpText<"RemoteFS dir to store local files corresponding to remote client pathnames">;
+
+def remotefs_client_id : JoinedOrSeparate<["--"], "remotefs-client-id=">, Group<Preprocessor_Group>, Visibility<[ClangOption, CC1Option]>,
+  Flags<[HelpHidden]>,
+  HelpText<"RemoteFS client id">;
 
 // The default value matches BinutilsVersion in MCAsmInfo.h.
 def fbinutils_version_EQ : Joined<["-"], "fbinutils-version=">,

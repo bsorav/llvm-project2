@@ -47,11 +47,13 @@ my %Options = (
   Verbose => 0,              # Verbose output from this script.
   AnalyzeHeaders => 0,
   OutputDir => undef,        # Parent directory to store HTML files.
+  OutputHTMLInOutputDir => 0,# Do not create a new directory within OutputDir
   HtmlTitle => basename($CurrentDir)." - scan-build results",
   IgnoreErrors => 0,         # Ignore build errors.
   KeepCC => 0,               # Do not override CC and CXX make variables
   ViewResults => 0,          # View results when the build terminates.
   ExitStatusFoundBugs => 0,  # Exit status reflects whether bugs were found
+  ExitStatusAlwaysZero => 0,  # Exit status is always zero
   ShowDescription => 0,      # Display the description of the defect in the list
   KeepEmpty => 0,            # Don't remove output directory even with 0 results.
   EnableCheckers => {},
@@ -159,6 +161,11 @@ sub GetHTMLRunDir {
 
   # Chop off any trailing '/' characters.
   while ($Dir =~ /\/$/) { chop $Dir; }
+
+  if ($Options{OutputHTMLInOutputDir}) {
+    mkpath($Dir);
+    return $Dir;
+  }
 
   # Get current date and time.
   my @CurrentTime = localtime();
@@ -937,6 +944,10 @@ sub Finalize {
         exec $ScanView, "$Options{OutputDir}";
       }
 
+      if ($Options{ExitStatusAlwaysZero}) {
+        exit 0
+      }
+
       if ($Options{ExitStatusFoundBugs}) {
         exit 1 if ($NumBugs > 0);
         exit $ExitStatus;
@@ -944,6 +955,9 @@ sub Finalize {
     }
   }
 
+  if ($Options{ExitStatusAlwaysZero}) {
+    exit 0
+  }
   exit $ExitStatus;
 }
 
@@ -1576,6 +1590,12 @@ sub ProcessArgs {
       next;
     }
 
+    if ($arg eq "-outputHtmlInOutputDir") {
+      shift @$Args;
+      $Options{OutputHTMLInOutputDir} = 1;
+      next;
+    }
+
     if ($arg eq "--generate-index-only") {
       if (defined($Options{OutputDir})) {
         DieDiag("Only one of '-o' or '--generate-index-only' can be specified.\n");
@@ -1688,6 +1708,12 @@ sub ProcessArgs {
     if ($arg eq "-V" or $arg eq "--view") {
       shift @$Args;
       $Options{ViewResults} = 1;
+      next;
+    }
+
+    if ($arg eq "--status-zero") {
+      shift @$Args;
+      $Options{ExitStatusAlwaysZero} = 1;
       next;
     }
 

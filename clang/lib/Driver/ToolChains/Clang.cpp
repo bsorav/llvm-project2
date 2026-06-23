@@ -7765,6 +7765,21 @@ Clang::ConstructCommand(Compilation & C, const JobAction &JA,
       Input.getInputArg().renderAsInput(Args, CmdArgs);
   }
 
+  if (const Arg *A = Args.getLastArg(options::OPT_remotefs_url)) {
+    CmdArgs.push_back(
+        Args.MakeArgString(Twine("--remotefs-url=") + A->getValue()));
+  }
+
+  if (const Arg *A = Args.getLastArg(options::OPT_remotefs_dir)) {
+    CmdArgs.push_back(
+        Args.MakeArgString(Twine("--remotefs-dir=") + A->getValue()));
+  }
+
+  if (const Arg *A = Args.getLastArg(options::OPT_remotefs_client_id)) {
+    CmdArgs.push_back(
+        Args.MakeArgString(Twine("--remotefs-client-id=") + A->getValue()));
+  }
+
   std::unique_ptr<Command> ret;
   if (D.CC1Main && !D.CCGenDiagnostics) {
     // Invoke the CC1 directly in this process
@@ -7811,6 +7826,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
                          const InputInfo &Output, const InputInfoList &Inputs,
                          const ArgList &Args, const char *LinkingOutput) const
 {
+  llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "():\n";
   std::unique_ptr<Command> ret = ConstructCommand(C, JA, Output, Inputs, Args, LinkingOutput);
   C.addCommand(std::move(ret));
 }

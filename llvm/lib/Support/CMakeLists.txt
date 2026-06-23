@@ -350,3 +350,6 @@ if(LLVM_WITH_Z3)
     ${Z3_INCLUDE_DIR}
     )
 endif()
+
+add_superopt_libs(slibs)
+target_link_libraries(LLVMSupport PRIVATE ${slibs})

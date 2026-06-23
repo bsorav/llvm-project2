@@ -9,4 +9,4 @@ target_link_libraries(callee-rename
   clangRewrite
   clangFrontend
 )
-
+add_superopt_libs(callee-rename)

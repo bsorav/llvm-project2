@@ -103,6 +103,9 @@
 #include <utility>
 #include <vector>
 
+#include "support/debug.h"
+#include "support/dyn_debug.h"
+
 using namespace clang;
 using namespace driver;
 using namespace options;
@@ -5031,11 +5034,40 @@ createBorlandCaseInsensitiveVFS(const CompilerInvocation &CI,
   return OverlayFS ? OverlayFS : FS;
 }
 
+static IntrusiveRefCntPtr<llvm::vfs::FileSystem>
+createRemoteVFS(IntrusiveRefCntPtr<llvm::vfs::FileSystem> ExternalFS) {
+  //llvm::vfs::YAMLVFSWriter Writer;
+  //std::string Overlay;
+  //llvm::raw_string_ostream OS(Overlay);
+  //Writer.write(OS);
+  //OS.flush();
+
+  //std::unique_ptr<llvm::MemoryBuffer> Buffer =
+  //    llvm::MemoryBuffer::getMemBufferCopy(Overlay, "<remote-vfs>");
+  if (ExternalFS->isRemoteFileSystem()) {
+    // Use RedirectingFS here as a pointer (e.g., RedirectingFS->getVFSEntries())
+    llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << ": is a remoteFS already\n";
+    return ExternalFS;
+  }
+
+  IntrusiveRefCntPtr<llvm::vfs::FileSystem> OverlayFS =
+      llvm::vfs::RemoteFileSystem::create(/*DiagHandler=*/nullptr,
+      /*DiagContext=*/nullptr,
+      std::move(ExternalFS));
+  return OverlayFS ? OverlayFS : ExternalFS;
+}
+
 IntrusiveRefCntPtr<llvm::vfs::FileSystem>
 clang::createVFSFromCompilerInvocation(
     const CompilerInvocation &CI, DiagnosticsEngine &Diags,
     IntrusiveRefCntPtr<llvm::vfs::FileSystem> BaseFS) {
   BaseFS = createBorlandCaseInsensitiveVFS(CI, std::move(BaseFS));
+  if (remotefs_active()) {
+    llvm::errs() << _FNLN_ << ": remotefs_active() returned true.\n";
+    BaseFS = createRemoteVFS(BaseFS);
+  } else {
+    llvm::errs() << _FNLN_ << ": remotefs_active() returned false.\n";
+  }
   return createVFSFromOverlayFiles(CI.getHeaderSearchOpts().VFSOverlayFiles,
                                    Diags, std::move(BaseFS));
 }
