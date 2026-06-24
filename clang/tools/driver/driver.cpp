@@ -556,9 +556,9 @@ int clang_main(int Argc, char **Argv, const llvm::ToolContext &ToolContext) {
 
   CPP_DBG_EXEC(ARGV_PRINT,
       for (size_t i = 0; i < Args.size(); i++) {
-        DYN_DEBUG(remotefs_debug, llvm::errs() << "before BuildCompilation argv[" << i << "] = " << Args[i] << "\n");
+        llvm::errs() << "before BuildCompilation argv[" << i << "] = " << Args[i] << "\n";
       }
-      DYN_DEBUG(remotefs_debug, llvm::errs() << "\n");
+      llvm::errs() << "\n";
   );
   std::unique_ptr<Compilation> C(TheDriver.BuildCompilation(Args));
 
