@@ -611,12 +611,15 @@ void ProxyFileSystem::anchor() {}
 namespace llvm {
 namespace vfs {
 
-RemoteFileSystem::RemoteFileSystem(IntrusiveRefCntPtr<FileSystem> externalFS) : ExternalFS(externalFS)
+RemoteFileSystem::RemoteFileSystem(IntrusiveRefCntPtr<FileSystem> externalFS,
+                                   StringRef TargetTriple)
+    : ExternalFS(externalFS), TargetTriple(TargetTriple.str())
 { }
 
 std::unique_ptr<RemoteFileSystem>
 RemoteFileSystem::create(SourceMgr::DiagHandlerTy DiagHandler,
-        void *DiagContext, IntrusiveRefCntPtr<FileSystem> ExternalFS)
+        void *DiagContext, IntrusiveRefCntPtr<FileSystem> ExternalFS,
+        StringRef TargetTriple)
 {
   llvm::vfs::YAMLVFSWriter Writer;
   std::string Overlay;
@@ -628,7 +631,7 @@ RemoteFileSystem::create(SourceMgr::DiagHandlerTy DiagHandler,
       llvm::MemoryBuffer::getMemBufferCopy(Overlay, "<remote-vfs>");
 
   std::unique_ptr<RemoteFileSystem> RemoteFS(
-      new RemoteFileSystem(ExternalFS));
+      new RemoteFileSystem(ExternalFS, TargetTriple));
   return RemoteFS;
 }
 
@@ -656,7 +659,7 @@ RemoteFileSystem::get_file_type(bool accessible, remotefs_file_type_t type)
 ErrorOr<Status>
 RemoteFileSystem::status(const Twine &Path) {
   remotefs_file_status_t remotefs_file_status;
-  if (remotefs_get_status(Path.str(), remotefs_file_status)) {
+  if (remotefs_get_status(Path.str(), remotefs_file_status, TargetTriple)) {
     //llvm::sys::PrintStackTrace(llvm::errs());
     llvm::sys::fs::UniqueID UID(remotefs_file_status.m_device, remotefs_file_status.m_file);
     struct timespec const& mod = remotefs_file_status.m_last_modified_time;
@@ -692,7 +695,7 @@ RemoteFileSystem::openFileForRead(const Twine &Path) {
   DYN_DEBUG(remotefs_debug, llvm::errs() << "RemoteFileSystem::" << __func__ << " " << __LINE__ << ": Path = " << Path.str() << "\n");
   //llvm::sys::PrintStackTrace(llvm::errs());
   std::string local_pathname;
-  if (remotefs_get_local_pathname(Path.str(), local_pathname)) {
+  if (remotefs_get_local_pathname(Path.str(), local_pathname, TargetTriple)) {
     if (local_pathname == NOT_FOUND_KEYWORD) {
       return std::make_error_code(std::errc::no_such_file_or_directory);
     }

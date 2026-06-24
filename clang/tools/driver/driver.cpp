@@ -529,7 +529,12 @@ int clang_main(int Argc, char **Argv, const llvm::ToolContext &ToolContext) {
 
   ProcessWarningOptions(Diags, *DiagOpts, /*ReportDiags=*/false);
 
-  Driver TheDriver(Path, llvm::sys::getDefaultTargetTriple(), Diags, "RemoteFS", llvm::vfs::RemoteFileSystem::create(/*DiagHandler=*/nullptr, /*DiagContext=*/nullptr, llvm::vfs::createPhysicalFileSystem()));
+  std::string TargetTriple = llvm::sys::getDefaultTargetTriple();
+  Driver TheDriver(
+      Path, TargetTriple, Diags, "RemoteFS",
+      llvm::vfs::RemoteFileSystem::create(
+          /*DiagHandler=*/nullptr, /*DiagContext=*/nullptr,
+          llvm::vfs::createPhysicalFileSystem(), TargetTriple));
   SetInstallDir(Args, TheDriver, CanonicalPrefixes);
   auto TargetAndMode = ToolChain::getTargetAndModeFromProgramName(ProgName);
   TheDriver.setTargetAndMode(TargetAndMode);

@@ -1059,9 +1059,11 @@ class RemoteFileSystem : public vfs::FileSystem {
 private:
   // The underlying filesystem
   IntrusiveRefCntPtr<FileSystem> ExternalFS;
+  std::string TargetTriple;
 
 private:
-  RemoteFileSystem(IntrusiveRefCntPtr<FileSystem> ExternalFS);
+  RemoteFileSystem(IntrusiveRefCntPtr<FileSystem> ExternalFS,
+                   StringRef TargetTriple);
 
 private:
   static llvm::sys::fs::perms mode_to_perms(mode_t const& mode);
@@ -1070,7 +1072,8 @@ private:
 public:
   static std::unique_ptr<RemoteFileSystem>
   create(SourceMgr::DiagHandlerTy DiagHandler,
-         void *DiagContext, IntrusiveRefCntPtr<FileSystem> ExternalFS);
+         void *DiagContext, IntrusiveRefCntPtr<FileSystem> ExternalFS,
+         StringRef TargetTriple);
 
   bool isRemoteFileSystem() const override { return true; }
 

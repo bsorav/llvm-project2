@@ -9,6 +9,7 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/VirtualFileSystem.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/TargetParser/Host.h"
 
 #include <cassert>
 #include "support/dyn_debug.h"
@@ -55,7 +56,8 @@ static IntrusiveRefCntPtr<llvm::vfs::FileSystem> createBaseFS() {
 
     IntrusiveRefCntPtr<llvm::vfs::FileSystem> RemoteFS =
         llvm::vfs::RemoteFileSystem::create(/*DiagHandler=*/nullptr,
-                                            /*DiagContext=*/nullptr, BaseFS);
+                                            /*DiagContext=*/nullptr, BaseFS,
+                                            llvm::sys::getDefaultTargetTriple());
     return RemoteFS ? RemoteFS : BaseFS;
 }
 
