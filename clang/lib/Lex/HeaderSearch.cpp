@@ -11,6 +11,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/Lex/HeaderSearch.h"
+#include <cassert>
+#include "support/dyn_debug.h"
 #include "clang/Basic/Diagnostic.h"
 #include "clang/Basic/FileManager.h"
 #include "clang/Basic/IdentifierTable.h"
@@ -419,11 +421,11 @@ OptionalFileEntryRef HeaderSearch::getFileAndSuggestModule(
     bool CacheFailures /*=true*/) {
   // If we have a module map that might map this header, load it and
   // check whether we'll have a suggestion for a module.
-  llvm::errs() << __func__ << " " << __LINE__ << ": FileName = " << FileName.str() << "\n";
+  DYN_DEBUG(remotefs_debug, llvm::errs() << __func__ << " " << __LINE__ << ": FileName = " << FileName.str() << "\n");
   auto File = getFileMgr().getFileRef(FileName, OpenFile, CacheFailures);
-  llvm::errs() << __func__ << " " << __LINE__ << ": returned from getFileRef()\n";
+  DYN_DEBUG(remotefs_debug, llvm::errs() << __func__ << " " << __LINE__ << ": returned from getFileRef()\n");
   if (!File) {
-    llvm::errs() << __func__ << " " << __LINE__ << ": !File\n";
+    DYN_DEBUG(remotefs_debug, llvm::errs() << __func__ << " " << __LINE__ << ": !File\n");
     // For rare, surprising errors (e.g. "out of file handles"), diag the EC
     // message.
     std::error_code EC = llvm::errorToErrorCode(File.takeError());
@@ -436,15 +438,15 @@ OptionalFileEntryRef HeaderSearch::getFileAndSuggestModule(
     return std::nullopt;
   }
 
-  llvm::errs() << __func__ << " " << __LINE__ << ": calling findUsableModuleForHeader\n";
+  DYN_DEBUG(remotefs_debug, llvm::errs() << __func__ << " " << __LINE__ << ": calling findUsableModuleForHeader\n");
   // If there is a module that corresponds to this header, suggest it.
   if (!findUsableModuleForHeader(
           *File, Dir ? Dir : File->getFileEntry().getDir(), RequestingModule,
           SuggestedModule, IsSystemHeaderDir)) {
-    llvm::errs() << __func__ << " " << __LINE__ << ": findUsableModuleForHeader returned null\n";
+    DYN_DEBUG(remotefs_debug, llvm::errs() << __func__ << " " << __LINE__ << ": findUsableModuleForHeader returned null\n");
     return std::nullopt;
   }
-  llvm::errs() << __func__ << " " << __LINE__ << ": returning *File\n";
+  DYN_DEBUG(remotefs_debug, llvm::errs() << __func__ << " " << __LINE__ << ": returning *File\n");
   return *File;
 }
 
@@ -476,7 +478,7 @@ OptionalFileEntryRef DirectoryLookup::LookupFile(
       RelativePath->append(Filename.begin(), Filename.end());
     }
 
-    llvm::errs() << __func__ << " " << __LINE__ << ": TmpDir = " << TmpDir << "\n";
+    DYN_DEBUG(remotefs_debug, llvm::errs() << __func__ << " " << __LINE__ << ": TmpDir = " << TmpDir << "\n");
     return HS.getFileAndSuggestModule(
         TmpDir, IncludeLoc, getDir(), isSystemHeaderDirectory(),
         RequestingModule, SuggestedModule, OpenFile);
@@ -1520,11 +1522,11 @@ bool HeaderSearch::hasModuleMap(StringRef FileName,
   SmallVector<const DirectoryEntry *, 2> FixUpDirectories;
 
   StringRef DirName = FileName;
-  llvm::errs() << __func__ << " " << __LINE__ << ": DirName = " << DirName.str() << "\n";
+  DYN_DEBUG(remotefs_debug, llvm::errs() << __func__ << " " << __LINE__ << ": DirName = " << DirName.str() << "\n");
   do {
     // Get the parent directory name.
     DirName = llvm::sys::path::parent_path(DirName);
-    llvm::errs() << __func__ << " " << __LINE__ << ": DirName = " << DirName.str() << "\n";
+    DYN_DEBUG(remotefs_debug, llvm::errs() << __func__ << " " << __LINE__ << ": DirName = " << DirName.str() << "\n");
     if (DirName.empty())
       return false;
 
@@ -1594,7 +1596,7 @@ HeaderSearch::findResolvedModulesForHeader(FileEntryRef File) const {
 static bool suggestModule(HeaderSearch &HS, FileEntryRef File,
                           Module *RequestingModule,
                           ModuleMap::KnownHeader *SuggestedModule) {
-  llvm::errs() << __func__ << " " << __LINE__ << ": entry.\n";
+  DYN_DEBUG(remotefs_debug, llvm::errs() << __func__ << " " << __LINE__ << ": entry.\n");
   ModuleMap::KnownHeader Module =
       HS.findModuleForHeader(File, /*AllowTextual*/true);
 
@@ -1630,12 +1632,12 @@ static bool suggestModule(HeaderSearch &HS, FileEntryRef File,
 bool HeaderSearch::findUsableModuleForHeader(
     FileEntryRef File, const DirectoryEntry *Root, Module *RequestingModule,
     ModuleMap::KnownHeader *SuggestedModule, bool IsSystemHeaderDir) {
-  llvm::errs() << __func__ << " " << __LINE__ << ": calling findUsableModuleForHeader\n";
+  DYN_DEBUG(remotefs_debug, llvm::errs() << __func__ << " " << __LINE__ << ": calling findUsableModuleForHeader\n");
   if (needModuleLookup(RequestingModule, SuggestedModule)) {
     // If there is a module that corresponds to this header, suggest it.
-    llvm::errs() << __func__ << " " << __LINE__ << ": File.getNameAsRequested() = " << File.getNameAsRequested().str() << "\n";
+    DYN_DEBUG(remotefs_debug, llvm::errs() << __func__ << " " << __LINE__ << ": File.getNameAsRequested() = " << File.getNameAsRequested().str() << "\n");
     hasModuleMap(File.getNameAsRequested(), Root, IsSystemHeaderDir);
-    llvm::errs() << __func__ << " " << __LINE__ << ": hasModuleMap() returned.\n";
+    DYN_DEBUG(remotefs_debug, llvm::errs() << __func__ << " " << __LINE__ << ": hasModuleMap() returned.\n");
     return suggestModule(*this, File, RequestingModule, SuggestedModule);
   }
   return true;

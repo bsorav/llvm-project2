@@ -7,6 +7,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/Support/FileCollector.h"
+#include <cassert>
+#include "support/dyn_debug.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/Support/FileSystem.h"
@@ -269,7 +271,7 @@ public:
 
   llvm::ErrorOr<std::unique_ptr<llvm::vfs::File>>
   openFileForRead(const Twine &Path) override {
-    llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "():\n";
+    DYN_DEBUG(remotefs_debug, llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "():\n");
     auto Result = FS->openFileForRead(Path);
     if (Result && *Result)
       Collector->addFile(Path);

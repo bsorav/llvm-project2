@@ -433,10 +433,7 @@ public:
     return FS->status(Path);
   }
   llvm::ErrorOr<std::unique_ptr<File>>
-  openFileForRead(const Twine &Path) override {
-    llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "():\n";
-    return FS->openFileForRead(Path);
-  }
+  openFileForRead(const Twine &Path) override;
   directory_iterator dir_begin(const Twine &Dir, std::error_code &EC) override {
     return FS->dir_begin(Dir, EC);
   }

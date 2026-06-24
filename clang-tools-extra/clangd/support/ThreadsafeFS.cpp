@@ -8,6 +8,8 @@
 
 #include "support/ThreadsafeFS.h"
 #include "Logger.h"
+#include <cassert>
+#include "support/dyn_debug.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Path.h"
@@ -33,7 +35,7 @@ public:
     llvm::SmallString<128> Path;
     InPath.toVector(Path);
 
-    llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "():\n";
+    DYN_DEBUG(remotefs_debug, llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "():\n");
     auto File = getUnderlyingFS().openFileForRead(Path);
     if (!File)
       return File;

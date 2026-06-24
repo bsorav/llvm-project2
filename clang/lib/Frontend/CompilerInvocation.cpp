@@ -5046,7 +5046,7 @@ createRemoteVFS(IntrusiveRefCntPtr<llvm::vfs::FileSystem> ExternalFS) {
   //    llvm::MemoryBuffer::getMemBufferCopy(Overlay, "<remote-vfs>");
   if (ExternalFS->isRemoteFileSystem()) {
     // Use RedirectingFS here as a pointer (e.g., RedirectingFS->getVFSEntries())
-    llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << ": is a remoteFS already\n";
+    DYN_DEBUG(remotefs_debug, llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << ": is a remoteFS already\n");
     return ExternalFS;
   }
 
@@ -5063,10 +5063,10 @@ clang::createVFSFromCompilerInvocation(
     IntrusiveRefCntPtr<llvm::vfs::FileSystem> BaseFS) {
   BaseFS = createBorlandCaseInsensitiveVFS(CI, std::move(BaseFS));
   if (remotefs_active()) {
-    llvm::errs() << _FNLN_ << ": remotefs_active() returned true.\n";
+    DYN_DEBUG(remotefs_debug, llvm::errs() << _FNLN_ << ": remotefs_active() returned true.\n");
     BaseFS = createRemoteVFS(BaseFS);
   } else {
-    llvm::errs() << _FNLN_ << ": remotefs_active() returned false.\n";
+    DYN_DEBUG(remotefs_debug, llvm::errs() << _FNLN_ << ": remotefs_active() returned false.\n");
   }
   return createVFSFromOverlayFiles(CI.getHeaderSearchOpts().VFSOverlayFiles,
                                    Diags, std::move(BaseFS));

@@ -53,6 +53,7 @@
 #include <optional>
 #include <set>
 #include <system_error>
+#include <cassert>
 #include "support/dyn_debug.h"
 #include "support/remotefs.h"
 #include "support/debug.h"
@@ -419,16 +420,16 @@ int clang_main(int Argc, char **Argv, const llvm::ToolContext &ToolContext) {
                                     ? std::string()
                                     : std::string(*iter_client_id).substr(
                                           remotefs_client_id_prefix.size());
-      llvm::errs() << "Initializing RemoteFS\n";
+      DYN_DEBUG(remotefs_debug, llvm::errs() << "Initializing RemoteFS\n");
       remotefs_activate(remotefs_url, remotefs_dir, remotefs_client_id);
     }
   }
 
   CPP_DBG_EXEC(ARGV_PRINT,
       for (size_t i = 0; i < Args.size(); i++) {
-        llvm::errs() << "argv[" << i << "] = " << Args[i] << "\n";
+        DYN_DEBUG(remotefs_debug, llvm::errs() << "argv[" << i << "] = " << Args[i] << "\n");
       }
-      llvm::errs() << "\n";
+      DYN_DEBUG(remotefs_debug, llvm::errs() << "\n");
   );
   llvm::InitializeAllTargets();
 
@@ -555,9 +556,9 @@ int clang_main(int Argc, char **Argv, const llvm::ToolContext &ToolContext) {
 
   CPP_DBG_EXEC(ARGV_PRINT,
       for (size_t i = 0; i < Args.size(); i++) {
-        llvm::errs() << "before BuildCompilation argv[" << i << "] = " << Args[i] << "\n";
+        DYN_DEBUG(remotefs_debug, llvm::errs() << "before BuildCompilation argv[" << i << "] = " << Args[i] << "\n");
       }
-      llvm::errs() << "\n";
+      DYN_DEBUG(remotefs_debug, llvm::errs() << "\n");
   );
   std::unique_ptr<Compilation> C(TheDriver.BuildCompilation(Args));
 

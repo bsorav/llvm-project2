@@ -103,6 +103,7 @@
 #endif
 #include "support/stdafx.h"
 #include "support/debug.h"
+#include <cassert>
 #include "support/dyn_debug.h"
 
 using namespace clang::driver;
@@ -208,11 +209,11 @@ Driver::Driver(StringRef ClangExecutable, StringRef TargetTriple,
       CheckInputsExist(true), ProbePrecompiled(true),
       SuppressMissingInputWarning(false) {
 
-  llvm::errs() << __FILE__ << " " << __LINE__ << ":\n";
+  DYN_DEBUG(remotefs_debug, llvm::errs() << __FILE__ << " " << __LINE__ << ":\n");
   //llvm::sys::PrintStackTrace(llvm::errs());
   // Provide a sane fallback if no VFS is specified.
   if (!this->VFS) {
-    llvm::errs() << __FILE__ << " " << __LINE__ << ": !this->VFS\n";
+    DYN_DEBUG(remotefs_debug, llvm::errs() << __FILE__ << " " << __LINE__ << ": !this->VFS\n");
     this->VFS = llvm::vfs::getRealFileSystem();
   }
   Name = std::string(llvm::sys::path::filename(ClangExecutable));
@@ -1502,17 +1503,17 @@ Compilation *Driver::BuildCompilation(ArrayRef<const char *> ArgList) {
 
   CPP_DBG_EXEC(ARGV_PRINT,
       for (size_t i = 0; i < UArgs->getNumInputArgStrings(); i++) {
-        llvm::errs() << "Uargs InputArgStrings argv[" << i << "] = " << UArgs->getArgString(i) << "\n";
+        DYN_DEBUG(remotefs_debug, llvm::errs() << "Uargs InputArgStrings argv[" << i << "] = " << UArgs->getArgString(i) << "\n");
       }
-      llvm::errs() << "\n";
+      DYN_DEBUG(remotefs_debug, llvm::errs() << "\n");
   );
 
 
   CPP_DBG_EXEC(ARGV_PRINT,
       for (size_t i = 0; i < TranslatedArgs->getNumInputArgStrings(); i++) {
-        llvm::errs() << "Uargs TranslatedArgs argv[" << i << "] = " << TranslatedArgs->getArgString(i) << "\n";
+        DYN_DEBUG(remotefs_debug, llvm::errs() << "Uargs TranslatedArgs argv[" << i << "] = " << TranslatedArgs->getArgString(i) << "\n");
       }
-      llvm::errs() << "\n";
+      DYN_DEBUG(remotefs_debug, llvm::errs() << "\n");
   );
 
 
@@ -1526,9 +1527,9 @@ Compilation *Driver::BuildCompilation(ArrayRef<const char *> ArgList) {
 
   CPP_DBG_EXEC(ARGV_PRINT,
       for (size_t i = 0; i < C->getArgs().getNumInputArgStrings(); i++) {
-        llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "(): C->getArgs() argv[" << i << "] = " << C->getArgs().getArgString(i) << "\n";
+        DYN_DEBUG(remotefs_debug, llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "(): C->getArgs() argv[" << i << "] = " << C->getArgs().getArgString(i) << "\n");
       }
-      llvm::errs() << "\n";
+      DYN_DEBUG(remotefs_debug, llvm::errs() << "\n");
   );
 
 
@@ -1945,9 +1946,9 @@ int Driver::ExecuteCompilation(
 
   CPP_DBG_EXEC(ARGV_PRINT,
       for (size_t i = 0; i < C.getArgs().getNumInputArgStrings(); i++) {
-        llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "(): C->getArgs() argv[" << i << "] = " << C.getArgs().getArgString(i) << "\n";
+        DYN_DEBUG(remotefs_debug, llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "(): C->getArgs() argv[" << i << "] = " << C.getArgs().getArgString(i) << "\n");
       }
-      llvm::errs() << "\n";
+      DYN_DEBUG(remotefs_debug, llvm::errs() << "\n");
   );
 
   // Just print if -### was present.
@@ -2565,12 +2566,12 @@ bool Driver::DiagnoseInputExistence(const DerivedArgList &Args, StringRef Value,
       (ModulesModeCXX20 && Ty == types::TY_CXXHeader))
     return true;
 
-  llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << ": calling getVFS().exists(" << Value.str() << ")\n";
+  DYN_DEBUG(remotefs_debug, llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << ": calling getVFS().exists(" << Value.str() << ")\n");
   if (getVFS().exists(Value)) {
-    llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << ": getVFS().exists(" << Value.str() << ") returned true\n";
+    DYN_DEBUG(remotefs_debug, llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << ": getVFS().exists(" << Value.str() << ") returned true\n");
     return true;
   }
-  llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << ": getVFS().exists(" << Value.str() << ") returned false\n";
+  DYN_DEBUG(remotefs_debug, llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << ": getVFS().exists(" << Value.str() << ") returned false\n");
 
   if (TypoCorrect) {
     // Check if the filename is a typo for an option flag. OptTable thinks
@@ -5088,9 +5089,9 @@ void Driver::BuildJobs(Compilation &C) const {
 
   CPP_DBG_EXEC(ARGV_PRINT,
       for (size_t i = 0; i < C.getArgs().getNumInputArgStrings(); i++) {
-        llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "(): C->getArgs() argv[" << i << "] = " << C.getArgs().getArgString(i) << "\n";
+        DYN_DEBUG(remotefs_debug, llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "(): C->getArgs() argv[" << i << "] = " << C.getArgs().getArgString(i) << "\n");
       }
-      llvm::errs() << "\n";
+      DYN_DEBUG(remotefs_debug, llvm::errs() << "\n");
   );
 
 
