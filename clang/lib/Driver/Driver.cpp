@@ -1503,17 +1503,17 @@ Compilation *Driver::BuildCompilation(ArrayRef<const char *> ArgList) {
 
   CPP_DBG_EXEC(ARGV_PRINT,
       for (size_t i = 0; i < UArgs->getNumInputArgStrings(); i++) {
-        DYN_DEBUG(remotefs_debug, llvm::errs() << "Uargs InputArgStrings argv[" << i << "] = " << UArgs->getArgString(i) << "\n");
+        llvm::errs() << "Uargs InputArgStrings argv[" << i << "] = " << UArgs->getArgString(i) << "\n";
       }
-      DYN_DEBUG(remotefs_debug, llvm::errs() << "\n");
+      llvm::errs() << "\n";
   );
 
 
   CPP_DBG_EXEC(ARGV_PRINT,
       for (size_t i = 0; i < TranslatedArgs->getNumInputArgStrings(); i++) {
-        DYN_DEBUG(remotefs_debug, llvm::errs() << "Uargs TranslatedArgs argv[" << i << "] = " << TranslatedArgs->getArgString(i) << "\n");
+        llvm::errs() << "Uargs TranslatedArgs argv[" << i << "] = " << TranslatedArgs->getArgString(i) << "\n";
       }
-      DYN_DEBUG(remotefs_debug, llvm::errs() << "\n");
+      llvm::errs() << "\n";
   );
 
 
@@ -1527,9 +1527,9 @@ Compilation *Driver::BuildCompilation(ArrayRef<const char *> ArgList) {
 
   CPP_DBG_EXEC(ARGV_PRINT,
       for (size_t i = 0; i < C->getArgs().getNumInputArgStrings(); i++) {
-        DYN_DEBUG(remotefs_debug, llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "(): C->getArgs() argv[" << i << "] = " << C->getArgs().getArgString(i) << "\n");
+        llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "(): C->getArgs() argv[" << i << "] = " << C->getArgs().getArgString(i) << "\n";
       }
-      DYN_DEBUG(remotefs_debug, llvm::errs() << "\n");
+      llvm::errs() << "\n";
   );
 
 
@@ -1946,9 +1946,9 @@ int Driver::ExecuteCompilation(
 
   CPP_DBG_EXEC(ARGV_PRINT,
       for (size_t i = 0; i < C.getArgs().getNumInputArgStrings(); i++) {
-        DYN_DEBUG(remotefs_debug, llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "(): C->getArgs() argv[" << i << "] = " << C.getArgs().getArgString(i) << "\n");
+        llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "(): C->getArgs() argv[" << i << "] = " << C.getArgs().getArgString(i) << "\n";
       }
-      DYN_DEBUG(remotefs_debug, llvm::errs() << "\n");
+      llvm::errs() << "\n";
   );
 
   // Just print if -### was present.
@@ -5089,9 +5089,9 @@ void Driver::BuildJobs(Compilation &C) const {
 
   CPP_DBG_EXEC(ARGV_PRINT,
       for (size_t i = 0; i < C.getArgs().getNumInputArgStrings(); i++) {
-        DYN_DEBUG(remotefs_debug, llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "(): C->getArgs() argv[" << i << "] = " << C.getArgs().getArgString(i) << "\n");
+        llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "(): C->getArgs() argv[" << i << "] = " << C.getArgs().getArgString(i) << "\n";
       }
-      DYN_DEBUG(remotefs_debug, llvm::errs() << "\n");
+      llvm::errs() << "\n";
   );
 
 
