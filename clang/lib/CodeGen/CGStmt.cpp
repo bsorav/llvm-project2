@@ -742,11 +742,14 @@ void CodeGenFunction::EmitGotoStmt(const GotoStmt &S) {
   if (HaveInsertPoint())
     EmitStopPoint(&S);
 
+  EmitStatementMarker(llvm::Intrinsic::goto_statement_marker);
   EmitBranchThroughCleanup(getJumpDestForLabel(S.getLabel()));
 }
 
 
 void CodeGenFunction::EmitIndirectGotoStmt(const IndirectGotoStmt &S) {
+  EmitStatementMarker(llvm::Intrinsic::goto_statement_marker);
+
   if (const LabelDecl *Target = S.getConstantTarget()) {
     EmitBranchThroughCleanup(getJumpDestForLabel(Target));
     return;
@@ -1314,6 +1317,8 @@ void CodeGenFunction::EmitReturnStmt(const ReturnStmt &S) {
     Builder.CreateStore(SLocPtr, ReturnLocation);
   }
 
+  EmitStatementMarker(llvm::Intrinsic::return_statement_marker);
+
   // Returning from an outlined SEH helper is UB, and we already warn on it.
   if (IsOutlinedSEHHelper) {
     Builder.CreateUnreachable();
@@ -1406,7 +1411,7 @@ void CodeGenFunction::EmitDeclStmt(const DeclStmt &S) {
     EmitDecl(*I);
 }
 
-void CodeGenFunction::EmitBreakStatementMarker(const BreakStmt &S)
+void CodeGenFunction::EmitStatementMarker(llvm::Intrinsic::ID IntrinsicID)
 {
   // Do not insert if we are unreachable.
   // Apparently, LLVM disconnects all unreachable instructions from the parent
@@ -1416,7 +1421,7 @@ void CodeGenFunction::EmitBreakStatementMarker(const BreakStmt &S)
     return;
   }
   auto ValueFn = llvm::Intrinsic::getDeclaration(
-    &CGM.getModule(), llvm::Intrinsic::break_statement_marker);
+    &CGM.getModule(), IntrinsicID);
 
   std::vector<llvm::Value *> ValueArgs;
   EmitNounwindRuntimeCall(ValueFn, ValueArgs);
@@ -1431,7 +1436,7 @@ void CodeGenFunction::EmitBreakStmt(const BreakStmt &S) {
   if (HaveInsertPoint()) {
     EmitStopPoint(&S);
   }
-  EmitBreakStatementMarker(S);
+  EmitStatementMarker(llvm::Intrinsic::break_statement_marker);
 
   EmitBranchThroughCleanup(BreakContinueStack.back().BreakBlock);
 }

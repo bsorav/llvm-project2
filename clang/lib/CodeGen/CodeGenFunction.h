@@ -3341,7 +3341,7 @@ public:
   void EmitCaseStmtRange(const CaseStmt &S, ArrayRef<const Attr *> Attrs);
   void EmitAsmStmt(const AsmStmt &S);
 
-  void EmitBreakStatementMarker(const BreakStmt &S);
+  void EmitStatementMarker(llvm::Intrinsic::ID IntrinsicID);
 
   void EmitObjCForCollectionStmt(const ObjCForCollectionStmt &S);
   void EmitObjCAtTryStmt(const ObjCAtTryStmt &S);

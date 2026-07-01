@@ -835,9 +835,13 @@ def int_eh_recoverfp : DefaultAttrsIntrinsic<[llvm_ptr_ty],
                                  [llvm_ptr_ty, llvm_ptr_ty],
                                  [IntrNoMem]>;
 
-// Break statement marker
+// Statement markers
 let IntrProperties = [IntrNoMem, IntrSpeculatable] in {
   def int_break_statement_marker : Intrinsic<[],
+                                    []>;
+  def int_goto_statement_marker : Intrinsic<[],
+                                    []>;
+  def int_return_statement_marker : Intrinsic<[],
                                     []>;
 }
 

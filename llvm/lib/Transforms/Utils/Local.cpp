@@ -393,12 +393,27 @@ bool llvm::ConstantFoldTerminator(BasicBlock *BB, bool DeleteDeadConditions,
 //  Local dead code elimination.
 //
 
+static bool isStatementMarkerIntrinsic(const Instruction *I) {
+  if (const auto *CI = dyn_cast<CallInst>(I)) {
+    switch (CI->getIntrinsicID()) {
+    case Intrinsic::break_statement_marker:
+    case Intrinsic::goto_statement_marker:
+    case Intrinsic::return_statement_marker:
+      return true;
+    default:
+      return false;
+    }
+  }
+
+  return false;
+}
+
 /// isInstructionTriviallyDead - Return true if the result produced by the
 /// instruction is not used, and the instruction has no side effects.
 ///
 bool llvm::isInstructionTriviallyDead(Instruction *I,
                                       const TargetLibraryInfo *TLI) {
-  if (isa<CallInst>(*I) && cast<CallInst>(*I).getIntrinsicID() == Intrinsic::break_statement_marker)
+  if (isStatementMarkerIntrinsic(I))
     return false;
   if (!I->use_empty())
     return false;
@@ -419,8 +434,8 @@ bool llvm::wouldInstructionBeTriviallyDeadOnUnusedPaths(
 
 bool llvm::wouldInstructionBeTriviallyDead(const Instruction *I,
                                            const TargetLibraryInfo *TLI) {
-  if (isa<CallInst>(*I) && cast<CallInst>(*I).getIntrinsicID() == Intrinsic::break_statement_marker)
-      return false;
+  if (isStatementMarkerIntrinsic(I))
+    return false;
 
   if (I->isTerminator())
     return false;

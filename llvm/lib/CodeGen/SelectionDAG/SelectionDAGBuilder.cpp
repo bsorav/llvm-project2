@@ -7007,6 +7007,8 @@ void SelectionDAGBuilder::visitIntrinsicCall(const CallInst &I,
     setValue(&I, getValue(I.getOperand(0)));
     return;
   case Intrinsic::break_statement_marker:
+  case Intrinsic::goto_statement_marker:
+  case Intrinsic::return_statement_marker:
   case Intrinsic::assume:
   case Intrinsic::experimental_noalias_scope_decl:
   case Intrinsic::var_annotation:
