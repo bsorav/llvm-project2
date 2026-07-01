@@ -1830,24 +1830,25 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
       string const local_addr_key = m_ctx->get_key_from_input_expr(local_addr_var)->get_str();
       m_local_refs.emplace(local_id, graph_local_t(mk_string_ref(iname), local_size, align, is_varsize, is_alloca));
 
+      auto alloc_size_assume = [this,is_alloca](expr_ref size) {
+          if (is_alloca) {
+            // add size != 0 assume
+            return expr_with_fail(m_ctx->mk_not(m_ctx->mk_eq(size, m_ctx->mk_zerobv(get_word_length()))), fails::safety_alloca_size_nonzero);
+          } else {
+            // add size > 0 assume
+            return expr_with_fail(m_ctx->mk_bvsgt(size, m_ctx->mk_zerobv(get_word_length())), fails::safety_alloc_size_positive);
+          }
+        };
+
       expr_ref local_size_val;
       if (is_varsize) {
         expr_ref varsize_expr;
         tie(varsize_expr, state_assumes) = get_expr_adding_edges_for_intermediate_vals(*ArraySize, iname, state_in, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map);
-        unsigned bvlen = varsize_expr->get_sort()->get_size();
-        ASSERT(bvlen == get_word_length());
-        expr_ref const local_type_alloc_size_expr = m_ctx->mk_bv_const(bvlen, local_type_alloc_size);
+        expr_ref const local_type_alloc_size_expr = m_ctx->mk_bv_const(get_word_length(), local_type_alloc_size);
         local_size_val = m_ctx->mk_bvmul(varsize_expr, local_type_alloc_size_expr);
 
-        if (is_alloca) {
-          // add size != 0 assume
-          auto size_is_nonzero = expr_with_fail(m_ctx->mk_not(m_ctx->mk_eq(local_size_val, m_ctx->mk_zerobv(bvlen))), fails::safety_alloca_size_nonzero);
-          add_state_assume(iname, size_is_nonzero, state_in, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map);
-        } else {
-          // add size > 0 assume
-          auto size_is_positive_assume = expr_with_fail(m_ctx->mk_bvsgt(local_size_val, m_ctx->mk_zerobv(bvlen)), fails::safety_alloc_size_positive);
-          add_state_assume(iname, size_is_positive_assume, state_in, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map);
-        }
+        auto size_assume = alloc_size_assume(local_size_val);
+        add_state_assume(iname, size_assume, state_in, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map);
         // add no overflow assume for (varsize_expr * local_type_alloc_size)
         auto no_overflow = expr_with_fail(gen_no_mul_overflow_assume_expr(varsize_expr, local_type_alloc_size_expr, /*varsize_expr is positive*/true), fails::safety_alloc_no_size_overflow);
         add_state_assume(iname, no_overflow, state_in, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map);
@@ -1903,6 +1904,8 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
       expr_ref const new_mem       = m_ctx->mk_store_uninit(mem_e, new_mem_alloc, ml_local, local_addr_var, local_size_var, local_alloc_count_ssa_var);
       state_set_expr(state_out, m_mem_alloc_reg, new_mem_alloc);
       state_set_expr(state_out, m_mem_reg, new_mem);
+      // size assume is required to ensure that alloc() and store_uninit() remain defined
+      add_state_assume(iname, alloc_size_assume(local_size_var), state_in, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map);
       add_edge_with_state();
 
       // == intermediate edge 3 ==
