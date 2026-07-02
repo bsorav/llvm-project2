@@ -5035,7 +5035,8 @@ createBorlandCaseInsensitiveVFS(const CompilerInvocation &CI,
 }
 
 static IntrusiveRefCntPtr<llvm::vfs::FileSystem>
-createRemoteVFS(IntrusiveRefCntPtr<llvm::vfs::FileSystem> ExternalFS) {
+createRemoteVFS(StringRef TargetTriple,
+                IntrusiveRefCntPtr<llvm::vfs::FileSystem> ExternalFS) {
   //llvm::vfs::YAMLVFSWriter Writer;
   //std::string Overlay;
   //llvm::raw_string_ostream OS(Overlay);
@@ -5046,14 +5047,14 @@ createRemoteVFS(IntrusiveRefCntPtr<llvm::vfs::FileSystem> ExternalFS) {
   //    llvm::MemoryBuffer::getMemBufferCopy(Overlay, "<remote-vfs>");
   if (ExternalFS->isRemoteFileSystem()) {
     // Use RedirectingFS here as a pointer (e.g., RedirectingFS->getVFSEntries())
-    llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << ": is a remoteFS already\n";
+    DYN_DEBUG(remotefs_debug, llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << ": is a remoteFS already\n");
     return ExternalFS;
   }
 
   IntrusiveRefCntPtr<llvm::vfs::FileSystem> OverlayFS =
       llvm::vfs::RemoteFileSystem::create(/*DiagHandler=*/nullptr,
       /*DiagContext=*/nullptr,
-      std::move(ExternalFS));
+      std::move(ExternalFS), TargetTriple);
   return OverlayFS ? OverlayFS : ExternalFS;
 }
 
@@ -5063,10 +5064,10 @@ clang::createVFSFromCompilerInvocation(
     IntrusiveRefCntPtr<llvm::vfs::FileSystem> BaseFS) {
   BaseFS = createBorlandCaseInsensitiveVFS(CI, std::move(BaseFS));
   if (remotefs_active()) {
-    llvm::errs() << _FNLN_ << ": remotefs_active() returned true.\n";
-    BaseFS = createRemoteVFS(BaseFS);
+    DYN_DEBUG(remotefs_debug, llvm::errs() << _FNLN_ << ": remotefs_active() returned true.\n");
+    BaseFS = createRemoteVFS(CI.getTargetOpts().Triple, BaseFS);
   } else {
-    llvm::errs() << _FNLN_ << ": remotefs_active() returned false.\n";
+    DYN_DEBUG(remotefs_debug, llvm::errs() << _FNLN_ << ": remotefs_active() returned false.\n");
   }
   return createVFSFromOverlayFiles(CI.getHeaderSearchOpts().VFSOverlayFiles,
                                    Diags, std::move(BaseFS));

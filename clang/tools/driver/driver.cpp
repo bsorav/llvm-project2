@@ -53,6 +53,7 @@
 #include <optional>
 #include <set>
 #include <system_error>
+#include <cassert>
 #include "support/dyn_debug.h"
 #include "support/remotefs.h"
 #include "support/debug.h"
@@ -419,7 +420,7 @@ int clang_main(int Argc, char **Argv, const llvm::ToolContext &ToolContext) {
                                     ? std::string()
                                     : std::string(*iter_client_id).substr(
                                           remotefs_client_id_prefix.size());
-      llvm::errs() << "Initializing RemoteFS\n";
+      DYN_DEBUG(remotefs_debug, llvm::errs() << "Initializing RemoteFS\n");
       remotefs_activate(remotefs_url, remotefs_dir, remotefs_client_id);
     }
   }
@@ -528,7 +529,12 @@ int clang_main(int Argc, char **Argv, const llvm::ToolContext &ToolContext) {
 
   ProcessWarningOptions(Diags, *DiagOpts, /*ReportDiags=*/false);
 
-  Driver TheDriver(Path, llvm::sys::getDefaultTargetTriple(), Diags, "RemoteFS", llvm::vfs::RemoteFileSystem::create(/*DiagHandler=*/nullptr, /*DiagContext=*/nullptr, llvm::vfs::createPhysicalFileSystem()));
+  std::string TargetTriple = llvm::sys::getDefaultTargetTriple();
+  Driver TheDriver(
+      Path, TargetTriple, Diags, "RemoteFS",
+      llvm::vfs::RemoteFileSystem::create(
+          /*DiagHandler=*/nullptr, /*DiagContext=*/nullptr,
+          llvm::vfs::createPhysicalFileSystem(), TargetTriple));
   SetInstallDir(Args, TheDriver, CanonicalPrefixes);
   auto TargetAndMode = ToolChain::getTargetAndModeFromProgramName(ProgName);
   TheDriver.setTargetAndMode(TargetAndMode);

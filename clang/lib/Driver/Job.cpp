@@ -213,7 +213,7 @@ rewriteIncludes(const llvm::ArrayRef<const char *> &Args, size_t Idx,
 
 void Command::Print(raw_ostream &OS, const char *Terminator, bool Quote,
                     CrashReportInfo *CrashInfo) const {
-  llvm::sys::PrintStackTrace(llvm::errs());
+  //DYN_DEBUG(remotefs_debug, llvm::sys::PrintStackTrace(llvm::errs()));
   // Always quote the exe.
   OS << ' ';
   llvm::sys::printArg(OS, Executable, /*Quote=*/true);
@@ -496,11 +496,11 @@ void CC1Command::setEnvironment(llvm::ArrayRef<const char *> NewEnvironment) {
 
 void JobList::Print(raw_ostream &OS, const char *Terminator, bool Quote,
                     CrashReportInfo *CrashInfo) const {
-  size_t i = 0;
+  //size_t i = 0;
   for (const auto &Job : *this) {
-    llvm::errs() << "Job #" << i << "\n";
+    //DYN_DEBUG(remotefs_debug, llvm::errs() << "Job #" << i << "\n");
     Job.Print(OS, Terminator, Quote, CrashInfo);
-    i++;
+    //i++;
   }
 }
 

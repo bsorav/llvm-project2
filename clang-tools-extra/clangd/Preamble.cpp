@@ -21,6 +21,8 @@
 #include "support/Path.h"
 #include "support/ThreadsafeFS.h"
 #include "support/Trace.h"
+#include <cassert>
+#include "support/dyn_debug.h"
 #include "clang/AST/DeclTemplate.h"
 #include "clang/AST/Type.h"
 #include "clang/Basic/Diagnostic.h"
@@ -480,7 +482,7 @@ public:
 
   llvm::ErrorOr<std::unique_ptr<llvm::vfs::File>>
   openFileForRead(const llvm::Twine &Path) override {
-    llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "():\n";
+    DYN_DEBUG(remotefs_debug, llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "():\n");
     WallTimerRegion T(Timer);
     auto FileOr = getUnderlyingFS().openFileForRead(Path);
     if (!FileOr)

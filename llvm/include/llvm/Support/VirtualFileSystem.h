@@ -433,10 +433,7 @@ public:
     return FS->status(Path);
   }
   llvm::ErrorOr<std::unique_ptr<File>>
-  openFileForRead(const Twine &Path) override {
-    llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "():\n";
-    return FS->openFileForRead(Path);
-  }
+  openFileForRead(const Twine &Path) override;
   directory_iterator dir_begin(const Twine &Dir, std::error_code &EC) override {
     return FS->dir_begin(Dir, EC);
   }
@@ -1062,9 +1059,11 @@ class RemoteFileSystem : public vfs::FileSystem {
 private:
   // The underlying filesystem
   IntrusiveRefCntPtr<FileSystem> ExternalFS;
+  std::string TargetTriple;
 
 private:
-  RemoteFileSystem(IntrusiveRefCntPtr<FileSystem> ExternalFS);
+  RemoteFileSystem(IntrusiveRefCntPtr<FileSystem> ExternalFS,
+                   StringRef TargetTriple);
 
 private:
   static llvm::sys::fs::perms mode_to_perms(mode_t const& mode);
@@ -1073,7 +1072,8 @@ private:
 public:
   static std::unique_ptr<RemoteFileSystem>
   create(SourceMgr::DiagHandlerTy DiagHandler,
-         void *DiagContext, IntrusiveRefCntPtr<FileSystem> ExternalFS);
+         void *DiagContext, IntrusiveRefCntPtr<FileSystem> ExternalFS,
+         StringRef TargetTriple);
 
   bool isRemoteFileSystem() const override { return true; }
 

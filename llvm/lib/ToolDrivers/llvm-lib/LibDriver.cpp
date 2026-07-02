@@ -12,6 +12,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/ToolDrivers/llvm-lib/LibDriver.h"
+#include <cassert>
+#include "support/dyn_debug.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringSet.h"
 #include "llvm/BinaryFormat/COFF.h"
@@ -427,11 +429,11 @@ int llvm::libDriverMain(ArrayRef<const char *> ArgsArr) {
 
   // Create a NewArchiveMember for each input file.
   for (auto *Arg : Args.filtered(OPT_INPUT)) {
-    llvm::errs() << __func__ << " " << __LINE__ << ": calling findInputFile()\n";
+    DYN_DEBUG(remotefs_debug, llvm::errs() << __func__ << " " << __LINE__ << ": calling findInputFile()\n");
     // Find a file
     std::string Path = findInputFile(Arg->getValue(), SearchPaths);
     if (Path.empty()) {
-      llvm::errs() << __func__ << " " << __LINE__ << ": findInputFile() returned an empty path\n";
+      DYN_DEBUG(remotefs_debug, llvm::errs() << __func__ << " " << __LINE__ << ": findInputFile() returned an empty path\n");
       llvm::errs() << Arg->getValue() << ": no such file or directory\n";
       return 1;
     }

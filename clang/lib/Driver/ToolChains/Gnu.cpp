@@ -7,6 +7,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "Gnu.h"
+#include <cassert>
+#include "support/dyn_debug.h"
 #include "Arch/ARM.h"
 #include "Arch/CSKY.h"
 #include "Arch/LoongArch.h"
@@ -314,7 +316,7 @@ void tools::gnutools::StaticLibTool::ConstructJob(
     Compilation &C, const JobAction &JA, const InputInfo &Output,
     const InputInfoList &Inputs, const ArgList &Args,
     const char *LinkingOutput) const {
-  llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "():\n";
+  DYN_DEBUG(remotefs_debug, llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "():\n");
   const Driver &D = getToolChain().getDriver();
 
   // Silence warning for "clang -g foo.o -o foo"

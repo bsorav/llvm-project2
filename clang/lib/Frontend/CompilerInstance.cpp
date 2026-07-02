@@ -7,6 +7,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/Frontend/CompilerInstance.h"
+#include <cassert>
+#include "support/dyn_debug.h"
 #include "clang/AST/ASTConsumer.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
@@ -962,7 +964,7 @@ CompilerInstance::createOutputFileImpl(StringRef OutputPath, bool Binary,
 // Initialization Utilities
 
 bool CompilerInstance::InitializeSourceManager(const FrontendInputFile &Input){
-  llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "(): entry\n";
+  DYN_DEBUG(remotefs_debug, llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "(): entry\n");
   return InitializeSourceManager(Input, getDiagnostics(), getFileManager(),
                                  getSourceManager());
 }
@@ -972,33 +974,33 @@ bool CompilerInstance::InitializeSourceManager(const FrontendInputFile &Input,
                                                DiagnosticsEngine &Diags,
                                                FileManager &FileMgr,
                                                SourceManager &SourceMgr) {
-  llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "(): entry\n";
+  DYN_DEBUG(remotefs_debug, llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "(): entry\n");
   SrcMgr::CharacteristicKind Kind =
       Input.getKind().getFormat() == InputKind::ModuleMap
           ? Input.isSystem() ? SrcMgr::C_System_ModuleMap
                              : SrcMgr::C_User_ModuleMap
           : Input.isSystem() ? SrcMgr::C_System : SrcMgr::C_User;
 
-  llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "()\n";
+  DYN_DEBUG(remotefs_debug, llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "()\n");
   if (Input.isBuffer()) {
-    llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "()\n";
+    DYN_DEBUG(remotefs_debug, llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "()\n");
     SourceMgr.setMainFileID(SourceMgr.createFileID(Input.getBuffer(), Kind));
     assert(SourceMgr.getMainFileID().isValid() &&
            "Couldn't establish MainFileID!");
     return true;
   }
 
-  llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "()\n";
+  DYN_DEBUG(remotefs_debug, llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "()\n");
   StringRef InputFile = Input.getFile();
 
-  llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "(): InputFile = " << InputFile.str() << "\n";
+  DYN_DEBUG(remotefs_debug, llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "(): InputFile = " << InputFile.str() << "\n");
   // Figure out where to get and map in the main file.
   auto FileOrErr = InputFile == "-"
                        ? FileMgr.getSTDIN()
                        : FileMgr.getFileRef(InputFile, /*OpenFile=*/true);
-  llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "(): FileOrErr obtained\n";
+  DYN_DEBUG(remotefs_debug, llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "(): FileOrErr obtained\n");
   if (!FileOrErr) {
-    llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "(): !FileOrErr\n";
+    DYN_DEBUG(remotefs_debug, llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "(): !FileOrErr\n");
     auto EC = llvm::errorToErrorCode(FileOrErr.takeError());
     if (InputFile != "-")
       Diags.Report(diag::err_fe_error_reading) << InputFile << EC.message();
@@ -1007,11 +1009,11 @@ bool CompilerInstance::InitializeSourceManager(const FrontendInputFile &Input,
     return false;
   }
 
-  llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "(): calling setMainFileID()\n";
+  DYN_DEBUG(remotefs_debug, llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "(): calling setMainFileID()\n");
   SourceMgr.setMainFileID(
       SourceMgr.createFileID(*FileOrErr, SourceLocation(), Kind));
 
-  llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "(): returned from setMainFileID()\n";
+  DYN_DEBUG(remotefs_debug, llvm::errs() << __FILE__ << " " << __LINE__ << " " << __func__ << "(): returned from setMainFileID()\n");
   assert(SourceMgr.getMainFileID().isValid() &&
          "Couldn't establish MainFileID!");
   return true;
