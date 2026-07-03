@@ -838,11 +838,17 @@ def int_eh_recoverfp : DefaultAttrsIntrinsic<[llvm_ptr_ty],
 // Statement markers
 let IntrProperties = [IntrNoMem, IntrSpeculatable] in {
   def int_break_statement_marker : Intrinsic<[],
-                                    []>;
+                                    [llvm_i32_ty, llvm_i32_ty],
+                                    [ImmArg<ArgIndex<0>>,
+                                     ImmArg<ArgIndex<1>>]>;
   def int_goto_statement_marker : Intrinsic<[],
-                                    []>;
+                                    [llvm_i32_ty, llvm_i32_ty],
+                                    [ImmArg<ArgIndex<0>>,
+                                     ImmArg<ArgIndex<1>>]>;
   def int_return_statement_marker : Intrinsic<[],
-                                    []>;
+                                    [llvm_i32_ty, llvm_i32_ty],
+                                    [ImmArg<ArgIndex<0>>,
+                                     ImmArg<ArgIndex<1>>]>;
 }
 
 // To mark the beginning/end of a try-scope for Windows SEH -EHa

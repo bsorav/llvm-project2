@@ -1297,11 +1297,20 @@ sym_exec_llvm::apply_fmuladd_function(const CallInst* c, expr_ref fun_name_expr,
 
 
 pair<preds_t,preds_t>
-sym_exec_llvm::apply_statement_marker_function(state &state_out, preds_t const& state_assumes, code_marker_fn_t marker_fn)
+sym_exec_llvm::apply_statement_marker_function(const CallInst* c, state &state_out, preds_t const& state_assumes, code_marker_fn_t marker_fn)
 {
+  ASSERT(c->arg_size() == 2);
+  auto const* current_depth = cast<ConstantInt>(c->getArgOperand(0));
+  auto const* target_depth = cast<ConstantInt>(c->getArgOperand(1));
+
   string code_marker_reg = m_srcdst_keyword + "." G_CODE_MARKER_VARNAME;
   expr_ref in_code_marker = m_ctx->mk_var(code_marker_reg, m_ctx->mk_code_marker_sort());
-  state_set_expr(state_out, code_marker_reg, (m_ctx->*marker_fn)(in_code_marker, 0));
+  state_set_expr(state_out, code_marker_reg,
+      (m_ctx->*marker_fn)(
+          in_code_marker,
+          m_ctx->mk_int_const(current_depth->getZExtValue()),
+          m_ctx->mk_int_const(target_depth->getZExtValue()),
+          0));
   return make_pair(state_assumes, preds_t());
 }
 
@@ -2115,11 +2124,11 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     //}
 
     if (fun_name.substr(0, llvm_break_statement_marker_fn.length()) == llvm_break_statement_marker_fn) {
-      tie(state_assumes, succ_assumes) = apply_statement_marker_function(state_out, state_assumes, &context::mk_code_marker_break_statement);
+      tie(state_assumes, succ_assumes) = apply_statement_marker_function(c, state_out, state_assumes, &context::mk_code_marker_break_statement);
     } else if (fun_name.substr(0, llvm_goto_statement_marker_fn.length()) == llvm_goto_statement_marker_fn) {
-      tie(state_assumes, succ_assumes) = apply_statement_marker_function(state_out, state_assumes, &context::mk_code_marker_goto_statement);
+      tie(state_assumes, succ_assumes) = apply_statement_marker_function(c, state_out, state_assumes, &context::mk_code_marker_goto_statement);
     } else if (fun_name.substr(0, llvm_return_statement_marker_fn.length()) == llvm_return_statement_marker_fn) {
-      tie(state_assumes, succ_assumes) = apply_statement_marker_function(state_out, state_assumes, &context::mk_code_marker_return_statement);
+      tie(state_assumes, succ_assumes) = apply_statement_marker_function(c, state_out, state_assumes, &context::mk_code_marker_return_statement);
     } else if (fun_name.substr(0, llvm_memcpy_fn.length()) == llvm_memcpy_fn || fun_name.substr(0, memcpy_fn.length()) == memcpy_fn) {
       tie(state_assumes, succ_assumes) = apply_memcpy_function(c, fun_expr, fun_name, src_llvm_tfg, calleeF, state_in, state_out, state_assumes, cur_function_name, from_node, model_llvm_semantics, F, t/*, function_tfg_map*/, value_to_name_map/*, function_call_chain*/, scev_map, xml_output_format);
     } else if (fun_name.substr(0, llvm_memset_fn.length()) == llvm_memset_fn || fun_name.substr(0, memset_fn.length()) == memset_fn) {

@@ -742,14 +742,12 @@ void CodeGenFunction::EmitGotoStmt(const GotoStmt &S) {
   if (HaveInsertPoint())
     EmitStopPoint(&S);
 
-  EmitStatementMarker(llvm::Intrinsic::goto_statement_marker);
+  EmitStatementMarker(llvm::Intrinsic::goto_statement_marker, S);
   EmitBranchThroughCleanup(getJumpDestForLabel(S.getLabel()));
 }
 
 
 void CodeGenFunction::EmitIndirectGotoStmt(const IndirectGotoStmt &S) {
-  EmitStatementMarker(llvm::Intrinsic::goto_statement_marker);
-
   if (const LabelDecl *Target = S.getConstantTarget()) {
     EmitBranchThroughCleanup(getJumpDestForLabel(Target));
     return;
@@ -1317,7 +1315,7 @@ void CodeGenFunction::EmitReturnStmt(const ReturnStmt &S) {
     Builder.CreateStore(SLocPtr, ReturnLocation);
   }
 
-  EmitStatementMarker(llvm::Intrinsic::return_statement_marker);
+  EmitStatementMarker(llvm::Intrinsic::return_statement_marker, S);
 
   // Returning from an outlined SEH helper is UB, and we already warn on it.
   if (IsOutlinedSEHHelper) {
@@ -1411,8 +1409,13 @@ void CodeGenFunction::EmitDeclStmt(const DeclStmt &S) {
     EmitDecl(*I);
 }
 
-void CodeGenFunction::EmitStatementMarker(llvm::Intrinsic::ID IntrinsicID)
+void CodeGenFunction::EmitStatementMarker(llvm::Intrinsic::ID IntrinsicID,
+                                          const Stmt &S)
 {
+  auto DepthIt = StatementMarkerDepths.find(&S);
+  if (DepthIt == StatementMarkerDepths.end())
+    return;
+
   // Do not insert if we are unreachable.
   // Apparently, LLVM disconnects all unreachable instructions from the parent
   // block and we end up with an invalid IR which the verifier violently
@@ -1423,7 +1426,9 @@ void CodeGenFunction::EmitStatementMarker(llvm::Intrinsic::ID IntrinsicID)
   auto ValueFn = llvm::Intrinsic::getDeclaration(
     &CGM.getModule(), IntrinsicID);
 
-  std::vector<llvm::Value *> ValueArgs;
+  std::vector<llvm::Value *> ValueArgs = {
+      Builder.getInt32(DepthIt->second.CurrentDepth),
+      Builder.getInt32(DepthIt->second.TargetDepth)};
   EmitNounwindRuntimeCall(ValueFn, ValueArgs);
 }
 
@@ -1436,7 +1441,7 @@ void CodeGenFunction::EmitBreakStmt(const BreakStmt &S) {
   if (HaveInsertPoint()) {
     EmitStopPoint(&S);
   }
-  EmitStatementMarker(llvm::Intrinsic::break_statement_marker);
+  EmitStatementMarker(llvm::Intrinsic::break_statement_marker, S);
 
   EmitBranchThroughCleanup(BreakContinueStack.back().BreakBlock);
 }
