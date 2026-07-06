@@ -3113,48 +3113,69 @@ sym_exec_llvm::get_dilocal_for_alloca(llvm::AllocaInst const* AI) const
 }
 
 bool
-sym_exec_llvm::parameter_alloca_should_be_replaced_with_parameter_address(AllocaInst const& a, DILocalVariable const& dilocal) const
-{
-  if (!callconv_is_cdecl_x86(a.getFunction())) {
-    NOT_IMPLEMENTED();
-  }
-
-  // if the dst-compiler is non-clang, we always replace the alloca with parameter address
-  if (   this->m_dst_compiler != compiler_id_t::clang
-      && this->m_dst_compiler != compiler_id_t::clangv
-      && this->m_dst_compiler != compiler_id_t::clangpp)
-    return true;
-
-  // for non-aggregate, even clang uses parameter address
-  bool const is_agg = dyn_cast<DICompositeType>(dilocal.getType());
-  if (!is_agg)
-    return true;
-
-  // if the aggregate is DWORD sized singleton then clang/llvm uses parameter address
-  DataLayout const& dl = m_module->getDataLayout();
-  auto op_alloc_sz = a.getAllocationSizeInBits(dl);
-  if (   !a.isArrayAllocation()
-      && op_alloc_sz.has_value()
-      && *op_alloc_sz == DWORD_LEN)
-    return true;
-
-  // otherwise the alloca is retained because the parameters are passed separately
-  // and the agg is constructed in the prologue of the generated assembly
-  return false;
-}
-
-bool
 sym_exec_llvm::alloca_corresponds_to_a_local_parameter(AllocaInst const& a, DILocalVariable const& dilocal, Function const& F, tfg const& t, expr_ref& param_addr) const
 {
   if (!dilocal.isParameter())
     return false;
 
-  if (!this->parameter_alloca_should_be_replaced_with_parameter_address(a, dilocal)) {
-    // cout << _FNLN_ << ": " << F.getName().str() << ": NOT replacing alloca associated with parameter " << dilocal.getName().str() << endl;
-    return false;
-  }
-  // cout << _FNLN_ << ": " << F.getName().str() << ": replacing alloca associated with parameter " << dilocal.getName().str() << endl;
+  bool const is_clang =
+         this->m_dst_compiler == compiler_id_t::clang
+      || this->m_dst_compiler == compiler_id_t::clangv
+      || this->m_dst_compiler == compiler_id_t::clangpp;
+  if (is_clang) {
+    if (!callconv_is_cdecl_x86(a.getFunction())) {
+      NOT_IMPLEMENTED();
+    }
 
+    MDNode const* metadata = a.getMetadata("superopt.parameter.alloca");
+    if (!metadata || metadata->getNumOperands() == 0) {
+      errs() << "missing !superopt.parameter.alloca metadata on parameter "
+             << "alloca: " << a << '\n';
+      NOT_IMPLEMENTED();
+    }
+
+    auto const* kind = dyn_cast<MDString>(metadata->getOperand(0));
+    if (!kind) {
+      errs() << "invalid !superopt.parameter.alloca metadata on: " << a
+             << '\n';
+      NOT_IMPLEMENTED();
+    }
+
+    if (kind->getString() == "preamble") {
+      if (metadata->getNumOperands() != 1) {
+        errs() << "invalid preamble parameter alloca metadata on: " << a
+               << '\n';
+        NOT_IMPLEMENTED();
+      }
+      return false;
+    }
+
+    if (kind->getString() != "argument" ||
+        metadata->getNumOperands() != 2) {
+      errs() << "invalid parameter alloca metadata on: " << a << '\n';
+      NOT_IMPLEMENTED();
+    }
+
+    auto const* arg_index_md =
+        dyn_cast<ConstantAsMetadata>(metadata->getOperand(1));
+    auto const* arg_index =
+        arg_index_md ? dyn_cast<ConstantInt>(arg_index_md->getValue())
+                     : nullptr;
+    if (!arg_index || arg_index->getValue().getActiveBits() > 32 ||
+        arg_index->getZExtValue() >= F.arg_size()) {
+      errs() << "invalid argument index in parameter alloca metadata on: "
+             << a << '\n';
+      NOT_IMPLEMENTED();
+    }
+
+    graph_arg_id_t argnum = arg_index->getZExtValue();
+    param_addr = t.get_argument_regs().addr_at(
+        mk_string_ref(graph_arg_regs_t::get_argname_from_argnum(argnum)));
+    return true;
+  }
+
+  // Non-Clang compilers always use the parameter address. Retain their
+  // existing name-based argument lookup.
   if (dyn_cast<DICompositeType>(dilocal.getType())) {
     // for composite types the struct is expanded in args and alloca'ted in prologue
     // the name of the member field args are set to "<name>.i" for i'th field (see `case ABIArgInfo::Expand` of `EmitFunctionProlog` in `lib/CodeGen/CGCall.cpp`)

@@ -257,7 +257,6 @@ private:
 
   void populate_local_variable_address_metadata(llvm::Function const& F);
   llvm::DILocalVariable const* get_dilocal_for_alloca(llvm::AllocaInst const* AI) const;
-  bool parameter_alloca_should_be_replaced_with_parameter_address(llvm::AllocaInst const& a, llvm::DILocalVariable const& dilocal) const;
   bool alloca_corresponds_to_a_local_parameter(llvm::AllocaInst const& a, llvm::DILocalVariable const& dilocal, llvm::Function const& F, tfg const& t, expr_ref& param_addr) const;
 
   static list<pair<string, unsigned>> get_fun_names(llvm::Module const *M);
