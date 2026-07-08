@@ -3871,7 +3871,7 @@ sym_exec_llvm::set_next_phi_pc(pc const &p, pc const &phi_pc)
 }*/
 
 map<nextpc_id_t, callee_summary_t>
-sym_exec_llvm::get_callee_summaries_for_tfg(map<nextpc_id_t, string> const &nextpc_map, map<string, callee_summary_t> const &callee_summaries)
+sym_exec_llvm::get_callee_summaries_for_tfg(map<nextpc_id_t, nextpc_info_t> const &nextpc_map, map<string, callee_summary_t> const &callee_summaries)
 {
   autostop_timer func_timer(__func__);
   map<nextpc_id_t, callee_summary_t> ret;
@@ -3880,7 +3880,7 @@ sym_exec_llvm::get_callee_summaries_for_tfg(map<nextpc_id_t, string> const &next
     callee_summary_t csum = ncsum.second;
     nextpc_id_t nextpc_id = -1;
     for (auto npc : nextpc_map) {
-      if (npc.second == nextpc_str) {
+      if (npc.second.get_function_name() == nextpc_str) {
         nextpc_id = npc.first;
         break;
       }

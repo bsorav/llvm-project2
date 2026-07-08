@@ -253,7 +253,7 @@ private:
 
   void populate_bbl_order_map();
 
-  static map<nextpc_id_t, callee_summary_t> get_callee_summaries_for_tfg(map<nextpc_id_t, string> const &nextpc_map, map<string, callee_summary_t> const &callee_summaries);
+  static map<nextpc_id_t, callee_summary_t> get_callee_summaries_for_tfg(map<nextpc_id_t, nextpc_info_t> const &nextpc_map, map<string, callee_summary_t> const &callee_summaries);
 
   void populate_local_variable_address_metadata(llvm::Function const& F);
   llvm::DILocalVariable const* get_dilocal_for_alloca(llvm::AllocaInst const* AI) const;
