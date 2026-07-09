@@ -27,6 +27,8 @@ LOCAL_LIT_TESTS := \
 	clang/test/Preprocessor/borland-windows-include-case-insensitive.c \
 	clang/test/Preprocessor/borland-windows-include-quoted.c \
 	clang/test/Preprocessor/borland-windows-include-sysroot.c \
+	clang/test/CodeGen/superopt-parameter-alloca.c \
+	clang/test/CodeGen/statement-markers.c \
 	clang/test/Sema/borland-attribute-identifier.c \
 	clang/test/Sema/borland-int64.c \
 	clang/test/Sema/gnu-attribute-spellings.c \

@@ -27,6 +27,7 @@
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/Expr.h"
+#include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/StmtCXX.h"
 #include "clang/AST/StmtObjC.h"
 #include "clang/Basic/Builtins.h"
@@ -1256,7 +1257,163 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
       LargestVectorWidth = VecWidth->getVectorWidth();
 }
 
+namespace {
+class StatementMarkerDepthCollector
+    : public RecursiveASTVisitor<StatementMarkerDepthCollector> {
+  using Base = RecursiveASTVisitor<StatementMarkerDepthCollector>;
+
+  struct BreakableScope {
+    bool IsLoop;
+    unsigned TargetDepth;
+  };
+
+  struct GotoInfo {
+    const GotoStmt *Goto;
+    const LabelDecl *Target;
+    SmallVector<const Stmt *, 4> LoopStack;
+  };
+
+  llvm::DenseMap<const LabelDecl *, SmallVector<const Stmt *, 4>> LabelLoops;
+  SmallVector<const Stmt *, 4> CurrentLoops;
+  SmallVector<BreakableScope, 4> BreakableScopes;
+  SmallVector<GotoInfo, 4> Gotos;
+  llvm::DenseMap<const Stmt *, CodeGenFunction::StatementMarkerDepth> &Depths;
+
+  void traverseLoop(const Stmt *Loop, Stmt *Body) {
+    BreakableScopes.push_back({true, static_cast<unsigned>(CurrentLoops.size())});
+    CurrentLoops.push_back(Loop);
+    TraverseStmt(Body);
+    CurrentLoops.pop_back();
+    BreakableScopes.pop_back();
+  }
+
+  static unsigned commonLoopDepth(ArrayRef<const Stmt *> A,
+                                  ArrayRef<const Stmt *> B) {
+    unsigned E = std::min(A.size(), B.size());
+    unsigned I = 0;
+    while (I != E && A[I] == B[I]) ++I;
+    return I;
+  }
+
+public:
+  StatementMarkerDepthCollector(
+      llvm::DenseMap<const Stmt *, CodeGenFunction::StatementMarkerDepth>
+          &Depths)
+      : Depths(Depths) {}
+
+  bool TraverseWhileStmt(WhileStmt *S) {
+    traverseLoop(S, S->getCond());
+    if (S->getConditionVariableDeclStmt())
+      traverseLoop(S, S->getConditionVariableDeclStmt());
+    traverseLoop(S, S->getBody());
+    return true;
+  }
+
+  bool TraverseDoStmt(DoStmt *S) {
+    traverseLoop(S, S->getBody());
+    traverseLoop(S, S->getCond());
+    return true;
+  }
+
+  bool TraverseForStmt(ForStmt *S) {
+    TraverseStmt(S->getInit());
+    traverseLoop(S, S->getConditionVariableDeclStmt());
+    traverseLoop(S, S->getCond());
+    traverseLoop(S, S->getBody());
+    traverseLoop(S, S->getInc());
+    return true;
+  }
+
+  bool TraverseCXXForRangeStmt(CXXForRangeStmt *S) {
+    TraverseStmt(S->getInit());
+    TraverseStmt(S->getRangeStmt());
+    TraverseStmt(S->getBeginStmt());
+    TraverseStmt(S->getEndStmt());
+    traverseLoop(S, S->getCond());
+    traverseLoop(S, S->getLoopVarStmt());
+    traverseLoop(S, S->getBody());
+    traverseLoop(S, S->getInc());
+    return true;
+  }
+
+  bool TraverseObjCForCollectionStmt(ObjCForCollectionStmt *S) {
+    TraverseStmt(S->getElement());
+    TraverseStmt(S->getCollection());
+    traverseLoop(S, S->getBody());
+    return true;
+  }
+
+  bool TraverseSwitchStmt(SwitchStmt *S) {
+    TraverseStmt(S->getInit());
+    TraverseStmt(S->getCond());
+    BreakableScopes.push_back({false, 0});
+    TraverseStmt(S->getBody());
+    BreakableScopes.pop_back();
+    return true;
+  }
+
+  bool TraverseLabelStmt(LabelStmt *S) {
+    LabelLoops[S->getDecl()] = CurrentLoops;
+    TraverseStmt(S->getSubStmt());
+    return true;
+  }
+
+  bool VisitBreakStmt(BreakStmt *S) {
+    if (!BreakableScopes.empty() && BreakableScopes.back().IsLoop &&
+        CurrentLoops.size() > BreakableScopes.back().TargetDepth)
+      Depths[S] = {static_cast<unsigned>(CurrentLoops.size()),
+                   BreakableScopes.back().TargetDepth};
+    return true;
+  }
+
+  bool VisitGotoStmt(GotoStmt *S) {
+    Gotos.push_back({S, S->getLabel(), CurrentLoops});
+    return true;
+  }
+
+  bool VisitReturnStmt(ReturnStmt *S) {
+    if (!CurrentLoops.empty())
+      Depths[S] = {static_cast<unsigned>(CurrentLoops.size()), 0};
+    return true;
+  }
+
+  void resolveGotos() {
+    for (const GotoInfo &G : Gotos) {
+      auto I = LabelLoops.find(G.Target);
+      assert(I != LabelLoops.end() && "goto target label was not visited");
+      if (I == LabelLoops.end())
+        continue;
+      // For gotos, commonDepth is the common enclosing loop depth, not
+      // necessarily the loop depth at the target label.  This gives the
+      // desired answer for exits such as:
+      //
+      //   while (...) {        // depth 1
+      //     while (...) {      // depth 2
+      //       goto outer;      // marker: (2, 1)
+      //     }
+      //   outer:
+      //     ...
+      //   }
+      //
+      // A goto into a deeper loop has no source loop to exit, so it does not
+      // get a marker.  A goto from one inner loop into a sibling inner loop has
+      // common depth 1; that records the exit from the source loop, but does
+      // not attempt to model the irreducible jump into another loop.
+      unsigned commonDepth = commonLoopDepth(G.LoopStack, I->second);
+      if (G.LoopStack.size() > commonDepth)
+        Depths[G.Goto] = {static_cast<unsigned>(G.LoopStack.size()),
+                          commonDepth};
+    }
+  }
+};
+} // namespace
+
 void CodeGenFunction::EmitFunctionBody(const Stmt *Body) {
+  StatementMarkerDepths.clear();
+  StatementMarkerDepthCollector MarkerDepths(StatementMarkerDepths);
+  MarkerDepths.TraverseStmt(const_cast<Stmt *>(Body));
+  MarkerDepths.resolveGotos();
+
   incrementProfileCounter(Body);
   maybeCreateMCDCCondBitmap();
   if (const CompoundStmt *S = dyn_cast<CompoundStmt>(Body))

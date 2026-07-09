@@ -269,6 +269,13 @@ public:
   LoopInfoStack LoopStack;
   CGBuilderTy Builder;
 
+  struct StatementMarkerDepth {
+    unsigned CurrentDepth;
+    unsigned TargetDepth;
+  };
+
+  llvm::DenseMap<const Stmt *, StatementMarkerDepth> StatementMarkerDepths;
+
   // Stores variables for which we can't generate correct lifetime markers
   // because of jumps.
   VarBypassDetector Bypasses;
@@ -3341,7 +3348,7 @@ public:
   void EmitCaseStmtRange(const CaseStmt &S, ArrayRef<const Attr *> Attrs);
   void EmitAsmStmt(const AsmStmt &S);
 
-  void EmitBreakStatementMarker(const BreakStmt &S);
+  void EmitStatementMarker(llvm::Intrinsic::ID IntrinsicID, const Stmt &S);
 
   void EmitObjCForCollectionStmt(const ObjCForCollectionStmt &S);
   void EmitObjCAtTryStmt(const ObjCAtTryStmt &S);

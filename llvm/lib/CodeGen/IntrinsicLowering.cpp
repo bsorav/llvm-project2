@@ -268,6 +268,8 @@ void IntrinsicLowering::LowerIntrinsicCall(CallInst *CI) {
   }
 
   case Intrinsic::break_statement_marker:
+  case Intrinsic::goto_statement_marker:
+  case Intrinsic::return_statement_marker:
     break;
 
   case Intrinsic::stacksave:

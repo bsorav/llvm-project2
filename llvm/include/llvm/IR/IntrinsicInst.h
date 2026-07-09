@@ -117,6 +117,8 @@ public:
     case Intrinsic::ptr_annotation:
     case Intrinsic::var_annotation:
     case Intrinsic::break_statement_marker:
+    case Intrinsic::goto_statement_marker:
+    case Intrinsic::return_statement_marker:
       return true;
     }
     return false;
@@ -170,6 +172,8 @@ static inline bool isDbgInfoIntrinsic(Intrinsic::ID ID) {
   case Intrinsic::dbg_label:
   case Intrinsic::dbg_assign:
   case Intrinsic::break_statement_marker:
+  case Intrinsic::goto_statement_marker:
+  case Intrinsic::return_statement_marker:
     return true;
   default:
     return false;

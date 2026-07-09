@@ -1297,10 +1297,20 @@ sym_exec_llvm::apply_fmuladd_function(const CallInst* c, expr_ref fun_name_expr,
 
 
 pair<preds_t,preds_t>
-sym_exec_llvm::apply_break_statement_marker_function(state &state_out, preds_t const& state_assumes)
+sym_exec_llvm::apply_statement_marker_function(const CallInst* c, state &state_out, preds_t const& state_assumes, code_marker_fn_t marker_fn)
 {
+  ASSERT(c->arg_size() == 2);
+  auto const* current_depth = cast<ConstantInt>(c->getArgOperand(0));
+  auto const* target_depth = cast<ConstantInt>(c->getArgOperand(1));
+
   string code_marker_reg = m_srcdst_keyword + "." G_CODE_MARKER_VARNAME;
-  state_set_expr(state_out, code_marker_reg, m_ctx->mk_code_marker_break_statement(m_ctx->mk_var(code_marker_reg, m_ctx->mk_code_marker_sort())));
+  expr_ref in_code_marker = m_ctx->mk_var(code_marker_reg, m_ctx->mk_code_marker_sort());
+  state_set_expr(state_out, code_marker_reg,
+      (m_ctx->*marker_fn)(
+          in_code_marker,
+          m_ctx->mk_int_const(current_depth->getZExtValue()),
+          m_ctx->mk_int_const(target_depth->getZExtValue()),
+          0));
   return make_pair(state_assumes, preds_t());
 }
 
@@ -1813,24 +1823,25 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
       string const local_addr_key = m_ctx->get_key_from_input_expr(local_addr_var)->get_str();
       m_local_refs.emplace(local_id, graph_local_t(mk_string_ref(iname), local_size, align, is_varsize, is_alloca));
 
+      auto alloc_size_assume = [this,is_alloca](expr_ref size) {
+          if (is_alloca) {
+            // add size != 0 assume
+            return expr_with_fail(m_ctx->mk_not(m_ctx->mk_eq(size, m_ctx->mk_zerobv(get_word_length()))), fails::safety_alloca_size_nonzero);
+          } else {
+            // add size > 0 assume
+            return expr_with_fail(m_ctx->mk_bvsgt(size, m_ctx->mk_zerobv(get_word_length())), fails::safety_alloc_size_positive);
+          }
+        };
+
       expr_ref local_size_val;
       if (is_varsize) {
         expr_ref varsize_expr;
         tie(varsize_expr, state_assumes) = get_expr_adding_edges_for_intermediate_vals(*ArraySize, iname, state_in, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map);
-        unsigned bvlen = varsize_expr->get_sort()->get_size();
-        ASSERT(bvlen == get_word_length());
-        expr_ref const local_type_alloc_size_expr = m_ctx->mk_bv_const(bvlen, local_type_alloc_size);
+        expr_ref const local_type_alloc_size_expr = m_ctx->mk_bv_const(get_word_length(), local_type_alloc_size);
         local_size_val = m_ctx->mk_bvmul(varsize_expr, local_type_alloc_size_expr);
 
-        if (is_alloca) {
-          // add size != 0 assume
-          auto size_is_nonzero = expr_with_fail(m_ctx->mk_not(m_ctx->mk_eq(local_size_val, m_ctx->mk_zerobv(bvlen))), fails::safety_alloca_size_nonzero);
-          add_state_assume(iname, size_is_nonzero, state_in, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map);
-        } else {
-          // add size > 0 assume
-          auto size_is_positive_assume = expr_with_fail(m_ctx->mk_bvsgt(local_size_val, m_ctx->mk_zerobv(bvlen)), fails::safety_alloc_size_positive);
-          add_state_assume(iname, size_is_positive_assume, state_in, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map);
-        }
+        auto size_assume = alloc_size_assume(local_size_val);
+        add_state_assume(iname, size_assume, state_in, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map);
         // add no overflow assume for (varsize_expr * local_type_alloc_size)
         auto no_overflow = expr_with_fail(gen_no_mul_overflow_assume_expr(varsize_expr, local_type_alloc_size_expr, /*varsize_expr is positive*/true), fails::safety_alloc_no_size_overflow);
         add_state_assume(iname, no_overflow, state_in, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map);
@@ -1886,6 +1897,8 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
       expr_ref const new_mem       = m_ctx->mk_store_uninit(mem_e, new_mem_alloc, ml_local, local_addr_var, local_size_var, local_alloc_count_ssa_var);
       state_set_expr(state_out, m_mem_alloc_reg, new_mem_alloc);
       state_set_expr(state_out, m_mem_reg, new_mem);
+      // size assume is required to ensure that alloc() and store_uninit() remain defined
+      add_state_assume(iname, alloc_size_assume(local_size_var), state_in, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map);
       add_edge_with_state();
 
       // == intermediate edge 3 ==
@@ -2081,6 +2094,8 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     string const memcpy_fn = LLVM_FUNCTION_NAME_PREFIX G_MEMCPY_FUNCTION;
     string const memset_fn = LLVM_FUNCTION_NAME_PREFIX G_MEMSET_FUNCTION;
     string const llvm_break_statement_marker_fn = LLVM_FUNCTION_NAME_PREFIX G_LLVM_BREAK_STATEMENT_MARKER_FUNCTION;
+    string const llvm_goto_statement_marker_fn = LLVM_FUNCTION_NAME_PREFIX G_LLVM_GOTO_STATEMENT_MARKER_FUNCTION;
+    string const llvm_return_statement_marker_fn = LLVM_FUNCTION_NAME_PREFIX G_LLVM_RETURN_STATEMENT_MARKER_FUNCTION;
     preds_t succ_assumes;
 
     //llvm::errs() << "fun_name = " << fun_name << "\n";
@@ -2093,7 +2108,11 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     //}
 
     if (fun_name.substr(0, llvm_break_statement_marker_fn.length()) == llvm_break_statement_marker_fn) {
-      tie(state_assumes, succ_assumes) = apply_break_statement_marker_function(state_out, state_assumes);
+      tie(state_assumes, succ_assumes) = apply_statement_marker_function(c, state_out, state_assumes, &context::mk_code_marker_break_statement);
+    } else if (fun_name.substr(0, llvm_goto_statement_marker_fn.length()) == llvm_goto_statement_marker_fn) {
+      tie(state_assumes, succ_assumes) = apply_statement_marker_function(c, state_out, state_assumes, &context::mk_code_marker_goto_statement);
+    } else if (fun_name.substr(0, llvm_return_statement_marker_fn.length()) == llvm_return_statement_marker_fn) {
+      tie(state_assumes, succ_assumes) = apply_statement_marker_function(c, state_out, state_assumes, &context::mk_code_marker_return_statement);
     } else if (fun_name.substr(0, llvm_memcpy_fn.length()) == llvm_memcpy_fn || fun_name.substr(0, memcpy_fn.length()) == memcpy_fn) {
       tie(state_assumes, succ_assumes) = apply_memcpy_function(c, fun_expr, fun_name, src_llvm_tfg, calleeF, state_in, state_out, state_assumes, cur_function_name, from_node, model_llvm_semantics, F, t/*, function_tfg_map*/, value_to_name_map/*, function_call_chain*/, scev_map, xml_output_format);
     } else if (fun_name.substr(0, llvm_memset_fn.length()) == llvm_memset_fn || fun_name.substr(0, memset_fn.length()) == memset_fn) {
@@ -3078,48 +3097,69 @@ sym_exec_llvm::get_dilocal_for_alloca(llvm::AllocaInst const* AI) const
 }
 
 bool
-sym_exec_llvm::parameter_alloca_should_be_replaced_with_parameter_address(AllocaInst const& a, DILocalVariable const& dilocal) const
-{
-  if (!callconv_is_cdecl_x86(a.getFunction())) {
-    NOT_IMPLEMENTED();
-  }
-
-  // if the dst-compiler is non-clang, we always replace the alloca with parameter address
-  if (   this->m_dst_compiler != compiler_id_t::clang
-      && this->m_dst_compiler != compiler_id_t::clangv
-      && this->m_dst_compiler != compiler_id_t::clangpp)
-    return true;
-
-  // for non-aggregate, even clang uses parameter address
-  bool const is_agg = dyn_cast<DICompositeType>(dilocal.getType());
-  if (!is_agg)
-    return true;
-
-  // if the aggregate is DWORD sized singleton then clang/llvm uses parameter address
-  DataLayout const& dl = m_module->getDataLayout();
-  auto op_alloc_sz = a.getAllocationSizeInBits(dl);
-  if (   !a.isArrayAllocation()
-      && op_alloc_sz.has_value()
-      && *op_alloc_sz == DWORD_LEN)
-    return true;
-
-  // otherwise the alloca is retained because the parameters are passed separately
-  // and the agg is constructed in the prologue of the generated assembly
-  return false;
-}
-
-bool
 sym_exec_llvm::alloca_corresponds_to_a_local_parameter(AllocaInst const& a, DILocalVariable const& dilocal, Function const& F, tfg const& t, expr_ref& param_addr) const
 {
   if (!dilocal.isParameter())
     return false;
 
-  if (!this->parameter_alloca_should_be_replaced_with_parameter_address(a, dilocal)) {
-    // cout << _FNLN_ << ": " << F.getName().str() << ": NOT replacing alloca associated with parameter " << dilocal.getName().str() << endl;
-    return false;
-  }
-  // cout << _FNLN_ << ": " << F.getName().str() << ": replacing alloca associated with parameter " << dilocal.getName().str() << endl;
+  bool const is_clang =
+         this->m_dst_compiler == compiler_id_t::clang
+      || this->m_dst_compiler == compiler_id_t::clangv
+      || this->m_dst_compiler == compiler_id_t::clangpp;
+  if (is_clang) {
+    if (!callconv_is_cdecl_x86(a.getFunction())) {
+      NOT_IMPLEMENTED();
+    }
 
+    MDNode const* metadata = a.getMetadata("superopt.parameter.alloca");
+    if (!metadata || metadata->getNumOperands() == 0) {
+      errs() << "missing !superopt.parameter.alloca metadata on parameter "
+             << "alloca: " << a << '\n';
+      NOT_IMPLEMENTED();
+    }
+
+    auto const* kind = dyn_cast<MDString>(metadata->getOperand(0));
+    if (!kind) {
+      errs() << "invalid !superopt.parameter.alloca metadata on: " << a
+             << '\n';
+      NOT_IMPLEMENTED();
+    }
+
+    if (kind->getString() == "preamble") {
+      if (metadata->getNumOperands() != 1) {
+        errs() << "invalid preamble parameter alloca metadata on: " << a
+               << '\n';
+        NOT_IMPLEMENTED();
+      }
+      return false;
+    }
+
+    if (kind->getString() != "argument" ||
+        metadata->getNumOperands() != 2) {
+      errs() << "invalid parameter alloca metadata on: " << a << '\n';
+      NOT_IMPLEMENTED();
+    }
+
+    auto const* arg_index_md =
+        dyn_cast<ConstantAsMetadata>(metadata->getOperand(1));
+    auto const* arg_index =
+        arg_index_md ? dyn_cast<ConstantInt>(arg_index_md->getValue())
+                     : nullptr;
+    if (!arg_index || arg_index->getValue().getActiveBits() > 32 ||
+        arg_index->getZExtValue() >= F.arg_size()) {
+      errs() << "invalid argument index in parameter alloca metadata on: "
+             << a << '\n';
+      NOT_IMPLEMENTED();
+    }
+
+    graph_arg_id_t argnum = arg_index->getZExtValue();
+    param_addr = t.get_argument_regs().addr_at(
+        mk_string_ref(graph_arg_regs_t::get_argname_from_argnum(argnum)));
+    return true;
+  }
+
+  // Non-Clang compilers always use the parameter address. Retain their
+  // existing name-based argument lookup.
   if (dyn_cast<DICompositeType>(dilocal.getType())) {
     // for composite types the struct is expanded in args and alloca'ted in prologue
     // the name of the member field args are set to "<name>.i" for i'th field (see `case ABIArgInfo::Expand` of `EmitFunctionProlog` in `lib/CodeGen/CGCall.cpp`)
