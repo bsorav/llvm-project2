@@ -108,6 +108,9 @@ static cl::opt<std::string>
 ll_filename("ll-filename", cl::desc("<Disassembled LLVM used as input to identify linenum/column-num for PCs"), cl::init(""));
 
 static cl::opt<std::string>
+HarvestDwarfOutputFilename("harvest-dwarf-output", cl::desc("<harvest-dwarf output file used to identify target parameter locations>"), cl::init(""));
+
+static cl::opt<std::string>
 points_to_algo("points-to-algo", cl::desc("[" POINTS_TO_ALGO_ANDERSEN "|" POINTS_TO_ALGO_NONE "]"), cl::init(POINTS_TO_ALGO_ANDERSEN));
 
 static cl::opt<bool>
@@ -140,6 +143,128 @@ static std::unique_ptr<Module> readModule(LLVMContext &Context,
   if (!M)
     Diag.print("llvm2tfg", errs());
   return M;
+}
+
+static bool
+line_has_prefix(string const& line, string const& prefix)
+{
+  return line.rfind(prefix, 0) == 0;
+}
+
+static string
+line_suffix(string const& line, string const& prefix)
+{
+  ASSERT(line_has_prefix(line, prefix));
+  return line.substr(prefix.size());
+}
+
+static string
+read_harvest_dwarf_loc_ranges(string line, istream& in, context* ctx,
+                              expr_ref* first_expr)
+{
+  while (line_has_prefix(line, "=LocRange")) {
+    uint64_t from_addr, to_addr;
+    in >> hex >> from_addr >> to_addr >> dec;
+
+    bool done = !getline(in, line);
+    ASSERT(!done);
+    ASSERT(line == "");
+
+    done = !getline(in, line);
+    ASSERT(!done);
+    ASSERT(line_has_prefix(line, "=Expr"));
+
+    expr_ref loc_expr;
+    line = read_expr(in, loc_expr, ctx);
+    if (first_expr && !*first_expr) {
+      *first_expr = loc_expr;
+    }
+    if (line.empty()) {
+      done = !getline(in, line);
+      if (done) {
+        return "";
+      }
+    }
+  }
+  return line;
+}
+
+static harvest_dwarf_param_loc_map_t
+read_harvest_dwarf_param_locs(string const& filename, context* ctx)
+{
+  harvest_dwarf_param_loc_map_t ret;
+  if (filename.empty()) {
+    return ret;
+  }
+
+  ifstream in(filename);
+  if (!in.is_open()) {
+    errs() << "could not open harvest-dwarf output filename: " << filename
+           << "\n";
+    NOT_REACHED();
+  }
+
+  string cur_function;
+  string line;
+  bool have_pending_line = false;
+  string pending_line;
+  while (have_pending_line || getline(in, line)) {
+    if (have_pending_line) {
+      line = pending_line;
+      have_pending_line = false;
+      pending_line.clear();
+    }
+
+    if (line_has_prefix(line, "=SubprogramBegin: ")) {
+      cur_function = line_suffix(line, "=SubprogramBegin: ");
+      continue;
+    }
+    if (line_has_prefix(line, "=SubprogramEnd: ")) {
+      cur_function.clear();
+      continue;
+    }
+    if (cur_function.empty()) {
+      continue;
+    }
+    if (line_has_prefix(line, "=VarName: ")) {
+      bool done = !getline(in, line);
+      ASSERT(!done);
+      ASSERT(line_has_prefix(line, "=LocRange"));
+      line = read_harvest_dwarf_loc_ranges(line, in, ctx, nullptr);
+      if (!line.empty()) {
+        pending_line = line;
+        have_pending_line = true;
+      }
+      continue;
+    }
+    if (!line_has_prefix(line, "=ParamName: ")) {
+      continue;
+    }
+
+    string const param_name = line_suffix(line, "=ParamName: ");
+
+    bool done = !getline(in, line);
+    ASSERT(!done);
+    ASSERT(line_has_prefix(line, "=ParamIndex: "));
+    unsigned param_index = stoul(line_suffix(line, "=ParamIndex: "));
+
+    done = !getline(in, line);
+    ASSERT(!done);
+    ASSERT(line_has_prefix(line, "=LocRange"));
+    expr_ref param_addr_expr;
+    line = read_harvest_dwarf_loc_ranges(line, in, ctx, &param_addr_expr);
+    if (param_addr_expr) {
+      ret[cur_function][param_index] =
+          harvest_dwarf_param_loc_t(param_name, param_addr_expr);
+    }
+
+    if (!line.empty()) {
+      pending_line = line;
+      have_pending_line = true;
+    }
+  }
+
+  return ret;
 }
 
 /*
@@ -301,6 +426,16 @@ main(int argc, char **argv)
     MSG(string("done Reading LLPTFG from file " + src_etfg_filename + "...").c_str());
   }
 
+  if (!HarvestDwarfOutputFilename.empty() && src_etfg_filename.empty()) {
+    errs() << "--harvest-dwarf-output is only valid when generating a "
+           << "destination TFG with --src-etfg\n";
+    NOT_REACHED();
+  }
+  harvest_dwarf_param_loc_map_t harvest_dwarf_param_locs =
+      read_harvest_dwarf_param_locs(HarvestDwarfOutputFilename, ctx);
+  harvest_dwarf_param_loc_map_t const* harvest_dwarf_param_locs_ptr =
+      harvest_dwarf_param_locs.empty() ? nullptr : &harvest_dwarf_param_locs;
+
   if (Progress) {
     progress_flag = 1;
   }
@@ -311,7 +446,7 @@ main(int argc, char **argv)
 
   MSG("Symbolic execution to obtain the Transfer Function Graph (TFG)...");
 
-  dshared_ptr<ftmap_t> function_tfg_map = sym_exec_llvm::sym_exec_get_function_tfg_map(M1.get(), FunNamesVec, ctx, src_llptfg, !NoGenScev, llvmSemantics, always_use_call_context_any, ll_filename, points_to_algo_val, nullptr, xml_output_format, *op_dcomp);
+  dshared_ptr<ftmap_t> function_tfg_map = sym_exec_llvm::sym_exec_get_function_tfg_map(M1.get(), FunNamesVec, ctx, src_llptfg, !NoGenScev, llvmSemantics, always_use_call_context_any, ll_filename, points_to_algo_val, nullptr, xml_output_format, *op_dcomp, harvest_dwarf_param_locs_ptr);
   MSG("Points-to analysis on the Transfer Function Graph (TFG)...");
   function_tfg_map->ftmap_run_pointsto_analysis(points_to_algo_val, nullopt, call_context_depth, always_use_call_context_any, true, !dst_tfg_is_llvm, /*use_existing_locs*/false, xml_output_format);
   function_tfg_map->ftmap_add_start_pc_preconditions_for_each_tfg((src_llptfg != nullptr));

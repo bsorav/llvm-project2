@@ -3147,6 +3147,7 @@ sym_exec_llvm::alloca_corresponds_to_a_local_parameter(AllocaInst const& a, DILo
       NOT_IMPLEMENTED();
     }
 
+    vector<uint64_t> operands;
     for (unsigned I = 1; I != 4; ++I) {
       auto const* int_md =
           dyn_cast<ConstantAsMetadata>(metadata->getOperand(I));
@@ -3156,6 +3157,26 @@ sym_exec_llvm::alloca_corresponds_to_a_local_parameter(AllocaInst const& a, DILo
         errs() << "invalid integer operand in parameter alloca metadata on: "
                << a << '\n';
         NOT_IMPLEMENTED();
+      }
+      operands.push_back(int_val->getZExtValue());
+    }
+
+    uint64_t const source_arg_no = operands.at(0);
+    if (m_harvest_dwarf_param_locs && source_arg_no != 0) {
+      auto const fit = m_harvest_dwarf_param_locs->find(F.getName().str());
+      if (fit != m_harvest_dwarf_param_locs->end()) {
+        unsigned const param_index = source_arg_no - 1;
+        auto const pit = fit->second.find(param_index);
+        if (pit != fit->second.end()) {
+          string const dwarf_param_name = pit->second.first;
+          string const llvm_param_name = dilocal.getName().str();
+          if (!dwarf_param_name.empty() && !llvm_param_name.empty() &&
+              dwarf_param_name != llvm_param_name) {
+            return false;
+          }
+          param_addr = pit->second.second;
+          return true;
+        }
       }
     }
 
@@ -3210,7 +3231,7 @@ sym_exec_llvm::alloca_corresponds_to_a_local_parameter(AllocaInst const& a, DILo
 }
 
 dshared_ptr<tfg_llvm_t>
-sym_exec_llvm::get_tfg(llvm::Function& F, llvm::Module const *M, string const &name, context *ctx, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, bool model_llvm_semantics, map<llvm_value_id_t, string_ref>* value_to_name_map, map<shared_ptr<tfg_edge const>, Instruction const*>& eimap, map<string, value_scev_map_t> const& scev_map, string const& srcdst_keyword, dshared_ptr<ll_filename_parsed_t> const& ll_filename_parsed, points_to_algo_t const& points_to_algo, context::xml_output_format_t xml_output_format, compiler_id_t const dst_compiler)
+sym_exec_llvm::get_tfg(llvm::Function& F, llvm::Module const *M, string const &name, context *ctx, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, bool model_llvm_semantics, map<llvm_value_id_t, string_ref>* value_to_name_map, map<shared_ptr<tfg_edge const>, Instruction const*>& eimap, map<string, value_scev_map_t> const& scev_map, string const& srcdst_keyword, dshared_ptr<ll_filename_parsed_t> const& ll_filename_parsed, points_to_algo_t const& points_to_algo, context::xml_output_format_t xml_output_format, compiler_id_t const dst_compiler, harvest_dwarf_param_loc_map_t const* harvest_dwarf_param_locs)
 {
   autostop_timer func_timer(__func__);
 
@@ -3218,7 +3239,7 @@ sym_exec_llvm::get_tfg(llvm::Function& F, llvm::Module const *M, string const &n
   unsigned pointer_size = dl.getPointerSize();
   //cout << __func__ << " " << __LINE__ << ": pointer_size = " << pointer_size << endl;
   ASSERT(pointer_size == DWORD_LEN/BYTE_LEN || pointer_size == QWORD_LEN/BYTE_LEN);
-  auto se = sym_exec_llvm::create_sym_exec_llvm(ctx, M, F, src_llvm_tfg, BYTE_LEN, pointer_size * BYTE_LEN, srcdst_keyword, dst_compiler);
+  auto se = sym_exec_llvm::create_sym_exec_llvm(ctx, M, F, src_llvm_tfg, BYTE_LEN, pointer_size * BYTE_LEN, srcdst_keyword, dst_compiler, harvest_dwarf_param_locs);
 
   list<string> sorted_bbl_indices;
   for (BasicBlock const& BB: F) {
@@ -4577,7 +4598,7 @@ sym_exec_llvm::sym_exec_populate_potential_scev_relations(Module* M, string cons
 }
 
 dshared_ptr<ftmap_t>
-sym_exec_llvm::sym_exec_get_function_tfg_map(Module* M, set<string> FunNamesVec/*, bool DisableModelingOfUninitVarUB*/, context* ctx, dshared_ptr<llptfg_t const> const& src_llptfg, bool gen_scev, bool model_llvm_semantics, bool always_use_call_context_any, string const& ll_filename, points_to_algo_t const& points_to_algo, map<llvm_value_id_t, string_ref>* value_to_name_map, context::xml_output_format_t xml_output_format, compiler_id_t const dst_compiler)
+sym_exec_llvm::sym_exec_get_function_tfg_map(Module* M, set<string> FunNamesVec/*, bool DisableModelingOfUninitVarUB*/, context* ctx, dshared_ptr<llptfg_t const> const& src_llptfg, bool gen_scev, bool model_llvm_semantics, bool always_use_call_context_any, string const& ll_filename, points_to_algo_t const& points_to_algo, map<llvm_value_id_t, string_ref>* value_to_name_map, context::xml_output_format_t xml_output_format, compiler_id_t const dst_compiler, harvest_dwarf_param_loc_map_t const* harvest_dwarf_param_locs)
 {
   //map<string, pair<callee_summary_t, dshared_ptr<tfg_llvm_t>>> function_tfg_map;
   map<call_context_ref, dshared_ptr<tfg_ssa_t>> function_tfg_map;
@@ -4641,7 +4662,7 @@ sym_exec_llvm::sym_exec_get_function_tfg_map(Module* M, set<string> FunNamesVec/
     DYN_DEBUG(llvm2tfg, cout << __func__ << " " << __LINE__ << ": Doing " << fname << endl; cout.flush());
     map<shared_ptr<tfg_edge const>, Instruction const*> eimap;
 
-    dshared_ptr<tfg_llvm_t> t_src = sym_exec_llvm::get_tfg(f, M, fname, ctx, src_llvm_tfg, model_llvm_semantics, value_to_name_map, eimap, scev_map, srcdst_keyword, ll_filename_parsed, points_to_algo, xml_output_format, dst_compiler);
+    dshared_ptr<tfg_llvm_t> t_src = sym_exec_llvm::get_tfg(f, M, fname, ctx, src_llvm_tfg, model_llvm_semantics, value_to_name_map, eimap, scev_map, srcdst_keyword, ll_filename_parsed, points_to_algo, xml_output_format, dst_compiler, harvest_dwarf_param_locs);
 
     MSGS("Converted LLVM IR bitcode to Transfer Function Graph (TFG) for function " << fname);
 
