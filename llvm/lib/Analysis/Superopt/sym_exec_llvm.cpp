@@ -3141,37 +3141,25 @@ sym_exec_llvm::alloca_corresponds_to_a_local_parameter(AllocaInst const& a, DILo
       NOT_IMPLEMENTED();
     }
 
-    if (kind->getString() == "preamble") {
-      if (metadata->getNumOperands() != 1) {
-        errs() << "invalid preamble parameter alloca metadata on: " << a
-               << '\n';
-        NOT_IMPLEMENTED();
-      }
-      return false;
-    }
-
-    if (kind->getString() != "argument" ||
-        metadata->getNumOperands() != 2) {
+    if (kind->getString() != "param" ||
+        metadata->getNumOperands() != 4) {
       errs() << "invalid parameter alloca metadata on: " << a << '\n';
       NOT_IMPLEMENTED();
     }
 
-    auto const* arg_index_md =
-        dyn_cast<ConstantAsMetadata>(metadata->getOperand(1));
-    auto const* arg_index =
-        arg_index_md ? dyn_cast<ConstantInt>(arg_index_md->getValue())
-                     : nullptr;
-    if (!arg_index || arg_index->getValue().getActiveBits() > 32 ||
-        arg_index->getZExtValue() >= F.arg_size()) {
-      errs() << "invalid argument index in parameter alloca metadata on: "
-             << a << '\n';
-      NOT_IMPLEMENTED();
+    for (unsigned I = 1; I != 4; ++I) {
+      auto const* int_md =
+          dyn_cast<ConstantAsMetadata>(metadata->getOperand(I));
+      auto const* int_val =
+          int_md ? dyn_cast<ConstantInt>(int_md->getValue()) : nullptr;
+      if (!int_val || int_val->getValue().getActiveBits() > 32) {
+        errs() << "invalid integer operand in parameter alloca metadata on: "
+               << a << '\n';
+        NOT_IMPLEMENTED();
+      }
     }
 
-    graph_arg_id_t argnum = arg_index->getZExtValue();
-    param_addr = t.get_argument_regs().addr_at(
-        mk_string_ref(graph_arg_regs_t::get_argname_from_argnum(argnum)));
-    return true;
+    return false;
   }
 
   // Non-Clang compilers always use the parameter address. Retain their
