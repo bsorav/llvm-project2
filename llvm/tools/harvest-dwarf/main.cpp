@@ -4,6 +4,7 @@
 #include "llvm/DebugInfo/DWARF/DWARFExpression.h"
 #include "llvm/DebugInfo/DIContext.h"
 #include "llvm/DebugInfo/DWARF/DWARFContext.h"
+#include "llvm/DebugInfo/DWARF/DWARFDebugLoc.h"
 #include "llvm/Object/Archive.h"
 #include "llvm/Object/ObjectFile.h"
 #include "llvm/Support/CommandLine.h"
@@ -20,6 +21,7 @@
 #include "llvm/Support/FormatVariadic.h"
 
 #include <cstdlib>
+#include <optional>
 
 #include "support/stdafx.h"
 
@@ -57,15 +59,17 @@ static void error(StringRef Prefix, std::error_code EC) {
 
 using HandlerFn = std::function<bool(ObjectFile &, DWARFContext &DICtx,
                                      const Twine &, raw_ostream &)>;
+using LocExpr = std::tuple<uint64_t, uint64_t, eqspace::expr_ref>;
+using NamedLocExprs = pair<std::string, std::vector<LocExpr>>;
 
 class DWARFExpression_to_eqspace_expr
 {
 public:
-  DWARFExpression_to_eqspace_expr(DWARFExpression const& expr, eqspace::expr_ref const& frame_base, raw_ostream& OS)
+  DWARFExpression_to_eqspace_expr(DWARFExpression const& expr, unsigned AddressSize, eqspace::expr_ref const& frame_base, raw_ostream& OS)
   : m_dwarf_expr(expr),
     m_frame_base(frame_base),
     m_OS(OS),
-    m_bvsort_size(m_dwarf_expr.getAddressSize()*8),
+    m_bvsort_size(AddressSize*8),
     m_memvar(g_ctx->mk_var(G_SOLVER_DST_MEM_NAME, g_ctx->mk_array_sort(g_ctx->mk_bv_sort(DWORD_LEN), g_ctx->mk_bv_sort(BYTE_LEN)))),
     m_mem_allocvar(g_ctx->mk_var(string(G_SOLVER_DST_MEM_NAME "." G_ALLOC_SYMBOL), g_ctx->mk_array_sort(g_ctx->mk_bv_sort(DWORD_LEN), g_ctx->mk_memlabel_sort())))
     //m_mem_allocvar(get_corresponding_mem_alloc_from_mem_expr(m_memvar))
@@ -80,7 +84,7 @@ public:
 private:
 
   eqspace::expr_ref convert();
-  bool handle_op(DWARFExpression::Operation &op);
+  bool handle_op(DWARFExpression::Operation const& op);
 
   eqspace::expr_ref dwarf_reg_to_var(unsigned dwarfregnum) const;
   eqspace::expr_ref signed_const_to_bvconst(int64_t cval) const;
@@ -128,7 +132,7 @@ DWARFExpression_to_eqspace_expr::dump_stack_and_expr() const
       m_OS << eqspace::expr_string(v) << " ";
     }
     m_OS << "\nDWARFExpression = ";
-    m_dwarf_expr.print(m_OS, nullptr, nullptr);
+    m_dwarf_expr.print(m_OS, DIDumpOptions(), nullptr);
     m_OS << '\n';
 }
 
@@ -151,7 +155,7 @@ DWARFExpression_to_eqspace_expr::dwarf_reg_to_var(unsigned dwarfregnum) const
       NOT_IMPLEMENTED();
     }
   } else {
-    m_OS << format("\nregister mapping not defined for address size %d\n", m_dwarf_expr.getAddressSize());
+    m_OS << format("\nregister mapping not defined for address size %d\n", m_bvsort_size / 8);
     m_OS.flush();
     NOT_IMPLEMENTED();
   }
@@ -170,7 +174,7 @@ DWARFExpression_to_eqspace_expr::unsigned_const_to_bvconst(uint64_t cval) const
 }
 
 bool
-DWARFExpression_to_eqspace_expr::handle_op(DWARFExpression::Operation &op)
+DWARFExpression_to_eqspace_expr::handle_op(DWARFExpression::Operation const& op)
 {
   if (op.isError()) {
     llvm_unreachable("decoding error");
@@ -388,9 +392,11 @@ DWARFExpression_to_eqspace_expr::handle_op(DWARFExpression::Operation &op)
 }
 
 static eqspace::expr_ref
-dwarf_expr_to_expr(DWARFExpression const& dwarf_expr, eqspace::expr_ref const& frame_base, raw_ostream& OS)
+dwarf_expr_to_expr(DWARFExpression const& dwarf_expr, unsigned AddressSize,
+                   eqspace::expr_ref const& frame_base, raw_ostream& OS)
 {
-  DWARFExpression_to_eqspace_expr dexpr2expr(dwarf_expr, frame_base, OS);
+  DWARFExpression_to_eqspace_expr dexpr2expr(dwarf_expr, AddressSize,
+                                             frame_base, OS);
   return dexpr2expr.get_result();
 }
 
@@ -405,34 +411,35 @@ public:
   }
 
   std::string get_name() const { return this->m_name; }
-  std::list<pair<std::string, std::vector<std::tuple<uint64_t,uint64_t,eqspace::expr_ref>>>> get_locals() const { return this->m_locals; }
+  std::list<NamedLocExprs> get_locals() const { return this->m_locals; }
+  std::list<NamedLocExprs> get_params() const { return this->m_params; }
 
 private:
   void visit_die(DWARFDie const& die);
-  llvm::Optional<std::tuple<uint64_t,uint64_t,eqspace::expr_ref>> handle_location_list(DWARFLocationTable const& location_table, uint64_t Offset, llvm::Optional<SectionedAddress> BaseAddr, DWARFUnit *U);
+  std::optional<LocExpr> handle_location_list(DWARFLocationTable const& location_table, uint64_t Offset, std::optional<SectionedAddress> BaseAddr, DWARFUnit *U);
 
   raw_ostream& m_OS;
 
   std::string m_name;
   eqspace::expr_ref m_frame_base;
   std::stack<pair<uint64_t,uint64_t>> m_addr_ranges;
-  std::list<pair<std::string, std::vector<std::tuple<uint64_t,uint64_t,eqspace::expr_ref>>>> m_locals;
+  std::list<NamedLocExprs> m_locals;
+  std::list<NamedLocExprs> m_params;
 };
 
-llvm::Optional<std::tuple<uint64_t,uint64_t,eqspace::expr_ref>>
+std::optional<LocExpr>
 SubprogramLocalsHarvester::handle_location_list(DWARFLocationTable const& location_table,
 										                            uint64_t Offset,
-                                                llvm::Optional<SectionedAddress> BaseAddr,
+                                                std::optional<SectionedAddress> BaseAddr,
                                                 DWARFUnit *U)
 {
 	assert(U);
-  auto const& DataEx = location_table.getDataExtractor();
   bool first_only = true; // consider only the first element of the location list
-  std::vector<std::tuple<uint64_t,uint64_t,eqspace::expr_ref>> loc_exprs;
+  std::vector<LocExpr> loc_exprs;
   Error E = location_table.visitAbsoluteLocationList(Offset, BaseAddr,
-    [U](uint32_t Index) -> llvm::Optional<SectionedAddress>
+    [U](uint32_t Index) -> std::optional<SectionedAddress>
     { return U->getAddrOffsetSectionItem(Index); },
-    [&DataEx,first_only,&loc_exprs,this](llvm::Expected<DWARFLocationExpression> Loc) -> bool
+    [U,first_only,&loc_exprs,this](llvm::Expected<DWARFLocationExpression> Loc) -> bool
     {
       if (!Loc) {
         consumeError(Loc.takeError());
@@ -440,20 +447,23 @@ SubprogramLocalsHarvester::handle_location_list(DWARFLocationTable const& locati
       }
       uint64_t lpc, hpc;
       if (Loc->Range) {
-        DWARFAddressRange const& addr_range = Loc->Range.getValue();
+        DWARFAddressRange const& addr_range = *Loc->Range;
         lpc = addr_range.LowPC;
         hpc = addr_range.HighPC;
       } else {
         lpc = hpc = 0;
       }
-  		DWARFDataExtractor Extractor(Loc->Expr, DataEx.isLittleEndian(), DataEx.getAddressSize());
-			auto dwarf_expr = DWARFExpression(Extractor, DataEx.getAddressSize());
-      eqspace::expr_ref ret = dwarf_expr_to_expr(dwarf_expr, this->m_frame_base, this->m_OS);
+  		DWARFDataExtractor Extractor(Loc->Expr, U->getContext().isLittleEndian(), U->getAddressByteSize());
+			auto dwarf_expr = DWARFExpression(Extractor, U->getAddressByteSize());
+      eqspace::expr_ref ret = dwarf_expr_to_expr(dwarf_expr,
+                                                 U->getAddressByteSize(),
+                                                 this->m_frame_base,
+                                                 this->m_OS);
 			loc_exprs.push_back(make_tuple(lpc, hpc, ret));
 			return !first_only;
    	});
   if (E) {
-    return llvm::None;
+    return std::nullopt;
   }
   return loc_exprs.front();
 }
@@ -489,11 +499,12 @@ SubprogramLocalsHarvester::visit_die(DWARFDie const& die)
 
   auto tag = AbbrevDecl->getTag();
   if (   (   tag == dwarf::DW_TAG_variable
+          || tag == dwarf::DW_TAG_formal_parameter
           || tag == dwarf::DW_TAG_lexical_block) // for lexical blocks we only handle the single address and contiguous address range
       || die.isSubprogramDIE()
      ) {
     std::string name;
-    std::vector<std::tuple<uint64_t,uint64_t,eqspace::expr_ref>> loc_exprs;
+    std::vector<LocExpr> loc_exprs;
     uint64_t low_pc = 0, high_pc = 0;
     bool low_high_pcs_are_set = false;
     bool high_pc_is_offset = false;
@@ -518,20 +529,22 @@ SubprogramLocalsHarvester::visit_die(DWARFDie const& die)
     			  ArrayRef<uint8_t> Expr = *FormValue.getAsBlock();
     			  DataExtractor Data(StringRef((const char *)Expr.data(), Expr.size()), Ctx.isLittleEndian(), 0);
     			  auto dwarf_expr = DWARFExpression(Data, U->getAddressByteSize());
-            this->m_frame_base = dwarf_expr_to_expr(dwarf_expr, nullptr, this->m_OS);
+            this->m_frame_base = dwarf_expr_to_expr(dwarf_expr,
+                                                    U->getAddressByteSize(),
+                                                    nullptr, this->m_OS);
   			  } else { assert(0 && "non-exprloc forms not supported for DW_AT_frame_base"); }
           break;
     	  case dwarf::DW_AT_low_pc:
-          if (llvm::Optional<uint64_t> addr = FormValue.getAsAddress()) {
-            low_pc = addr.getValue();
+          if (std::optional<uint64_t> addr = FormValue.getAsAddress()) {
+            low_pc = *addr;
           } else { assert(0 && "unable to decode DW_AT_low_pc"); }
           low_high_pcs_are_set = true;
     	    break;
     	  case dwarf::DW_AT_high_pc:
-          if (llvm::Optional<uint64_t> addr = FormValue.getAsAddress()) {
-            high_pc = addr.getValue();
-          } else if (llvm::Optional<uint64_t> offset = FormValue.getAsUnsignedConstant()) {
-            high_pc = offset.getValue();
+          if (std::optional<uint64_t> addr = FormValue.getAsAddress()) {
+            high_pc = *addr;
+          } else if (std::optional<uint64_t> offset = FormValue.getAsUnsignedConstant()) {
+            high_pc = *offset;
             high_pc_is_offset = true;
           } else {
     	      this->m_OS << "\t" << formatv("{0} [{1}]", Attr, Form) << " ";
@@ -540,8 +553,8 @@ SubprogramLocalsHarvester::visit_die(DWARFDie const& die)
           low_high_pcs_are_set = true;
     	    break;
     	  case dwarf::DW_AT_name:
-    	    if (llvm::Optional<const char*> cstr = dwarf::toString(FormValue)) {
-    	      name = cstr.getValue();
+    	    if (std::optional<const char*> cstr = dwarf::toString(FormValue)) {
+    	      name = *cstr;
           } else {
     	      this->m_OS << formatv("{0}: {1} [{2}]", tag, Attr, Form) << " ";
     	      if (tag == dwarf::DW_TAG_subprogram) {
@@ -556,7 +569,10 @@ SubprogramLocalsHarvester::visit_die(DWARFDie const& die)
     			  ArrayRef<uint8_t> Expr = *FormValue.getAsBlock();
     			  DataExtractor Data(StringRef((const char *)Expr.data(), Expr.size()), Ctx.isLittleEndian(), 0);
     			  auto dwarf_expr = DWARFExpression(Data, U->getAddressByteSize());
-            eqspace::expr_ref ret = dwarf_expr_to_expr(dwarf_expr, this->m_frame_base, this->m_OS);
+            eqspace::expr_ref ret = dwarf_expr_to_expr(dwarf_expr,
+                                                       U->getAddressByteSize(),
+                                                       this->m_frame_base,
+                                                       this->m_OS);
 					  assert(this->m_addr_ranges.size());
 					  low_pc  = this->m_addr_ranges.top().first;
 					  high_pc = this->m_addr_ranges.top().second;
@@ -572,9 +588,9 @@ SubprogramLocalsHarvester::visit_die(DWARFDie const& die)
 						    continue;
 					    }
     			  }
-            llvm::Optional<std::tuple<uint64_t,uint64_t,eqspace::expr_ref>> loc_expr = handle_location_list(U->getLocationTable(), Offset, U->getBaseAddress(), U);
+            std::optional<LocExpr> loc_expr = handle_location_list(U->getLocationTable(), Offset, U->getBaseAddress(), U);
 					  assert(loc_expr);
-					  loc_exprs.push_back(loc_expr.getValue());
+					  loc_exprs.push_back(*loc_expr);
       	  } else { llvm_unreachable("unhandled location type"); }
       	  break;
       	}
@@ -589,6 +605,10 @@ SubprogramLocalsHarvester::visit_die(DWARFDie const& die)
       //for (auto const& l : loc_exprs) this->m_OS << formatv("[{1}, {2}] {3}; ", get<0>(l), get<1>(l), expr_string(get<2>(l)));
       //this->m_OS << '\n';
   	  this->m_locals.push_back(make_pair(name, loc_exprs));
+  	}
+    if (   tag == dwarf::DW_TAG_formal_parameter
+        && loc_exprs.size()) {
+  	  this->m_params.push_back(make_pair(name, loc_exprs));
   	}
     if (   die.isSubprogramDIE()
         && this->m_name.empty()) {
@@ -614,7 +634,7 @@ SubprogramLocalsHarvester::visit_die(DWARFDie const& die)
 
 static void
 populate_function_to_variable_to_expr_map(DWARFDie const& die,
-                                               std::list<pair<std::string, std::list<pair<std::string, std::vector<std::tuple<uint64_t,uint64_t,eqspace::expr_ref>>>>>>& ret_map,
+                                               std::list<pair<std::string, pair<std::list<NamedLocExprs>, std::list<NamedLocExprs>>>>& ret_map,
                                                raw_ostream& OS)
 {
   if (!die.isValid()) {
@@ -625,8 +645,11 @@ populate_function_to_variable_to_expr_map(DWARFDie const& die,
   if (die.isSubprogramDIE()) {
     SubprogramLocalsHarvester subprogram_harvester(die, OS);
     auto subprogram_locals = subprogram_harvester.get_locals();
-    if (subprogram_locals.size())
-      ret_map.push_back(make_pair(subprogram_harvester.get_name(), subprogram_locals));
+    auto subprogram_params = subprogram_harvester.get_params();
+    if (subprogram_locals.size() || subprogram_params.size())
+      ret_map.push_back(make_pair(subprogram_harvester.get_name(),
+                                  make_pair(subprogram_locals,
+                                            subprogram_params)));
   }
 
 	for (auto child : die.children()) {
@@ -637,11 +660,7 @@ populate_function_to_variable_to_expr_map(DWARFDie const& die,
 static bool dumpObjectFile(ObjectFile &Obj, DWARFContext &DICtx,
                            const Twine &Filename, raw_ostream &OS)
 {
-  logAllUnhandledErrors(DICtx.loadRegisterInfo(Obj), errs(),
-                        Filename.str() + ": ");
-
-
-  std::list<pair<std::string, std::list<pair<std::string, std::vector<std::tuple<uint64_t,uint64_t,eqspace::expr_ref>>>>>> ret_map;
+  std::list<pair<std::string, pair<std::list<NamedLocExprs>, std::list<NamedLocExprs>>>> ret_map;
   for (auto const& unit : DICtx.info_section_units()) {
     if (DWARFDie CUDie = unit->getUnitDIE(false)) {
       populate_function_to_variable_to_expr_map(CUDie, ret_map, OS);
@@ -650,13 +669,25 @@ static bool dumpObjectFile(ObjectFile &Obj, DWARFContext &DICtx,
 
   for (auto const& p : ret_map) {
     auto const& name    = p.first;
-    auto const& varlist = p.second;
-    if (varlist.size()) {
+    auto const& varlist = p.second.first;
+    auto const& params  = p.second.second;
+    if (varlist.size() || params.size()) {
       OS << formatv("=SubprogramBegin: {0}\n", name);
   	  for (auto const& pp : varlist) {
   	    auto const& vname     = pp.first;
   	    auto const& loc_exprs = pp.second;
   	    OS << "=VarName: " << vname << "\n";
+  	    for (auto const& loc_expr : loc_exprs) {
+  	      OS << format("=LocRange\n0x%" PRIx64 " 0x%" PRIx64 "\n", get<0>(loc_expr) , get<1>(loc_expr));
+  	      OS << formatv("=Expr\n{0}\n", g_ctx->expr_to_string_table(get<2>(loc_expr)));
+  	    }
+  	  }
+  	  unsigned ArgNo = 0;
+  	  for (auto const& pp : params) {
+  	    auto const& pname     = pp.first;
+  	    auto const& loc_exprs = pp.second;
+  	    OS << "=ParamName: " << pname << "\n";
+  	    OS << "=ParamIndex: " << ArgNo++ << "\n";
   	    for (auto const& loc_expr : loc_exprs) {
   	      OS << format("=LocRange\n0x%" PRIx64 " 0x%" PRIx64 "\n", get<0>(loc_expr) , get<1>(loc_expr));
   	      OS << formatv("=Expr\n{0}\n", g_ctx->expr_to_string_table(get<2>(loc_expr)));
@@ -681,17 +712,17 @@ static bool handleBuffer(StringRef Filename, MemoryBufferRef Buffer,
   };
   if (auto *Obj = dyn_cast<ObjectFile>(BinOrErr->get())) {
     unsigned pointer_size = Obj->getBytesInAddress();
-    /*
     if (pointer_size == DWORD_LEN/BYTE_LEN) {
-      g_ctx->set_addr_size(DWORD_LEN);
+      g_ctx_init(DWORD_LEN);
     } else if (pointer_size == QWORD_LEN/BYTE_LEN) {
-      g_ctx->set_addr_size(QWORD_LEN);
+      g_ctx_init(QWORD_LEN);
     } else {
       NOT_REACHED();
     }
-    */
     std::unique_ptr<DWARFContext> DICtx =
-      DWARFContext::create(*Obj, nullptr, "", RecoverableErrorHandler);
+      DWARFContext::create(*Obj,
+                           DWARFContext::ProcessDebugRelocations::Process,
+                           nullptr, "", RecoverableErrorHandler);
     if (!HandleObj(*Obj, *DICtx, Filename, OS))
       Result = false;
   }
@@ -710,8 +741,6 @@ static bool handleFile(StringRef Filename, HandlerFn HandleObj,
 
 int main(int argc, char **argv)
 {
-  g_ctx_init(false);
-
   InitLLVM X(argc, argv);
 
   llvm::InitializeAllTargetInfos();
