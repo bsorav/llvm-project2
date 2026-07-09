@@ -3233,6 +3233,9 @@ public:
     llvm::Value *Value;
     llvm::Type *ElementType;
     unsigned Alignment;
+    unsigned FirstIRArg = 0;
+    unsigned NumIRArgs = 0;
+    bool HasIRArgs = false;
     ParamValue(llvm::Value *V, llvm::Type *T, unsigned A)
         : Value(V), ElementType(T), Alignment(A) {}
   public:
@@ -3244,8 +3247,24 @@ public:
       return ParamValue(addr.getPointer(), addr.getElementType(),
                         addr.getAlignment().getQuantity());
     }
+    ParamValue withIRArgs(unsigned First, unsigned Count) const {
+      ParamValue Ret = *this;
+      Ret.FirstIRArg = First;
+      Ret.NumIRArgs = Count;
+      Ret.HasIRArgs = true;
+      return Ret;
+    }
 
     bool isIndirect() const { return Alignment != 0; }
+    bool hasIRArgs() const { return HasIRArgs; }
+    unsigned getFirstIRArg() const {
+      assert(hasIRArgs());
+      return FirstIRArg;
+    }
+    unsigned getNumIRArgs() const {
+      assert(hasIRArgs());
+      return NumIRArgs;
+    }
     llvm::Value *getAnyValue() const { return Value; }
 
     llvm::Value *getDirectValue() const {

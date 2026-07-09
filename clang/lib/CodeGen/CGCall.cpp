@@ -2999,6 +2999,9 @@ void CodeGenFunction::EmitFunctionProlog(const CGFunctionInfo &FI,
 
     unsigned FirstIRArg, NumIRArgs;
     std::tie(FirstIRArg, NumIRArgs) = IRFunctionArgs.getIRArgs(ArgNo);
+    auto PushArgValue = [&](ParamValue V) {
+      ArgVals.push_back(V.withIRArgs(FirstIRArg, NumIRArgs));
+    };
 
     switch (ArgI.getKind()) {
     case ABIArgInfo::InAlloca: {
@@ -3009,7 +3012,7 @@ void CodeGenFunction::EmitFunctionProlog(const CGFunctionInfo &FI,
       if (ArgI.getInAllocaIndirect())
         V = Address(Builder.CreateLoad(V), ConvertTypeForMem(Ty),
                     getContext().getTypeAlignInChars(Ty));
-      ArgVals.push_back(ParamValue::forIndirect(V));
+      PushArgValue(ParamValue::forIndirect(V));
       break;
     }
 
@@ -3040,7 +3043,7 @@ void CodeGenFunction::EmitFunctionProlog(const CGFunctionInfo &FI,
               llvm::ConstantInt::get(IntPtrTy, Size.getQuantity()));
           V = AlignedTemp;
         }
-        ArgVals.push_back(ParamValue::forIndirect(V));
+        PushArgValue(ParamValue::forIndirect(V));
       } else {
         // Load scalar value from indirect argument.
         llvm::Value *V =
@@ -3048,7 +3051,7 @@ void CodeGenFunction::EmitFunctionProlog(const CGFunctionInfo &FI,
 
         if (isPromoted)
           V = emitArgumentDemotion(*this, Arg, V);
-        ArgVals.push_back(ParamValue::forDirect(V));
+        PushArgValue(ParamValue::forDirect(V));
       }
       break;
     }
@@ -3183,7 +3186,7 @@ void CodeGenFunction::EmitFunctionProlog(const CGFunctionInfo &FI,
         if (V->getType() != LTy)
           V = Builder.CreateBitCast(V, LTy);
 
-        ArgVals.push_back(ParamValue::forDirect(V));
+        PushArgValue(ParamValue::forDirect(V));
         break;
       }
 
@@ -3209,7 +3212,7 @@ void CodeGenFunction::EmitFunctionProlog(const CGFunctionInfo &FI,
 
             assert(NumIRArgs == 1);
             Coerced->setName(Arg->getName() + ".coerce");
-            ArgVals.push_back(ParamValue::forDirect(Builder.CreateExtractVector(
+            PushArgValue(ParamValue::forDirect(Builder.CreateExtractVector(
                 VecTyTo, Coerced, Zero, "cast.fixed")));
             break;
           }
@@ -3286,9 +3289,9 @@ void CodeGenFunction::EmitFunctionProlog(const CGFunctionInfo &FI,
             EmitLoadOfScalar(Alloca, false, Ty, Arg->getBeginLoc());
         if (isPromoted)
           V = emitArgumentDemotion(*this, Arg, V);
-        ArgVals.push_back(ParamValue::forDirect(V));
+        PushArgValue(ParamValue::forDirect(V));
       } else {
-        ArgVals.push_back(ParamValue::forIndirect(Alloca));
+        PushArgValue(ParamValue::forIndirect(Alloca));
       }
       break;
     }
@@ -3296,7 +3299,7 @@ void CodeGenFunction::EmitFunctionProlog(const CGFunctionInfo &FI,
     case ABIArgInfo::CoerceAndExpand: {
       // Reconstruct into a temporary.
       Address alloca = CreateMemTemp(Ty, getContext().getDeclAlign(Arg));
-      ArgVals.push_back(ParamValue::forIndirect(alloca));
+      PushArgValue(ParamValue::forIndirect(alloca));
 
       auto coercionType = ArgI.getCoerceAndExpandType();
       alloca = alloca.withElementType(coercionType);
@@ -3321,7 +3324,7 @@ void CodeGenFunction::EmitFunctionProlog(const CGFunctionInfo &FI,
       // arguments.
       Address Alloca = CreateMemTemp(Ty, getContext().getDeclAlign(Arg));
       LValue LV = MakeAddrLValue(Alloca, Ty);
-      ArgVals.push_back(ParamValue::forIndirect(Alloca));
+      PushArgValue(ParamValue::forIndirect(Alloca));
 
       auto FnArgIter = Fn->arg_begin() + FirstIRArg;
       ExpandTypeFromArgs(Ty, LV, FnArgIter);
@@ -3337,10 +3340,10 @@ void CodeGenFunction::EmitFunctionProlog(const CGFunctionInfo &FI,
       assert(NumIRArgs == 0);
       // Initialize the local variable appropriately.
       if (!hasScalarEvaluationKind(Ty)) {
-        ArgVals.push_back(ParamValue::forIndirect(CreateMemTemp(Ty)));
+        PushArgValue(ParamValue::forIndirect(CreateMemTemp(Ty)));
       } else {
         llvm::Value *U = llvm::UndefValue::get(ConvertType(Arg->getType()));
-        ArgVals.push_back(ParamValue::forDirect(U));
+        PushArgValue(ParamValue::forDirect(U));
       }
       break;
     }

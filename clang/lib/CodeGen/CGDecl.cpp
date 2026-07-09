@@ -2494,9 +2494,11 @@ namespace {
   }
 
   static void emitSuperoptParameterAllocaMetadata(
-      CodeGenFunction &CGF, Address AllocaPtr,
-      std::optional<unsigned> ArgumentIndex) {
+      CodeGenFunction &CGF, Address AllocaPtr, unsigned SourceArgNo,
+      CodeGenFunction::ParamValue Arg) {
     if (!shouldEmitSuperoptParameterAllocaMetadata(CGF))
+      return;
+    if (!Arg.hasIRArgs())
       return;
 
     auto *Alloca = dyn_cast<llvm::AllocaInst>(AllocaPtr.getPointer());
@@ -2504,15 +2506,15 @@ namespace {
       return;
 
     llvm::LLVMContext &Ctx = CGF.getLLVMContext();
-    llvm::SmallVector<llvm::Metadata *, 2> Operands;
-    if (ArgumentIndex) {
-      Operands.push_back(llvm::MDString::get(Ctx, "argument"));
-      Operands.push_back(llvm::ConstantAsMetadata::get(
-          llvm::ConstantInt::get(llvm::Type::getInt32Ty(Ctx),
-                                 *ArgumentIndex)));
-    } else {
-      Operands.push_back(llvm::MDString::get(Ctx, "preamble"));
-    }
+    llvm::Type *Int32Ty = llvm::Type::getInt32Ty(Ctx);
+    llvm::SmallVector<llvm::Metadata *, 4> Operands;
+    Operands.push_back(llvm::MDString::get(Ctx, "param"));
+    Operands.push_back(llvm::ConstantAsMetadata::get(
+        llvm::ConstantInt::get(Int32Ty, SourceArgNo)));
+    Operands.push_back(llvm::ConstantAsMetadata::get(
+        llvm::ConstantInt::get(Int32Ty, Arg.getFirstIRArg())));
+    Operands.push_back(llvm::ConstantAsMetadata::get(
+        llvm::ConstantInt::get(Int32Ty, Arg.getNumIRArgs())));
     Alloca->setMetadata(SuperoptParameterAllocaMD,
                         llvm::MDNode::get(Ctx, Operands));
   }
@@ -2540,7 +2542,6 @@ namespace {
 void CodeGenFunction::EmitParmDecl(const VarDecl &D, ParamValue Arg,
                                    unsigned ArgNo) {
   bool NoDebugInfo = false;
-  std::optional<unsigned> SuperoptArgumentIndex;
   // FIXME: Why isn't ImplicitParamDecl a ParmVarDecl?
   assert((isa<ParmVarDecl>(D) || isa<ImplicitParamDecl>(D)) &&
          "Invalid argument to EmitParmDecl");
@@ -2595,8 +2596,6 @@ void CodeGenFunction::EmitParmDecl(const VarDecl &D, ParamValue Arg,
       AllocaPtr = CreateMemTemp(PtrTy, getContext().getTypeAlignInChars(PtrTy),
                                 D.getName() + ".indirect_addr");
       EmitStoreOfScalar(V, AllocaPtr, /* Volatile */ false, PtrTy);
-      if (auto *A = dyn_cast<llvm::Argument>(V->stripPointerCasts()))
-        SuperoptArgumentIndex = A->getArgNo();
     }
 
     auto SrcLangAS = getLangOpts().OpenCL ? LangAS::opencl_private : AllocaAS;
@@ -2709,13 +2708,10 @@ void CodeGenFunction::EmitParmDecl(const VarDecl &D, ParamValue Arg,
   // Store the initial value into the alloca.
   if (DoStore) {
     EmitStoreOfScalar(ArgVal, lv, /* isInitialization */ true);
-    if (auto *A = dyn_cast<llvm::Argument>(ArgVal->stripPointerCasts()))
-      SuperoptArgumentIndex = A->getArgNo();
   }
 
   setAddrOfLocalVar(&D, DeclPtr);
-  emitSuperoptParameterAllocaMetadata(*this, AllocaPtr,
-                                      SuperoptArgumentIndex);
+  emitSuperoptParameterAllocaMetadata(*this, AllocaPtr, ArgNo, Arg);
 
   // Emit debug info for param declarations in non-thunk functions.
   if (CGDebugInfo *DI = getDebugInfo()) {
