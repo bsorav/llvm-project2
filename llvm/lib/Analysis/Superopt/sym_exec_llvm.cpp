@@ -3172,9 +3172,18 @@ sym_exec_llvm::alloca_corresponds_to_a_local_parameter(AllocaInst const& a, DILo
           string const llvm_param_name = dilocal.getName().str();
           if (!dwarf_param_name.empty() && !llvm_param_name.empty() &&
               dwarf_param_name != llvm_param_name) {
+            DYN_DEBUG(harvest_dwarf,
+              errs() << "Ignoring DWARF parameter location for " << F.getName()
+                     << " argument " << source_arg_no << ": DWARF name '"
+                     << dwarf_param_name << "' does not match LLVM name '"
+                     << llvm_param_name << "'\n");
             return false;
           }
           param_addr = pit->second.second;
+          DYN_DEBUG(harvest_dwarf,
+            errs() << "Matched clang parameter alloca " << a.getName()
+                   << " in " << F.getName() << " to DWARF argument "
+                   << source_arg_no << " location\n");
           return true;
         }
       }
