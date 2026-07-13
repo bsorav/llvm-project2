@@ -21,21 +21,21 @@ tidy:
 	run-clang-tidy -clang-tidy-binary ./build/bin/clang-tidy -p build -checks='-*,clang-analyzer-core*'
 
 LOCAL_LIT_TESTS := \
-	clang/test/Driver/borland-no-extensions.c \
-	clang/test/Preprocessor/borland-predefined-macros.c \
-	clang/test/Preprocessor/borland-windows-include-backslash.c \
-	clang/test/Preprocessor/borland-windows-include-case-insensitive.c \
-	clang/test/Preprocessor/borland-windows-include-quoted.c \
-	clang/test/Preprocessor/borland-windows-include-sysroot.c \
-	clang/test/CodeGen/superopt-parameter-alloca.c \
-	clang/test/CodeGen/statement-markers.c \
-	clang/test/Sema/borland-attribute-identifier.c \
-	clang/test/Sema/borland-int64.c \
-	clang/test/Sema/gnu-attribute-spellings.c \
-	clang-tools-extra/test/callee-rename/borland-windows-include-backslash.c \
-	clang-tools-extra/test/callee-rename/borland-windows-include-case-insensitive.c \
-	clang-tools-extra/test/callee-rename/borland-windows-include-quoted.c \
-	clang-tools-extra/test/callee-rename/borland-windows-include-sysroot.c
+	build/tools/clang/test/Driver/borland-no-extensions.c \
+	build/tools/clang/test/Preprocessor/borland-predefined-macros.c \
+	build/tools/clang/test/Preprocessor/borland-windows-include-backslash.c \
+	build/tools/clang/test/Preprocessor/borland-windows-include-case-insensitive.c \
+	build/tools/clang/test/Preprocessor/borland-windows-include-quoted.c \
+	build/tools/clang/test/Preprocessor/borland-windows-include-sysroot.c \
+	build/tools/clang/test/CodeGen/superopt-parameter-alloca.c \
+	build/tools/clang/test/CodeGen/statement-markers.c \
+	build/tools/clang/test/Sema/borland-attribute-identifier.c \
+	build/tools/clang/test/Sema/borland-int64.c \
+	build/tools/clang/test/Sema/gnu-attribute-spellings.c \
+	build/tools/clang/tools/extra/test/callee-rename/borland-windows-include-backslash.c \
+	build/tools/clang/tools/extra/test/callee-rename/borland-windows-include-case-insensitive.c \
+	build/tools/clang/tools/extra/test/callee-rename/borland-windows-include-quoted.c \
+	build/tools/clang/tools/extra/test/callee-rename/borland-windows-include-sysroot.c
 
 .PHONY: test
 test:
