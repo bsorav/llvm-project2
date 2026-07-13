@@ -57,14 +57,17 @@ expr_is_dst_gpr(context* ctx, expr_ref const& e, exreg_id_t regnum)
   return e == eqspace::state::get_dst_reg_expr(ctx, DST_EXREG_GROUP_GPRS, regnum, e->get_sort()->get_size());
 }
 
-static optional<mpz_class>
-harvest_dwarf_param_loc_get_i386_frame_offset(context* ctx, expr_ref const& e)
+static optional<pair<exreg_id_t, mpz_class>>
+harvest_dwarf_param_loc_get_i386_base_reg_offset(context* ctx, expr_ref const& e)
 {
   DYN_DEBUG2(harvest_dwarf, cout << "input e =\n"; ctx->expr_to_stream(cout, e, true) << '\n');
 
-  if (expr_is_dst_gpr(ctx, e, R_EBP)) {
-    DYN_DEBUG2(harvest_dwarf, cout << "input is just ebp\n");
-    return mpz_class(0);
+  exreg_id_t const frame_regs[] = { R_EBP, R_ESP };
+  for (exreg_id_t base_reg : frame_regs) {
+    if (expr_is_dst_gpr(ctx, e, base_reg)) {
+      DYN_DEBUG2(harvest_dwarf, cout << "input is just a frame register\n");
+      return make_pair(base_reg, mpz_class(0));
+    }
   }
 
   if (e->get_operation_kind() != expr::OP_BVADD || e->get_args().size() != 2) {
@@ -75,26 +78,35 @@ harvest_dwarf_param_loc_get_i386_frame_offset(context* ctx, expr_ref const& e)
   expr_ref const arg0 = e->get_args().at(0);
   expr_ref const arg1 = e->get_args().at(1);
 
-  expr_ref offset;
-
-  if (expr_is_dst_gpr(ctx, arg0, R_EBP) && arg1->is_const()) {
-    offset = arg1;
-  } else if (expr_is_dst_gpr(ctx, arg1, R_EBP) && arg0->is_const()) {
-    offset = arg0;
-  } else {
-    DYN_DEBUG2(harvest_dwarf, cout << "input is NOT a bvadd over ebp and a const\n");
-    return nullopt;
+  for (exreg_id_t base_reg : frame_regs) {
+    if (expr_is_dst_gpr(ctx, arg0, base_reg) && arg1->is_const()) {
+      return make_pair(base_reg, arg1->get_mybitset_value().get_signed_mpz());
+    }
+    if (expr_is_dst_gpr(ctx, arg1, base_reg) && arg0->is_const()) {
+      return make_pair(base_reg, arg0->get_mybitset_value().get_signed_mpz());
+    }
   }
 
-  return offset->get_mybitset_value().get_signed_mpz();
+  DYN_DEBUG2(harvest_dwarf, cout << "input is NOT a bvadd over ebp/esp and a const\n");
+  return nullopt;
 }
 
 static bool
 harvest_dwarf_param_loc_is_incoming_param_slot(context* ctx, expr_ref const& e,
-                                               unsigned incoming_param_slot_min_offset)
+                                               unsigned pointer_size)
 {
-  auto const op_frame_offset = harvest_dwarf_param_loc_get_i386_frame_offset(ctx, e);
-  return op_frame_offset && *op_frame_offset >= incoming_param_slot_min_offset;
+  auto const op_base_reg_offset =
+      harvest_dwarf_param_loc_get_i386_base_reg_offset(ctx, e);
+  if (!op_base_reg_offset)
+    return false;
+
+  exreg_id_t const base_reg = op_base_reg_offset->first;
+  mpz_class const& offset = op_base_reg_offset->second;
+  if (base_reg == R_EBP)
+    return offset >= 2 * pointer_size;
+  if (base_reg == R_ESP)
+    return offset >= pointer_size;
+  return false;
 }
 
 }
@@ -3240,8 +3252,7 @@ sym_exec_llvm::alloca_corresponds_to_a_local_parameter(AllocaInst const& a, DILo
             return false;
           }
           unsigned const pointer_size = get_word_length() / BYTE_LEN;
-          unsigned const incoming_param_slot_min_offset = 2 * pointer_size;
-          if (!harvest_dwarf_param_loc_is_incoming_param_slot(m_ctx, pit->second.second, incoming_param_slot_min_offset)) {
+          if (!harvest_dwarf_param_loc_is_incoming_param_slot(m_ctx, pit->second.second, pointer_size)) {
             DYN_DEBUG(harvest_dwarf,
               errs() << "Treating clang parameter alloca " << a.getName()
                      << " in " << F.getName() << " as fresh alloca because "
