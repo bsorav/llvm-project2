@@ -19,6 +19,7 @@
 #include "support/crypto.h"
 
 #include "expr/expr.h"
+#include "expr/state.h"
 
 #include "gsupport/predicate.h"
 #include "gsupport/scev.h"
@@ -48,6 +49,52 @@ callconv_is_cdecl_x86(llvm::CallInst const& c)
   llvm::Triple triple{c.getFunction()->getParent()->getTargetTriple()};
    return    c.getCallingConv() == llvm::CallingConv::C
           && triple.getArch() == Triple::x86;
+}
+
+static bool
+expr_is_dst_gpr(context* ctx, expr_ref const& e, exreg_id_t regnum)
+{
+  return e == eqspace::state::get_dst_reg_expr(ctx, DST_EXREG_GROUP_GPRS, regnum, e->get_sort()->get_size());
+}
+
+static optional<mpz_class>
+harvest_dwarf_param_loc_get_i386_frame_offset(context* ctx, expr_ref const& e)
+{
+  DYN_DEBUG2(harvest_dwarf, cout << "input e =\n"; ctx->expr_to_stream(cout, e, true) << '\n');
+
+  if (expr_is_dst_gpr(ctx, e, R_EBP)) {
+    DYN_DEBUG2(harvest_dwarf, cout << "input is just ebp\n");
+    return mpz_class(0);
+  }
+
+  if (e->get_operation_kind() != expr::OP_BVADD || e->get_args().size() != 2) {
+    DYN_DEBUG2(harvest_dwarf, cout << "input is NOT a bvadd with 2 args\n");
+    return nullopt;
+  }
+
+  expr_ref const arg0 = e->get_args().at(0);
+  expr_ref const arg1 = e->get_args().at(1);
+
+  expr_ref offset;
+
+  if (expr_is_dst_gpr(ctx, arg0, R_EBP) && arg1->is_const()) {
+    offset = arg1;
+  } else if (expr_is_dst_gpr(ctx, arg1, R_EBP) && arg0->is_const()) {
+    offset = arg0;
+  } else {
+    DYN_DEBUG2(harvest_dwarf, cout << "input is NOT a bvadd over ebp and a const\n");
+    return nullopt;
+  }
+
+  return offset->get_mybitset_value().get_signed_mpz();
+}
+
+static bool
+harvest_dwarf_param_loc_is_incoming_param_slot(context* ctx, expr_ref const& e,
+                                               unsigned incoming_param_slot_min_offset)
+{
+  auto const op_frame_offset = harvest_dwarf_param_loc_get_i386_frame_offset(ctx, e);
+  return op_frame_offset && *op_frame_offset >= incoming_param_slot_min_offset;
 }
 
 }
@@ -3118,11 +3165,10 @@ sym_exec_llvm::alloca_corresponds_to_a_local_parameter(AllocaInst const& a, DILo
   if (!dilocal.isParameter())
     return false;
 
-  bool const is_clang =
-         this->m_dst_compiler == compiler_id_t::clang
+  if (   this->m_dst_compiler == compiler_id_t::clang
       || this->m_dst_compiler == compiler_id_t::clangv
-      || this->m_dst_compiler == compiler_id_t::clangpp;
-  if (is_clang) {
+      || this->m_dst_compiler == compiler_id_t::clangpp) {
+
     if (!callconv_is_cdecl_x86(a.getFunction())) {
       NOT_IMPLEMENTED();
     }
@@ -3162,9 +3208,23 @@ sym_exec_llvm::alloca_corresponds_to_a_local_parameter(AllocaInst const& a, DILo
     }
 
     uint64_t const source_arg_no = operands.at(0);
+    uint64_t const first_ir_arg = operands.at(1);
+    uint64_t const num_ir_args = operands.at(2);
+    if (num_ir_args == 0 ||
+        first_ir_arg > F.arg_size() ||
+        num_ir_args > F.arg_size() - first_ir_arg) {
+      errs() << "invalid IR argument slice in parameter alloca metadata on: "
+             << a << '\n';
+      NOT_IMPLEMENTED();
+    }
+
     if (m_harvest_dwarf_param_locs && source_arg_no != 0) {
       auto const fit = m_harvest_dwarf_param_locs->find(F.getName().str());
-      if (fit != m_harvest_dwarf_param_locs->end()) {
+      if (fit == m_harvest_dwarf_param_locs->end()) {
+        DYN_DEBUG(harvest_dwarf,
+          errs() << "No DWARF parameter locations for function "
+                 << F.getName() << "\n");
+      } else {
         unsigned const param_index = source_arg_no - 1;
         auto const pit = fit->second.find(param_index);
         if (pit != fit->second.end()) {
@@ -3179,13 +3239,39 @@ sym_exec_llvm::alloca_corresponds_to_a_local_parameter(AllocaInst const& a, DILo
                      << llvm_param_name << "'\n");
             return false;
           }
-          param_addr = pit->second.second;
+          unsigned const pointer_size = get_word_length() / BYTE_LEN;
+          unsigned const incoming_param_slot_min_offset = 2 * pointer_size;
+          if (!harvest_dwarf_param_loc_is_incoming_param_slot(m_ctx, pit->second.second, incoming_param_slot_min_offset)) {
+            DYN_DEBUG(harvest_dwarf,
+              errs() << "Treating clang parameter alloca " << a.getName()
+                     << " in " << F.getName() << " as fresh alloca because "
+                     << "DWARF argument " << source_arg_no
+                     << " does not denote an incoming parameter slot: "
+                     << expr_string(pit->second.second) << "\n");
+            return false;
+          }
+
+          expr_vector param_addrs;
+          for (uint64_t argnum = first_ir_arg;
+               argnum != first_ir_arg + num_ir_args;
+               ++argnum) {
+            param_addrs.push_back(t.get_argument_regs().addr_at(
+              mk_string_ref(graph_arg_regs_t::get_argname_from_argnum(argnum))));
+          }
+          if (param_addrs.size() == 1) {
+            param_addr = param_addrs.front();
+          } else {
+            param_addr = m_ctx->mk_donotsimplify_return_first(param_addrs);
+          }
           DYN_DEBUG(harvest_dwarf,
             errs() << "Matched clang parameter alloca " << a.getName()
-                   << " in " << F.getName() << " to DWARF argument "
-                   << source_arg_no << " location\n");
+                   << " in " << F.getName() << " to incoming parameter slot "
+                   << "for source argument " << source_arg_no << "\n");
           return true;
         }
+        DYN_DEBUG(harvest_dwarf,
+          errs() << "No DWARF parameter location for " << F.getName()
+                 << " argument " << source_arg_no << "\n");
       }
     }
 

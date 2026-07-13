@@ -426,6 +426,12 @@ main(int argc, char **argv)
     MSG(string("done Reading LLPTFG from file " + src_etfg_filename + "...").c_str());
   }
 
+  if (!HarvestDwarfOutputFilename.empty() && src_etfg_filename != "") {
+    errs() << "--harvest-dwarf-output is only valid while generating the "
+           << "source ETFG\n";
+    NOT_REACHED();
+  }
+
   harvest_dwarf_param_loc_map_t harvest_dwarf_param_locs =
       read_harvest_dwarf_param_locs(HarvestDwarfOutputFilename, ctx);
   if (!HarvestDwarfOutputFilename.empty()) {
