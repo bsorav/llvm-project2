@@ -28,6 +28,7 @@
 #include "support/stdafx.h"
 
 #include "expr/context.h"
+#include "expr/debug_harvest.h"
 #include "expr/expr.h"
 #include "expr/expr_utils.h"
 #include "expr/state.h"
@@ -65,13 +66,14 @@ using HandlerFn = std::function<bool(ObjectFile &, DWARFContext &DICtx,
 // Clang IR contains an alloca for an addressable source parameter, but the
 // alloca alone does not say whether the target uses the incoming argument slot
 // or storage allocated by the callee.  harvest-dwarf resolves that ambiguity
-// from the target's parameter locations and emits one ParamStackSlot record.
+// from the target's parameter locations and records one stack-slot
+// classification in the shared debug-harvest output.
 //
 // The preferred evidence is the parameter's CFA-relative address at the first
 // PC after the prologue.  If that PC is unavailable, the complete parameter
 // location list is considered.  Raw i386 ESP/EBP offsets are used only when
 // CFI cannot provide a CFA-relative address.  Ordinary local variables keep
-// their existing LocRange/Expr output and are not classified here.
+// their expression locations and are not classified here.
 
 enum class DwarfAddressBase {
   unknown,
@@ -1162,18 +1164,111 @@ classify_param_stack_slot(std::string const& function_name,
   return ParamStackSlot::unknown;
 }
 
-static StringRef
-param_stack_slot_to_string(ParamStackSlot stack_slot)
+static eqspace::debug_harvest_param_stack_slot_t
+param_stack_slot_to_debug_harvest(ParamStackSlot stack_slot)
 {
   switch (stack_slot) {
   case ParamStackSlot::incoming:
-    return "incoming";
+    return eqspace::debug_harvest_param_stack_slot_t::incoming;
   case ParamStackSlot::fresh:
-    return "fresh";
+    return eqspace::debug_harvest_param_stack_slot_t::fresh;
   case ParamStackSlot::unknown:
-    return "unknown";
+    return eqspace::debug_harvest_param_stack_slot_t::unknown;
   }
   llvm_unreachable("unknown parameter stack-slot classification");
+}
+
+static eqspace::debug_harvest_location_t
+loc_expr_to_debug_harvest_location(LocExpr const& loc, bool include_expr)
+{
+  eqspace::debug_harvest_location_t ret;
+  ret.has_range = true;
+  ret.low_pc = loc.low_pc;
+  ret.high_pc = loc.high_pc;
+
+  if (loc.cfa_offset) {
+    ret.base_kind = eqspace::debug_harvest_location_base_kind_t::cfa;
+    ret.has_offset = true;
+    ret.offset = *loc.cfa_offset;
+  } else {
+    switch (loc.address.base) {
+    case DwarfAddressBase::unknown:
+      ret.base_kind = eqspace::debug_harvest_location_base_kind_t::unknown;
+      break;
+    case DwarfAddressBase::cfa:
+      ret.base_kind = eqspace::debug_harvest_location_base_kind_t::cfa;
+      ret.has_offset = true;
+      ret.offset = loc.address.offset;
+      break;
+    case DwarfAddressBase::dwarf_register:
+      ret.base_kind = eqspace::debug_harvest_location_base_kind_t::reg;
+      ret.base_register = "dwarf:" + std::to_string(loc.address.dwarf_regnum);
+      ret.has_offset = true;
+      ret.offset = loc.address.offset;
+      break;
+    }
+  }
+
+  if (include_expr) {
+    ret.expr = loc.expr;
+  }
+  return ret;
+}
+
+static eqspace::debug_harvest_t
+build_debug_harvest(std::list<HarvestedSubprogram> const& subprograms,
+                    DWARFContext& DICtx, bool is_i386)
+{
+  eqspace::debug_harvest_t ret;
+  ret.producer = eqspace::debug_harvest_producer_t::dwarf;
+
+  for (auto const& subprogram : subprograms) {
+    auto const params = add_cfa_offsets(DICtx, subprogram.params);
+    if (!subprogram.locals.size() && !params.size()) {
+      continue;
+    }
+
+    eqspace::debug_harvest_function_t function;
+    function.name = subprogram.name;
+
+    for (auto const& local : subprogram.locals) {
+      eqspace::debug_harvest_variable_t variable;
+      variable.name = local.first;
+      variable.kind = eqspace::debug_harvest_variable_kind_t::local;
+      for (auto const& loc_expr : local.second) {
+        variable.locations.push_back(
+            loc_expr_to_debug_harvest_location(loc_expr, true));
+      }
+      function.variables.push_back(std::move(variable));
+    }
+
+    unsigned arg_no = 0;
+    for (auto const& param : params) {
+      eqspace::debug_harvest_variable_t variable;
+      variable.name = param.first;
+      variable.kind = eqspace::debug_harvest_variable_kind_t::param;
+      variable.has_param_index = true;
+      variable.param_index = arg_no++;
+
+      ParamStackSlot const stack_slot = classify_param_stack_slot(
+          subprogram.name, param.first, param.second,
+          subprogram.prologue_end_pc, subprogram.address_size, is_i386);
+      variable.param_stack_slot =
+          param_stack_slot_to_debug_harvest(stack_slot);
+
+      // Parameter locations are retained for diagnostics, but the downstream
+      // LLVM model uses only the stack-slot classification.
+      for (auto const& loc_expr : param.second) {
+        variable.locations.push_back(
+            loc_expr_to_debug_harvest_location(loc_expr, false));
+      }
+      function.variables.push_back(std::move(variable));
+    }
+
+    ret.functions.push_back(std::move(function));
+  }
+
+  return ret;
 }
 
 static bool dumpObjectFile(ObjectFile &Obj, DWARFContext &DICtx,
@@ -1187,40 +1282,11 @@ static bool dumpObjectFile(ObjectFile &Obj, DWARFContext &DICtx,
     }
   }
 
-  for (auto const& p : ret_map) {
-    auto const& name = p.name;
-    auto const& varlist = p.locals;
-    auto const params = add_cfa_offsets(DICtx, p.params);
-    if (varlist.size() || params.size()) {
-      OS << formatv("=SubprogramBegin: {0}\n", name);
-      for (auto const& pp : varlist) {
-        auto const& vname     = pp.first;
-        auto const& loc_exprs = pp.second;
-        OS << "=VarName: " << vname << "\n";
-        for (auto const& loc_expr : loc_exprs) {
-          OS << format("=LocRange\n0x%" PRIx64 " 0x%" PRIx64 "\n",
-                       loc_expr.low_pc, loc_expr.high_pc);
-          OS << formatv("=Expr\n{0}\n",
-                        g_ctx->expr_to_string_table(loc_expr.expr));
-        }
-      }
-      unsigned ArgNo = 0;
-      for (auto const& pp : params) {
-        auto const& pname     = pp.first;
-        auto const& loc_exprs = pp.second;
-        OS << "=ParamName: " << pname << "\n";
-        OS << "=ParamIndex: " << ArgNo++ << "\n";
-        ParamStackSlot const stack_slot = classify_param_stack_slot(
-            name, pname, loc_exprs, p.prologue_end_pc, p.address_size,
-            is_i386);
-        // Parameter locations are intentionally reduced to this decision.  The
-        // downstream LLVM model must not reinterpret a raw target address.
-        OS << "=ParamStackSlot: "
-           << param_stack_slot_to_string(stack_slot) << "\n";
-      }
-      OS << formatv("=SubprogramEnd: {0}\n", name);
-    }
-  }
+  eqspace::debug_harvest_t const harvest =
+      build_debug_harvest(ret_map, DICtx, is_i386);
+  std::ostringstream ss;
+  harvest.to_stream(ss, g_ctx);
+  OS << ss.str();
   return true;
 }
 
