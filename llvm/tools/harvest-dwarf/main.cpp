@@ -1,11 +1,14 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringSet.h"
-//#include "llvm/ADT/Triple.h"
 #include "llvm/DebugInfo/DWARF/DWARFExpression.h"
 #include "llvm/DebugInfo/DIContext.h"
 #include "llvm/DebugInfo/DWARF/DWARFContext.h"
+#include "llvm/DebugInfo/DWARF/DWARFDebugFrame.h"
+#include "llvm/DebugInfo/DWARF/DWARFDebugLine.h"
+#include "llvm/DebugInfo/DWARF/DWARFDebugLoc.h"
 #include "llvm/Object/Archive.h"
 #include "llvm/Object/ObjectFile.h"
+#include "llvm/TargetParser/Triple.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/Format.h"
@@ -20,10 +23,12 @@
 #include "llvm/Support/FormatVariadic.h"
 
 #include <cstdlib>
+#include <optional>
 
 #include "support/stdafx.h"
 
 #include "expr/context.h"
+#include "expr/debug_harvest.h"
 #include "expr/expr.h"
 #include "expr/expr_utils.h"
 #include "expr/state.h"
@@ -58,14 +63,129 @@ static void error(StringRef Prefix, std::error_code EC) {
 using HandlerFn = std::function<bool(ObjectFile &, DWARFContext &DICtx,
                                      const Twine &, raw_ostream &)>;
 
+// Clang IR contains an alloca for an addressable source parameter, but the
+// alloca alone does not say whether the target uses the incoming argument slot
+// or storage allocated by the callee.  harvest-dwarf resolves that ambiguity
+// from the target's parameter locations and records one stack-slot
+// classification in the shared debug-harvest output.
+//
+// The preferred evidence is the parameter's CFA-relative address at the first
+// PC after the prologue.  If that PC is unavailable, the complete parameter
+// location list is considered.  Raw i386 ESP/EBP offsets are used only when
+// CFI cannot provide a CFA-relative address.  Ordinary local variables keep
+// their expression locations and are not classified here.
+
+enum class DwarfAddressBase {
+  unknown,
+  cfa,
+  dwarf_register,
+};
+
+// A deliberately small summary of the DWARF address forms needed by the
+// parameter classifier: one base (CFA or DWARF register) plus a constant.
+// Complex expressions remain unknown instead of being guessed.
+struct DwarfAddress {
+  DwarfAddressBase base = DwarfAddressBase::unknown;
+  unsigned dwarf_regnum = 0;
+  int64_t offset = 0;
+};
+
+struct LocExpr {
+  uint64_t low_pc;
+  uint64_t high_pc;
+  // Only local-variable hints need the eqspace expression.  Parameter records
+  // use address/cfa_offset directly, so expr is null for them.
+  eqspace::expr_ref expr;
+  // The location as encoded in DWARF, before consulting CFI.
+  DwarfAddress address;
+  // The same address normalized to CFA + offset for this PC range, if CFI can
+  // establish the relationship.
+  std::optional<int64_t> cfa_offset;
+};
+using NamedLocExprs = pair<std::string, std::vector<LocExpr>>;
+
+struct HarvestedSubprogram {
+  std::string name;
+  std::optional<uint64_t> prologue_end_pc;
+  unsigned address_size;
+  std::list<NamedLocExprs> locals;
+  std::list<NamedLocExprs> params;
+};
+
+enum class ParamStackSlot {
+  unknown,
+  incoming,
+  fresh,
+};
+
+static DwarfAddress
+summarize_dwarf_address(DWARFExpression const& expr,
+                        DwarfAddress const& frame_base,
+                        bool register_is_address)
+{
+  // Accept only a single address-producing base followed by constant
+  // adjustment.  DW_OP_regN is an address only while decoding DW_AT_frame_base;
+  // in a parameter location it normally describes a value in a register.
+  DwarfAddress ret;
+  bool have_base = false;
+  for (DWARFExpression::Operation const& op : expr) {
+    if (op.isError())
+      return {};
+
+    unsigned const opcode = op.getCode();
+    if (opcode >= dwarf::DW_OP_breg0 && opcode <= dwarf::DW_OP_breg31) {
+      if (have_base)
+        return {};
+      ret = {DwarfAddressBase::dwarf_register,
+             opcode - dwarf::DW_OP_breg0,
+             static_cast<int64_t>(op.getRawOperand(0))};
+      have_base = true;
+      continue;
+    }
+
+    if (opcode >= dwarf::DW_OP_reg0 && opcode <= dwarf::DW_OP_reg31) {
+      if (have_base || !register_is_address)
+        return {};
+      ret = {DwarfAddressBase::dwarf_register,
+             opcode - dwarf::DW_OP_reg0, 0};
+      have_base = true;
+      continue;
+    }
+
+    switch (opcode) {
+    case dwarf::DW_OP_fbreg:
+      if (have_base || frame_base.base == DwarfAddressBase::unknown)
+        return {};
+      ret = frame_base;
+      ret.offset += static_cast<int64_t>(op.getRawOperand(0));
+      have_base = true;
+      break;
+    case dwarf::DW_OP_call_frame_cfa:
+      if (have_base)
+        return {};
+      ret = {DwarfAddressBase::cfa, 0, 0};
+      have_base = true;
+      break;
+    case dwarf::DW_OP_plus_uconst:
+      if (!have_base)
+        return {};
+      ret.offset += static_cast<int64_t>(op.getRawOperand(0));
+      break;
+    default:
+      return {};
+    }
+  }
+  return have_base ? ret : DwarfAddress{};
+}
+
 class DWARFExpression_to_eqspace_expr
 {
 public:
-  DWARFExpression_to_eqspace_expr(DWARFExpression const& expr, eqspace::expr_ref const& frame_base, raw_ostream& OS)
+  DWARFExpression_to_eqspace_expr(DWARFExpression const& expr, unsigned AddressSize, eqspace::expr_ref const& frame_base, raw_ostream& OS)
   : m_dwarf_expr(expr),
     m_frame_base(frame_base),
     m_OS(OS),
-    m_bvsort_size(m_dwarf_expr.getAddressSize()*8),
+    m_bvsort_size(AddressSize*8),
     m_memvar(g_ctx->mk_var(G_SOLVER_DST_MEM_NAME, g_ctx->mk_array_sort(g_ctx->mk_bv_sort(DWORD_LEN), g_ctx->mk_bv_sort(BYTE_LEN)))),
     m_mem_allocvar(g_ctx->mk_var(string(G_SOLVER_DST_MEM_NAME "." G_ALLOC_SYMBOL), g_ctx->mk_array_sort(g_ctx->mk_bv_sort(DWORD_LEN), g_ctx->mk_memlabel_sort())))
     //m_mem_allocvar(get_corresponding_mem_alloc_from_mem_expr(m_memvar))
@@ -80,12 +200,14 @@ public:
 private:
 
   eqspace::expr_ref convert();
-  bool handle_op(DWARFExpression::Operation &op);
+  bool handle_op(DWARFExpression::Operation const& op);
 
   eqspace::expr_ref dwarf_reg_to_var(unsigned dwarfregnum) const;
   eqspace::expr_ref signed_const_to_bvconst(int64_t cval) const;
   eqspace::expr_ref unsigned_const_to_bvconst(uint64_t cval) const;
 
+  bool pop_expr(eqspace::expr_ref& ret);
+  bool pop_binary_exprs(eqspace::expr_ref& op1, eqspace::expr_ref& op2);
   void dump_stack_and_expr() const;
 
   DWARFExpression const& m_dwarf_expr;
@@ -108,14 +230,20 @@ DWARFExpression_to_eqspace_expr::convert()
     }
   }
   if (m_location_desc.size()) {
-    ASSERTCHECK(m_stk.empty(), dump_stack_and_expr());
+    if (!m_stk.empty()) {
+      dump_stack_and_expr();
+      return nullptr;
+    }
     if (m_location_desc.size() > 1) {
       m_stk.push(expr_bvconcat(m_location_desc));
     } else {
       m_stk.push(m_location_desc.front());
     }
   }
-  ASSERTCHECK((m_stk.size() == 1), dump_stack_and_expr());
+  if (m_stk.size() != 1) {
+    dump_stack_and_expr();
+    return nullptr;
+  }
   return m_stk.top();
 }
 
@@ -125,11 +253,11 @@ DWARFExpression_to_eqspace_expr::dump_stack_and_expr() const
     auto cp_stk = m_stk;
     while (!cp_stk.empty()) {
       auto v = cp_stk.top(); cp_stk.pop();
-      m_OS << eqspace::expr_string(v) << " ";
+      errs() << eqspace::expr_string(v) << " ";
     }
-    m_OS << "\nDWARFExpression = ";
-    m_dwarf_expr.print(m_OS, nullptr, nullptr);
-    m_OS << '\n';
+    errs() << "\nDWARFExpression = ";
+    m_dwarf_expr.print(errs(), DIDumpOptions(), nullptr);
+    errs() << '\n';
 }
 
 eqspace::expr_ref
@@ -146,14 +274,12 @@ DWARFExpression_to_eqspace_expr::dwarf_reg_to_var(unsigned dwarfregnum) const
       os << G_INPUT_KEYWORD << '.' << G_DST_KEYWORD << '.' << eqspace::state::reg_name(I386_EXREG_GROUP_XMM, dwarfregnum-21);
       return g_ctx->mk_var(os.str(), g_ctx->mk_bv_sort(m_bvsort_size));
     } else {
-      m_OS << format("\nregister mapping not defined for register num %d\n", dwarfregnum);
-      m_OS.flush();
-      NOT_IMPLEMENTED();
+      errs() << format("\nregister mapping not defined for register num %d\n", dwarfregnum);
+      return nullptr;
     }
   } else {
-    m_OS << format("\nregister mapping not defined for address size %d\n", m_dwarf_expr.getAddressSize());
-    m_OS.flush();
-    NOT_IMPLEMENTED();
+    errs() << format("\nregister mapping not defined for address size %d\n", m_bvsort_size / 8);
+    return nullptr;
   }
 }
 
@@ -170,10 +296,28 @@ DWARFExpression_to_eqspace_expr::unsigned_const_to_bvconst(uint64_t cval) const
 }
 
 bool
-DWARFExpression_to_eqspace_expr::handle_op(DWARFExpression::Operation &op)
+DWARFExpression_to_eqspace_expr::pop_expr(eqspace::expr_ref& ret)
+{
+  if (m_stk.empty()) {
+    dump_stack_and_expr();
+    return false;
+  }
+  ret = m_stk.top();
+  m_stk.pop();
+  return true;
+}
+
+bool
+DWARFExpression_to_eqspace_expr::pop_binary_exprs(eqspace::expr_ref& op1, eqspace::expr_ref& op2)
+{
+  return pop_expr(op2) && pop_expr(op1);
+}
+
+bool
+DWARFExpression_to_eqspace_expr::handle_op(DWARFExpression::Operation const& op)
 {
   if (op.isError()) {
-    llvm_unreachable("decoding error");
+    errs() << "DWARF expression decoding error\n";
     return false;
   }
 
@@ -183,6 +327,9 @@ DWARFExpression_to_eqspace_expr::handle_op(DWARFExpression::Operation &op)
       && opcode <= llvm::dwarf::DW_OP_breg31) {
     // signed offset from register
     eqspace::expr_ref regvar = this->dwarf_reg_to_var(opcode-llvm::dwarf::DW_OP_breg0);
+    if (!regvar) {
+      return false;
+    }
     eqspace::expr_ref offset = this->signed_const_to_bvconst(op.getRawOperand(0));
     eqspace::expr_ref res    = g_ctx->mk_bvadd(regvar, offset);
     m_stk.push(res);
@@ -193,12 +340,17 @@ DWARFExpression_to_eqspace_expr::handle_op(DWARFExpression::Operation &op)
     // While DW_OP_regN stands on its own and does not require the stack value operation
     // We will handle it by assuming by simply pushing it on stack from where we collect the end result
     eqspace::expr_ref res = this->dwarf_reg_to_var(opcode-llvm::dwarf::DW_OP_reg0);
+    if (!res) {
+      return false;
+    }
     m_stk.push(res);
   }
   else if (   opcode == llvm::dwarf::DW_OP_bregx
            || opcode == llvm::dwarf::DW_OP_regx
            || opcode == llvm::dwarf::DW_OP_regval_type) {
-    NOT_IMPLEMENTED();
+    StringRef name = llvm::dwarf::OperationEncodingString(opcode);
+    errs() << "operation \"" << name << "\" not handled\n";
+    return false;
   }
   else if (   opcode >= llvm::dwarf::DW_OP_lit0
            && opcode <= llvm::dwarf::DW_OP_lit31) {
@@ -213,7 +365,10 @@ DWARFExpression_to_eqspace_expr::handle_op(DWARFExpression::Operation &op)
       break;
     }
     case llvm::dwarf::DW_OP_fbreg: {
-      assert(this->m_frame_base);
+      if (!this->m_frame_base) {
+        errs() << "DW_OP_fbreg without frame base\n";
+        return false;
+      }
       eqspace::expr_ref regvar = this->m_frame_base;
       eqspace::expr_ref offset = this->signed_const_to_bvconst(op.getRawOperand(0));
       eqspace::expr_ref res    = g_ctx->mk_bvadd(regvar, offset);
@@ -223,22 +378,32 @@ DWARFExpression_to_eqspace_expr::handle_op(DWARFExpression::Operation &op)
     case llvm::dwarf::DW_OP_stack_value:
       // make sure stack is non-empty
       // this is suppposed to be the last op of the expression
-      assert(m_stk.size());
+      if (m_stk.empty()) {
+        dump_stack_and_expr();
+        return false;
+      }
       break;
     case llvm::dwarf::DW_OP_dup:
+      if (m_stk.empty()) {
+        dump_stack_and_expr();
+        return false;
+      }
       m_stk.push(m_stk.top());
-      assert(m_stk.size());
       break;
     case llvm::dwarf::DW_OP_deref: {
-      eqspace::expr_ref addr = m_stk.top();
-      m_stk.pop();
+      eqspace::expr_ref addr;
+      if (!pop_expr(addr)) {
+        return false;
+      }
       eqspace::expr_ref res  = g_ctx->mk_select(m_memvar, m_mem_allocvar, memlabel_t::memlabel_top(), addr, m_bvsort_size/8, false);
       m_stk.push(res);
       break;
     }
     case llvm::dwarf::DW_OP_deref_size: {
-      eqspace::expr_ref addr = m_stk.top();
-      m_stk.pop();
+      eqspace::expr_ref addr;
+      if (!pop_expr(addr)) {
+        return false;
+      }
       unsigned size = op.getRawOperand(0);
       eqspace::expr_ref res  = g_ctx->mk_select(m_memvar, m_mem_allocvar, memlabel_t::memlabel_top(), addr, size, false);
       if (size*8 < m_bvsort_size) {
@@ -280,16 +445,20 @@ DWARFExpression_to_eqspace_expr::handle_op(DWARFExpression::Operation &op)
     case llvm::dwarf::DW_OP_plus_uconst: {
       // the type of operand is to be matched against stack top;
       // we skip it for now TODO
-      eqspace::expr_ref op1 = m_stk.top();
-      m_stk.pop();
+      eqspace::expr_ref op1;
+      if (!pop_expr(op1)) {
+        return false;
+      }
       eqspace::expr_ref op2 = this->unsigned_const_to_bvconst(op.getRawOperand(0));
       eqspace::expr_ref res = g_ctx->mk_bvadd(op1, op2);
       m_stk.push(res);
       break;
     }
     case llvm::dwarf::DW_OP_not: {
-      eqspace::expr_ref op = m_stk.top();
-      m_stk.pop();
+      eqspace::expr_ref op;
+      if (!pop_expr(op)) {
+        return false;
+      }
       eqspace::expr_ref res = g_ctx->mk_bvnot(op);
       m_stk.push(res);
       break;
@@ -306,10 +475,10 @@ DWARFExpression_to_eqspace_expr::handle_op(DWARFExpression::Operation &op)
     case llvm::dwarf::DW_OP_xor:
     case llvm::dwarf::DW_OP_eq:
     case llvm::dwarf::DW_OP_gt: {
-      eqspace::expr_ref op2 = m_stk.top();
-      m_stk.pop();
-      eqspace::expr_ref op1 = m_stk.top();
-      m_stk.pop();
+      eqspace::expr_ref op1, op2;
+      if (!pop_binary_exprs(op1, op2)) {
+        return false;
+      }
       eqspace::expr_ref res;
       if (opcode == llvm::dwarf::DW_OP_plus) {
         res = g_ctx->mk_bvadd(op1, op2);
@@ -346,19 +515,25 @@ DWARFExpression_to_eqspace_expr::handle_op(DWARFExpression::Operation &op)
       break;
     }
     case llvm::dwarf::DW_OP_piece: {
+      eqspace::expr_ref val;
+      if (!pop_expr(val)) {
+        errs() << "DW_OP_piece without a stack value; unsupported location expression\n";
+        return false;
+      }
       uint64_t piece_size = op.getRawOperand(0);
-      eqspace::expr_ref val = m_stk.top();
-      m_stk.pop();
       // XXX endianness matters here
       eqspace::expr_ref res = g_ctx->mk_bvextract(val, piece_size*8-1, 0);
       m_location_desc.push_front(res);
       break;
     }
     case llvm::dwarf::DW_OP_bit_piece: {
+      eqspace::expr_ref val;
+      if (!pop_expr(val)) {
+        errs() << "DW_OP_bit_piece without a stack value; unsupported location expression\n";
+        return false;
+      }
       uint64_t piece_size = op.getRawOperand(0);
       uint64_t offset     = op.getRawOperand(1);
-      eqspace::expr_ref val = m_stk.top();
-      m_stk.pop();
       // XXX endinness matters here
       eqspace::expr_ref res = g_ctx->mk_bvextract(val, offset+piece_size-1, offset);
       m_location_desc.push_front(res);
@@ -378,9 +553,8 @@ DWARFExpression_to_eqspace_expr::handle_op(DWARFExpression::Operation &op)
     default: {
       StringRef name = llvm::dwarf::OperationEncodingString(opcode);
       assert(!name.empty() && "DW_OP has no name!");
-      m_OS << "operation \"" << name << "\" not handled\n";
-      m_OS.flush();
-      NOT_IMPLEMENTED();
+      errs() << "operation \"" << name << "\" not handled\n";
+      return false;
     }
     }
   }
@@ -388,51 +562,105 @@ DWARFExpression_to_eqspace_expr::handle_op(DWARFExpression::Operation &op)
 }
 
 static eqspace::expr_ref
-dwarf_expr_to_expr(DWARFExpression const& dwarf_expr, eqspace::expr_ref const& frame_base, raw_ostream& OS)
+dwarf_expr_to_expr(DWARFExpression const& dwarf_expr, unsigned AddressSize,
+                   eqspace::expr_ref const& frame_base, raw_ostream& OS)
 {
-  DWARFExpression_to_eqspace_expr dexpr2expr(dwarf_expr, frame_base, OS);
+  DWARFExpression_to_eqspace_expr dexpr2expr(dwarf_expr, AddressSize,
+                                             frame_base, OS);
   return dexpr2expr.get_result();
+}
+
+static std::optional<uint64_t>
+get_first_prologue_end_pc(DWARFDie const& die)
+{
+  // A line-table row marked PrologueEnd denotes the first instruction after
+  // compiler-generated prologue code.  Restrict rows to this subprogram's DIE
+  // ranges because a compilation unit has one line table for many functions.
+  Expected<DWARFAddressRangesVector> ranges = die.getAddressRanges();
+  if (!ranges) {
+    consumeError(ranges.takeError());
+    return std::nullopt;
+  }
+  DWARFUnit* unit = die.getDwarfUnit();
+  DWARFDebugLine::LineTable const* line_table =
+      unit->getContext().getLineTableForUnit(unit);
+  if (!line_table)
+    return std::nullopt;
+
+  std::optional<uint64_t> prologue_end;
+  for (DWARFDebugLine::Row const& row : line_table->Rows) {
+    if (!row.PrologueEnd)
+      continue;
+    uint64_t const address = row.Address.Address;
+    for (DWARFAddressRange const& range : *ranges) {
+      bool const section_matches =
+          row.Address.SectionIndex == SectionedAddress::UndefSection ||
+          range.SectionIndex == SectionedAddress::UndefSection ||
+          row.Address.SectionIndex == range.SectionIndex;
+      if (section_matches && address >= range.LowPC && address < range.HighPC &&
+          (!prologue_end || address < *prologue_end)) {
+        prologue_end = address;
+      }
+    }
+  }
+  return prologue_end;
 }
 
 class SubprogramLocalsHarvester
 {
 public:
   SubprogramLocalsHarvester(DWARFDie const& die, raw_ostream& OS)
-  : m_OS(OS)
+  : m_OS(OS), m_prologue_end_pc(get_first_prologue_end_pc(die)),
+    m_address_size(die.getDwarfUnit()->getAddressByteSize())
   {
     ASSERT(die.isSubprogramDIE());
     visit_die(die);
   }
 
   std::string get_name() const { return this->m_name; }
-  std::list<pair<std::string, std::vector<std::tuple<uint64_t,uint64_t,eqspace::expr_ref>>>> get_locals() const { return this->m_locals; }
+  std::optional<uint64_t> get_prologue_end_pc() const
+  {
+    return this->m_prologue_end_pc;
+  }
+  unsigned get_address_size() const { return this->m_address_size; }
+  std::list<NamedLocExprs> get_locals() const { return this->m_locals; }
+  std::list<NamedLocExprs> get_params() const { return this->m_params; }
 
 private:
   void visit_die(DWARFDie const& die);
-  llvm::Optional<std::tuple<uint64_t,uint64_t,eqspace::expr_ref>> handle_location_list(DWARFLocationTable const& location_table, uint64_t Offset, llvm::Optional<SectionedAddress> BaseAddr, DWARFUnit *U);
+  std::vector<LocExpr> handle_location_list(
+      DWARFLocationTable const& location_table, uint64_t Offset,
+      std::optional<SectionedAddress> BaseAddr, DWARFUnit *U,
+      bool keep_only_first);
 
   raw_ostream& m_OS;
 
   std::string m_name;
+  std::optional<uint64_t> m_prologue_end_pc;
+  unsigned m_address_size;
   eqspace::expr_ref m_frame_base;
+  DwarfAddress m_frame_base_address;
   std::stack<pair<uint64_t,uint64_t>> m_addr_ranges;
-  std::list<pair<std::string, std::vector<std::tuple<uint64_t,uint64_t,eqspace::expr_ref>>>> m_locals;
+  std::list<NamedLocExprs> m_locals;
+  std::list<NamedLocExprs> m_params;
 };
 
-llvm::Optional<std::tuple<uint64_t,uint64_t,eqspace::expr_ref>>
+std::vector<LocExpr>
 SubprogramLocalsHarvester::handle_location_list(DWARFLocationTable const& location_table,
-										                            uint64_t Offset,
-                                                llvm::Optional<SectionedAddress> BaseAddr,
-                                                DWARFUnit *U)
+                                                uint64_t Offset,
+                                                std::optional<SectionedAddress> BaseAddr,
+                                                DWARFUnit *U,
+                                                bool keep_only_first)
 {
 	assert(U);
-  auto const& DataEx = location_table.getDataExtractor();
-  bool first_only = true; // consider only the first element of the location list
-  std::vector<std::tuple<uint64_t,uint64_t,eqspace::expr_ref>> loc_exprs;
+  // Local-variable hints retain harvest-dwarf's historical first-entry
+  // behavior.  Parameters retain every entry because the no-prologue fallback
+  // must evaluate the complete location list.
+  std::vector<LocExpr> loc_exprs;
   Error E = location_table.visitAbsoluteLocationList(Offset, BaseAddr,
-    [U](uint32_t Index) -> llvm::Optional<SectionedAddress>
+    [U](uint32_t Index) -> std::optional<SectionedAddress>
     { return U->getAddrOffsetSectionItem(Index); },
-    [&DataEx,first_only,&loc_exprs,this](llvm::Expected<DWARFLocationExpression> Loc) -> bool
+    [U,keep_only_first,&loc_exprs,this](llvm::Expected<DWARFLocationExpression> Loc) -> bool
     {
       if (!Loc) {
         consumeError(Loc.takeError());
@@ -440,22 +668,31 @@ SubprogramLocalsHarvester::handle_location_list(DWARFLocationTable const& locati
       }
       uint64_t lpc, hpc;
       if (Loc->Range) {
-        DWARFAddressRange const& addr_range = Loc->Range.getValue();
+        DWARFAddressRange const& addr_range = *Loc->Range;
         lpc = addr_range.LowPC;
         hpc = addr_range.HighPC;
       } else {
         lpc = hpc = 0;
       }
-  		DWARFDataExtractor Extractor(Loc->Expr, DataEx.isLittleEndian(), DataEx.getAddressSize());
-			auto dwarf_expr = DWARFExpression(Extractor, DataEx.getAddressSize());
-      eqspace::expr_ref ret = dwarf_expr_to_expr(dwarf_expr, this->m_frame_base, this->m_OS);
-			loc_exprs.push_back(make_tuple(lpc, hpc, ret));
-			return !first_only;
+  		DWARFDataExtractor Extractor(Loc->Expr, U->getContext().isLittleEndian(), U->getAddressByteSize());
+			auto dwarf_expr = DWARFExpression(Extractor, U->getAddressByteSize());
+      DwarfAddress const address = summarize_dwarf_address(
+          dwarf_expr, this->m_frame_base_address, false);
+      eqspace::expr_ref ret =
+          keep_only_first
+              ? dwarf_expr_to_expr(dwarf_expr, U->getAddressByteSize(),
+                                   this->m_frame_base, this->m_OS)
+              : nullptr;
+      if (ret || !keep_only_first) {
+				  loc_exprs.push_back({lpc, hpc, ret, address, std::nullopt});
+        return !keep_only_first;
+      }
+			return true;
    	});
   if (E) {
-    return llvm::None;
+    return {};
   }
-  return loc_exprs.front();
+  return loc_exprs;
 }
 
 void
@@ -489,11 +726,12 @@ SubprogramLocalsHarvester::visit_die(DWARFDie const& die)
 
   auto tag = AbbrevDecl->getTag();
   if (   (   tag == dwarf::DW_TAG_variable
+          || tag == dwarf::DW_TAG_formal_parameter
           || tag == dwarf::DW_TAG_lexical_block) // for lexical blocks we only handle the single address and contiguous address range
       || die.isSubprogramDIE()
      ) {
     std::string name;
-    std::vector<std::tuple<uint64_t,uint64_t,eqspace::expr_ref>> loc_exprs;
+    std::vector<LocExpr> loc_exprs;
     uint64_t low_pc = 0, high_pc = 0;
     bool low_high_pcs_are_set = false;
     bool high_pc_is_offset = false;
@@ -516,22 +754,26 @@ SubprogramLocalsHarvester::visit_die(DWARFDie const& die)
     	  case dwarf::DW_AT_frame_base:
   			  if (FormValue.isFormClass(DWARFFormValue::FC_Exprloc)) {
     			  ArrayRef<uint8_t> Expr = *FormValue.getAsBlock();
-    			  DataExtractor Data(StringRef((const char *)Expr.data(), Expr.size()), Ctx.isLittleEndian(), 0);
-    			  auto dwarf_expr = DWARFExpression(Data, U->getAddressByteSize());
-            this->m_frame_base = dwarf_expr_to_expr(dwarf_expr, nullptr, this->m_OS);
+            DataExtractor Data(StringRef((const char *)Expr.data(), Expr.size()), Ctx.isLittleEndian(), 0);
+            auto dwarf_expr = DWARFExpression(Data, U->getAddressByteSize());
+            this->m_frame_base_address =
+                summarize_dwarf_address(dwarf_expr, {}, true);
+            this->m_frame_base = dwarf_expr_to_expr(dwarf_expr,
+                                                    U->getAddressByteSize(),
+                                                    nullptr, this->m_OS);
   			  } else { assert(0 && "non-exprloc forms not supported for DW_AT_frame_base"); }
           break;
     	  case dwarf::DW_AT_low_pc:
-          if (llvm::Optional<uint64_t> addr = FormValue.getAsAddress()) {
-            low_pc = addr.getValue();
+          if (std::optional<uint64_t> addr = FormValue.getAsAddress()) {
+            low_pc = *addr;
           } else { assert(0 && "unable to decode DW_AT_low_pc"); }
           low_high_pcs_are_set = true;
     	    break;
     	  case dwarf::DW_AT_high_pc:
-          if (llvm::Optional<uint64_t> addr = FormValue.getAsAddress()) {
-            high_pc = addr.getValue();
-          } else if (llvm::Optional<uint64_t> offset = FormValue.getAsUnsignedConstant()) {
-            high_pc = offset.getValue();
+          if (std::optional<uint64_t> addr = FormValue.getAsAddress()) {
+            high_pc = *addr;
+          } else if (std::optional<uint64_t> offset = FormValue.getAsUnsignedConstant()) {
+            high_pc = *offset;
             high_pc_is_offset = true;
           } else {
     	      this->m_OS << "\t" << formatv("{0} [{1}]", Attr, Form) << " ";
@@ -540,8 +782,8 @@ SubprogramLocalsHarvester::visit_die(DWARFDie const& die)
           low_high_pcs_are_set = true;
     	    break;
     	  case dwarf::DW_AT_name:
-    	    if (llvm::Optional<const char*> cstr = dwarf::toString(FormValue)) {
-    	      name = cstr.getValue();
+    	    if (std::optional<const char*> cstr = dwarf::toString(FormValue)) {
+    	      name = *cstr;
           } else {
     	      this->m_OS << formatv("{0}: {1} [{2}]", tag, Attr, Form) << " ";
     	      if (tag == dwarf::DW_TAG_subprogram) {
@@ -554,13 +796,23 @@ SubprogramLocalsHarvester::visit_die(DWARFDie const& die)
     	  case dwarf::DW_AT_location: {
   			  if (FormValue.isFormClass(DWARFFormValue::FC_Exprloc)) {
     			  ArrayRef<uint8_t> Expr = *FormValue.getAsBlock();
-    			  DataExtractor Data(StringRef((const char *)Expr.data(), Expr.size()), Ctx.isLittleEndian(), 0);
-    			  auto dwarf_expr = DWARFExpression(Data, U->getAddressByteSize());
-            eqspace::expr_ref ret = dwarf_expr_to_expr(dwarf_expr, this->m_frame_base, this->m_OS);
+            DataExtractor Data(StringRef((const char *)Expr.data(), Expr.size()), Ctx.isLittleEndian(), 0);
+            auto dwarf_expr = DWARFExpression(Data, U->getAddressByteSize());
+            DwarfAddress const address = summarize_dwarf_address(
+                dwarf_expr, this->m_frame_base_address, false);
+            eqspace::expr_ref ret =
+                tag == dwarf::DW_TAG_formal_parameter
+                    ? nullptr
+                    : dwarf_expr_to_expr(dwarf_expr, U->getAddressByteSize(),
+                                         this->m_frame_base, this->m_OS);
+            if (!ret && tag != dwarf::DW_TAG_formal_parameter) {
+              break;
+            }
 					  assert(this->m_addr_ranges.size());
 					  low_pc  = this->m_addr_ranges.top().first;
 					  high_pc = this->m_addr_ranges.top().second;
-					  loc_exprs.push_back(make_tuple(low_pc, high_pc, ret));
+					  loc_exprs.push_back(
+                {low_pc, high_pc, ret, address, std::nullopt});
             //this->m_OS << formatv("pushed loc_expr: [{0}, {1}], {2}", low_pc, high_pc, expr_string(ret)) << '\n';
   			  } else if (FormValue.isFormClass(DWARFFormValue::FC_SectionOffset)) {
     			  uint64_t Offset = *FormValue.getAsSectionOffset();
@@ -572,9 +824,13 @@ SubprogramLocalsHarvester::visit_die(DWARFDie const& die)
 						    continue;
 					    }
     			  }
-            llvm::Optional<std::tuple<uint64_t,uint64_t,eqspace::expr_ref>> loc_expr = handle_location_list(U->getLocationTable(), Offset, U->getBaseAddress(), U);
-					  assert(loc_expr);
-					  loc_exprs.push_back(loc_expr.getValue());
+            bool const keep_only_first =
+                tag != dwarf::DW_TAG_formal_parameter;
+            std::vector<LocExpr> const location_list =
+                handle_location_list(U->getLocationTable(), Offset,
+                                     U->getBaseAddress(), U, keep_only_first);
+            loc_exprs.insert(loc_exprs.end(), location_list.begin(),
+                            location_list.end());
       	  } else { llvm_unreachable("unhandled location type"); }
       	  break;
       	}
@@ -589,6 +845,10 @@ SubprogramLocalsHarvester::visit_die(DWARFDie const& die)
       //for (auto const& l : loc_exprs) this->m_OS << formatv("[{1}, {2}] {3}; ", get<0>(l), get<1>(l), expr_string(get<2>(l)));
       //this->m_OS << '\n';
   	  this->m_locals.push_back(make_pair(name, loc_exprs));
+  	}
+    if (   tag == dwarf::DW_TAG_formal_parameter
+        && loc_exprs.size()) {
+  	  this->m_params.push_back(make_pair(name, loc_exprs));
   	}
     if (   die.isSubprogramDIE()
         && this->m_name.empty()) {
@@ -614,8 +874,8 @@ SubprogramLocalsHarvester::visit_die(DWARFDie const& die)
 
 static void
 populate_function_to_variable_to_expr_map(DWARFDie const& die,
-                                               std::list<pair<std::string, std::list<pair<std::string, std::vector<std::tuple<uint64_t,uint64_t,eqspace::expr_ref>>>>>>& ret_map,
-                                               raw_ostream& OS)
+                                          std::list<HarvestedSubprogram>& ret_map,
+                                          raw_ostream& OS)
 {
   if (!die.isValid()) {
     OS << "Invalid die\n";
@@ -625,8 +885,13 @@ populate_function_to_variable_to_expr_map(DWARFDie const& die,
   if (die.isSubprogramDIE()) {
     SubprogramLocalsHarvester subprogram_harvester(die, OS);
     auto subprogram_locals = subprogram_harvester.get_locals();
-    if (subprogram_locals.size())
-      ret_map.push_back(make_pair(subprogram_harvester.get_name(), subprogram_locals));
+    auto subprogram_params = subprogram_harvester.get_params();
+    if (subprogram_locals.size() || subprogram_params.size())
+      ret_map.push_back({subprogram_harvester.get_name(),
+                         subprogram_harvester.get_prologue_end_pc(),
+                         subprogram_harvester.get_address_size(),
+                         std::move(subprogram_locals),
+                         std::move(subprogram_params)});
   }
 
 	for (auto child : die.children()) {
@@ -634,37 +899,394 @@ populate_function_to_variable_to_expr_map(DWARFDie const& die,
 	}
 }
 
+static std::optional<int64_t>
+get_cfa_offset(DwarfAddress const& address,
+               dwarf::UnwindLocation const& cfa)
+{
+  // CFI describes the CFA as register + offset.  A parameter location using
+  // the same register can therefore be rewritten as CFA + (loc - cfa).
+  if (address.base == DwarfAddressBase::cfa)
+    return address.offset;
+
+  if (address.base != DwarfAddressBase::dwarf_register ||
+      cfa.getLocation() != dwarf::UnwindLocation::RegPlusOffset ||
+      address.dwarf_regnum != cfa.getRegister())
+    return std::nullopt;
+
+  return address.offset - cfa.getOffset();
+}
+
+static uint64_t
+range_overlap(uint64_t first_low, uint64_t first_high,
+              uint64_t second_low, uint64_t second_high)
+{
+  uint64_t const low = std::max(first_low, second_low);
+  uint64_t const high = std::min(first_high, second_high);
+  return high > low ? high - low : 0;
+}
+
+static dwarf::FDE const*
+find_fde(DWARFDebugFrame const* frame, uint64_t low_pc, uint64_t high_pc,
+         uint64_t& best_overlap)
+{
+  dwarf::FDE const* ret = nullptr;
+  if (!frame)
+    return ret;
+
+  for (dwarf::FrameEntry const& entry : frame->entries()) {
+    auto const* fde = dyn_cast<dwarf::FDE>(&entry);
+    if (!fde)
+      continue;
+    uint64_t const overlap =
+        range_overlap(low_pc, high_pc, fde->getInitialLocation(),
+                      fde->getInitialLocation() + fde->getAddressRange());
+    if (overlap > best_overlap) {
+      best_overlap = overlap;
+      ret = fde;
+    }
+  }
+  return ret;
+}
+
+static dwarf::FDE const*
+find_fde(DWARFContext& ctx, uint64_t low_pc, uint64_t high_pc)
+{
+  // Depending on compiler and flags, unwind information can live in either
+  // .debug_frame or .eh_frame.  Prefer the FDE with the greatest overlap with
+  // this location range across both sources.
+  uint64_t best_overlap = 0;
+  dwarf::FDE const* ret = nullptr;
+
+  if (Expected<DWARFDebugFrame const*> frame = ctx.getDebugFrame()) {
+    if (dwarf::FDE const* fde =
+            find_fde(*frame, low_pc, high_pc, best_overlap))
+      ret = fde;
+  } else {
+    consumeError(frame.takeError());
+  }
+
+  if (Expected<DWARFDebugFrame const*> frame = ctx.getEHFrame()) {
+    if (dwarf::FDE const* fde =
+            find_fde(*frame, low_pc, high_pc, best_overlap))
+      ret = fde;
+  } else {
+    consumeError(frame.takeError());
+  }
+  return ret;
+}
+
+static std::vector<LocExpr>
+add_cfa_offsets(DWARFContext& ctx, LocExpr const& loc)
+{
+  // A location range can cross multiple CFI rows as ESP/EBP changes through
+  // the prologue and epilogue.  Split it at row boundaries so each resulting
+  // range has the CFA offset valid at its PCs.
+  if (loc.address.base == DwarfAddressBase::cfa) {
+    LocExpr ret = loc;
+    ret.cfa_offset = loc.address.offset;
+    return {ret};
+  }
+
+  dwarf::FDE const* fde = find_fde(ctx, loc.low_pc, loc.high_pc);
+  if (!fde)
+    return {loc};
+
+  Expected<dwarf::UnwindTable> table = dwarf::UnwindTable::create(fde);
+  if (!table) {
+    consumeError(table.takeError());
+    return {loc};
+  }
+
+  std::vector<LocExpr> ret;
+  for (size_t i = 0; i < table->size(); ++i) {
+    dwarf::UnwindRow const& row = (*table)[i];
+    if (!row.hasAddress())
+      continue;
+
+    uint64_t const row_low = row.getAddress();
+    uint64_t const row_high =
+        i + 1 < table->size()
+            ? (*table)[i + 1].getAddress()
+            : fde->getInitialLocation() + fde->getAddressRange();
+    uint64_t const low = std::max(loc.low_pc, row_low);
+    uint64_t const high = std::min(loc.high_pc, row_high);
+    if (high <= low)
+      continue;
+
+    std::optional<int64_t> const cfa_offset =
+        get_cfa_offset(loc.address, row.getCFAValue());
+    if (!ret.empty() && ret.back().high_pc == low && cfa_offset &&
+        ret.back().cfa_offset == cfa_offset) {
+      ret.back().high_pc = high;
+    } else {
+      ret.push_back({low, high, loc.expr, loc.address, cfa_offset});
+    }
+  }
+
+  if (ret.empty())
+    return {loc};
+  return ret;
+}
+
+static std::list<NamedLocExprs>
+add_cfa_offsets(DWARFContext& ctx,
+                std::list<NamedLocExprs> const& params)
+{
+  std::list<NamedLocExprs> ret;
+  for (NamedLocExprs const& param : params) {
+    std::vector<LocExpr> locs;
+    for (LocExpr const& loc : param.second) {
+      std::vector<LocExpr> const locs_with_cfa = add_cfa_offsets(ctx, loc);
+      locs.insert(locs.end(), locs_with_cfa.begin(), locs_with_cfa.end());
+    }
+    ret.emplace_back(param.first, std::move(locs));
+  }
+  return ret;
+}
+
+static bool
+loc_expr_contains_pc(LocExpr const& loc, uint64_t pc)
+{
+  return loc.low_pc <= pc && pc < loc.high_pc;
+}
+
+static std::optional<ParamStackSlot>
+classify_cfa_locations(std::vector<LocExpr> const& locs,
+                       std::optional<uint64_t> pc)
+{
+  // Incoming stack arguments are at or above the CFA.  A negative offset is
+  // storage allocated by the current frame.  When pc is set, only the range
+  // covering that post-prologue PC participates; otherwise every location-list
+  // range must be understood before declaring the parameter incoming.
+  bool saw_location = false;
+  bool saw_unknown = false;
+  for (LocExpr const& loc : locs) {
+    if (pc && !loc_expr_contains_pc(loc, *pc))
+      continue;
+    saw_location = true;
+    if (!loc.cfa_offset) {
+      saw_unknown = true;
+      continue;
+    }
+    if (*loc.cfa_offset < 0)
+      return ParamStackSlot::fresh;
+  }
+  if (saw_location && !saw_unknown)
+    return ParamStackSlot::incoming;
+  return std::nullopt;
+}
+
+static std::optional<ParamStackSlot>
+classify_raw_i386_address(DwarfAddress const& address, unsigned pointer_size)
+{
+  // Last-resort i386 ABI heuristic.  Without CFI, the identity of the ESP/EBP
+  // value used by a location is ambiguous after stack adjustment, so callers
+  // always warn when this result is used.
+  //
+  // At function entry, ESP+pointer_size skips the return address and EBP needs
+  // two pointer-sized slots to skip the saved EBP and return address.
+  constexpr unsigned dwarf_esp_regnum = 4;
+  constexpr unsigned dwarf_ebp_regnum = 5;
+
+  if (address.base != DwarfAddressBase::dwarf_register)
+    return std::nullopt;
+  if (address.dwarf_regnum == dwarf_ebp_regnum) {
+    return address.offset >= static_cast<int64_t>(2 * pointer_size)
+               ? ParamStackSlot::incoming
+               : ParamStackSlot::fresh;
+  }
+  if (address.dwarf_regnum == dwarf_esp_regnum) {
+    return address.offset >= static_cast<int64_t>(pointer_size)
+               ? ParamStackSlot::incoming
+               : ParamStackSlot::fresh;
+  }
+  return std::nullopt;
+}
+
+static std::optional<ParamStackSlot>
+classify_raw_i386_locations(std::vector<LocExpr> const& locs,
+                            std::optional<uint64_t> pc,
+                            unsigned pointer_size)
+{
+  std::optional<ParamStackSlot> ret;
+  for (LocExpr const& loc : locs) {
+    if (pc && !loc_expr_contains_pc(loc, *pc))
+      continue;
+    std::optional<ParamStackSlot> const classification =
+        classify_raw_i386_address(loc.address, pointer_size);
+    if (!classification || (ret && *ret != *classification))
+      return std::nullopt;
+    ret = classification;
+  }
+  return ret;
+}
+
+static ParamStackSlot
+classify_param_stack_slot(std::string const& function_name,
+                          std::string const& param_name,
+                          std::vector<LocExpr> const& locs,
+                          std::optional<uint64_t> prologue_end_pc,
+                          unsigned pointer_size, bool is_i386)
+{
+  // Decision order:
+  //   1. CFA-relative address at the first PC after the prologue.
+  //   2. CFA-relative evidence across the complete location list when that PC
+  //      is unavailable or not covered by a parameter location.
+  //   3. Raw i386 ESP/EBP offsets over the same selected locations.
+  //   4. Unknown, leaving llvm2tfg to retain the parameter alloca.
+  //
+  // Setting pc selects (1).  Leaving it empty makes the classification helpers
+  // implement (2) and (3) over all ranges.
+  std::optional<uint64_t> pc;
+  if (prologue_end_pc &&
+      llvm::any_of(locs, [&](LocExpr const& loc) {
+        return loc_expr_contains_pc(loc, *prologue_end_pc);
+      })) {
+    pc = prologue_end_pc;
+  }
+
+  if (std::optional<ParamStackSlot> const cfa_classification =
+          classify_cfa_locations(locs, pc)) {
+    return *cfa_classification;
+  }
+
+  if (is_i386) {
+    if (std::optional<ParamStackSlot> const raw_classification =
+            classify_raw_i386_locations(locs, pc, pointer_size)) {
+      errs() << "WARNING: classified " << function_name << " parameter '"
+             << param_name << "' using the raw i386 ESP/EBP offset fallback\n";
+      return *raw_classification;
+    }
+  }
+
+  errs() << "WARNING: could not classify " << function_name << " parameter '"
+         << param_name << "' as an incoming or fresh stack slot\n";
+  return ParamStackSlot::unknown;
+}
+
+static eqspace::debug_harvest_param_stack_slot_t
+param_stack_slot_to_debug_harvest(ParamStackSlot stack_slot)
+{
+  switch (stack_slot) {
+  case ParamStackSlot::incoming:
+    return eqspace::debug_harvest_param_stack_slot_t::incoming;
+  case ParamStackSlot::fresh:
+    return eqspace::debug_harvest_param_stack_slot_t::fresh;
+  case ParamStackSlot::unknown:
+    return eqspace::debug_harvest_param_stack_slot_t::unknown;
+  }
+  llvm_unreachable("unknown parameter stack-slot classification");
+}
+
+static eqspace::debug_harvest_location_t
+loc_expr_to_debug_harvest_location(LocExpr const& loc, bool include_expr)
+{
+  eqspace::debug_harvest_location_t ret;
+  ret.has_range = true;
+  ret.low_pc = loc.low_pc;
+  ret.high_pc = loc.high_pc;
+
+  if (loc.cfa_offset) {
+    ret.base_kind = eqspace::debug_harvest_location_base_kind_t::cfa;
+    ret.has_offset = true;
+    ret.offset = *loc.cfa_offset;
+  } else {
+    switch (loc.address.base) {
+    case DwarfAddressBase::unknown:
+      ret.base_kind = eqspace::debug_harvest_location_base_kind_t::unknown;
+      break;
+    case DwarfAddressBase::cfa:
+      ret.base_kind = eqspace::debug_harvest_location_base_kind_t::cfa;
+      ret.has_offset = true;
+      ret.offset = loc.address.offset;
+      break;
+    case DwarfAddressBase::dwarf_register:
+      ret.base_kind = eqspace::debug_harvest_location_base_kind_t::reg;
+      ret.base_register = "dwarf:" + std::to_string(loc.address.dwarf_regnum);
+      ret.has_offset = true;
+      ret.offset = loc.address.offset;
+      break;
+    }
+  }
+
+  if (include_expr) {
+    ret.expr = loc.expr;
+  }
+  return ret;
+}
+
+static eqspace::debug_harvest_t
+build_debug_harvest(std::list<HarvestedSubprogram> const& subprograms,
+                    DWARFContext& DICtx, bool is_i386)
+{
+  eqspace::debug_harvest_t ret;
+  ret.producer = eqspace::debug_harvest_producer_t::dwarf;
+
+  for (auto const& subprogram : subprograms) {
+    auto const params = add_cfa_offsets(DICtx, subprogram.params);
+    if (!subprogram.locals.size() && !params.size()) {
+      continue;
+    }
+
+    eqspace::debug_harvest_function_t function;
+    function.name = subprogram.name;
+
+    for (auto const& local : subprogram.locals) {
+      eqspace::debug_harvest_variable_t variable;
+      variable.name = local.first;
+      variable.kind = eqspace::debug_harvest_variable_kind_t::local;
+      for (auto const& loc_expr : local.second) {
+        variable.locations.push_back(
+            loc_expr_to_debug_harvest_location(loc_expr, true));
+      }
+      function.variables.push_back(std::move(variable));
+    }
+
+    unsigned arg_no = 0;
+    for (auto const& param : params) {
+      eqspace::debug_harvest_variable_t variable;
+      variable.name = param.first;
+      variable.kind = eqspace::debug_harvest_variable_kind_t::param;
+      variable.has_param_index = true;
+      variable.param_index = arg_no++;
+
+      ParamStackSlot const stack_slot = classify_param_stack_slot(
+          subprogram.name, param.first, param.second,
+          subprogram.prologue_end_pc, subprogram.address_size, is_i386);
+      variable.param_stack_slot =
+          param_stack_slot_to_debug_harvest(stack_slot);
+
+      // Parameter locations are retained for diagnostics, but the downstream
+      // LLVM model uses only the stack-slot classification.
+      for (auto const& loc_expr : param.second) {
+        variable.locations.push_back(
+            loc_expr_to_debug_harvest_location(loc_expr, false));
+      }
+      function.variables.push_back(std::move(variable));
+    }
+
+    ret.functions.push_back(std::move(function));
+  }
+
+  return ret;
+}
+
 static bool dumpObjectFile(ObjectFile &Obj, DWARFContext &DICtx,
                            const Twine &Filename, raw_ostream &OS)
 {
-  logAllUnhandledErrors(DICtx.loadRegisterInfo(Obj), errs(),
-                        Filename.str() + ": ");
-
-
-  std::list<pair<std::string, std::list<pair<std::string, std::vector<std::tuple<uint64_t,uint64_t,eqspace::expr_ref>>>>>> ret_map;
+  bool const is_i386 = Obj.makeTriple().getArch() == Triple::x86;
+  std::list<HarvestedSubprogram> ret_map;
   for (auto const& unit : DICtx.info_section_units()) {
     if (DWARFDie CUDie = unit->getUnitDIE(false)) {
       populate_function_to_variable_to_expr_map(CUDie, ret_map, OS);
     }
   }
 
-  for (auto const& p : ret_map) {
-    auto const& name    = p.first;
-    auto const& varlist = p.second;
-    if (varlist.size()) {
-      OS << formatv("=SubprogramBegin: {0}\n", name);
-  	  for (auto const& pp : varlist) {
-  	    auto const& vname     = pp.first;
-  	    auto const& loc_exprs = pp.second;
-  	    OS << "=VarName: " << vname << "\n";
-  	    for (auto const& loc_expr : loc_exprs) {
-  	      OS << format("=LocRange\n0x%" PRIx64 " 0x%" PRIx64 "\n", get<0>(loc_expr) , get<1>(loc_expr));
-  	      OS << formatv("=Expr\n{0}\n", g_ctx->expr_to_string_table(get<2>(loc_expr)));
-  	    }
-  	  }
-      OS << formatv("=SubprogramEnd: {0}\n", name);
-    }
-  }
+  eqspace::debug_harvest_t const harvest =
+      build_debug_harvest(ret_map, DICtx, is_i386);
+  std::ostringstream ss;
+  harvest.to_stream(ss, g_ctx);
+  OS << ss.str();
   return true;
 }
 
@@ -681,17 +1303,17 @@ static bool handleBuffer(StringRef Filename, MemoryBufferRef Buffer,
   };
   if (auto *Obj = dyn_cast<ObjectFile>(BinOrErr->get())) {
     unsigned pointer_size = Obj->getBytesInAddress();
-    /*
     if (pointer_size == DWORD_LEN/BYTE_LEN) {
-      g_ctx->set_addr_size(DWORD_LEN);
+      g_ctx_init(DWORD_LEN);
     } else if (pointer_size == QWORD_LEN/BYTE_LEN) {
-      g_ctx->set_addr_size(QWORD_LEN);
+      g_ctx_init(QWORD_LEN);
     } else {
       NOT_REACHED();
     }
-    */
     std::unique_ptr<DWARFContext> DICtx =
-      DWARFContext::create(*Obj, nullptr, "", RecoverableErrorHandler);
+      DWARFContext::create(*Obj,
+                           DWARFContext::ProcessDebugRelocations::Process,
+                           nullptr, "", RecoverableErrorHandler);
     if (!HandleObj(*Obj, *DICtx, Filename, OS))
       Result = false;
   }
@@ -710,8 +1332,6 @@ static bool handleFile(StringRef Filename, HandlerFn HandleObj,
 
 int main(int argc, char **argv)
 {
-  g_ctx_init(false);
-
   InitLLVM X(argc, argv);
 
   llvm::InitializeAllTargetInfos();

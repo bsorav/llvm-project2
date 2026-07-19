@@ -34,18 +34,21 @@ int argument_index(struct Pair prefix, int value) {
 // CHECK-LABEL: define {{.*}}i32 @parameter_allocas(
 // CHECK-SAME: i32 noundef %[[X:[^,]+]],
 // CHECK-SAME: ptr noundef byval(%struct.ByVal) align 4 %byval,
-// CHECK: %single = alloca %struct.Single, align 4, !superopt.parameter.alloca ![[PREAMBLE:[0-9]+]]
-// CHECK: %pair = alloca %struct.Pair, align 4, !superopt.parameter.alloca ![[PREAMBLE]]
-// CHECK: %wrapped = alloca %struct.Pair, align 4, !superopt.parameter.alloca ![[PREAMBLE]]
-// CHECK: %x.addr = alloca i32, align 4, !superopt.parameter.alloca ![[ARGUMENT:[0-9]+]]
+// CHECK: %single = alloca %struct.Single, align 4, !superopt.parameter.alloca ![[SINGLE:[0-9]+]]
+// CHECK: %pair = alloca %struct.Pair, align 4, !superopt.parameter.alloca ![[PAIR:[0-9]+]]
+// CHECK: %wrapped = alloca %struct.Pair, align 4, !superopt.parameter.alloca ![[WRAPPED:[0-9]+]]
+// CHECK: %x.addr = alloca i32, align 4, !superopt.parameter.alloca ![[X_MD:[0-9]+]]
 // CHECK-NOT: %byval.addr = alloca
 // CHECK: store i32 %[[X]], ptr %x.addr
 
 // CHECK-LABEL: define {{.*}}i32 @argument_index(
-// CHECK: %prefix = alloca %struct.Pair, align 4, !superopt.parameter.alloca ![[PREAMBLE]]
-// CHECK: %value.addr = alloca i32, align 4, !superopt.parameter.alloca ![[ARGUMENT_TWO:[0-9]+]]
-// CHECK: ![[PREAMBLE]] = !{!"preamble"}
-// CHECK: ![[ARGUMENT]] = !{!"argument", i32 0}
-// CHECK: ![[ARGUMENT_TWO]] = !{!"argument", i32 2}
+// CHECK: %prefix = alloca %struct.Pair, align 4, !superopt.parameter.alloca ![[PREFIX:[0-9]+]]
+// CHECK: %value.addr = alloca i32, align 4, !superopt.parameter.alloca ![[VALUE:[0-9]+]]
+// CHECK: ![[SINGLE]] = !{!"param", i32 2, i32 1, i32 1}
+// CHECK: ![[PAIR]] = !{!"param", i32 3, i32 2, i32 2}
+// CHECK: ![[WRAPPED]] = !{!"param", i32 5, i32 5, i32 2}
+// CHECK: ![[X_MD]] = !{!"param", i32 1, i32 0, i32 1}
+// CHECK: ![[PREFIX]] = !{!"param", i32 1, i32 0, i32 2}
+// CHECK: ![[VALUE]] = !{!"param", i32 2, i32 2, i32 1}
 
 // UNSUPPORTED-NOT: !superopt.parameter.alloca

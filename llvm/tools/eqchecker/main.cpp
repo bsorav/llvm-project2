@@ -45,6 +45,7 @@ using namespace llvm;
 #include "support/running_status.h"
 
 #include "expr/consts_struct.h"
+#include "expr/debug_harvest.h"
 #include "expr/expr.h"
 #include "expr/z3_solver.h"
 
@@ -108,6 +109,9 @@ static cl::opt<std::string>
 ll_filename("ll-filename", cl::desc("<Disassembled LLVM used as input to identify linenum/column-num for PCs"), cl::init(""));
 
 static cl::opt<std::string>
+DebugHarvestOutputFilename("debug-harvest-output", cl::desc("<debug-harvest output file containing parameter stack-slot classifications>"), cl::init(""));
+
+static cl::opt<std::string>
 points_to_algo("points-to-algo", cl::desc("[" POINTS_TO_ALGO_ANDERSEN "|" POINTS_TO_ALGO_NONE "]"), cl::init(POINTS_TO_ALGO_ANDERSEN));
 
 static cl::opt<bool>
@@ -140,6 +144,50 @@ static std::unique_ptr<Module> readModule(LLVMContext &Context,
   if (!M)
     Diag.print("llvm2tfg", errs());
   return M;
+}
+
+static harvest_dwarf_param_stack_slot_t
+debug_harvest_param_stack_slot_to_harvest_dwarf(
+    debug_harvest_param_stack_slot_t stack_slot)
+{
+  if (stack_slot == debug_harvest_param_stack_slot_t::incoming)
+    return harvest_dwarf_param_stack_slot_t::incoming;
+  if (stack_slot == debug_harvest_param_stack_slot_t::fresh)
+    return harvest_dwarf_param_stack_slot_t::fresh;
+  ASSERT(stack_slot == debug_harvest_param_stack_slot_t::unknown);
+  return harvest_dwarf_param_stack_slot_t::unknown;
+}
+
+static harvest_dwarf_param_info_map_t
+read_debug_harvest_param_info(string const& filename, context* ctx)
+{
+  harvest_dwarf_param_info_map_t ret;
+  if (filename.empty()) {
+    return ret;
+  }
+
+  ifstream in(filename);
+  if (!in.is_open()) {
+    errs() << "could not open debug-harvest output filename: " << filename
+           << "\n";
+    NOT_REACHED();
+  }
+
+  debug_harvest_t const harvest = debug_harvest_t::from_stream(in, ctx);
+  for (auto const& function : harvest.functions) {
+    for (auto const& variable : function.variables) {
+      if (variable.kind != debug_harvest_variable_kind_t::param) {
+        continue;
+      }
+      ASSERT(variable.has_param_index);
+      harvest_dwarf_param_stack_slot_t const stack_slot =
+          debug_harvest_param_stack_slot_to_harvest_dwarf(
+              variable.param_stack_slot);
+      ret[function.name][variable.param_index] = {variable.name, stack_slot};
+    }
+  }
+
+  return ret;
 }
 
 /*
@@ -301,6 +349,23 @@ main(int argc, char **argv)
     MSG(string("done Reading LLPTFG from file " + src_etfg_filename + "...").c_str());
   }
 
+  if (!DebugHarvestOutputFilename.empty() && src_etfg_filename != "") {
+    errs() << "--debug-harvest-output is only valid while generating the "
+           << "source ETFG\n";
+    NOT_REACHED();
+  }
+
+  harvest_dwarf_param_info_map_t harvest_dwarf_param_info =
+      read_debug_harvest_param_info(DebugHarvestOutputFilename, ctx);
+  if (!DebugHarvestOutputFilename.empty()) {
+    DYN_DEBUG(harvest_dwarf,
+      errs() << "Read debug-harvest parameter stack-slot classifications for "
+             << harvest_dwarf_param_info.size() << " function(s) from "
+             << DebugHarvestOutputFilename << '\n');
+  }
+  harvest_dwarf_param_info_map_t const* harvest_dwarf_param_info_ptr =
+      harvest_dwarf_param_info.empty() ? nullptr : &harvest_dwarf_param_info;
+
   if (Progress) {
     progress_flag = 1;
   }
@@ -311,7 +376,7 @@ main(int argc, char **argv)
 
   MSG("Symbolic execution to obtain the Transfer Function Graph (TFG)...");
 
-  dshared_ptr<ftmap_t> function_tfg_map = sym_exec_llvm::sym_exec_get_function_tfg_map(M1.get(), FunNamesVec, ctx, src_llptfg, !NoGenScev, llvmSemantics, always_use_call_context_any, ll_filename, points_to_algo_val, nullptr, xml_output_format, *op_dcomp);
+  dshared_ptr<ftmap_t> function_tfg_map = sym_exec_llvm::sym_exec_get_function_tfg_map(M1.get(), FunNamesVec, ctx, src_llptfg, !NoGenScev, llvmSemantics, always_use_call_context_any, ll_filename, points_to_algo_val, nullptr, xml_output_format, *op_dcomp, harvest_dwarf_param_info_ptr);
   MSG("Points-to analysis on the Transfer Function Graph (TFG)...");
   function_tfg_map->ftmap_run_pointsto_analysis(points_to_algo_val, nullopt, call_context_depth, always_use_call_context_any, true, !dst_tfg_is_llvm, /*use_existing_locs*/false, xml_output_format);
   function_tfg_map->ftmap_add_start_pc_preconditions_for_each_tfg((src_llptfg != nullptr));
