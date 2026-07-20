@@ -825,7 +825,7 @@ sym_exec_llvm::get_expr_adding_edges_for_intermediate_vals(const Value& v, strin
 
     m_poison_varnames_seen.insert(undef_poison_varname);
 
-    ASSERT(s->is_bv_kind() || s->is_bool_kind());
+    ASSERT(s->is_bv_kind() || s->is_bool_kind() || s->is_float_kind());
     expr_ref undef_expr = mk_fresh_expr(undef_key_name, G_INPUT_KEYWORD, s);
 
     return make_pair(undef_expr, state_assumes);
@@ -1471,23 +1471,7 @@ sym_exec_llvm::apply_general_function(const CallInst* c, expr_ref fun_name_expr,
   for (const auto& arg : c->args()) {
     expr_ref expr;
     tie(expr, assumes) = get_expr_adding_edges_for_intermediate_vals(*arg, "", state_in, assumes, from_node, model_llvm_semantics, t, value_to_name_map);
-    if (expr->is_float_sort() || expr->is_floatx_sort()) {
-      state state_to_intermediate_val;
-      expr_ref bv_expr;
-      if (expr->is_float_sort()) {
-        bv_expr = m_ctx->mk_float_to_ieee_bv(expr);
-      } else if (expr->is_floatx_sort()) {
-        bv_expr = m_ctx->mk_floatx_to_ieee_bv(expr);
-      } else NOT_REACHED();
-      string float_fcall_arg_name = float_fcall_arg_get_name(*c, argnum);
-      state_set_expr(state_to_intermediate_val, float_fcall_arg_name, bv_expr);
-      dshared_ptr<tfg_node const> intermediate_node = get_next_intermediate_subsubindex_pc_node(t, from_node);
-      pc from_pc = from_node->get_pc();
-      shared_ptr<tfg_edge const> e = mk_tfg_edge(from_pc, intermediate_node->get_pc(), expr_true(m_ctx), state_to_intermediate_val, {}, {}, te_comment_t(false, from_pc.get_subindex(), TE_COMMENT_CONVERT_FLOAT_TO_BV_FOR_FCALL_ARG));
-      t.add_edge(e);
-      from_node = intermediate_node;
-      expr = m_ctx->get_input_expr_for_key(mk_string_ref(float_fcall_arg_name), bv_expr->get_sort());
-    } else if (c->paramHasAttr(argnum, Attribute::ByVal)) {
+    if (c->paramHasAttr(argnum, Attribute::ByVal)) {
       Type *elTy = c->getParamByValType(argnum);
       if (callconv_is_cdecl_x86(*c)) {
         // In cdecl I386 (Linux), the structure is passed on the stack regardless of size
@@ -4170,6 +4154,7 @@ sym_exec_common::get_constant_bytes(Constant const* c)
   const ConstantFP *FP;
   const ConstantAggregateZero *Zero;
   const ConstantAggregate *Aggregate;
+  const ConstantArray *Array;
 
   //XXX: handle all cases using lib/IR/AsmWriter.cpp:WriteConstantInternal()
   if ((Sequential = dyn_cast<ConstantDataSequential>(c))) {
@@ -4215,9 +4200,27 @@ sym_exec_common::get_constant_bytes(Constant const* c)
       vector_append(v, get_constant_bytes(elem));
     }
     return v;
-  } else if ((FP = dyn_cast<ConstantFP>(c))) {
-    dbgs() << _FNLN_ << ": Unhandled FP constant:" << *FP << '\n';
+  } else if ((FP = dyn_cast<ConstantFP>(c))/* && Array->isString()*/) {
+    APInt ai = FP->getValueAPF().bitcastToAPInt();
+    unsigned const bitwidth = ai.getBitWidth();
+    if (bitwidth == DWORD_LEN || bitwidth == QWORD_LEN) {
+      uint64_t val = ai.getZExtValue();
+      vector<char> v;
+      for (unsigned i = 0; i < bitwidth; i += BYTE_LEN) {
+        v.push_back((unsigned char)(val & MAKE_MASK(BYTE_LEN)));
+        val = val >> BYTE_LEN;
+      }
+      return v;
+    }
     NOT_IMPLEMENTED();
+  } else if ((Array = dyn_cast<ConstantArray>(c))) {
+    vector<char> v;
+    for (size_t i = 0; i < Array->getNumOperands(); i++) {
+      Constant* field = Array->getAggregateElement(i);
+      vector<char> fv = get_constant_bytes(field);
+      vector_append(v, fv);
+    }
+    return v;
   } else {
     dbgs() << _FNLN_ << ": Unhandled constant with ValueID " << valueIDName(c) << "\n"
            << "Value = {{{ " << *c << " }}}\n";
