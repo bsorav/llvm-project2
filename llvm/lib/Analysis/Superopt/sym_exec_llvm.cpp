@@ -3381,6 +3381,23 @@ sym_exec_llvm::get_tfg(llvm::Function& F, llvm::Module const *M, string const &n
   t->populate_pc_var_versions();
   t->populate_exit_return_values_for_llvm_method();
   t->canonicalize_llvm_nextpcs(src_llvm_tfg);
+  for (auto const& B : F) {
+    for (auto const& I : B) {
+      auto const* call = dyn_cast<CallInst>(&I);
+      if (!call) {
+        continue;
+      }
+      auto const* callee = dyn_cast<Function>(call->getCalledOperand()->stripPointerCasts());
+      if (!callee || !callee->doesNotReturn()) {
+        continue;
+      }
+      string callee_name = callee == &F ? G_SELFCALL_IDENTIFIER : callee->getName().str();
+      nextpc_id_t nextpc = t->get_nextpc_id_from_function_name(callee_name);
+      if (nextpc != -1) {
+        t->add_noreturn_nextpc(nextpc);
+      }
+    }
+  }
   t->tfg_llvm_interpret_intrinsic_fcalls();
 
   ASSERT(t->get_locals_map().size() == 0);
