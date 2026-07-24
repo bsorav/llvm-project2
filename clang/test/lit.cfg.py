@@ -94,6 +94,7 @@ tools = [
     "llvm-ifs",
     "yaml2obj",
     "clang-linker-wrapper",
+    ToolSubst("harvest-dwarf", unresolved="ignore"),
     "llvm-lto",
     "llvm-lto2",
     "llvm-profdata",

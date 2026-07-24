@@ -52,35 +52,31 @@
 
 using value_scev_map_t = map<string, scev_toplevel_t<pc>>;
 
+enum class harvest_dwarf_param_stack_slot_t {
+  unknown,
+  incoming,
+  fresh,
+};
+
+struct harvest_dwarf_param_info_t {
+  string param_name;
+  harvest_dwarf_param_stack_slot_t stack_slot;
+};
+
+using harvest_dwarf_param_info_map_t =
+    map<string, map<unsigned, harvest_dwarf_param_info_t>>;
+
 namespace eqspace {
   class llptfg_t;
 }
 
 class sym_exec_llvm : public sym_exec_common
 {
-  sym_exec_llvm(context* ctx, llvm::Module const *module, llvm::Function& F, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, unsigned memory_addressable_size, unsigned word_length, string const& srcdst_keyword, compiler_id_t const dst_compiler, list<pair<string,unsigned>> fname_size_l, map<symbol_id_t,graph_symbol_t> symbol_map, map<symbol_id_t,graph_extsym_t> extsym_map, map<pair<symbol_id_t,offset_t>,vector<char>> string_contents)
-    : sym_exec_common(ctx,
-                      make_dshared<list<pair<string, unsigned>> const>(std::move(fname_size_l)),
-                      make_dshared<map<symbol_id_t, graph_symbol_t> const>(std::move(symbol_map)),
-                      make_dshared<map<symbol_id_t, graph_extsym_t> const>(std::move(extsym_map)),
-                      make_dshared<map<pair<symbol_id_t, offset_t>, vector<char>> const>(std::move(string_contents)),
-                      memory_addressable_size,
-                      word_length,
-                      srcdst_keyword),
-    m_module(module),
-    m_function(F),
-    m_rounding_mode_at_start_pc(ctx->mk_rounding_mode_const(rounding_mode_t::round_to_nearest_ties_to_even())),
-    m_dst_compiler(dst_compiler)
-  { }
+  sym_exec_llvm(context* ctx, llvm::Module const *module, llvm::Function& F, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, unsigned memory_addressable_size, unsigned word_length, string const& srcdst_keyword, compiler_id_t const dst_compiler, harvest_dwarf_param_info_map_t const* harvest_dwarf_param_info, list<pair<string,unsigned>> fname_size_l, map<symbol_id_t,graph_symbol_t> symbol_map, map<symbol_id_t,graph_extsym_t> extsym_map, map<pair<symbol_id_t,offset_t>,vector<char>> string_contents);
 
 public:
 
-  static sym_exec_llvm create_sym_exec_llvm(context* ctx, llvm::Module const *module, llvm::Function& F, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, unsigned memory_addressable_size, unsigned word_length, string const& srcdst_keyword, compiler_id_t const dst_compiler)
-  {
-    auto const fname_size_l = get_fun_names(module);
-    auto [symbol_map, extsym_map, string_contents] = get_symbol_map_and_string_contents(module, fname_size_l, src_llvm_tfg);
-    return sym_exec_llvm(ctx, module, F, src_llvm_tfg, memory_addressable_size, word_length, srcdst_keyword, dst_compiler,  fname_size_l, symbol_map, extsym_map, string_contents);
-  }
+  static sym_exec_llvm create_sym_exec_llvm(context* ctx, llvm::Module const *module, llvm::Function& F, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, unsigned memory_addressable_size, unsigned word_length, string const& srcdst_keyword, compiler_id_t const dst_compiler, harvest_dwarf_param_info_map_t const* harvest_dwarf_param_info);
   virtual ~sym_exec_llvm() {}
 
   void exec(const state& state_in, const llvm::Instruction& I/*, state& state_out, vector<control_flow_transfer>& cfts, bool &expand_switch_flag, unordered_set<predicate> &assumes*/, dshared_ptr<tfg_node const> from_node, llvm::BasicBlock const &B, llvm::Function const &F, size_t next_insn_id, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, bool model_llvm_semantics, tfg_llvm_t &t/*, map<string, pair<callee_summary_t, dshared_ptr<tfg_llvm_t>>> *function_tfg_map*/, map<llvm_value_id_t, string_ref>* value_to_name_map/*, set<string> const *function_call_chain*/, map<shared_ptr<tfg_edge const>, llvm::Instruction const*>& eimap, map<string, value_scev_map_t> const& scev_map, context::xml_output_format_t xml_output_format, map<string, bool>& nextpc_is_noreturn_map);
@@ -97,7 +93,7 @@ public:
   //sort_ref get_mem_domain() const;
   //sort_ref get_mem_range() const;
 
-  static dshared_ptr<tfg_llvm_t> get_tfg(llvm::Function& F, llvm::Module const *M, string const &name, context *ctx, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, bool model_llvm_semantics, map<llvm_value_id_t, string_ref>* value_to_name_map, map<shared_ptr<tfg_edge const>, llvm::Instruction const*>& eimap, map<string, value_scev_map_t> const& scev_map, string const& srcdst_keyword, dshared_ptr<ll_filename_parsed_t> const& ll_filename_parsed, points_to_algo_t const& points_to_algo, context::xml_output_format_t xml_output_format, compiler_id_t const dst_compiler);
+  static dshared_ptr<tfg_llvm_t> get_tfg(llvm::Function& F, llvm::Module const *M, string const &name, context *ctx, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, bool model_llvm_semantics, map<llvm_value_id_t, string_ref>* value_to_name_map, map<shared_ptr<tfg_edge const>, llvm::Instruction const*>& eimap, map<string, value_scev_map_t> const& scev_map, string const& srcdst_keyword, dshared_ptr<ll_filename_parsed_t> const& ll_filename_parsed, points_to_algo_t const& points_to_algo, context::xml_output_format_t xml_output_format, compiler_id_t const dst_compiler, harvest_dwarf_param_info_map_t const* harvest_dwarf_param_info = nullptr);
 
   static void populate_debug_headers_for_subprogram(llvm::Function& F, dshared_ptr<tfg_llvm_t> t_llvm);
 
@@ -117,7 +113,7 @@ public:
   //list<pair<string, size_t>> const &get_local_refs() { return m_local_refs; }
   //static string get_value_name(const llvm::Value& v);
   //virtual void process_phi_nodes(tfg &t, const llvm::BasicBlock* B_from, const pc& p_to, shared_ptr<tfg_node> const &from_node, const llvm::Function& F, expr_ref edgecond) override;
-  static dshared_ptr<ftmap_t> sym_exec_get_function_tfg_map(llvm::Module* M, set<string> FunNamesVec/*, bool DisableModelingOfUninitVarUB*/, context* ctx, dshared_ptr<llptfg_t const> const& src_llptfg, bool gen_scev, bool model_llvm_semantics, bool always_use_call_context_any, string const& ll_filename, points_to_algo_t const& points_to_algo, map<llvm_value_id_t, string_ref>* value_to_name_map = nullptr, context::xml_output_format_t xml_output_format = context::XML_OUTPUT_FORMAT_TEXT_NOCOLOR, compiler_id_t const dst_compiler = compiler_id_t::clang);
+  static dshared_ptr<ftmap_t> sym_exec_get_function_tfg_map(llvm::Module* M, set<string> FunNamesVec/*, bool DisableModelingOfUninitVarUB*/, context* ctx, dshared_ptr<llptfg_t const> const& src_llptfg, bool gen_scev, bool model_llvm_semantics, bool always_use_call_context_any, string const& ll_filename, points_to_algo_t const& points_to_algo, map<llvm_value_id_t, string_ref>* value_to_name_map = nullptr, context::xml_output_format_t xml_output_format = context::XML_OUTPUT_FORMAT_TEXT_NOCOLOR, compiler_id_t const dst_compiler = compiler_id_t::clang, harvest_dwarf_param_info_map_t const* harvest_dwarf_param_info = nullptr);
   static map<string, value_scev_map_t> sym_exec_populate_potential_scev_relations(llvm::Module* M, string const& srcdst_keyword);
 
   static scev_toplevel_t<pc> get_scev_toplevel(llvm::Instruction& I, llvm::ScalarEvolution * scev, llvm::LoopInfo const* loopinfo, string const& srcdst_keyword, size_t word_length);
@@ -271,6 +267,7 @@ private:
   map<string, expr_ref> m_opaque_varname_to_memalloc_map;
 
   map<llvm::Value const*, llvm::DILocalVariable const*> m_local_addr_to_dilocal;
+  harvest_dwarf_param_info_map_t const* m_harvest_dwarf_param_info;
 
   //see https://docs.microsoft.com/en-us/cpp/build/x64-calling-convention?view=msvc-160 where it says that the value is ROUND_TO_NEAREST at the start of program execution (x86 calling conventions).  XXX: We are taking some liberty here by extending this assumption to the start of every function; a more precise way to model this would involve using a variable (instead of a constant) for the rounding mode at the start pc
   expr_ref m_rounding_mode_at_start_pc;

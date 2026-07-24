@@ -19,6 +19,7 @@
 #include "support/crypto.h"
 
 #include "expr/expr.h"
+#include "expr/state.h"
 
 #include "gsupport/predicate.h"
 #include "gsupport/scev.h"
@@ -50,6 +51,34 @@ callconv_is_cdecl_x86(llvm::CallInst const& c)
           && triple.getArch() == Triple::x86;
 }
 
+}
+
+sym_exec_llvm::sym_exec_llvm(context* ctx, llvm::Module const *module, llvm::Function& F, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, unsigned memory_addressable_size, unsigned word_length, string const& srcdst_keyword, compiler_id_t const dst_compiler, harvest_dwarf_param_info_map_t const* harvest_dwarf_param_info, list<pair<string,unsigned>> fname_size_l, map<symbol_id_t,graph_symbol_t> symbol_map, map<symbol_id_t,graph_extsym_t> extsym_map, map<pair<symbol_id_t,offset_t>,vector<char>> string_contents)
+  : sym_exec_common(ctx,
+                    make_dshared<list<pair<string, unsigned>> const>(std::move(fname_size_l)),
+                    make_dshared<map<symbol_id_t, graph_symbol_t> const>(std::move(symbol_map)),
+                    make_dshared<map<symbol_id_t, graph_extsym_t> const>(std::move(extsym_map)),
+                    make_dshared<map<pair<symbol_id_t, offset_t>, vector<char>> const>(std::move(string_contents)),
+                    memory_addressable_size,
+                    word_length,
+                    srcdst_keyword),
+    m_module(module),
+    m_function(F),
+    m_harvest_dwarf_param_info(harvest_dwarf_param_info),
+    m_rounding_mode_at_start_pc(ctx->mk_rounding_mode_const(rounding_mode_t::round_to_nearest_ties_to_even())),
+    m_dst_compiler(dst_compiler)
+{ }
+
+sym_exec_llvm
+sym_exec_llvm::create_sym_exec_llvm(context* ctx, llvm::Module const *module, llvm::Function& F, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, unsigned memory_addressable_size, unsigned word_length, string const& srcdst_keyword, compiler_id_t const dst_compiler, harvest_dwarf_param_info_map_t const* harvest_dwarf_param_info)
+{
+  auto const fname_size_l = get_fun_names(module);
+  auto [symbol_map, extsym_map, string_contents] =
+      get_symbol_map_and_string_contents(module, fname_size_l, src_llvm_tfg);
+  return sym_exec_llvm(ctx, module, F, src_llvm_tfg,
+                       memory_addressable_size, word_length, srcdst_keyword,
+                       dst_compiler, harvest_dwarf_param_info, fname_size_l,
+                       symbol_map, extsym_map, string_contents);
 }
 
 sort_ref sym_exec_common::get_mem_domain() const
@@ -3107,11 +3136,10 @@ sym_exec_llvm::alloca_corresponds_to_a_local_parameter(AllocaInst const& a, DILo
   if (!dilocal.isParameter())
     return false;
 
-  bool const is_clang =
-         this->m_dst_compiler == compiler_id_t::clang
+  if (   this->m_dst_compiler == compiler_id_t::clang
       || this->m_dst_compiler == compiler_id_t::clangv
-      || this->m_dst_compiler == compiler_id_t::clangpp;
-  if (is_clang) {
+      || this->m_dst_compiler == compiler_id_t::clangpp) {
+
     if (!callconv_is_cdecl_x86(a.getFunction())) {
       NOT_IMPLEMENTED();
     }
@@ -3130,37 +3158,98 @@ sym_exec_llvm::alloca_corresponds_to_a_local_parameter(AllocaInst const& a, DILo
       NOT_IMPLEMENTED();
     }
 
-    if (kind->getString() == "preamble") {
-      if (metadata->getNumOperands() != 1) {
-        errs() << "invalid preamble parameter alloca metadata on: " << a
-               << '\n';
-        NOT_IMPLEMENTED();
-      }
-      return false;
-    }
-
-    if (kind->getString() != "argument" ||
-        metadata->getNumOperands() != 2) {
+    if (kind->getString() != "param" ||
+        metadata->getNumOperands() != 4) {
       errs() << "invalid parameter alloca metadata on: " << a << '\n';
       NOT_IMPLEMENTED();
     }
 
-    auto const* arg_index_md =
-        dyn_cast<ConstantAsMetadata>(metadata->getOperand(1));
-    auto const* arg_index =
-        arg_index_md ? dyn_cast<ConstantInt>(arg_index_md->getValue())
-                     : nullptr;
-    if (!arg_index || arg_index->getValue().getActiveBits() > 32 ||
-        arg_index->getZExtValue() >= F.arg_size()) {
-      errs() << "invalid argument index in parameter alloca metadata on: "
+    vector<uint64_t> operands;
+    for (unsigned I = 1; I != 4; ++I) {
+      auto const* int_md =
+          dyn_cast<ConstantAsMetadata>(metadata->getOperand(I));
+      auto const* int_val =
+          int_md ? dyn_cast<ConstantInt>(int_md->getValue()) : nullptr;
+      if (!int_val || int_val->getValue().getActiveBits() > 32) {
+        errs() << "invalid integer operand in parameter alloca metadata on: "
+               << a << '\n';
+        NOT_IMPLEMENTED();
+      }
+      operands.push_back(int_val->getZExtValue());
+    }
+
+    uint64_t const source_arg_no = operands.at(0);
+    uint64_t const first_ir_arg  = operands.at(1);
+    uint64_t const num_ir_args   = operands.at(2);
+    if (   num_ir_args == 0
+        || first_ir_arg > F.arg_size()
+        || num_ir_args > F.arg_size() - first_ir_arg) {
+      errs() << "invalid IR argument slice in parameter alloca metadata on: "
              << a << '\n';
       NOT_IMPLEMENTED();
     }
 
-    graph_arg_id_t argnum = arg_index->getZExtValue();
-    param_addr = t.get_argument_regs().addr_at(
-        mk_string_ref(graph_arg_regs_t::get_argname_from_argnum(argnum)));
-    return true;
+    // Clang's source argument number is one-based.  Check for zero before
+    // converting it to harvest-dwarf's zero-based parameter index below.
+    if (m_harvest_dwarf_param_info && source_arg_no != 0) {
+      auto const fit = m_harvest_dwarf_param_info->find(F.getName().str());
+      if (fit == m_harvest_dwarf_param_info->end()) {
+        DYN_DEBUG(harvest_dwarf,
+          errs() << "No DWARF parameter stack-slot classifications for "
+                 << "function " << F.getName() << "\n");
+      } else {
+        unsigned const param_index = source_arg_no - 1;
+        auto pit = fit->second.find(param_index);
+        if (pit != fit->second.end()) {
+          string const& dwarf_param_name = pit->second.param_name;
+          string const& llvm_param_name = dilocal.getName().str();
+          if (   !dwarf_param_name.empty()
+              && !llvm_param_name.empty()
+              && dwarf_param_name != llvm_param_name) {
+            DYN_DEBUG(harvest_dwarf,
+              errs() << "Ignoring DWARF parameter classification for "
+                     << F.getName()
+                     << " argument " << source_arg_no << ": DWARF name '"
+                     << dwarf_param_name << "' does not match LLVM name '"
+                     << llvm_param_name << "'\n");
+            return false;
+          }
+
+          // Elide the alloca only when harvest-dwarf positively identifies the
+          // incoming parameter slot.  An unknown classification is deliberately
+          // over-approximated as a fresh stack allocation too.
+          if (pit->second.stack_slot != harvest_dwarf_param_stack_slot_t::incoming) {
+            DYN_DEBUG(harvest_dwarf,
+              errs() << "Treating clang parameter alloca " << a.getName()
+                     << " in " << F.getName() << " as fresh alloca because "
+                     << "DWARF argument " << source_arg_no
+                     << " was not classified as an incoming parameter slot\n");
+            return false;
+          }
+
+          expr_vector param_addrs;
+          for (uint64_t argnum = first_ir_arg; argnum != first_ir_arg + num_ir_args; ++argnum) {
+            param_addrs.push_back(t.get_argument_regs().addr_at(
+              mk_string_ref(graph_arg_regs_t::get_argname_from_argnum(argnum))));
+          }
+          if (param_addrs.size() == 1) {
+            param_addr = param_addrs.front();
+          } else {
+            param_addr = m_ctx->mk_donotsimplify_return_first(param_addrs);
+          }
+          DYN_DEBUG(harvest_dwarf,
+            errs() << "Matched clang parameter alloca " << a.getName()
+                   << " in " << F.getName() << " to incoming parameter slot "
+                   << "for source argument " << source_arg_no << "\n");
+          return true;
+        }
+        DYN_DEBUG(harvest_dwarf,
+          errs() << "No DWARF parameter classification for " << F.getName()
+                 << " argument " << source_arg_no << "\n");
+      }
+    }
+
+    return false;
   }
 
   // Non-Clang compilers always use the parameter address. Retain their
@@ -3211,7 +3300,7 @@ sym_exec_llvm::alloca_corresponds_to_a_local_parameter(AllocaInst const& a, DILo
 }
 
 dshared_ptr<tfg_llvm_t>
-sym_exec_llvm::get_tfg(llvm::Function& F, llvm::Module const *M, string const &name, context *ctx, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, bool model_llvm_semantics, map<llvm_value_id_t, string_ref>* value_to_name_map, map<shared_ptr<tfg_edge const>, Instruction const*>& eimap, map<string, value_scev_map_t> const& scev_map, string const& srcdst_keyword, dshared_ptr<ll_filename_parsed_t> const& ll_filename_parsed, points_to_algo_t const& points_to_algo, context::xml_output_format_t xml_output_format, compiler_id_t const dst_compiler)
+sym_exec_llvm::get_tfg(llvm::Function& F, llvm::Module const *M, string const &name, context *ctx, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, bool model_llvm_semantics, map<llvm_value_id_t, string_ref>* value_to_name_map, map<shared_ptr<tfg_edge const>, Instruction const*>& eimap, map<string, value_scev_map_t> const& scev_map, string const& srcdst_keyword, dshared_ptr<ll_filename_parsed_t> const& ll_filename_parsed, points_to_algo_t const& points_to_algo, context::xml_output_format_t xml_output_format, compiler_id_t const dst_compiler, harvest_dwarf_param_info_map_t const* harvest_dwarf_param_info)
 {
   autostop_timer func_timer(__func__);
 
@@ -3219,7 +3308,7 @@ sym_exec_llvm::get_tfg(llvm::Function& F, llvm::Module const *M, string const &n
   unsigned pointer_size = dl.getPointerSize();
   //cout << __func__ << " " << __LINE__ << ": pointer_size = " << pointer_size << endl;
   ASSERT(pointer_size == DWORD_LEN/BYTE_LEN || pointer_size == QWORD_LEN/BYTE_LEN);
-  auto se = sym_exec_llvm::create_sym_exec_llvm(ctx, M, F, src_llvm_tfg, BYTE_LEN, pointer_size * BYTE_LEN, srcdst_keyword, dst_compiler);
+  auto se = sym_exec_llvm::create_sym_exec_llvm(ctx, M, F, src_llvm_tfg, BYTE_LEN, pointer_size * BYTE_LEN, srcdst_keyword, dst_compiler, harvest_dwarf_param_info);
 
   list<string> sorted_bbl_indices;
   for (BasicBlock const& BB: F) {
@@ -4598,7 +4687,7 @@ sym_exec_llvm::sym_exec_populate_potential_scev_relations(Module* M, string cons
 }
 
 dshared_ptr<ftmap_t>
-sym_exec_llvm::sym_exec_get_function_tfg_map(Module* M, set<string> FunNamesVec/*, bool DisableModelingOfUninitVarUB*/, context* ctx, dshared_ptr<llptfg_t const> const& src_llptfg, bool gen_scev, bool model_llvm_semantics, bool always_use_call_context_any, string const& ll_filename, points_to_algo_t const& points_to_algo, map<llvm_value_id_t, string_ref>* value_to_name_map, context::xml_output_format_t xml_output_format, compiler_id_t const dst_compiler)
+sym_exec_llvm::sym_exec_get_function_tfg_map(Module* M, set<string> FunNamesVec/*, bool DisableModelingOfUninitVarUB*/, context* ctx, dshared_ptr<llptfg_t const> const& src_llptfg, bool gen_scev, bool model_llvm_semantics, bool always_use_call_context_any, string const& ll_filename, points_to_algo_t const& points_to_algo, map<llvm_value_id_t, string_ref>* value_to_name_map, context::xml_output_format_t xml_output_format, compiler_id_t const dst_compiler, harvest_dwarf_param_info_map_t const* harvest_dwarf_param_info)
 {
   //map<string, pair<callee_summary_t, dshared_ptr<tfg_llvm_t>>> function_tfg_map;
   map<call_context_ref, dshared_ptr<tfg_ssa_t>> function_tfg_map;
@@ -4662,7 +4751,7 @@ sym_exec_llvm::sym_exec_get_function_tfg_map(Module* M, set<string> FunNamesVec/
     DYN_DEBUG(llvm2tfg, cout << __func__ << " " << __LINE__ << ": Doing " << fname << endl; cout.flush());
     map<shared_ptr<tfg_edge const>, Instruction const*> eimap;
 
-    dshared_ptr<tfg_llvm_t> t_src = sym_exec_llvm::get_tfg(f, M, fname, ctx, src_llvm_tfg, model_llvm_semantics, value_to_name_map, eimap, scev_map, srcdst_keyword, ll_filename_parsed, points_to_algo, xml_output_format, dst_compiler);
+    dshared_ptr<tfg_llvm_t> t_src = sym_exec_llvm::get_tfg(f, M, fname, ctx, src_llvm_tfg, model_llvm_semantics, value_to_name_map, eimap, scev_map, srcdst_keyword, ll_filename_parsed, points_to_algo, xml_output_format, dst_compiler, harvest_dwarf_param_info);
 
     MSGS("Converted LLVM IR bitcode to Transfer Function Graph (TFG) for function " << fname);
 
