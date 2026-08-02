@@ -1844,7 +1844,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
         ASSERT(local_size == op_alloc_size_bits.value()/BYTE_LEN);
       }
 
-      allocsite_t const local_id(from_node->get_pc());
+      allocsite_t const local_id = allocsite_t::allocsite_create(from_node->get_pc());
       allocstack_t const local_id_stack = allocstack_t::allocstack_singleton(cur_function_name, local_id);
       memlabel_t const ml_local = memlabel_t::memlabel_local(local_id_stack);
       expr_ref const local_addr_var = m_cs.get_local_addr(local_id_stack, m_srcdst_keyword);
