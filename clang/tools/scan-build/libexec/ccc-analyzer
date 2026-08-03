@@ -34,7 +34,7 @@ sub silent_system {
   my ($TmpFH, $TmpFile) = tempfile("temp_buf_XXXXXX",
                                    DIR => $HtmlDir,
                                    UNLINK => 1);
-  print STDERR "Invoking $Command, @_\n";
+  #print STDERR "Invoking $Command, @_\n";
   open(STDOUT, ">$TmpFile");
   open(STDERR, ">&", \*STDOUT);
 

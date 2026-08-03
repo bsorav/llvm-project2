@@ -28,7 +28,7 @@ public:
   void checkBind(SVal Loc, SVal Val, const Stmt *S, CheckerContext &C) const;
 
 private:
-  bool isEOFexpr(const Expr *Expration) const;
+  bool isEOFexpr(const Expr *Expration, CheckerContext &C) const;
   bool isEOFReturningFunctionCall(const Expr *Expration,
                                   CheckerContext &C) const;
 };
@@ -51,13 +51,15 @@ void EOFChecker::checkPostCall(const CallEvent &Call, CheckerContext &C) const {
   }
 }
 
-bool EOFChecker::isEOFexpr(const Expr *Expration) const {
-  if (const UnaryOperator *UO = dyn_cast<UnaryOperator>(Expration)) {
-    if (UO->getOpcode() == UO_Minus) {
-      const Expr *SubExpr = UO->getSubExpr()->IgnoreParenCasts();
-      if (const IntegerLiteral *IL = dyn_cast<IntegerLiteral>(SubExpr)) {
-        return IL->getValue() == 1;
-      }
+bool EOFChecker::isEOFexpr(const Expr *Expration, CheckerContext &C) const {
+  const SourceManager &SM = C.getSourceManager();
+  SourceLocation Loc = Expration->getBeginLoc();
+
+  if (Loc.isMacroID()) {
+    llvm::StringRef MacroName =
+        Lexer::getImmediateMacroName(Loc, SM, C.getASTContext().getLangOpts());
+    if (MacroName == "EOF") {
+      return true;
     }
   }
   return false;
@@ -92,7 +94,7 @@ void EOFChecker::checkPreStmt(const BinaryOperator *BO,
                             BO->getRHS()->IgnoreParenCasts()};
 
   for (const Expr *Operand : Operands) {
-    if (isEOFexpr(Operand)) {
+    if (isEOFexpr(Operand, C)) {
       SVal OtherSVal =
           C.getSVal(Operand == Operands[0] ? Operands[1] : Operands[0]);
       if (isEOFReturningFunctionCall(
