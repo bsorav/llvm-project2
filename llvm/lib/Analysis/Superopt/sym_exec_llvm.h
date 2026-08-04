@@ -79,7 +79,7 @@ public:
   static sym_exec_llvm create_sym_exec_llvm(context* ctx, llvm::Module const *module, llvm::Function& F, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, unsigned memory_addressable_size, unsigned word_length, string const& srcdst_keyword, compiler_id_t const dst_compiler, harvest_dwarf_param_info_map_t const* harvest_dwarf_param_info);
   virtual ~sym_exec_llvm() {}
 
-  void exec(const state& state_in, const llvm::Instruction& I/*, state& state_out, vector<control_flow_transfer>& cfts, bool &expand_switch_flag, unordered_set<predicate> &assumes*/, dshared_ptr<tfg_node const> from_node, llvm::BasicBlock const &B, llvm::Function const &F, size_t next_insn_id, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, bool model_llvm_semantics, tfg_llvm_t &t/*, map<string, pair<callee_summary_t, dshared_ptr<tfg_llvm_t>>> *function_tfg_map*/, map<llvm_value_id_t, string_ref>* value_to_name_map/*, set<string> const *function_call_chain*/, map<shared_ptr<tfg_edge const>, llvm::Instruction const*>& eimap, map<string, value_scev_map_t> const& scev_map, context::xml_output_format_t xml_output_format);
+  void exec(const state& state_in, const llvm::Instruction& I/*, state& state_out, vector<control_flow_transfer>& cfts, bool &expand_switch_flag, unordered_set<predicate> &assumes*/, dshared_ptr<tfg_node const> from_node, llvm::BasicBlock const &B, llvm::Function const &F, size_t next_insn_id, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, bool model_llvm_semantics, tfg_llvm_t &t/*, map<string, pair<callee_summary_t, dshared_ptr<tfg_llvm_t>>> *function_tfg_map*/, map<llvm_value_id_t, string_ref>* value_to_name_map/*, set<string> const *function_call_chain*/, map<shared_ptr<tfg_edge const>, llvm::Instruction const*>& eimap, map<string, value_scev_map_t> const& scev_map, context::xml_output_format_t xml_output_format, map<string, bool>& nextpc_is_noreturn_map);
 
   string get_cur_rounding_mode_varname() const;
   expr_ref get_cur_rounding_mode_var() const;
@@ -230,7 +230,7 @@ private:
   vector<control_flow_transfer> expand_switch(tfg &t, map<llvm_value_id_t, string_ref>* value_to_name_map, dshared_ptr<tfg_node const> const &from_node, vector<control_flow_transfer> const &cfts, state const &state_to, preds_t const& cond_assumes, te_comment_t const& te_comment, llvm::Instruction const* I, const llvm::BasicBlock& B, const llvm::Function& F, map<shared_ptr<tfg_edge const>, llvm::Instruction const*>& eimap);
 
   void process_cft(tfg &t, dshared_ptr<tfg_node const> const &from_node, pc const &pc_to, expr_ref target, expr_ref to_condition, state const &state_to, preds_t const& assumes, const llvm::BasicBlock& B, const llvm::Function& F);
-  void add_edges(const llvm::BasicBlock& B, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, bool model_llvm_semantics, tfg_llvm_t& t, const llvm::Function& F/*, map<string, pair<callee_summary_t, dshared_ptr<tfg_llvm_t>>> *function_tfg_map*/, map<llvm_value_id_t, string_ref>* value_to_name_map/*, set<string> const *function_call_chain*/, map<shared_ptr<tfg_edge const>, llvm::Instruction const*>& eimap, map<string, value_scev_map_t> const& scev_map, dshared_ptr<ll_filename_parsed_t> const& ll_filename_parsed, context::xml_output_format_t xml_output_format);
+  void add_edges(const llvm::BasicBlock& B, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, bool model_llvm_semantics, tfg_llvm_t& t, const llvm::Function& F/*, map<string, pair<callee_summary_t, dshared_ptr<tfg_llvm_t>>> *function_tfg_map*/, map<llvm_value_id_t, string_ref>* value_to_name_map/*, set<string> const *function_call_chain*/, map<shared_ptr<tfg_edge const>, llvm::Instruction const*>& eimap, map<string, value_scev_map_t> const& scev_map, dshared_ptr<ll_filename_parsed_t> const& ll_filename_parsed, context::xml_output_format_t xml_output_format, map<string, bool>& nextpc_is_noreturn_map);
 
   void sym_exec_populate_tfg_scev_map(tfg_llvm_t& t_src, value_scev_map_t const& value_scev_map) const;
 
@@ -249,7 +249,7 @@ private:
 
   void populate_bbl_order_map();
 
-  static map<nextpc_id_t, callee_summary_t> get_callee_summaries_for_tfg(map<nextpc_id_t, string> const &nextpc_map, map<string, callee_summary_t> const &callee_summaries);
+  static map<nextpc_id_t, callee_summary_t> get_callee_summaries_for_tfg(map<nextpc_id_t, nextpc_info_t> const &nextpc_map, map<string, callee_summary_t> const &callee_summaries);
 
   void populate_local_variable_address_metadata(llvm::Function const& F);
   llvm::DILocalVariable const* get_dilocal_for_alloca(llvm::AllocaInst const* AI) const;

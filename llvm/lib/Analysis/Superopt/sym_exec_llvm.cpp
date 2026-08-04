@@ -1687,7 +1687,7 @@ fp_val_within_limits_assume(expr_ref const& e, float_max_t const& min_limit, flo
   return ctx->mk_and(ge_min, lt_max);
 }
 
-void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dshared_ptr<tfg_node const> from_node, llvm::BasicBlock const &B, llvm::Function const &F, size_t next_insn_id, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, bool model_llvm_semantics, tfg_llvm_t &t, map<llvm_value_id_t, string_ref>* value_to_name_map/*, set<string> const *function_call_chain*/, map<shared_ptr<tfg_edge const>, Instruction const*>& eimap, map<string, value_scev_map_t> const& scev_map, context::xml_output_format_t xml_output_format)
+void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dshared_ptr<tfg_node const> from_node, llvm::BasicBlock const &B, llvm::Function const &F, size_t next_insn_id, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, bool model_llvm_semantics, tfg_llvm_t &t, map<llvm_value_id_t, string_ref>* value_to_name_map/*, set<string> const *function_call_chain*/, map<shared_ptr<tfg_edge const>, Instruction const*>& eimap, map<string, value_scev_map_t> const& scev_map, context::xml_output_format_t xml_output_format, map<string, bool>& nextpc_is_noreturn_map)
 {
   DYN_DEBUG(llvm2tfg, errs() << "sym exec doing: " << I << "\n");
   preds_t state_assumes;
@@ -2116,6 +2116,11 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     if (fun_name == string(LLVM_FUNCTION_NAME_PREFIX) + cur_function_name) {
       fun_name = LLVM_FUNCTION_NAME_PREFIX G_SELFCALL_IDENTIFIER;
       fun_expr = m_ctx->mk_var(fun_name, m_ctx->mk_bv_sort(get_word_length()));
+    }
+    if (fun_name != "") {
+      ASSERT(string_has_prefix(fun_name, LLVM_FUNCTION_NAME_PREFIX));
+      string fname = fun_name.substr(strlen(LLVM_FUNCTION_NAME_PREFIX));
+      nextpc_is_noreturn_map[fname] = nextpc_is_noreturn_map[fname] || c->doesNotReturn() || (calleeF && calleeF->doesNotReturn());
     }
     //TODO: need to support memmove too
     string const llvm_memcpy_fn = LLVM_FUNCTION_NAME_PREFIX G_LLVM_MEMCPY_FUNCTION;
@@ -3337,8 +3342,9 @@ sym_exec_llvm::get_tfg(llvm::Function& F, llvm::Module const *M, string const &n
   se.get_tfg_common(*t);
 
   //cout << timestamp() << ": " << _FNLN_ << ": adding basic blocks\n";  cout.flush();
+  map<string, bool> nextpc_is_noreturn_map;
   for(const BasicBlock& B : F) {
-    se.add_edges(B, src_llvm_tfg, model_llvm_semantics, *t, F/*, function_tfg_map*/, value_to_name_map/*, function_call_chain*/, eimap, scev_map, ll_filename_parsed, xml_output_format);
+    se.add_edges(B, src_llvm_tfg, model_llvm_semantics, *t, F/*, function_tfg_map*/, value_to_name_map/*, function_call_chain*/, eimap, scev_map, ll_filename_parsed, xml_output_format, nextpc_is_noreturn_map);
   }
   //cout << timestamp() << ": " << _FNLN_ << ": done adding basic blocks\n";
 
@@ -3364,7 +3370,7 @@ sym_exec_llvm::get_tfg(llvm::Function& F, llvm::Module const *M, string const &n
   t->remove_function_name_from_symbols(name);
   t->populate_pc_var_versions();
   t->populate_exit_return_values_for_llvm_method();
-  t->canonicalize_llvm_nextpcs(src_llvm_tfg);
+  t->canonicalize_llvm_nextpcs(src_llvm_tfg, nextpc_is_noreturn_map);
   t->tfg_llvm_interpret_intrinsic_fcalls();
 
   ASSERT(t->get_locals_map().size() == 0);
@@ -3596,7 +3602,7 @@ sym_exec_llvm::parse_stackrestore_intrinsic(Instruction const& I, tfg& t, pc con
 }
 
 void
-sym_exec_llvm::add_edges(const llvm::BasicBlock& B, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, bool model_llvm_semantics, tfg_llvm_t& t, const llvm::Function& F/*, map<string, pair<callee_summary_t, dshared_ptr<tfg_llvm_t>>> *function_tfg_map*/, map<llvm_value_id_t, string_ref>* value_to_name_map/*, set<string> const *function_call_chain*/, map<shared_ptr<tfg_edge const>, Instruction const*>& eimap, map<string, value_scev_map_t> const& scev_map, dshared_ptr<ll_filename_parsed_t> const& ll_filename_parsed, context::xml_output_format_t xml_output_format)
+sym_exec_llvm::add_edges(const llvm::BasicBlock& B, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, bool model_llvm_semantics, tfg_llvm_t& t, const llvm::Function& F/*, map<string, pair<callee_summary_t, dshared_ptr<tfg_llvm_t>>> *function_tfg_map*/, map<llvm_value_id_t, string_ref>* value_to_name_map/*, set<string> const *function_call_chain*/, map<shared_ptr<tfg_edge const>, Instruction const*>& eimap, map<string, value_scev_map_t> const& scev_map, dshared_ptr<ll_filename_parsed_t> const& ll_filename_parsed, context::xml_output_format_t xml_output_format, map<string, bool>& nextpc_is_noreturn_map)
 {
   //errs() << "Doing BB: " << get_basicblock_name(B) << "\n";
   //errs() << "t.get_edges().size() = " << t.get_edges().size() << "\n";
@@ -3701,7 +3707,7 @@ sym_exec_llvm::add_edges(const llvm::BasicBlock& B, dshared_ptr<tfg_llvm_t const
     }
     insn_id++;
 
-    exec(state(), I, from_node, B, F, insn_id, src_llvm_tfg, model_llvm_semantics, t, value_to_name_map, eimap, scev_map, xml_output_format);
+    exec(state(), I, from_node, B, F, insn_id, src_llvm_tfg, model_llvm_semantics, t, value_to_name_map, eimap, scev_map, xml_output_format, nextpc_is_noreturn_map);
   }
 }
 
@@ -3944,7 +3950,7 @@ sym_exec_llvm::set_next_phi_pc(pc const &p, pc const &phi_pc)
 }*/
 
 map<nextpc_id_t, callee_summary_t>
-sym_exec_llvm::get_callee_summaries_for_tfg(map<nextpc_id_t, string> const &nextpc_map, map<string, callee_summary_t> const &callee_summaries)
+sym_exec_llvm::get_callee_summaries_for_tfg(map<nextpc_id_t, nextpc_info_t> const &nextpc_map, map<string, callee_summary_t> const &callee_summaries)
 {
   autostop_timer func_timer(__func__);
   map<nextpc_id_t, callee_summary_t> ret;
@@ -3953,7 +3959,7 @@ sym_exec_llvm::get_callee_summaries_for_tfg(map<nextpc_id_t, string> const &next
     callee_summary_t csum = ncsum.second;
     nextpc_id_t nextpc_id = -1;
     for (auto npc : nextpc_map) {
-      if (npc.second == nextpc_str) {
+      if (npc.second.get_function_name() == nextpc_str) {
         nextpc_id = npc.first;
         break;
       }
