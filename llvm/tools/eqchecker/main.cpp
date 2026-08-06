@@ -96,8 +96,8 @@ call_context_depth("call-context-depth", cl::desc("<call-context-depth.  The cal
 static cl::opt<bool>
 always_use_call_context_any("always-use-call-context-any", cl::desc("<always-use-call-context-any.  Always use call-context-any as soon as the maximum call-context depth is reached."), cl::init(true));
 
-static cl::opt<std::string>
-XmlOutputFormat("xml-output-format", cl::desc("<xml-output-format.  Format to use during xml printing.  [html|text-color|text-nocolor]"), cl::init("text-color"));
+//static cl::opt<std::string>
+//XmlOutputFormat("xml-output-format", cl::desc("<xml-output-format.  Format to use during xml printing.  [html|text-color|text-nocolor]"), cl::init("text-color"));
 
 static cl::opt<bool>
 NoGenScev("no-gen-scev", cl::desc("<no-gen-scev. don't generate potential scev relationships to be used for invariant inferences>"), cl::init(false));
@@ -238,15 +238,15 @@ main(int argc, char **argv)
   init_dyn_debug_from_string(DynDebug);
   CPP_DBG_EXEC(DYN_DEBUG, print_debug_class_levels());
 
-  context::xml_output_format_t xml_output_format = context::xml_output_format_from_string(XmlOutputFormat);
+  //context::xml_output_format_t xml_output_format = context::xml_output_format_from_string(XmlOutputFormat);
 
   DYN_DEBUG(llvm2tfg, errs() << "doing functions:" << FunNames << "\n");
   DYN_DEBUG(llvm2tfg, errs() << "output filename:" << OutputFilename << "\n");
 
-  if (xml_output_file != "") {
-    g_xml_output_stream.open(xml_output_file, ios_base::app | ios_base::ate);
-    ASSERT(g_xml_output_stream.is_open());
-  }
+  //if (xml_output_file != "") {
+  //  g_xml_output_stream.open(xml_output_file, ios_base::app | ios_base::ate);
+  //  ASSERT(g_xml_output_stream.is_open());
+  //}
 
   PassRegistry &Registry = *PassRegistry::getPassRegistry();
   initializeCore(Registry);
@@ -376,9 +376,9 @@ main(int argc, char **argv)
 
   MSG("Symbolic execution to obtain the Transfer Function Graph (TFG)...");
 
-  dshared_ptr<ftmap_t> function_tfg_map = sym_exec_llvm::sym_exec_get_function_tfg_map(M1.get(), FunNamesVec, ctx, src_llptfg, !NoGenScev, llvmSemantics, always_use_call_context_any, ll_filename, points_to_algo_val, nullptr, xml_output_format, *op_dcomp, harvest_dwarf_param_info_ptr);
+  dshared_ptr<ftmap_t> function_tfg_map = sym_exec_llvm::sym_exec_get_function_tfg_map(M1.get(), FunNamesVec, ctx, src_llptfg, !NoGenScev, llvmSemantics, always_use_call_context_any, ll_filename, points_to_algo_val, nullptr/*, xml_output_format*/, *op_dcomp, harvest_dwarf_param_info_ptr);
   MSG("Points-to analysis on the Transfer Function Graph (TFG)...");
-  function_tfg_map->ftmap_run_pointsto_analysis(points_to_algo_val, nullopt, call_context_depth, always_use_call_context_any, true, !dst_tfg_is_llvm, /*use_existing_locs*/false, xml_output_format);
+  function_tfg_map->ftmap_run_pointsto_analysis(points_to_algo_val, nullopt, call_context_depth, always_use_call_context_any, true, !dst_tfg_is_llvm, /*use_existing_locs*/false/*, xml_output_format*/);
   function_tfg_map->ftmap_add_start_pc_preconditions_for_each_tfg((src_llptfg != nullptr));
   //function_tfg_map->ftmap_add_store_uninit_at_alloc_of_locals_for_each_tfg();
   //function_tfg_map->ftmap_add_store_uninit_at_dealloc_of_contiguous_locals_for_each_tfg();
