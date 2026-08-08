@@ -79,8 +79,8 @@ public:
   static bool update_function_call_args_and_retvals_with_atlocals(dshared_ptr<tfg> t_src);
 
   map<allocsite_t, graph_local_t> const &get_local_refs() { return m_local_refs; }
-  string get_value_name(const llvm::Value& v) const;
-  static string get_value_name_using_srcdst_keyword(const llvm::Value& v, string const& srcdst_keyword);
+  expr_var_ref get_value_name(const llvm::Value& v) const;
+  static expr_var_ref get_value_name_using_srcdst_keyword(const llvm::Value& v, string const& srcdst_keyword);
   static vector<char> get_constant_bytes(llvm::Constant const* c);
   static unsigned get_num_insn(const llvm::Function& f);
   context *get_context() const { return m_ctx; }
@@ -183,8 +183,11 @@ protected:
   //expr_ref get_expr_adding_edges_for_intermediate_vals(const llvm::Value& v, string vname, const state& state_in, shared_ptr<tfg_node> &from_node, pc const &pc_to, llvm::BasicBlock const &B, llvm::Function const &F, tfg &t);
 
   void state_set_expr(state &st, string const &key, expr_ref const &value) const;
+  void state_set_expr(state &st, expr_var_ref const &key, expr_ref const &value) const;
   expr_ref get_input_expr(string const &key, sort_ref const& s) const;
+  expr_ref get_input_expr(expr_var_ref const &key, sort_ref const& s) const;
   expr_ref state_get_expr(state const &st, string const &key, sort_ref const& s) const;
+  expr_ref state_get_expr(state const &st, expr_var_ref const &key, sort_ref const& s) const;
 
   //void set_expr(const llvm::Value& v, expr_ref expr, state& st);
   //vector<expr_ref> get_expr_args(const llvm::Instruction& I, string vname, const state& st, shared_ptr<tfg_node> &from_node, pc const &pc_to, llvm::BasicBlock const &B, llvm::Function const &F, tfg &t/*, unordered_set<predicate> &assumes*/);

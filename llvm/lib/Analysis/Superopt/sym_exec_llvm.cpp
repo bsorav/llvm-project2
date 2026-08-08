@@ -131,13 +131,13 @@ string prefix_identifier(const string& id, const string& prefix)
   return prefix + "." + id;
 }
 
-string
+expr_var_ref
 sym_exec_common::get_value_name(const Value& v) const
 {
   return get_value_name_using_srcdst_keyword(v, m_srcdst_keyword);
 }
 
-string
+expr_var_ref
 sym_exec_common::get_value_name_using_srcdst_keyword(const Value& v, string const& srcdst_keyword)
 {
   assert(!v.getType()->isVoidTy());
@@ -148,10 +148,10 @@ sym_exec_common::get_value_name_using_srcdst_keyword(const Value& v, string cons
   ss.flush();
   errs().flush();
 
-  if (ret.size() && ret[0] == '@') {
-    return ret;
+  if (ret.size() && ret[0] == LLVM_GLOBAL_VARNAME_PREFIX_CHAR) {
+    return expr_var_t::mk_expr_var_plain(mk_string_ref(ret));
   } else {
-    return srcdst_keyword + string("." G_LLVM_PREFIX) + "-" + ret;
+    return expr_var_t::mk_expr_var_plain(mk_string_ref(srcdst_keyword + string("." G_LLVM_PREFIX) + "-" + ret));
   }
 }
 
@@ -346,14 +346,14 @@ sym_exec_llvm::get_const_value_expr(const llvm::Value& v, string const& vname, c
   {
     expr_ref ret;
 
-    string name = get_value_name(v);
+    expr_var_ref name = get_value_name(v);
     sort_ref sr = get_value_type(v, m_module->getDataLayout());
-    ASSERT(string_has_prefix(name, LLVM_GLOBAL_VARNAME_PREFIX));
-    name = name.substr(strlen(LLVM_GLOBAL_VARNAME_PREFIX));
+    ASSERT(string_has_prefix(name->get_name()->get_str(), LLVM_GLOBAL_VARNAME_PREFIX));
+    name = name->expr_var_set_name(name->get_name()->get_str().substr(strlen(LLVM_GLOBAL_VARNAME_PREFIX)));
     ASSERT(!ret);
-    ret = get_symbol_expr_for_global_var(name, sr);
+    ret = get_symbol_expr_for_global_var(name->get_name()->get_str(), sr);
     if (!ret) {
-      ret = m_ctx->mk_var(string(LLVM_FUNCTION_NAME_PREFIX) + name, get_value_type(v, m_module->getDataLayout()));
+      ret = m_ctx->mk_var(name->expr_var_set_name(string(LLVM_FUNCTION_NAME_PREFIX) + name->get_name()->get_str()), get_value_type(v, m_module->getDataLayout()));
     }
     ASSERT(ret);
 
@@ -375,7 +375,7 @@ sym_exec_llvm::get_const_value_expr(const llvm::Value& v, string const& vname, c
     t.add_edge(e);
     from_node = intermediate_node;
 
-    m_poison_varnames_seen.insert(undef_poison_varname);
+    m_poison_varnames_seen.insert(expr_var_t::mk_expr_var_plain(mk_string_ref(undef_poison_varname)));
     expr_ref undef_expr = mk_fresh_expr(undef_key_name, G_INPUT_KEYWORD, s);
 
     return make_pair(undef_expr, state_assumes);
@@ -384,12 +384,13 @@ sym_exec_llvm::get_const_value_expr(const llvm::Value& v, string const& vname, c
     //return make_pair(ret, state_assumes);
   }
 
-  DYN_DEBUG2(llvm2tfg, errs() << "const to expr not handled:"  << get_value_name(v) << "\n");
-  string unsupported_value_name = get_value_name(v);
+  DYN_DEBUG2(llvm2tfg, errs() << "const to expr not handled:"  << get_value_name(v)->get_name()->get_str() << "\n");
+  expr_var_ref unsupported_value_varname = get_value_name(v);
+  string unsupported_value_name = unsupported_value_varname->get_name()->get_str();
   string_replace(unsupported_value_name, "-", ".minus.");
   string_replace(unsupported_value_name, "+", ".plus.");
 
-  expr_ref ret = m_ctx->mk_var("unsupported." + unsupported_value_name, get_value_type(v, m_module->getDataLayout()));
+  expr_ref ret = m_ctx->mk_var(unsupported_value_varname->expr_var_set_name("unsupported." + unsupported_value_name), get_value_type(v, m_module->getDataLayout()));
   //assert(false && "const to expr not handled");
   return make_pair(ret, state_assumes);
 }
@@ -679,7 +680,7 @@ sym_exec_llvm::populate_state_template(const llvm::Function& F, bool model_llvm_
     if (isa<const Constant>(v)) {
       continue;
     }
-    string const name = get_value_name(v);
+    expr_var_ref const name = get_value_name(v);
     sort_ref const s = get_value_type(v, m_module->getDataLayout());
     allocsite_t const allocsite = allocsite_t::allocsite_arg(argnum);
 
@@ -696,25 +697,25 @@ sym_exec_llvm::populate_state_template(const llvm::Function& F, bool model_llvm_
       size = dl.getTypeAllocSize(byval_ty);
       align = v.getParamAlign().value_or(Align(4)).value();
       allocstack_t allocstack = allocstack_t::allocstack_singleton(F.getName().str(), allocsite);
-      m_local_refs.insert(make_pair(allocsite, graph_local_t(name, size, align)));
+      m_local_refs.insert(make_pair(allocsite, graph_local_t(name->get_name()->get_str(), size, align)));
       expr_ref argvar = m_cs.get_local_addr(allocstack, m_srcdst_keyword, m_local_refs);
-      m_arguments[name] = make_pair(argnum, argvar);
+      m_arguments[name->get_name()->get_str()] = make_pair(argnum, argvar);
       m_memory_arg_info[argnum] = memory_arg_info_t{size, align};
     } else {
-      expr_ref argvar = m_ctx->get_input_expr_for_key(mk_string_ref(name), s);
-      m_arguments[name] = make_pair(argnum, argvar);
-      m_local_refs.insert(make_pair(allocsite, graph_local_t(name, size, align)));
+      expr_ref argvar = m_ctx->mk_var(name->expr_var_add_input_prefix(), s);
+      m_arguments[name->get_name()->get_str()] = make_pair(argnum, argvar);
+      m_local_refs.insert(make_pair(allocsite, graph_local_t(name->get_name()->get_str(), size, align)));
     }
     argnum++;
 
     if (model_llvm_semantics) {
-      string arg_poison_varname = get_poison_value_varname(name);
-      expr_ref arg_poison_var = m_ctx->get_input_expr_for_key(mk_string_ref(arg_poison_varname), m_ctx->mk_bool_sort());
-      m_arguments[arg_poison_varname] = make_pair(argnum, arg_poison_var);
+      expr_var_ref arg_poison_varname = get_poison_value_varname(name);
+      expr_ref arg_poison_var = m_ctx->mk_var(arg_poison_varname->expr_var_add_input_prefix(), m_ctx->mk_bool_sort());
+      m_arguments[arg_poison_varname->get_name()->get_str()] = make_pair(argnum, arg_poison_var);
       allocsite_t allocsite = allocsite_t::allocsite_arg(argnum);
       argnum++;
       m_poison_varnames_seen.insert(arg_poison_varname);
-      m_local_refs.insert(make_pair(allocsite, graph_local_t(arg_poison_varname, 1, 0)));
+      m_local_refs.insert(make_pair(allocsite, graph_local_t(arg_poison_varname->get_name()->get_str(), 1, 0)));
     }
   }
   if (F.isVarArg()) {
@@ -852,7 +853,7 @@ sym_exec_llvm::get_expr_adding_edges_for_intermediate_vals(const Value& v, strin
     t.add_edge(e);
     from_node = intermediate_node;
 
-    m_poison_varnames_seen.insert(undef_poison_varname);
+    m_poison_varnames_seen.insert(expr_var_t::mk_expr_var_plain(mk_string_ref(undef_poison_varname)));
 
     ASSERT(s->is_bv_kind() || s->is_bool_kind() || s->is_float_kind());
     expr_ref undef_expr = mk_fresh_expr(undef_key_name, G_INPUT_KEYWORD, s);
@@ -861,8 +862,9 @@ sym_exec_llvm::get_expr_adding_edges_for_intermediate_vals(const Value& v, strin
   } else if (isa<const Constant>(&v)) {
     return get_const_value_expr(v, vname, state_in, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map);
   } else if (isa<const Argument>(&v)) {
-    ASSERT(m_arguments.count(get_value_name(v)));
-    return make_pair(m_arguments.at(get_value_name(v)).second, state_assumes);
+    string argname = get_value_name(v)->get_name()->get_str();
+    ASSERT(m_arguments.count(argname));
+    return make_pair(m_arguments.at(argname).second, state_assumes);
   } else if (isa<const Instruction>(&v)) {
     vector<sort_ref> sv = get_value_type_vec(v, m_module->getDataLayout());
     ASSERT(sv.size() == 1);
@@ -881,23 +883,38 @@ sym_exec_llvm::get_expr_adding_edges_for_intermediate_vals(const Value& v, strin
 void
 sym_exec_common::state_set_expr(state &st, string const &key, expr_ref const &value) const
 {
-  st.set_expr_in_map(expr_var_t::mk_expr_var_plain(mk_string_ref(key)), value);
+  state_set_expr(st, expr_var_t::mk_expr_var_plain(mk_string_ref(key)), value);
+}
+
+void
+sym_exec_common::state_set_expr(state &st, expr_var_ref const &key, expr_ref const &value) const
+{
+  st.set_expr_in_map(key, value);
 }
 
 expr_ref
 sym_exec_common::get_input_expr(string const &key, sort_ref const& s) const
 {
-  stringstream ss;
-  ss << G_INPUT_KEYWORD "." << key;
-  return m_ctx->mk_var(ss.str(), s);
+  return get_input_expr(expr_var_t::mk_expr_var_plain(mk_string_ref(key)), s);
+}
+
+expr_ref
+sym_exec_common::get_input_expr(expr_var_ref const &key, sort_ref const& s) const
+{
+  return m_ctx->mk_var(key->expr_var_add_input_prefix(), s);
 }
 
 expr_ref
 sym_exec_common::state_get_expr(state const &st, string const &key, sort_ref const& s) const
 {
-  expr_var_ref const key_var = expr_var_t::mk_expr_var_plain(mk_string_ref(key));
-  if (st.has_expr(key_var)) {
-    return st.get_expr(key_var);
+  return state_get_expr(st, expr_var_t::mk_expr_var_plain(mk_string_ref(key)), s);
+}
+
+expr_ref
+sym_exec_common::state_get_expr(state const &st, expr_var_ref const &key, sort_ref const& s) const
+{
+  if (st.has_expr(key)) {
+    return st.get_expr(key);
   } else {
     return get_input_expr(key, s);
   }
@@ -1293,7 +1310,7 @@ sym_exec_llvm::apply_fmuladd_function(const CallInst* c, expr_ref fun_name_expr,
   tie(fmuladd_a_expr, assumes)    = get_expr_adding_edges_for_intermediate_vals(*fmuladd_a, "", state_out, assumes, from_node, model_llvm_semantics, t, value_to_name_map);
   tie(fmuladd_b_expr, assumes)    = get_expr_adding_edges_for_intermediate_vals(*fmuladd_b, "", state_out, assumes, from_node, model_llvm_semantics, t, value_to_name_map);
   tie(fmuladd_c_expr, assumes)    = get_expr_adding_edges_for_intermediate_vals(*fmuladd_c, "", state_out, assumes, from_node, model_llvm_semantics, t, value_to_name_map);
-  string const iname = get_value_name(*c);
+  expr_var_ref const iname = get_value_name(*c);
   expr_ref result = m_ctx->mk_fadd(this->get_cur_rounding_mode_var(), m_ctx->mk_fmul(this->get_cur_rounding_mode_var(), fmuladd_a_expr, fmuladd_b_expr), fmuladd_c_expr);
   state_set_expr(state_out, iname, result);
   preds_t succ_assumes;
@@ -1518,7 +1535,8 @@ sym_exec_llvm::apply_general_function(const CallInst* c, expr_ref fun_name_expr,
         auto interm_ed = mk_tfg_edge(from_pc, interm_node->get_pc(), expr_true(m_ctx), interm_st, {}, {}, te_comment_t::te_comment_llvm_byval_fcall_arg(from_pc.get_subindex()));
         t.add_edge(interm_ed);
         from_node = interm_node;
-        expr = m_ctx->get_input_expr_for_key(mk_string_ref(byval_expr_name), byval_expr_val->get_sort());
+        //expr = m_ctx->get_input_expr_for_key(mk_string_ref(byval_expr_name), byval_expr_val->get_sort());
+        expr = m_ctx->mk_var(expr_var_t::mk_expr_var_plain(mk_string_ref(byval_expr_name))->expr_var_add_input_prefix(), byval_expr_val->get_sort());
       } else {
         llvm::errs() << "Operand " << argnum << " is byval of type ";
         elTy->print(llvm::errs());
@@ -1532,11 +1550,11 @@ sym_exec_llvm::apply_general_function(const CallInst* c, expr_ref fun_name_expr,
 
     if (model_llvm_semantics) {
       if (m_ctx->expr_is_input_expr(expr)) {
-        string const& val_key = m_ctx->get_key_from_input_expr(expr)->get_str();
-        string val_key_poison = get_poison_value_varname(val_key);
+        expr_var_ref val_key = expr->expr_get_var()->expr_var_remove_input_prefix();
+        expr_var_ref val_key_poison = get_poison_value_varname(val_key);
 
         if (set_belongs(m_poison_varnames_seen, val_key_poison)) {
-          args.push_back(m_ctx->mk_var(string(G_INPUT_KEYWORD ".") + val_key_poison, m_ctx->mk_bool_sort()));
+          args.push_back(m_ctx->mk_var(val_key_poison->expr_var_add_input_prefix(), m_ctx->mk_bool_sort()));
         } else {
           args.push_back(m_ctx->mk_bool_const(false));
         }
@@ -1574,7 +1592,7 @@ sym_exec_llvm::apply_general_function(const CallInst* c, expr_ref fun_name_expr,
       expr_ref field_regid = m_ctx->mk_regid_const(G_FUNCTION_CALL_REGNUM_RETVAL(r));
       args[regnum_pos] = field_regid;
       c_expr = m_ctx->mk_function_call(fun, args);
-      string Elname = get_value_name(*c);
+      string Elname = get_value_name(*c)->get_name()->get_str();
       Type *ElTy = (*c).getType();
       if (ret_sort_vec.size() > 1) {
         stringstream ss;
@@ -1816,7 +1834,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
   {
     const AllocaInst* a =  cast<const AllocaInst>(&I);
     ASSERT(a);
-    string const iname = get_value_name(*a);
+    string const iname = get_value_name(*a)->get_name()->get_str();
     auto const* dilocal = this->get_dilocal_for_alloca(a);
     expr_ref param_addr;
     if (dilocal && this->alloca_corresponds_to_a_local_parameter(*a, *dilocal, F, t, param_addr)) {
@@ -1853,7 +1871,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
 
       expr_ref const local_addr_var = m_cs.get_local_addr(local_id_stack, m_srcdst_keyword, this->get_local_refs());
 
-      string const local_addr_key = m_ctx->get_key_from_input_expr(local_addr_var)->get_str();
+      expr_var_ref const local_addr_key = local_addr_var->expr_get_var()->expr_var_remove_input_prefix();
 
       auto alloc_size_assume = [this,is_alloca](expr_ref size) {
           if (is_alloca) {
@@ -1907,7 +1925,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
 
       // == intermediate edge 0 ==
       // local_size.id <- size expr
-      state_set_expr(state_out, m_ctx->get_key_from_input_expr(local_size_var)->get_str(), local_size_val);
+      state_set_expr(state_out, local_size_var->expr_get_var()->expr_var_remove_input_prefix(), local_size_val);
       add_edge_with_state();
 
       // == intermediate edge 1 ==
@@ -2009,7 +2027,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
   {
     const LoadInst* l =  cast<const LoadInst>(&I);
     Value const *Addr = l->getPointerOperand();
-    string lname = get_value_name(*l);
+    string lname = get_value_name(*l)->get_name()->get_str();
 
     expr_ref addr;
     tie(addr, state_assumes) = get_expr_adding_edges_for_intermediate_vals(*Addr, lname, state_in, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map);
@@ -2224,7 +2242,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
   {
     sort_ref isort = get_value_type(I, dl);
     ASSERT(isort->is_float_kind() || isort->is_floatx_kind());
-    string iname = get_value_name(I);
+    string iname = get_value_name(I)->get_name()->get_str();
 
     Value const &op0 = *I.getOperand(0);
     Value const &op1 = *I.getOperand(1);
@@ -2259,7 +2277,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
   case Instruction::FNeg: {
     sort_ref isort = get_value_type(I, dl);
     ASSERT(isort->is_float_kind() || isort->is_floatx_kind());
-    string iname = get_value_name(I);
+    string iname = get_value_name(I)->get_name()->get_str();
 
     Value const &op0 = *I.getOperand(0);
 
@@ -2288,7 +2306,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     ASSERT(FI);
     sort_ref isort = get_value_type(I, dl);
     ASSERT(isort->is_bool_kind());
-    string iname = get_value_name(I);
+    string iname = get_value_name(I)->get_name()->get_str();
 
     Value const &op0 = *I.getOperand(0);
     Value const &op1 = *I.getOperand(1);
@@ -2322,7 +2340,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     sort_ref isort = get_value_type(I, dl);
     ASSERT(isort->is_bool_kind() || isort->is_bv_kind());
     size_t target_size = isort->is_bool_kind() ? 1 : isort->get_size();
-    string iname = get_value_name(I);
+    string iname = get_value_name(I)->get_name()->get_str();
 
     Value const &op0 = *I.getOperand(0);
 
@@ -2349,7 +2367,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     sort_ref isort = get_value_type(I, dl);
     ASSERT(isort->is_bool_kind() || isort->is_bv_kind());
     size_t target_size = isort->is_bool_kind() ? 1 : isort->get_size();
-    string iname = get_value_name(I);
+    string iname = get_value_name(I)->get_name()->get_str();
 
     Value const &op0 = *I.getOperand(0);
 
@@ -2374,7 +2392,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     sort_ref isort = get_value_type(I, dl);
     ASSERT(isort->is_float_kind() || isort->is_floatx_kind());
     size_t target_size = isort->is_float_kind() ? isort->get_size() : isort->get_size() - 1;
-    string iname = get_value_name(I);
+    string iname = get_value_name(I)->get_name()->get_str();
     Value const &op0 = *I.getOperand(0);
     expr_ref e0;
     tie(e0, state_assumes) = get_expr_adding_edges_for_intermediate_vals(op0, iname, state(), state_assumes, from_node, model_llvm_semantics, t, value_to_name_map);
@@ -2392,7 +2410,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     sort_ref isort = get_value_type(I, dl);
     ASSERT(isort->is_float_kind() || isort->is_floatx_kind());
     size_t target_size = isort->is_float_kind() ? isort->get_size() : isort->get_size() - 1;
-    string iname = get_value_name(I);
+    string iname = get_value_name(I)->get_name()->get_str();
     Value const &op0 = *I.getOperand(0);
     expr_ref e0;
     tie(e0, state_assumes) = get_expr_adding_edges_for_intermediate_vals(op0, iname, state(), state_assumes, from_node, model_llvm_semantics, t, value_to_name_map);
@@ -2413,8 +2431,8 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     //size_t resultBitwidth = dl.getTypeSizeInBits(typ);
     ASSERT(I.getNumOperands() == 1);
     Value const &op0 = *I.getOperand(0);
-    string iname = get_value_name(I);
-    string op0name = get_value_name(op0);
+    string iname = get_value_name(I)->get_name()->get_str();
+    string op0name = get_value_name(op0)->get_name()->get_str();
     sort_ref op0_sort = get_value_type(op0, dl);
     ASSERT(op0_sort->is_float_kind() || op0_sort->is_floatx_kind());
     sort_ref isort = get_value_type(I, dl);
@@ -2443,8 +2461,8 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     //size_t resultBitwidth = dl.getTypeSizeInBits(typ);
     ASSERT(I.getNumOperands() == 1);
     Value const &op0 = *I.getOperand(0);
-    string iname = get_value_name(I);
-    string op0name = get_value_name(op0);
+    string iname = get_value_name(I)->get_name()->get_str();
+    string op0name = get_value_name(op0)->get_name()->get_str();
     sort_ref op0_sort = get_value_type(op0, dl);
     ASSERT(op0_sort->is_float_kind());
     sort_ref isort = get_value_type(I, dl);
@@ -2472,8 +2490,8 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
   case Instruction::ExtractValue: {
     ASSERT(I.getNumOperands() == 1);
     Value const &op0 = *I.getOperand(0);
-    string iname = get_value_name(I);
-    string op0name = get_value_name(op0);
+    string iname = get_value_name(I)->get_name()->get_str();
+    string op0name = get_value_name(op0)->get_name()->get_str();
     sort_ref op0_sort = get_value_type(op0, dl);
     sort_ref s = get_value_type(I, dl);
     const ExtractValueInst *EVI = cast<ExtractValueInst>(&I);
@@ -2499,7 +2517,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     break;
   }
   default: {
-    string iname = get_value_name(I);
+    string iname = get_value_name(I)->get_name()->get_str();
     vector<expr_ref> expr_args;
     tie(expr_args, state_assumes) = get_expr_args(I, iname, state_in, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map);
     expr_ref insn_expr;
@@ -3528,7 +3546,7 @@ sym_exec_llvm::parse_dbg_declare_intrinsic(Instruction const& I, tfg_llvm_t& t, 
     return;
   }
   string source_varname = DI.getVariable()->getName().str() + (m_srcdst_keyword == G_DST_KEYWORD ? "'" : "");
-  string llvm_varname = get_value_name(*Address);
+  string llvm_varname = get_value_name(*Address)->get_name()->get_str();
   DYN_DEBUG(dbg_declare_intrinsic, std::cout << "DI.getVariable().getName() = " << source_varname << "\n");
   DYN_DEBUG(dbg_declare_intrinsic, std::cout << "value_name = " << llvm_varname << "\n");
   t.tfg_llvm_add_source_declaration_to_llvm_varname_mapping_at_pc(source_varname, llvm_varname, pc_from);
@@ -3546,7 +3564,7 @@ sym_exec_llvm::parse_dbg_value_intrinsic(Instruction const& I, tfg_llvm_t& t, pc
   } else if (const auto *CI = dyn_cast<Constant>(v)) {
     return;
   }
-  string llvm_varname = string(G_INPUT_KEYWORD ".") + get_value_name(*v);
+  string llvm_varname = string(G_INPUT_KEYWORD ".") + get_value_name(*v)->get_name()->get_str();
   string source_varname = DI.getVariable()->getName().str() + (m_srcdst_keyword == G_DST_KEYWORD ? "'" : "");
   //DIExpression* die = DI.getExpression(); //not used so far
   DYN_DEBUG(dbg_declare_intrinsic, std::cout << "source_varname = " << source_varname << "\n");
@@ -3560,14 +3578,14 @@ sym_exec_llvm::parse_stacksave_intrinsic(Instruction const& I, tfg& t, pc const&
 {
   const CallInst& CI = cast<CallInst>(I);
   // llvm.stacksave returns an opaque pointer value which can be passed to stackrestore.
-  string opaque_keyname = get_value_name(CI);
+  string opaque_keyname = get_value_name(CI)->get_name()->get_str();
   string opaque_varname = string(G_INPUT_KEYWORD ".") + opaque_keyname;
 
   //let's save the current state of mem.alloc in an SSA var
   state state_in, state_out;
   expr_ref mem_alloc_e = state_get_expr(state_in, m_mem_alloc_reg, this->get_mem_alloc_sort());
   string_ref memalloc_ssa_varname = context::get_memalloc_ssa_varname_from_opaque_key(m_srcdst_keyword, opaque_keyname);
-  expr_ref memalloc_ssa_var = m_ctx->get_input_expr_for_key(memalloc_ssa_varname, this->get_mem_alloc_sort());
+  expr_ref memalloc_ssa_var = m_ctx->mk_var(expr_var_t::mk_expr_var_plain(memalloc_ssa_varname)->expr_var_add_input_prefix(), this->get_mem_alloc_sort());
   m_opaque_varname_to_memalloc_map.insert(make_pair(opaque_varname, memalloc_ssa_var));
 
   state_set_expr(state_out, memalloc_ssa_varname->get_str(), mem_alloc_e);
@@ -3586,7 +3604,7 @@ sym_exec_llvm::parse_stackrestore_intrinsic(Instruction const& I, tfg& t, pc con
   } else if (const auto *CI = dyn_cast<Constant>(v)) {
     return state_in;
   }
-  string opaque_varname = string(G_INPUT_KEYWORD ".") + get_value_name(*v);
+  string opaque_varname = string(G_INPUT_KEYWORD ".") + get_value_name(*v)->get_name()->get_str();
 
   if (!m_opaque_varname_to_memalloc_map.count(opaque_varname)) {
     cout << _FNLN_ << ": opaque_varname = " << opaque_varname << endl;
@@ -3835,15 +3853,15 @@ sym_exec_llvm::process_phi_nodes(tfg &t, map<llvm_value_id_t, string_ref>* value
     if (model_llvm_semantics) {
       //cout << _FNLN_ << ": val = " << expr_string(val) << endl;
       if (m_ctx->expr_is_input_expr(val)) {
-        string const& val_key = m_ctx->get_key_from_input_expr(val)->get_str();
+        expr_var_ref const& val_key = val->expr_get_var()->expr_var_remove_input_prefix();
         //cout << _FNLN_ << ": val key = " << val_key << endl;
-        string val_key_poison = get_poison_value_varname(val_key);
+        expr_var_ref val_key_poison = get_poison_value_varname(val_key);
         //cout << _FNLN_ << ": val key poison = " << val_key_poison << endl;
 
         if (set_belongs(m_poison_varnames_seen, val_key_poison)) {
           phi_tmpvarname_poison[varname] = get_poison_value_varname(phi_tmpvarname.at(varname));
-          m_poison_varnames_seen.insert(phi_tmpvarname_poison.at(varname));
-          state_set_expr(state_out, phi_tmpvarname_poison.at(varname), m_ctx->mk_var(string(G_INPUT_KEYWORD ".") + val_key_poison, m_ctx->mk_bool_sort()));
+          m_poison_varnames_seen.insert(expr_var_t::mk_expr_var_plain(mk_string_ref(phi_tmpvarname_poison.at(varname))));
+          state_set_expr(state_out, phi_tmpvarname_poison.at(varname), m_ctx->mk_var(val_key_poison->expr_var_add_input_prefix(), m_ctx->mk_bool_sort()));
         }
       }
     }
@@ -3878,7 +3896,7 @@ sym_exec_llvm::process_phi_nodes(tfg &t, map<llvm_value_id_t, string_ref>* value
     if (model_llvm_semantics) {
       if (phi_tmpvarname_poison.count(cvarname)) {
         string cvarname_poison = get_poison_value_varname(cvarname);
-        m_poison_varnames_seen.insert(cvarname_poison);
+        m_poison_varnames_seen.insert(expr_var_t::mk_expr_var_plain(mk_string_ref(cvarname_poison)));
         state_set_expr(state_out, cvarname_poison, m_ctx->mk_var(string(G_INPUT_KEYWORD ".") + phi_tmpvarname_poison.at(cvarname), m_ctx->mk_bool_sort())); //first update the tmpvars (do not want updates of one phi-node to influene the rhs of another phi-node.
       }
     }
@@ -3996,8 +4014,8 @@ sym_exec_llvm::gen_arg_assumes() const
 {
   preds_t arg_assumes;
   for (const auto& arg : m_function.args()) {
-    pair<argnum_t, expr_ref> const &a = m_arguments.at(get_value_name(arg));
-    string Elname = get_value_name(arg);
+    pair<argnum_t, expr_ref> const &a = m_arguments.at(get_value_name(arg)->get_name()->get_str());
+    string Elname = get_value_name(arg)->get_name()->get_str();
     Type *ElTy = arg.getType();
     if (auto align_assume = gen_ptr_align_assume(Elname, ElTy, a.second->get_sort())) {
       arg_assumes.emplace_back(align_assume, fails::safety_ptr_aligned);
@@ -4178,24 +4196,24 @@ sym_exec_llvm::get_symbol_map_and_string_contents(Module const *M, list<pair<str
     const DataLayout &dl = M->getDataLayout();
     Type *ElTy = g.getValueType();
     ASSERT(g.hasName());
-    string name = sym_exec_llvm::get_value_name_using_srcdst_keyword(g, G_SRC_KEYWORD);
-    ASSERT(string_has_prefix(name, LLVM_GLOBAL_VARNAME_PREFIX));
-    name = name.substr(strlen(LLVM_GLOBAL_VARNAME_PREFIX));
+    expr_var_ref varname = sym_exec_llvm::get_value_name_using_srcdst_keyword(g, G_SRC_KEYWORD);
+    ASSERT(string_has_prefix(varname->get_name()->get_str(), LLVM_GLOBAL_VARNAME_PREFIX));
+    varname = varname->expr_var_set_name(varname->get_name()->get_str().substr(strlen(LLVM_GLOBAL_VARNAME_PREFIX)));
 
     const GlobalVariable *cv = dyn_cast<const GlobalVariable>(&g);
     ASSERT(cv);
     uint64_t const symbol_size = dl.getTypeAllocSize(ElTy);
     unsigned const symbol_alignment = dl.getPreferredAlign(cv).value();
     bool const symbol_is_constant = cv->isConstant();
-    auto const symbol_id = ng.next(name);
+    auto const symbol_id = ng.next(varname->get_name()->get_str());
 
-    DYN_DEBUG2(llvm2tfg_syms, cout << "Global name = " << name << ", generated symbol_id = " << symbol_id << '\n');
+    DYN_DEBUG2(llvm2tfg_syms, cout << "Global name = " << varname->get_name()->get_str() << ", generated symbol_id = " << symbol_id << '\n');
     if (cv->hasExternalLinkage() && cv->isDeclaration()) {
       if (auto *arr = llvm::dyn_cast<llvm::ArrayType>(cv->getValueType());
           arr && arr->getNumElements() == 0) {
         ASSERT(symbol_size == 0);
-        DYN_DEBUG2(llvm2tfg_syms, cout << "Added " << name << " to extsym_map\n");
-        bool inserted = extsym_map.emplace(symbol_id, graph_extsym_t{mk_string_ref(name), symbol_alignment, symbol_is_constant}).second;
+        DYN_DEBUG2(llvm2tfg_syms, cout << "Added " << varname->get_name()->get_str() << " to extsym_map\n");
+        bool inserted = extsym_map.emplace(symbol_id, graph_extsym_t{mk_string_ref(varname->get_name()->get_str()), symbol_alignment, symbol_is_constant}).second;
         ASSERT(inserted);
         // declaration won't have an initializer
         ASSERT(!cv->hasInitializer());
@@ -4206,8 +4224,8 @@ sym_exec_llvm::get_symbol_map_and_string_contents(Module const *M, list<pair<str
     // non-zero size; the zero-length external array case above represents an
     // incomplete declaration where the size is unavailable.
     ASSERT(symbol_size);
-    bool inserted = smap.emplace(symbol_id, graph_symbol_t{mk_string_ref(name), symbol_size, symbol_alignment, symbol_is_constant}).second;
-    DYN_DEBUG2(llvm2tfg_syms, cout << "Added " << name << " to graph_sym_map\n");
+    bool inserted = smap.emplace(symbol_id, graph_symbol_t{mk_string_ref(varname->get_name()->get_str()), symbol_size, symbol_alignment, symbol_is_constant}).second;
+    DYN_DEBUG2(llvm2tfg_syms, cout << "Added " << varname->get_name()->get_str() << " to graph_sym_map\n");
     ASSERT(inserted);
     if (symbol_is_constant && cv->hasInitializer()) {
       scontents[make_pair(symbol_id, 0)] = get_constant_bytes(cv->getInitializer());
@@ -4569,7 +4587,7 @@ sym_exec_llvm::instructionIsPhiNode(llvm::Instruction const &I, string &varname)
   if(!phi) {
     return false;
   }
-  varname = get_value_name(*phi);
+  varname = get_value_name(*phi)->get_name()->get_str();
   return true;
 }
 
@@ -4628,7 +4646,7 @@ struct FunctionPassPopulateTfgScev : public FunctionPass {
     for (BasicBlock& B : F) {
       for(Instruction& I : B) {
         if (SE.isSCEVable(I.getType()) && !isa<CmpInst>(I)) {
-          string iname = sym_exec_llvm::get_value_name_using_srcdst_keyword(I, m_srcdst_keyword);
+          string iname = sym_exec_llvm::get_value_name_using_srcdst_keyword(I, m_srcdst_keyword)->get_name()->get_str();
           scev_toplevel_t<pc> st = sym_exec_llvm::get_scev_toplevel(I, &SE, &LI, m_srcdst_keyword, m_word_length);
           scev_map[fname].insert(make_pair(iname, st));
         }
@@ -4800,7 +4818,7 @@ sym_exec_llvm::get_llvm_value_id_for_value(Value const* v)
     ss << *I;
     I->deleteValue();
   } else {
-    valname = sym_exec_common::get_value_name_using_srcdst_keyword(*v, G_SRC_KEYWORD);
+    valname = sym_exec_common::get_value_name_using_srcdst_keyword(*v, G_SRC_KEYWORD)->get_name()->get_str();
   }
   llvm::Function const* F = sym_exec_llvm::getParent(v);
   string fname = F ? F->getName().str() : FNAME_GLOBAL_SPACE;
@@ -4856,20 +4874,33 @@ sym_exec_llvm::getParent(const Value *V) {
 //}
 
 
+expr_var_ref
+sym_exec_llvm::get_poison_value_varname(expr_var_ref const& varname) const
+{
+  stringstream ss;
+  ss << varname->get_name()->get_str() << ".poison";
+  //return ss.str();
+  return varname->expr_var_set_name(ss.str());
+}
+
 string
 sym_exec_llvm::get_poison_value_varname(string const& varname) const
 {
-  stringstream ss;
-  ss << varname << ".poison";
-  return ss.str();
+  return varname + ".poison";
 }
 
 
 expr_ref
+sym_exec_llvm::get_poison_value_var(expr_var_ref const& varname) const
+{
+  expr_var_ref poison_varname = get_poison_value_varname(varname);
+  return get_input_expr(poison_varname, m_ctx->mk_bool_sort());
+}
+
+expr_ref
 sym_exec_llvm::get_poison_value_var(string const& varname) const
 {
-  string poison_varname = get_poison_value_varname(varname);
-  return get_input_expr(poison_varname, m_ctx->mk_bool_sort());
+  return get_input_expr(get_poison_value_varname(varname), m_ctx->mk_bool_sort());
 }
 
 void
@@ -4887,7 +4918,7 @@ sym_exec_llvm::transfer_poison_values(string const& varname, expr_ref const& e, 
     }
     varname = varname.substr(strlen(G_INPUT_KEYWORD "."));
     string poison_varname = get_poison_value_varname(varname);
-    if (!set_belongs(m_poison_varnames_seen, poison_varname)) {
+    if (!set_belongs(m_poison_varnames_seen, expr_var_t::mk_expr_var_plain(mk_string_ref(poison_varname)))) {
       return;
     }
     expr_ref poison_var = get_input_expr(poison_varname, m_ctx->mk_bool_sort());
@@ -4913,7 +4944,7 @@ sym_exec_llvm::transfer_poison_values(string const& varname, expr_ref const& e, 
     //  expr_ref poison_var = get_input_expr(poison_varname, m_ctx->mk_bool_sort());
     //  poison_expr = expr_or(poison_var, poison_expr);
     //}
-    m_poison_varnames_seen.insert(poison_varname);
+    m_poison_varnames_seen.insert(expr_var_t::mk_expr_var_plain(mk_string_ref(poison_varname)));
 
     state state_to_intermediate_val;
     state_set_expr(state_to_intermediate_val, poison_varname, poison_expr);
@@ -4931,13 +4962,13 @@ sym_exec_llvm::add_state_assume(string const& varname, expr_with_fail const& ass
     string poison_varname = get_poison_value_varname(varname);
     expr_ref poison_expr;
 
-    if (set_belongs(m_poison_varnames_seen, poison_varname)) {
+    if (set_belongs(m_poison_varnames_seen, expr_var_t::mk_expr_var_plain(mk_string_ref(poison_varname)))) {
       expr_ref poison_var = get_input_expr(poison_varname, m_ctx->mk_bool_sort());
       poison_expr = m_ctx->mk_or(poison_var, assume.expr());
     } else {
       poison_expr = assume.expr();
     }
-    m_poison_varnames_seen.insert(poison_varname);
+    m_poison_varnames_seen.insert(expr_var_t::mk_expr_var_plain(mk_string_ref(poison_varname)));
 
     state state_to_intermediate_val;
     state_set_expr(state_to_intermediate_val, poison_varname, poison_expr);
@@ -4963,7 +4994,7 @@ sym_exec_llvm::transfer_poison_value_on_load(string const& varname, expr_ref con
   ASSERT(load_expr->get_args().at(OP_SELECT_ARGNUM_MEM)->get_name()->get_str() == string(G_INPUT_KEYWORD ".") + m_mem_reg);
 
   string poison_varname = get_poison_value_varname(varname);
-  m_poison_varnames_seen.insert(poison_varname);
+  m_poison_varnames_seen.insert(expr_var_t::mk_expr_var_plain(mk_string_ref(poison_varname)));
 
   expr_ref mem_poison = m_ctx->mk_var(m_mem_poison_reg, this->get_mem_poison_sort());
 
@@ -4996,7 +5027,7 @@ sym_exec_llvm::transfer_poison_value_on_store(expr_ref const& store_expr, preds_
   expr_visit_vars(data, [this,&poison_expr](expr_ref const& v) {
     string const& vname = v->get_name()->get_str();
     string poison_vname = get_poison_value_varname(vname);
-    if (!set_belongs(m_poison_varnames_seen, poison_vname)) {
+    if (!set_belongs(m_poison_varnames_seen, expr_var_t::mk_expr_var_plain(mk_string_ref(poison_vname)))) {
       return;
     }
     expr_ref poison_v = get_input_expr(poison_vname, m_ctx->mk_bool_sort());

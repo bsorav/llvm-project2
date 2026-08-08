@@ -120,7 +120,9 @@ public:
 private:
   string get_next_undef_varname();
   string get_poison_value_varname(string const& varname) const;
+  expr_var_ref get_poison_value_varname(expr_var_ref const& varname) const;
   expr_ref get_poison_value_var(string const& varname) const;
+  expr_ref get_poison_value_var(expr_var_ref const& varname) const;
   void add_state_assume(string const& varname, expr_with_fail const& assume, state const& state_in, preds_t& assumes, dshared_ptr<tfg_node const>& from_node, bool model_llvm_semantics, tfg& t, map<llvm_value_id_t, string_ref>* value_to_name_map);
   void transfer_poison_values(string const& varname, expr_ref const& e, preds_t& state_assumes, dshared_ptr<tfg_node const>& node, bool model_llvm_semantics, tfg& t, map<llvm_value_id_t, string_ref>* value_to_name_map);
   void transfer_poison_value_on_load(string const& varname, expr_ref const& load_expr, preds_t& state_assumes, dshared_ptr<tfg_node const>& node, bool model_llvm_semantics, tfg& t, map<llvm_value_id_t, string_ref>* value_to_name_map);
@@ -272,7 +274,7 @@ private:
   //see https://docs.microsoft.com/en-us/cpp/build/x64-calling-convention?view=msvc-160 where it says that the value is ROUND_TO_NEAREST at the start of program execution (x86 calling conventions).  XXX: We are taking some liberty here by extending this assumption to the start of every function; a more precise way to model this would involve using a variable (instead of a constant) for the rounding mode at the start pc
   expr_ref m_rounding_mode_at_start_pc;
 
-  set<string> m_poison_varnames_seen;
+  set<expr_var_ref> m_poison_varnames_seen;
 
   int m_cur_undef_varname_idx = 0;
   //string const m_local_alloc_count_varname = "local_alloc_count";
