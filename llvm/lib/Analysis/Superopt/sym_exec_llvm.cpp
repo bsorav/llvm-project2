@@ -818,14 +818,14 @@ void sym_exec_common::get_state_template(const pc& p, state& st)
     prefix = G_INPUT_KEYWORD;
   }
 
-  map<string_ref, expr_ref> value_expr_map = st.get_value_expr_map_ref();
+  map<expr_var_ref, expr_ref> value_expr_map = st.get_value_expr_map_ref();
   for (const pair<string, sort_ref>& item : m_state_templ) {
     string name = item.first;
     //if (m_value_name_map.count(name) > 0) {
     //  name = m_value_name_map.at(name);
     //}
     sort_ref s = item.second;
-    value_expr_map.insert(make_pair(mk_string_ref(name), mk_fresh_expr(name, prefix, s)));
+    value_expr_map.insert(make_pair(expr_var_t::mk_expr_var_plain(mk_string_ref(name)), mk_fresh_expr(name, prefix, s)));
   }
   st.set_value_expr_map(value_expr_map);
 }
@@ -881,7 +881,7 @@ sym_exec_llvm::get_expr_adding_edges_for_intermediate_vals(const Value& v, strin
 void
 sym_exec_common::state_set_expr(state &st, string const &key, expr_ref const &value) const
 {
-  st.set_expr_in_map(key, value);
+  st.set_expr_in_map(expr_var_t::mk_expr_var_plain(mk_string_ref(key)), value);
 }
 
 expr_ref
@@ -895,8 +895,9 @@ sym_exec_common::get_input_expr(string const &key, sort_ref const& s) const
 expr_ref
 sym_exec_common::state_get_expr(state const &st, string const &key, sort_ref const& s) const
 {
-  if (st.has_expr(key)) {
-    return st.get_expr(key);
+  expr_var_ref const key_var = expr_var_t::mk_expr_var_plain(mk_string_ref(key));
+  if (st.has_expr(key_var)) {
+    return st.get_expr(key_var);
   } else {
     return get_input_expr(key, s);
   }
