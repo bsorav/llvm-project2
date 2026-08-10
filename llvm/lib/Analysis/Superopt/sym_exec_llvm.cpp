@@ -245,6 +245,7 @@ sym_exec_common::get_symbol_expr_for_global_var(string const &name, sort_ref con
       ostringstream ss;
       //ss << "symbol." << symbol_id;
       ss << G_SYMBOL_KEYWORD "." << symbol_id;
+      //cout << _FNLN_ << ": sym = " << sym.graph_symbol_to_string() << endl;
       ret = m_ctx->mk_var(expr_var_t::mk_expr_var_symbol(mk_string_ref(ss.str()), symbol_id, sym), sr);
       m_touched_syms.insert(symbol_id);
       return ret;
@@ -3387,10 +3388,11 @@ sym_exec_llvm::get_tfg(llvm::Function& F, llvm::Module const *M, string const &n
   t->tfg_initialize_rounding_mode_on_start_edge(se.get_cur_rounding_mode_varname(), se.m_rounding_mode_at_start_pc);
 
   t->set_symbol_map(graph_symbol_map_t::create_graph_symbol_map(*se.m_symbol_map, se.m_touched_syms));
+  //cout << _FNLN_ << ": symbol_map =\n"; t->get_symbol_map().graph_symbol_map_to_stream(cout); cout << endl;
   t->set_extsym_map(graph_extsym_map_t::create_graph_extsym_map(*se.m_extsym_map, se.m_touched_extsyms));
   t->set_string_contents_for_touched_symbols_at_zero_offset(*se.m_string_contents, se.m_touched_syms);
 
-  t->remove_function_name_from_symbols(name);
+  //t->remove_function_name_from_symbols(name); //not sure why this is required; this interferes with expr_var uniqueness logic; commenting this out
   t->populate_pc_var_versions();
   t->populate_exit_return_values_for_llvm_method();
   t->canonicalize_llvm_nextpcs(src_llvm_tfg, nextpc_is_noreturn_map);
@@ -4226,7 +4228,8 @@ sym_exec_llvm::get_symbol_map_and_string_contents(Module const *M, list<pair<str
     // non-zero size; the zero-length external array case above represents an
     // incomplete declaration where the size is unavailable.
     ASSERT(symbol_size);
-    bool inserted = smap.emplace(symbol_id, graph_symbol_t{mk_string_ref(varname->get_name()->get_str()), symbol_size, symbol_alignment, symbol_is_constant}).second;
+    //cout << _FNLN_ << ": varname->get_name() = " << varname->get_name()->get_str() << endl;
+    bool inserted = smap.emplace(symbol_id, graph_symbol_t::create_graph_symbol(mk_string_ref(varname->get_name()->get_str()), symbol_size, symbol_alignment, symbol_is_constant)).second;
     DYN_DEBUG2(llvm2tfg_syms, cout << "Added " << varname->get_name()->get_str() << " to graph_sym_map\n");
     ASSERT(inserted);
     if (symbol_is_constant && cv->hasInitializer()) {
@@ -4235,7 +4238,8 @@ sym_exec_llvm::get_symbol_map_and_string_contents(Module const *M, list<pair<str
   }
   for (auto const& [fun_name,fun_sz] : fun_names) {
     auto symbol_id = ng.next(fun_name);
-    bool inserted = smap.emplace(symbol_id, graph_symbol_t{mk_string_ref(fun_name), fun_sz, ALIGNMENT_FOR_FUNCTION_SYMBOL, false}).second;
+    //cout << _FNLN_ << ": fun_name = " << fun_name << endl;
+    bool inserted = smap.emplace(symbol_id, graph_symbol_t::create_graph_symbol(mk_string_ref(fun_name), fun_sz, ALIGNMENT_FOR_FUNCTION_SYMBOL, false)).second;
     ASSERT(inserted);
   }
   ASSERT(ng.get() < NUM_CANON_SYMBOLS);
