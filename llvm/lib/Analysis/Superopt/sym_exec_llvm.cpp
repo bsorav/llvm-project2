@@ -243,7 +243,8 @@ sym_exec_common::get_symbol_expr_for_global_var(string const &name, sort_ref con
   for (auto const& [symbol_id, sym] : *m_symbol_map) {
     if (sym.get_name()->get_str() == name) {
       ostringstream ss;
-      ss << "symbol." << symbol_id;
+      //ss << "symbol." << symbol_id;
+      ss << G_SYMBOL_KEYWORD "." << symbol_id;
       ret = m_ctx->mk_var(expr_var_t::mk_expr_var_symbol(mk_string_ref(ss.str()), symbol_id, sym), sr);
       m_touched_syms.insert(symbol_id);
       return ret;
@@ -252,8 +253,9 @@ sym_exec_common::get_symbol_expr_for_global_var(string const &name, sort_ref con
   for (auto const& [symbol_id, sym] : *m_extsym_map) {
     if (sym.get_name()->get_str() == name) {
       ostringstream ss;
-      ss << "symbol." << symbol_id;
-      ret = m_ctx->mk_var(ss.str(), sr);
+      //ss << "symbol." << symbol_id;
+      ss << G_SYMBOL_KEYWORD "." << symbol_id;
+      ret = m_ctx->mk_var(expr_var_t::mk_expr_var_extsym(mk_string_ref(ss.str()), symbol_id, sym), sr);
       m_touched_extsyms.insert(symbol_id);
       return ret;
     }
