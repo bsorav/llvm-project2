@@ -1829,7 +1829,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
       expr_ref csreg = m_ctx->mk_var(ss.str(), m_ctx->mk_bv_sort(ETFG_EXREG_LEN(ETFG_EXREG_GROUP_GPRS)));
       state_set_expr(state_out, m_srcdst_keyword + ("." G_LLVM_HIDDEN_REGISTER_NAME), m_ctx->mk_bvxor(state_get_expr(state_out, m_srcdst_keyword + "." G_LLVM_HIDDEN_REGISTER_NAME, csreg->get_sort()), csreg));
     }
-    control_flow_transfer cft(from_node->get_pc(), pc(pc::exit), m_ctx->mk_bool_true(), m_cs.get_retaddr_const(), {});
+    control_flow_transfer cft(from_node->get_pc(), pc::mk_pc(pc::exit), m_ctx->mk_bool_true(), m_cs.get_retaddr_const(), {});
     cfts.push_back(cft);
     break;
   }
@@ -1904,7 +1904,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
 
       auto add_edge_with_state = [this,&t,&from_node,&state_in,&state_out,&state_assumes,&te_comment]()
         {
-          pc intermediate_pc = t.tfg_get_next_intermediate_pc_for_subsubindex(pc(from_node->get_pc().get_type(), from_node->get_pc().get_index(), from_node->get_pc().get_subindex(), PC_SUBSUBINDEX_ALLOC_START));
+          pc intermediate_pc = t.tfg_get_next_intermediate_pc_for_subsubindex(pc::mk_pc(from_node->get_pc().get_type(), from_node->get_pc().get_index(), from_node->get_pc().get_subindex(), PC_SUBSUBINDEX_ALLOC_START));
           ASSERT(t.find_node(intermediate_pc) == 0);
           dshared_ptr<tfg_node const> intermediate_node = make_dshared<tfg_node>(intermediate_pc);
           t.add_node(intermediate_node);
@@ -3413,7 +3413,7 @@ sym_exec_llvm::get_tfg(llvm::Function& F, llvm::Module const *M, string const &n
 pc
 sym_exec_common::get_pc_from_bbindex_and_insn_id(string const &bbindex/*llvm::BasicBlock const &B*/, size_t insn_id)
 {
-  pc ret(pc::insn_label, /*get_basicblock_index(B)*/bbindex.c_str()/*, m_basicblock_idx_map.at(string("%") + bbindex)*/, insn_id + PC_SUBINDEX_FIRST_INSN_IN_BB, PC_SUBSUBINDEX_DEFAULT);
+  pc ret = pc::mk_pc(pc::insn_label, /*get_basicblock_index(B)*/bbindex.c_str()/*, m_basicblock_idx_map.at(string("%") + bbindex)*/, insn_id + PC_SUBINDEX_FIRST_INSN_IN_BB, PC_SUBSUBINDEX_DEFAULT);
   return ret;
 }
 
@@ -3689,7 +3689,7 @@ sym_exec_llvm::add_edges(const llvm::BasicBlock& B, dshared_ptr<tfg_llvm_t const
       if (pc_is_start) {
         pc_from_for_dbg_parsing = pc_from_dbg;
       } else {
-        pc_from_for_dbg_parsing = pc(pc_from_dbg.get_type(), pc_from_dbg.get_index(), pc_from_dbg.get_subindex(), PC_SUBSUBINDEX_BASIC_BLOCK_ENTRY);
+        pc_from_for_dbg_parsing = pc::mk_pc(pc_from_dbg.get_type(), pc_from_dbg.get_index(), pc_from_dbg.get_subindex(), PC_SUBSUBINDEX_BASIC_BLOCK_ENTRY);
       }
       this->parse_dbg_declare_intrinsic(I, t, pc_from_for_dbg_parsing);
       if (ll_filename_parsed) {
@@ -3703,7 +3703,7 @@ sym_exec_llvm::add_edges(const llvm::BasicBlock& B, dshared_ptr<tfg_llvm_t const
       if (pc_is_start) {
         pc_from_for_dbg_parsing = pc_from_dbg;
       } else {
-        pc_from_for_dbg_parsing = pc(pc_from_dbg.get_type(), pc_from_dbg.get_index(), pc_from_dbg.get_subindex(), PC_SUBSUBINDEX_BASIC_BLOCK_ENTRY);
+        pc_from_for_dbg_parsing = pc::mk_pc(pc_from_dbg.get_type(), pc_from_dbg.get_index(), pc_from_dbg.get_subindex(), PC_SUBSUBINDEX_BASIC_BLOCK_ENTRY);
       }
       this->parse_dbg_value_intrinsic(I, t, pc_from_for_dbg_parsing);
       if (ll_filename_parsed) {
@@ -3770,7 +3770,7 @@ sym_exec_common::get_next_intermediate_subsubindex_pc_node(tfg &t, dshared_ptr<t
   char const *index = from_node->get_pc().get_index();
   //int bblnum = from_node->get_pc().get_bblnum();
   int subindex = from_node->get_pc().get_subindex();
-  pc p(pc::insn_label, index/*, bblnum*/, subindex, PC_SUBSUBINDEX_DEFAULT);
+  pc p = pc::mk_pc(pc::insn_label, index/*, bblnum*/, subindex, PC_SUBSUBINDEX_DEFAULT);
   DYN_DEBUG3(llvm2tfg, cout << __func__ << " " << __LINE__ << ": p = " << p.to_string() << endl);
   if (m_intermediate_subsubindex_map.count(p) == 0) {
     DYN_DEBUG3(llvm2tfg, cout << __func__ << " " << __LINE__ << ": intermediate_subsubindex_map.count(p) = 0" << endl);
@@ -3779,7 +3779,7 @@ sym_exec_common::get_next_intermediate_subsubindex_pc_node(tfg &t, dshared_ptr<t
     DYN_DEBUG3(llvm2tfg, cout << __func__ << " " << __LINE__ << ": intermediate_subsubindex_map.count(p) = " << m_intermediate_subsubindex_map.at(p) << endl);
     m_intermediate_subsubindex_map[p]++;
   }
-  pc ret(pc::insn_label, index/*, bblnum*/, subindex, m_intermediate_subsubindex_map.at(p));
+  pc ret = pc::mk_pc(pc::insn_label, index/*, bblnum*/, subindex, m_intermediate_subsubindex_map.at(p));
   if (t.find_node(ret) == 0) {
     t.add_node(make_dshared<tfg_node>(ret));
   }
@@ -3791,7 +3791,7 @@ sym_exec_common::sync_next_intermediate_subsubindex_map(pc const& in_p)
 {
   char const *index = in_p.get_index();
   int subindex      = in_p.get_subindex();
-  pc p(pc::insn_label, index, subindex, PC_SUBSUBINDEX_DEFAULT);
+  pc p = pc::mk_pc(pc::insn_label, index, subindex, PC_SUBSUBINDEX_DEFAULT);
   auto itr = m_intermediate_subsubindex_map.find(p);
   if (itr == m_intermediate_subsubindex_map.end()) {
     m_intermediate_subsubindex_map.emplace(p, in_p.get_subsubindex());
