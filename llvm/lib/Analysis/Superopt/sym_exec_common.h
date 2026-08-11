@@ -90,7 +90,7 @@ public:
 
 protected:
   te_comment_t phi_node_to_te_comment(/*bbl_order_descriptor_t const& bbo, */int inum, llvm::Instruction const& I) const;
-  te_comment_t instruction_to_te_comment(llvm::Instruction const& I, pc const& from_pc/*, bbl_order_descriptor_t const& bbo*/) const;
+  te_comment_t instruction_to_te_comment(llvm::Instruction const& I, pc_ref const& from_pc/*, bbl_order_descriptor_t const& bbo*/) const;
   expr_ref get_symbol_expr_for_global_var(string const &name, sort_ref const &sr);
 
   //template<typename FUNCTION, typename BASICBLOCK, typename INSTRUCTION>
@@ -153,7 +153,7 @@ protected:
   //  NOT_REACHED();
   //}
 
-  string gep_name_prefix(string const &name, pc const &from_pc, pc const &pc_to, int argnum) const;
+  string gep_name_prefix(string const &name, pc_ref const &from_pc, pc_ref const &pc_to, int argnum) const;
   //expr_ref __get_expr_adding_edges_for_intermediate_vals_helper(const llvm::Value& v, string vname, const state& state_in, shared_ptr<tfg_node> *from_node, pc const &pc_to, llvm::BasicBlock const *B, llvm::Function const *F, tfg *t);
   bool function_belongs_to_program(string const &fun_name) const;
 
@@ -194,10 +194,10 @@ protected:
 
   //void add_gep_intermediate_vals(llvm::Instruction const &I, string const &name);
   void populate_state_template_common();
-  void get_state_template(const pc& p, state& st);
+  void get_state_template(pc_ref const& p, state& st);
   //expr_ref icmp_to_expr(llvm::ICmpInst::Predicate k, const vector<expr_ref>& args) const;
 
-  static pc get_pc_from_bbindex_and_insn_id(string const &bbindex, size_t insn_id);
+  static pc_ref get_pc_from_bbindex_and_insn_id(string const &bbindex, size_t insn_id);
   //pc get_pc_from_bb_and_insn_id(llvm::BasicBlock const &B, size_t insn_id);
   //vector<control_flow_transfer> expand_switch(tfg &t, shared_ptr<tfg_node> const &from_node, vector<control_flow_transfer> const &cfts, state const &state_to, const llvm::BasicBlock& B, const llvm::Function& F);
 
@@ -205,7 +205,7 @@ protected:
   //void add_edges(const llvm::BasicBlock& B, tfg& t, const llvm::Function& F, map<string, pair<callee_summary_t, tfg *>> &function_tfg_map, set<string> const &function_call_chain);
   //void process_phi_nodes(tfg &t, const llvm::BasicBlock* B_from, const pc& p_to, shared_ptr<tfg_node> const &from_node, const llvm::Function& F, expr_ref edgecond);
   dshared_ptr<tfg_node const> get_next_intermediate_subsubindex_pc_node(tfg &t, dshared_ptr<tfg_node const> const &from_node);
-  void sync_next_intermediate_subsubindex_map(pc const& p);
+  void sync_next_intermediate_subsubindex_map(pc_ref const& p);
 
   //expr_ref exec_gen_expr_casts(const llvm::CastInst& I, expr_ref arg, pc const &from_pc, tfg &t/*, unordered_set<predicate> &assumes*/);
   //static string getTypeString(llvm::Type *t);
@@ -239,7 +239,7 @@ protected:
   std::set<symbol_id_t> m_touched_extsyms;
   int m_memlabel_varnum = 0;
   //map<pc, pc> m_next_phi_pc;
-  map<pc, int> m_intermediate_subsubindex_map;
+  map<pc_ref, int> m_intermediate_subsubindex_map;
   string const m_srcdst_keyword;
 
   //map<string_ref, bbl_order_descriptor_t> m_bbl_order_map; //map from bbl name to bbl_order_descriptor_t
