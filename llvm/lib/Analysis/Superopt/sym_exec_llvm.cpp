@@ -53,7 +53,7 @@ callconv_is_cdecl_x86(llvm::CallInst const& c)
 
 }
 
-sym_exec_llvm::sym_exec_llvm(context* ctx, llvm::Module const *module, llvm::Function& F, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, unsigned memory_addressable_size, unsigned word_length, string const& srcdst_keyword, compiler_id_t const dst_compiler, harvest_dwarf_param_info_map_t const* harvest_dwarf_param_info, list<pair<string,unsigned>> fname_size_l, map<symbol_id_t,graph_symbol_t> symbol_map, map<symbol_id_t,graph_extsym_t> extsym_map, map<pair<symbol_id_t,offset_t>,vector<char>> string_contents)
+sym_exec_llvm::sym_exec_llvm(context* ctx, llvm::Module const *module, llvm::Function& F, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, unsigned memory_addressable_size, unsigned word_length, srcdst_t srcdst, compiler_id_t const dst_compiler, harvest_dwarf_param_info_map_t const* harvest_dwarf_param_info, list<pair<string,unsigned>> fname_size_l, map<symbol_id_t,graph_symbol_t> symbol_map, map<symbol_id_t,graph_extsym_t> extsym_map, map<pair<symbol_id_t,offset_t>,vector<char>> string_contents)
   : sym_exec_common(ctx,
                     make_dshared<list<pair<string, unsigned>> const>(std::move(fname_size_l)),
                     make_dshared<map<symbol_id_t, graph_symbol_t> const>(std::move(symbol_map)),
@@ -61,7 +61,7 @@ sym_exec_llvm::sym_exec_llvm(context* ctx, llvm::Module const *module, llvm::Fun
                     make_dshared<map<pair<symbol_id_t, offset_t>, vector<char>> const>(std::move(string_contents)),
                     memory_addressable_size,
                     word_length,
-                    srcdst_keyword),
+                    srcdst),
     m_module(module),
     m_function(F),
     m_harvest_dwarf_param_info(harvest_dwarf_param_info),
@@ -70,13 +70,13 @@ sym_exec_llvm::sym_exec_llvm(context* ctx, llvm::Module const *module, llvm::Fun
 { }
 
 sym_exec_llvm
-sym_exec_llvm::create_sym_exec_llvm(context* ctx, llvm::Module const *module, llvm::Function& F, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, unsigned memory_addressable_size, unsigned word_length, string const& srcdst_keyword, compiler_id_t const dst_compiler, harvest_dwarf_param_info_map_t const* harvest_dwarf_param_info)
+sym_exec_llvm::create_sym_exec_llvm(context* ctx, llvm::Module const *module, llvm::Function& F, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, unsigned memory_addressable_size, unsigned word_length, srcdst_t srcdst, compiler_id_t const dst_compiler, harvest_dwarf_param_info_map_t const* harvest_dwarf_param_info)
 {
   auto const fname_size_l = get_fun_names(module);
   auto [symbol_map, extsym_map, string_contents] =
       get_symbol_map_and_string_contents(module, fname_size_l, src_llvm_tfg);
   return sym_exec_llvm(ctx, module, F, src_llvm_tfg,
-                       memory_addressable_size, word_length, srcdst_keyword,
+                       memory_addressable_size, word_length, srcdst,
                        dst_compiler, harvest_dwarf_param_info, fname_size_l,
                        symbol_map, extsym_map, string_contents);
 }
@@ -134,11 +134,11 @@ string prefix_identifier(const string& id, const string& prefix)
 expr_var_ref
 sym_exec_common::get_value_name(const Value& v) const
 {
-  return get_value_name_using_srcdst_keyword(v, m_srcdst_keyword);
+  return get_value_name_using_srcdst(v, m_srcdst);
 }
 
 expr_var_ref
-sym_exec_common::get_value_name_using_srcdst_keyword(const Value& v, string const& srcdst_keyword)
+sym_exec_common::get_value_name_using_srcdst(const Value& v, srcdst_t srcdst)
 {
   assert(!v.getType()->isVoidTy());
 
@@ -151,7 +151,7 @@ sym_exec_common::get_value_name_using_srcdst_keyword(const Value& v, string cons
   if (ret.size() && ret[0] == LLVM_GLOBAL_VARNAME_PREFIX_CHAR) {
     return expr_var_t::mk_expr_var_plain(mk_string_ref(ret));
   } else {
-    return expr_var_t::mk_expr_var_plain(mk_string_ref(srcdst_keyword + string("." G_LLVM_PREFIX) + "-" + ret));
+    return expr_var_t::mk_expr_var_plain(mk_string_ref(::get_srcdst_keyword(srcdst) + string("." G_LLVM_PREFIX) + "-" + ret));
   }
 }
 
@@ -555,7 +555,7 @@ sym_exec_llvm::llvm_instruction_get_md5sum_name(Instruction const& I) const
   rso << I;
   string csum = md5_checksum(istr);
   //cout << _FNLN_ << ": istr =\n" << istr << "\ncsum = " << csum << endl;
-  return m_srcdst_keyword + string("." G_LLVM_PREFIX "-%") + csum;
+  return ::get_srcdst_keyword(m_srcdst) + string("." G_LLVM_PREFIX "-%") + csum;
 }
 
 string
@@ -617,7 +617,7 @@ string
 sym_exec_common::gep_name_prefix(string const &name, pc_ref const &from_pc, pc_ref const &to_pc, int argnum) const
 {
   stringstream ss;
-  ss << m_srcdst_keyword << "." G_LLVM_PREFIX "-%" << name << "." << argnum << "." << from_pc->to_string() << "." << to_pc->to_string();
+  ss << ::get_srcdst_keyword(m_srcdst) << "." G_LLVM_PREFIX "-%" << name << "." << argnum << "." << from_pc->to_string() << "." << to_pc->to_string();
   return ss.str();
 }
 
@@ -701,7 +701,7 @@ sym_exec_llvm::populate_state_template(const llvm::Function& F, bool model_llvm_
       align = v.getParamAlign().value_or(Align(4)).value();
       allocstack_t allocstack = allocstack_t::allocstack_singleton(F.getName().str(), allocsite);
       m_local_refs.insert(make_pair(allocsite, graph_local_t(name->get_name()->get_str(), size, align)));
-      expr_ref argvar = m_cs.get_local_addr(allocstack, m_srcdst_keyword, m_local_refs);
+      expr_ref argvar = m_cs.get_local_addr(allocstack, m_srcdst, m_local_refs);
       m_arguments[name->get_name()->get_str()] = make_pair(argnum, argvar);
       m_memory_arg_info[argnum] = memory_arg_info_t{size, align};
     } else {
@@ -722,12 +722,12 @@ sym_exec_llvm::populate_state_template(const llvm::Function& F, bool model_llvm_
     }
   }
   if (F.isVarArg()) {
-    string name = graph_local_t::vararg_local_name(m_srcdst_keyword);
+    string name = graph_local_t::vararg_local_name(m_srcdst);
     expr_ref argvar = m_ctx->mk_var(name, m_ctx->mk_addr_sort());
     m_arguments[name] = make_pair(argnum, argvar);
     m_vararg_argnum = argnum;
 
-    m_local_refs.insert(make_pair(graph_locals_map_t::vararg_local_id(), graph_local_t::vararg_local(m_srcdst_keyword)));
+    m_local_refs.insert(make_pair(graph_locals_map_t::vararg_local_id(), graph_local_t::vararg_local(m_srcdst)));
   }
 
   //int bbnum = 1; //bbnum == 0 is reserved
@@ -1353,7 +1353,7 @@ sym_exec_llvm::apply_statement_marker_function(const CallInst* c, state &state_o
   auto const* current_depth = cast<ConstantInt>(c->getArgOperand(0));
   auto const* target_depth = cast<ConstantInt>(c->getArgOperand(1));
 
-  string code_marker_reg = m_srcdst_keyword + "." G_CODE_MARKER_VARNAME;
+  string code_marker_reg = ::get_srcdst_keyword(m_srcdst) + "." G_CODE_MARKER_VARNAME;
   expr_ref in_code_marker = m_ctx->mk_var(code_marker_reg, m_ctx->mk_code_marker_sort());
   state_set_expr(state_out, code_marker_reg,
       (m_ctx->*marker_fn)(
@@ -1377,7 +1377,7 @@ sym_exec_llvm::apply_va_start_function(const CallInst* c, state const& state_in,
   tie(va_list_ptr_expr, assumes) = get_expr_adding_edges_for_intermediate_vals(*va_list_ptr, "", state_out, assumes, from_node, model_llvm_semantics, t, value_to_name_map);
 
   allocstack_t allocstack = allocstack_t::allocstack_singleton(cur_function_name, graph_locals_map_t::vararg_local_id());
-  expr_ref vararg_addr = m_ctx->get_consts_struct().get_local_addr(allocstack, m_srcdst_keyword, this->get_local_refs());
+  expr_ref vararg_addr = m_ctx->get_consts_struct().get_local_addr(allocstack, m_srcdst, this->get_local_refs());
   expr_ref mem_alloc = state_get_expr(state_in, this->m_mem_alloc_reg, this->get_mem_alloc_sort());
   memlabel_t ml_top = memlabel_t::memlabel_top();
   unsigned count = get_word_length()/get_memory_addressable_size();
@@ -1821,13 +1821,13 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
       //assumes.insert(p);
       //t.add_assume_pred(from_node->get_pc(), p);
 
-      state_set_expr(state_out, m_srcdst_keyword + "." + G_LLVM_RETURN_REGISTER_NAME/*m_ret_reg*/, dst_val);
+      state_set_expr(state_out, ::get_srcdst_keyword(m_srcdst) + "." + G_LLVM_RETURN_REGISTER_NAME/*m_ret_reg*/, dst_val);
     }
     for (size_t i = 0; i < LLVM_NUM_CALLEE_SAVE_REGS; i++) {
       stringstream ss;
-      ss << G_INPUT_KEYWORD "." << m_srcdst_keyword << "." LLVM_CALLEE_SAVE_REGNAME << "." << i;
+      ss << G_INPUT_KEYWORD "." << ::get_srcdst_keyword(m_srcdst) << "." LLVM_CALLEE_SAVE_REGNAME << "." << i;
       expr_ref csreg = m_ctx->mk_var(ss.str(), m_ctx->mk_bv_sort(ETFG_EXREG_LEN(ETFG_EXREG_GROUP_GPRS)));
-      state_set_expr(state_out, m_srcdst_keyword + ("." G_LLVM_HIDDEN_REGISTER_NAME), m_ctx->mk_bvxor(state_get_expr(state_out, m_srcdst_keyword + "." G_LLVM_HIDDEN_REGISTER_NAME, csreg->get_sort()), csreg));
+      state_set_expr(state_out, ::get_srcdst_keyword(m_srcdst) + ("." G_LLVM_HIDDEN_REGISTER_NAME), m_ctx->mk_bvxor(state_get_expr(state_out, ::get_srcdst_keyword(m_srcdst) + "." G_LLVM_HIDDEN_REGISTER_NAME, csreg->get_sort()), csreg));
     }
     control_flow_transfer cft(from_node->get_pc(), pc::mk_pc(pc::exit), m_ctx->mk_bool_true(), m_cs.get_retaddr_const(), {});
     cfts.push_back(cft);
@@ -1872,7 +1872,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
 
       m_local_refs.emplace(local_id, graph_local_t(mk_string_ref(iname), local_size, align, is_varsize, is_alloca));
 
-      expr_ref const local_addr_var = m_cs.get_local_addr(local_id_stack, m_srcdst_keyword, this->get_local_refs());
+      expr_ref const local_addr_var = m_cs.get_local_addr(local_id_stack, m_srcdst, this->get_local_refs());
 
       expr_var_ref const local_addr_key = local_addr_var->expr_get_var()->expr_var_remove_input_prefix();
 
@@ -1918,11 +1918,11 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
           state_assumes.clear();
         };
 
-      string const local_alloc_count_varname = m_ctx->get_local_alloc_count_varname(this->get_srcdst_keyword())->get_str();
-      string const local_alloc_count_ssa_varname = m_ctx->get_local_alloc_count_ssa_varname(this->get_srcdst_keyword(), local_id, false)->get_str();
+      string const local_alloc_count_varname = m_ctx->get_local_alloc_count_varname(this->get_srcdst())->get_str();
+      string const local_alloc_count_ssa_varname = m_ctx->get_local_alloc_count_ssa_varname(this->get_srcdst(), local_id, false)->get_str();
       expr_ref const local_alloc_count_var = state_get_expr(state_in, local_alloc_count_varname, m_ctx->mk_count_sort());
       expr_ref const local_alloc_count_ssa_var = state_get_expr(state_in, local_alloc_count_ssa_varname, m_ctx->mk_count_sort());
-      expr_ref const local_size_var = m_ctx->get_local_size_expr_for_id(local_id, m_ctx->mk_bv_sort(get_word_length()), m_srcdst_keyword);
+      expr_ref const local_size_var = m_ctx->get_local_size_expr_for_id(local_id, m_ctx->mk_bv_sort(get_word_length()), m_srcdst);
       expr_ref const mem_e = state_get_expr(state_in, m_mem_reg, this->get_mem_sort());
       expr_ref const mem_alloc_e = state_get_expr(state_in, m_mem_alloc_reg, this->get_mem_alloc_sort());
 
@@ -2874,7 +2874,7 @@ sym_exec_llvm::get_scev_op_from_scev_type(SCEVTypes scevtype)
 }
 
 scev_ref
-sym_exec_llvm::get_scev(ScalarEvolution& SE, SCEV const* scev, string const& srcdst_keyword, size_t word_length)
+sym_exec_llvm::get_scev(ScalarEvolution& SE, SCEV const* scev, srcdst_t srcdst, size_t word_length)
 {
   SCEVTypes scevtype = static_cast<SCEVTypes>(scev->getSCEVType());
   switch (scevtype) {
@@ -2890,26 +2890,26 @@ sym_exec_llvm::get_scev(ScalarEvolution& SE, SCEV const* scev, string const& src
       const SCEV *Op = Trunc->getOperand();
       //OS << "(trunc " << *Op->getType() << " " << *Op << " to "
       //   << *Trunc->getType() << ")";
-      return mk_scev(scev_op_truncate, mybitset(), { get_scev(SE, Op, srcdst_keyword, word_length) });
+      return mk_scev(scev_op_truncate, mybitset(), { get_scev(SE, Op, srcdst, word_length) });
     }
     case scPtrToInt: {
       const SCEVPtrToIntExpr *PtrToInt = cast<SCEVPtrToIntExpr>(scev);
       const SCEV *Op = PtrToInt->getOperand();
       //OS << "(trunc " << *Op->getType() << " " << *Op << " to "
       //   << *Trunc->getType() << ")";
-      return mk_scev(scev_op_ptr_to_int, mybitset(), { get_scev(SE, Op, srcdst_keyword, word_length) });
+      return mk_scev(scev_op_ptr_to_int, mybitset(), { get_scev(SE, Op, srcdst, word_length) });
     }
     case scZeroExtend: {
       const SCEVZeroExtendExpr *ZExt = cast<SCEVZeroExtendExpr>(scev);
       const SCEV *Op = ZExt->getOperand();
       //OS << "(zext " << *Op->getType() << " " << *Op << " to "
       //   << *ZExt->getType() << ")";
-      return mk_scev(scev_op_zeroext, mybitset(), { get_scev(SE, Op, srcdst_keyword, word_length) });
+      return mk_scev(scev_op_zeroext, mybitset(), { get_scev(SE, Op, srcdst, word_length) });
     }
     case scSignExtend: {
       const SCEVSignExtendExpr *SExt = cast<SCEVSignExtendExpr>(scev);
       const SCEV *Op = SExt->getOperand();
-      return mk_scev(scev_op_signext, mybitset(), { get_scev(SE, Op, srcdst_keyword, word_length) });
+      return mk_scev(scev_op_signext, mybitset(), { get_scev(SE, Op, srcdst, word_length) });
     }
     case scAddRecExpr: {
       const SCEVAddRecExpr *AR = cast<SCEVAddRecExpr>(scev);
@@ -2917,7 +2917,7 @@ sym_exec_llvm::get_scev(ScalarEvolution& SE, SCEV const* scev, string const& src
       vector<scev_ref> scev_args;
       for (unsigned i = 0, e = AR->getNumOperands(); i != e; ++i) {
         //OS << ",+," << *AR->getOperand(i);
-        scev_args.push_back(get_scev(SE, AR->getOperand(i), srcdst_keyword, word_length));
+        scev_args.push_back(get_scev(SE, AR->getOperand(i), srcdst, word_length));
       }
       //OS << "}<";
       scev_overflow_flag_t scev_overflow_flag;
@@ -2936,7 +2936,7 @@ sym_exec_llvm::get_scev(ScalarEvolution& SE, SCEV const* scev, string const& src
         //flag_nw = true;
         scev_overflow_flag.add(scev_overflow_flag_t::scev_overflow_flag_nw);
       }
-      pc_ref loop_pc = get_loop_pc(AR->getLoop(), srcdst_keyword);
+      pc_ref loop_pc = get_loop_pc(AR->getLoop(), srcdst);
       return mk_scev(scev_op_addrec, mybitset(), scev_args, loop_pc, scev_overflow_flag);
       //AR->getLoop()->getHeader()->printAsOperand(OS, /*PrintType=*/false);
       //OS << ">";
@@ -2952,7 +2952,7 @@ sym_exec_llvm::get_scev(ScalarEvolution& SE, SCEV const* scev, string const& src
       const SCEVNAryExpr *NAry = cast<SCEVNAryExpr>(scev);
       vector<scev_ref> scev_args;
       for (size_t i = 0; i < NAry->getNumOperands(); i++) {
-        scev_ref scev_arg = get_scev(SE, NAry->getOperand(i), srcdst_keyword, word_length);
+        scev_ref scev_arg = get_scev(SE, NAry->getOperand(i), srcdst, word_length);
         scev_args.push_back(scev_arg);
       }
       scev_overflow_flag_t scev_overflow_flag;
@@ -2970,8 +2970,8 @@ sym_exec_llvm::get_scev(ScalarEvolution& SE, SCEV const* scev, string const& src
       const SCEVUDivExpr *UDiv = cast<SCEVUDivExpr>(scev);
       //OS << "(" << *UDiv->getLHS() << " /u " << *UDiv->getRHS() << ")";
       vector<scev_ref> scev_args;
-      scev_args.push_back(get_scev(SE, UDiv->getLHS(), srcdst_keyword, word_length));
-      scev_args.push_back(get_scev(SE, UDiv->getRHS(), srcdst_keyword, word_length));
+      scev_args.push_back(get_scev(SE, UDiv->getLHS(), srcdst, word_length));
+      scev_args.push_back(get_scev(SE, UDiv->getRHS(), srcdst, word_length));
 
       return mk_scev(scev_op_udiv, mybitset(), scev_args);
     }
@@ -3001,7 +3001,7 @@ sym_exec_llvm::get_scev(ScalarEvolution& SE, SCEV const* scev, string const& src
 
       /*if (name == "") */{
         U->getValue()->printAsOperand(ss, false);
-        name = string(G_INPUT_KEYWORD ".") + srcdst_keyword + ("." G_LLVM_PREFIX "-") + ss.str();
+        name = string(G_INPUT_KEYWORD ".") + ::get_srcdst_keyword(srcdst) + ("." G_LLVM_PREFIX "-") + ss.str();
       }
       if (name == "") {
         name = "unknown-notimplemented";
@@ -3063,16 +3063,16 @@ sym_exec_llvm::get_bounds_from_range(llvm::ConstantRange const& crange, bool is_
 }
 
 scev_with_bounds_t
-sym_exec_llvm::get_scev_with_bounds(ScalarEvolution& SE, SCEV const* scev, string const& srcdst_keyword, size_t word_length)
+sym_exec_llvm::get_scev_with_bounds(ScalarEvolution& SE, SCEV const* scev, srcdst_t srcdst, size_t word_length)
 {
   pair<mybitset, mybitset> unsigned_bounds = get_bounds_from_range(SE.getUnsignedRange(scev), false);
   pair<mybitset, mybitset> signed_bounds = get_bounds_from_range(SE.getSignedRange(scev), true);
-  scev_ref scevr = get_scev(SE, scev, srcdst_keyword, word_length);
+  scev_ref scevr = get_scev(SE, scev, srcdst, word_length);
   return scev_with_bounds_t(scevr, unsigned_bounds.first, unsigned_bounds.second, signed_bounds.first, signed_bounds.second);
 }
 
 pc_ref
-sym_exec_llvm::get_loop_pc(Loop const* L, string const& srcdst_keyword)
+sym_exec_llvm::get_loop_pc(Loop const* L, srcdst_t srcdst)
 {
   if (!L) {
     return pc::start();
@@ -3083,17 +3083,17 @@ sym_exec_llvm::get_loop_pc(Loop const* L, string const& srcdst_keyword)
 }
 
 scev_toplevel_t<pc_ref>
-sym_exec_llvm::get_scev_toplevel(Instruction& I, ScalarEvolution * scev, LoopInfo const* loopinfo, string const& srcdst_keyword, size_t word_length)
+sym_exec_llvm::get_scev_toplevel(Instruction& I, ScalarEvolution * scev, LoopInfo const* loopinfo, srcdst_t srcdst, size_t word_length)
 {
   SCEV const* sv = scev->getSCEV(&I);
   Loop const* L = loopinfo->getLoopFor(I.getParent());
   SCEV const* atuse_sv = scev->getSCEVAtScope(sv, L);
   SCEV const* atexit_sv = L ? scev->getSCEVAtScope(sv, L->getParentLoop()) : nullptr;
 
-  scev_with_bounds_t val_scevb = get_scev_with_bounds(*scev, sv, srcdst_keyword, word_length);
-  scev_with_bounds_t atuse_scevb = get_scev_with_bounds(*scev, atuse_sv, srcdst_keyword, word_length);
-  pc_ref loop_pc = get_loop_pc(L, srcdst_keyword);
-  scev_ref atexit_scev = atexit_sv ? get_scev(*scev, atexit_sv, srcdst_keyword, word_length) : nullptr;
+  scev_with_bounds_t val_scevb = get_scev_with_bounds(*scev, sv, srcdst, word_length);
+  scev_with_bounds_t atuse_scevb = get_scev_with_bounds(*scev, atuse_sv, srcdst, word_length);
+  pc_ref loop_pc = get_loop_pc(L, srcdst);
+  scev_ref atexit_scev = atexit_sv ? get_scev(*scev, atexit_sv, srcdst, word_length) : nullptr;
   return scev_toplevel_t<pc_ref>(val_scevb, atuse_scevb, atexit_scev, loop_pc);
 }
 
@@ -3324,7 +3324,7 @@ sym_exec_llvm::alloca_corresponds_to_a_local_parameter(AllocaInst const& a, DILo
 }
 
 dshared_ptr<tfg_llvm_t>
-sym_exec_llvm::get_tfg(llvm::Function& F, llvm::Module const *M, string const &name, context *ctx, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, bool model_llvm_semantics, map<llvm_value_id_t, string_ref>* value_to_name_map, map<shared_ptr<tfg_edge const>, Instruction const*>& eimap, map<string, value_scev_map_t> const& scev_map, string const& srcdst_keyword, dshared_ptr<ll_filename_parsed_t> const& ll_filename_parsed, points_to_algo_t const& points_to_algo/*, context::xml_output_format_t xml_output_format*/, compiler_id_t const dst_compiler, harvest_dwarf_param_info_map_t const* harvest_dwarf_param_info)
+sym_exec_llvm::get_tfg(llvm::Function& F, llvm::Module const *M, string const &name, context *ctx, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, bool model_llvm_semantics, map<llvm_value_id_t, string_ref>* value_to_name_map, map<shared_ptr<tfg_edge const>, Instruction const*>& eimap, map<string, value_scev_map_t> const& scev_map, srcdst_t srcdst, dshared_ptr<ll_filename_parsed_t> const& ll_filename_parsed, points_to_algo_t const& points_to_algo/*, context::xml_output_format_t xml_output_format*/, compiler_id_t const dst_compiler, harvest_dwarf_param_info_map_t const* harvest_dwarf_param_info)
 {
   autostop_timer func_timer(__func__);
 
@@ -3332,7 +3332,7 @@ sym_exec_llvm::get_tfg(llvm::Function& F, llvm::Module const *M, string const &n
   unsigned pointer_size = dl.getPointerSize();
   //cout << __func__ << " " << __LINE__ << ": pointer_size = " << pointer_size << endl;
   ASSERT(pointer_size == DWORD_LEN/BYTE_LEN || pointer_size == QWORD_LEN/BYTE_LEN);
-  auto se = sym_exec_llvm::create_sym_exec_llvm(ctx, M, F, src_llvm_tfg, BYTE_LEN, pointer_size * BYTE_LEN, srcdst_keyword, dst_compiler, harvest_dwarf_param_info);
+  auto se = sym_exec_llvm::create_sym_exec_llvm(ctx, M, F, src_llvm_tfg, BYTE_LEN, pointer_size * BYTE_LEN, srcdst, dst_compiler, harvest_dwarf_param_info);
 
   list<string> sorted_bbl_indices;
   for (BasicBlock const& BB: F) {
@@ -3352,7 +3352,7 @@ sym_exec_llvm::get_tfg(llvm::Function& F, llvm::Module const *M, string const &n
   }
 
   stringstream ss;
-  ss << srcdst_keyword << "." G_LLVM_PREFIX "." << fname;
+  ss << ::get_srcdst_keyword(srcdst) << "." G_LLVM_PREFIX "." << fname;
   dshared_ptr<tfg_llvm_t> t = make_dshared<tfg_llvm_t>(ss.str(), fname, ctx, points_to_algo);
   ASSERT(t);
   t->set_start_state(start_state);
@@ -3440,7 +3440,7 @@ sym_exec_llvm::expand_switch(tfg &t, map<llvm_value_id_t, string_ref>* value_to_
     pc_ref const& next_case_pc = next_case_node->get_pc();
 
     stringstream ss;
-    ss << m_srcdst_keyword << "." G_LLVM_PREFIX "-" LLVM_SWITCH_TMPVAR_PREFIX << varnum++;
+    ss << ::get_srcdst_keyword(m_srcdst) << "." G_LLVM_PREFIX "-" LLVM_SWITCH_TMPVAR_PREFIX << varnum++;
     string switch_tmpvar_name = ss.str();
     expr_ref switch_tmpvar = get_input_expr(switch_tmpvar_name, m_ctx->mk_bool_sort());
 
@@ -3486,7 +3486,7 @@ sym_exec_llvm::process_cft(tfg &t, map<llvm_value_id_t, string_ref>* value_to_na
     t.add_node(make_dshared<tfg_node>(pc_to));
   }
   if (target) {
-    state_set_expr(state_to_cft, m_srcdst_keyword + "." LLVM_STATE_INDIR_TARGET_KEY_ID, target);
+    state_set_expr(state_to_cft, ::get_srcdst_keyword(m_srcdst) + "." LLVM_STATE_INDIR_TARGET_KEY_ID, target);
     auto e = mk_tfg_edge(from_pc, pc_to, to_condition, state_to_cft, assumes, {}, te_comment);
     eimap.insert(make_pair(e, I));
     t.add_edge(e);
@@ -3549,7 +3549,7 @@ sym_exec_llvm::parse_dbg_declare_intrinsic(Instruction const& I, tfg_llvm_t& t, 
     DYN_DEBUG(dbg_declare_intrinsic, dbgs() << "Dropping debug info for " << DI << " because it is NOT an alloca\n");
     return;
   }
-  string source_varname = DI.getVariable()->getName().str() + (m_srcdst_keyword == G_DST_KEYWORD ? "'" : "");
+  string source_varname = DI.getVariable()->getName().str() + (m_srcdst == srcdst_t::srcdst_dst ? "'" : "");
   string llvm_varname = get_value_name(*Address)->get_name()->get_str();
   DYN_DEBUG(dbg_declare_intrinsic, std::cout << "DI.getVariable().getName() = " << source_varname << "\n");
   DYN_DEBUG(dbg_declare_intrinsic, std::cout << "value_name = " << llvm_varname << "\n");
@@ -3569,7 +3569,7 @@ sym_exec_llvm::parse_dbg_value_intrinsic(Instruction const& I, tfg_llvm_t& t, pc
     return;
   }
   string llvm_varname = string(G_INPUT_KEYWORD ".") + get_value_name(*v)->get_name()->get_str();
-  string source_varname = DI.getVariable()->getName().str() + (m_srcdst_keyword == G_DST_KEYWORD ? "'" : "");
+  string source_varname = DI.getVariable()->getName().str() + (m_srcdst == srcdst_t::srcdst_dst ? "'" : "");
   //DIExpression* die = DI.getExpression(); //not used so far
   DYN_DEBUG(dbg_declare_intrinsic, std::cout << "source_varname = " << source_varname << "\n");
   DYN_DEBUG(dbg_declare_intrinsic, std::cout << "llvm_varname = " << llvm_varname << "\n");
@@ -3588,7 +3588,7 @@ sym_exec_llvm::parse_stacksave_intrinsic(Instruction const& I, tfg& t, pc_ref co
   //let's save the current state of mem.alloc in an SSA var
   state state_in, state_out;
   expr_ref mem_alloc_e = state_get_expr(state_in, m_mem_alloc_reg, this->get_mem_alloc_sort());
-  string_ref memalloc_ssa_varname = context::get_memalloc_ssa_varname_from_opaque_key(m_srcdst_keyword, opaque_keyname);
+  string_ref memalloc_ssa_varname = context::get_memalloc_ssa_varname_from_opaque_key(m_srcdst, opaque_keyname);
   expr_ref memalloc_ssa_var = m_ctx->mk_var(expr_var_t::mk_expr_var_plain(memalloc_ssa_varname)->expr_var_add_input_prefix(), this->get_mem_alloc_sort());
   m_opaque_varname_to_memalloc_map.insert(make_pair(opaque_varname, memalloc_ssa_var));
 
@@ -3998,7 +3998,7 @@ sym_exec_llvm::get_callee_summaries_for_tfg(map<nextpc_id_t, nextpc_info_t> cons
 string
 sym_exec_llvm::get_cur_rounding_mode_varname() const
 {
-  return m_ctx->get_cur_rounding_mode_varname_for_prefix(m_srcdst_keyword + ".");
+  return m_ctx->get_cur_rounding_mode_varname_for_prefix(::get_srcdst_keyword(m_srcdst) + ".");
 }
 
 expr_ref
@@ -4200,7 +4200,7 @@ sym_exec_llvm::get_symbol_map_and_string_contents(Module const *M, list<pair<str
     const DataLayout &dl = M->getDataLayout();
     Type *ElTy = g.getValueType();
     ASSERT(g.hasName());
-    expr_var_ref varname = sym_exec_llvm::get_value_name_using_srcdst_keyword(g, G_SRC_KEYWORD);
+    expr_var_ref varname = sym_exec_llvm::get_value_name_using_srcdst(g, srcdst_t::srcdst_src);
     ASSERT(string_has_prefix(varname->get_name()->get_str(), LLVM_GLOBAL_VARNAME_PREFIX));
     varname = varname->expr_var_set_name(varname->get_name()->get_str().substr(strlen(LLVM_GLOBAL_VARNAME_PREFIX)));
 
@@ -4498,7 +4498,7 @@ sym_exec_common::get_tfg_common(tfg &t)
     allocsite_t allocsite = m_vararg_argnum && a.first == *m_vararg_argnum ? graph_locals_map_t::vararg_local_id()
                                                                            : allocsite_t::allocsite_arg(a.first);
     allocstack_t allocstack = allocstack_t::allocstack_singleton(t.get_function_name()->get_str(), allocsite);
-    expr_ref arg_addr = m_ctx->get_consts_struct().get_local_addr(allocstack, m_srcdst_keyword, this->get_local_refs());
+    expr_ref arg_addr = m_ctx->get_consts_struct().get_local_addr(allocstack, m_srcdst, this->get_local_refs());
     if (m_vararg_argnum && a.first == *m_vararg_argnum) {
       arg_exprs.emplace(mk_string_ref(argname), graph_arg_t::vararg(arg_addr));
     } else if (m_memory_arg_info.count(a.first)) {
@@ -4623,13 +4623,13 @@ struct FunctionPassPopulateTfgScev : public FunctionPass {
   const class PassInfo *PassInfo_LI;
   //raw_ostream &Out;
   map<string, value_scev_map_t>& scev_map;
-  string const& m_srcdst_keyword;
+  srcdst_t m_srcdst;
   size_t m_word_length;
   //map<Function const*, LoopInfo const*>& loopinfo_map;
   std::string PassName;
 
-  FunctionPassPopulateTfgScev(class PassInfo const *PI, class PassInfo const* PI_loopinfo, map<string, value_scev_map_t>& scev_map, string const& srcdst_keyword, size_t word_length)
-      : FunctionPass(ID), PassInfo_v(PI), PassInfo_LI(PI_loopinfo), scev_map(scev_map), m_srcdst_keyword(srcdst_keyword), m_word_length(word_length) {
+  FunctionPassPopulateTfgScev(class PassInfo const *PI, class PassInfo const* PI_loopinfo, map<string, value_scev_map_t>& scev_map, srcdst_t srcdst, size_t word_length)
+      : FunctionPass(ID), PassInfo_v(PI), PassInfo_LI(PI_loopinfo), scev_map(scev_map), m_srcdst(srcdst), m_word_length(word_length) {
     PassName = "FunctionPass PopulateTfgScev";
   }
 
@@ -4652,8 +4652,8 @@ struct FunctionPassPopulateTfgScev : public FunctionPass {
     for (BasicBlock& B : F) {
       for(Instruction& I : B) {
         if (SE.isSCEVable(I.getType()) && !isa<CmpInst>(I)) {
-          string iname = sym_exec_llvm::get_value_name_using_srcdst_keyword(I, m_srcdst_keyword)->get_name()->get_str();
-          scev_toplevel_t<pc_ref> st = sym_exec_llvm::get_scev_toplevel(I, &SE, &LI, m_srcdst_keyword, m_word_length);
+          string iname = sym_exec_llvm::get_value_name_using_srcdst(I, m_srcdst)->get_name()->get_str();
+          scev_toplevel_t<pc_ref> st = sym_exec_llvm::get_scev_toplevel(I, &SE, &LI, m_srcdst, m_word_length);
           scev_map[fname].insert(make_pair(iname, st));
         }
       }
@@ -4680,7 +4680,7 @@ char FunctionPassPopulateTfgScev::ID = 0;
 //}
 
 map<string, value_scev_map_t>
-sym_exec_llvm::sym_exec_populate_potential_scev_relations(Module* M, string const& srcdst_keyword)
+sym_exec_llvm::sym_exec_populate_potential_scev_relations(Module* M, srcdst_t srcdst)
 {
   PassInfo const* PI = PassRegistry::getPassRegistry()->getPassInfo(StringRef("scalar-evolution"));
   PassInfo const* PI_loopinfo = PassRegistry::getPassRegistry()->getPassInfo(StringRef("loops"));
@@ -4707,7 +4707,7 @@ sym_exec_llvm::sym_exec_populate_potential_scev_relations(Module* M, string cons
   Passes.add(P);
   Passes.add(P_loopinfo);
   //Passes.add(createRegionPassPrinter(PI, Out->os()));
-  Passes.add(new FunctionPassPopulateTfgScev(PI, PI_loopinfo, scev_map, srcdst_keyword, M->getDataLayout().getPointerSize() * BYTE_LEN));
+  Passes.add(new FunctionPassPopulateTfgScev(PI, PI_loopinfo, scev_map, srcdst, M->getDataLayout().getPointerSize() * BYTE_LEN));
 
   Passes.run(*M);
   return scev_map;
@@ -4724,14 +4724,15 @@ sym_exec_llvm::sym_exec_get_function_tfg_map(Module* M, set<string> FunNamesVec/
     M->print(dbgs(), nullptr, true);
     dbgs().flush();
   );
-  string srcdst_keyword = src_llptfg ? G_DST_KEYWORD : G_SRC_KEYWORD;
+  //string srcdst_keyword = src_llptfg ? G_DST_KEYWORD : G_SRC_KEYWORD;
+  srcdst_t srcdst = src_llptfg ? srcdst_t::srcdst_dst : srcdst_t::srcdst_src;
 
   dshared_ptr<ll_filename_parsed_t> ll_filename_parsed = ll_filename != "" ? ll_filename_parsed_t::ll_filename_parsed_init(ll_filename) : dshared_ptr<ll_filename_parsed_t>::dshared_nullptr();
 
   map<string, value_scev_map_t> scev_map;
   //map<Function const*, LoopInfo const*> loopinfo_map;
   if (gen_scev) {
-    scev_map = sym_exec_populate_potential_scev_relations(M, srcdst_keyword);
+    scev_map = sym_exec_populate_potential_scev_relations(M, srcdst);
   }
   //for (auto const& li : loopinfo_map) {
   //  errs() << "loop info map for " << li.first->getName() << "\n";
@@ -4778,7 +4779,7 @@ sym_exec_llvm::sym_exec_get_function_tfg_map(Module* M, set<string> FunNamesVec/
     DYN_DEBUG(llvm2tfg, cout << __func__ << " " << __LINE__ << ": Doing " << fname << endl; cout.flush());
     map<shared_ptr<tfg_edge const>, Instruction const*> eimap;
 
-    dshared_ptr<tfg_llvm_t> t_src = sym_exec_llvm::get_tfg(f, M, fname, ctx, src_llvm_tfg, model_llvm_semantics, value_to_name_map, eimap, scev_map, srcdst_keyword, ll_filename_parsed, points_to_algo/*, xml_output_format*/, dst_compiler, harvest_dwarf_param_info);
+    dshared_ptr<tfg_llvm_t> t_src = sym_exec_llvm::get_tfg(f, M, fname, ctx, src_llvm_tfg, model_llvm_semantics, value_to_name_map, eimap, scev_map, srcdst, ll_filename_parsed, points_to_algo/*, xml_output_format*/, dst_compiler, harvest_dwarf_param_info);
 
     MSGS("Converted LLVM IR bitcode to Transfer Function Graph (TFG) for function " << fname);
 
@@ -4824,7 +4825,7 @@ sym_exec_llvm::get_llvm_value_id_for_value(Value const* v)
     ss << *I;
     I->deleteValue();
   } else {
-    valname = sym_exec_common::get_value_name_using_srcdst_keyword(*v, G_SRC_KEYWORD)->get_name()->get_str();
+    valname = sym_exec_common::get_value_name_using_srcdst(*v, srcdst_t::srcdst_src/*G_SRC_KEYWORD*/)->get_name()->get_str();
   }
   llvm::Function const* F = sym_exec_llvm::getParent(v);
   string fname = F ? F->getName().str() : FNAME_GLOBAL_SPACE;
@@ -5068,7 +5069,7 @@ string
 sym_exec_llvm::get_next_undef_varname()
 {
   stringstream ss;
-  ss << m_srcdst_keyword + "." G_LLVM_PREFIX "-%" UNDEF_VARIABLE_NAME << this->m_cur_undef_varname_idx;
+  ss << ::get_srcdst_keyword(m_srcdst) + "." G_LLVM_PREFIX "-%" UNDEF_VARIABLE_NAME << this->m_cur_undef_varname_idx;
   this->m_cur_undef_varname_idx++;
   return ss.str();
 }

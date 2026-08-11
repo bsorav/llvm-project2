@@ -72,11 +72,11 @@ namespace eqspace {
 
 class sym_exec_llvm : public sym_exec_common
 {
-  sym_exec_llvm(context* ctx, llvm::Module const *module, llvm::Function& F, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, unsigned memory_addressable_size, unsigned word_length, string const& srcdst_keyword, compiler_id_t const dst_compiler, harvest_dwarf_param_info_map_t const* harvest_dwarf_param_info, list<pair<string,unsigned>> fname_size_l, map<symbol_id_t,graph_symbol_t> symbol_map, map<symbol_id_t,graph_extsym_t> extsym_map, map<pair<symbol_id_t,offset_t>,vector<char>> string_contents);
+  sym_exec_llvm(context* ctx, llvm::Module const *module, llvm::Function& F, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, unsigned memory_addressable_size, unsigned word_length, srcdst_t srcdst, compiler_id_t const dst_compiler, harvest_dwarf_param_info_map_t const* harvest_dwarf_param_info, list<pair<string,unsigned>> fname_size_l, map<symbol_id_t,graph_symbol_t> symbol_map, map<symbol_id_t,graph_extsym_t> extsym_map, map<pair<symbol_id_t,offset_t>,vector<char>> string_contents);
 
 public:
 
-  static sym_exec_llvm create_sym_exec_llvm(context* ctx, llvm::Module const *module, llvm::Function& F, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, unsigned memory_addressable_size, unsigned word_length, string const& srcdst_keyword, compiler_id_t const dst_compiler, harvest_dwarf_param_info_map_t const* harvest_dwarf_param_info);
+  static sym_exec_llvm create_sym_exec_llvm(context* ctx, llvm::Module const *module, llvm::Function& F, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, unsigned memory_addressable_size, unsigned word_length, srcdst_t srcdst, compiler_id_t const dst_compiler, harvest_dwarf_param_info_map_t const* harvest_dwarf_param_info);
   virtual ~sym_exec_llvm() {}
 
   void exec(const state& state_in, const llvm::Instruction& I/*, state& state_out, vector<control_flow_transfer>& cfts, bool &expand_switch_flag, unordered_set<predicate> &assumes*/, dshared_ptr<tfg_node const> from_node, llvm::BasicBlock const &B, llvm::Function const &F, size_t next_insn_id, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, bool model_llvm_semantics, tfg_llvm_t &t/*, map<string, pair<callee_summary_t, dshared_ptr<tfg_llvm_t>>> *function_tfg_map*/, map<llvm_value_id_t, string_ref>* value_to_name_map/*, set<string> const *function_call_chain*/, map<shared_ptr<tfg_edge const>, llvm::Instruction const*>& eimap, map<string, value_scev_map_t> const& scev_map/*, context::xml_output_format_t xml_output_format*/, map<string, bool>& nextpc_is_noreturn_map);
@@ -93,7 +93,7 @@ public:
   //sort_ref get_mem_domain() const;
   //sort_ref get_mem_range() const;
 
-  static dshared_ptr<tfg_llvm_t> get_tfg(llvm::Function& F, llvm::Module const *M, string const &name, context *ctx, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, bool model_llvm_semantics, map<llvm_value_id_t, string_ref>* value_to_name_map, map<shared_ptr<tfg_edge const>, llvm::Instruction const*>& eimap, map<string, value_scev_map_t> const& scev_map, string const& srcdst_keyword, dshared_ptr<ll_filename_parsed_t> const& ll_filename_parsed, points_to_algo_t const& points_to_algo/*, context::xml_output_format_t xml_output_format*/, compiler_id_t const dst_compiler, harvest_dwarf_param_info_map_t const* harvest_dwarf_param_info = nullptr);
+  static dshared_ptr<tfg_llvm_t> get_tfg(llvm::Function& F, llvm::Module const *M, string const &name, context *ctx, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, bool model_llvm_semantics, map<llvm_value_id_t, string_ref>* value_to_name_map, map<shared_ptr<tfg_edge const>, llvm::Instruction const*>& eimap, map<string, value_scev_map_t> const& scev_map, srcdst_t srcdst, dshared_ptr<ll_filename_parsed_t> const& ll_filename_parsed, points_to_algo_t const& points_to_algo/*, context::xml_output_format_t xml_output_format*/, compiler_id_t const dst_compiler, harvest_dwarf_param_info_map_t const* harvest_dwarf_param_info = nullptr);
 
   static void populate_debug_headers_for_subprogram(llvm::Function& F, dshared_ptr<tfg_llvm_t> t_llvm);
 
@@ -114,9 +114,9 @@ public:
   //static string get_value_name(const llvm::Value& v);
   //virtual void process_phi_nodes(tfg &t, const llvm::BasicBlock* B_from, const pc& p_to, shared_ptr<tfg_node> const &from_node, const llvm::Function& F, expr_ref edgecond) override;
   static dshared_ptr<ftmap_t> sym_exec_get_function_tfg_map(llvm::Module* M, set<string> FunNamesVec/*, bool DisableModelingOfUninitVarUB*/, context* ctx, dshared_ptr<llptfg_t const> const& src_llptfg, bool gen_scev, bool model_llvm_semantics, bool always_use_call_context_any, string const& ll_filename, points_to_algo_t const& points_to_algo, map<llvm_value_id_t, string_ref>* value_to_name_map = nullptr/*, context::xml_output_format_t xml_output_format = context::XML_OUTPUT_FORMAT_TEXT_NOCOLOR*/, compiler_id_t const dst_compiler = compiler_id_t::clang, harvest_dwarf_param_info_map_t const* harvest_dwarf_param_info = nullptr);
-  static map<string, value_scev_map_t> sym_exec_populate_potential_scev_relations(llvm::Module* M, string const& srcdst_keyword);
+  static map<string, value_scev_map_t> sym_exec_populate_potential_scev_relations(llvm::Module* M, srcdst_t srcdst);
 
-  static scev_toplevel_t<pc_ref> get_scev_toplevel(llvm::Instruction& I, llvm::ScalarEvolution * scev, llvm::LoopInfo const* loopinfo, string const& srcdst_keyword, size_t word_length);
+  static scev_toplevel_t<pc_ref> get_scev_toplevel(llvm::Instruction& I, llvm::ScalarEvolution * scev, llvm::LoopInfo const* loopinfo, srcdst_t srcdst, size_t word_length);
 private:
   string get_next_undef_varname();
   string get_poison_value_varname(string const& varname) const;
@@ -130,9 +130,9 @@ private:
   static scev_op_t get_scev_op_from_scev_type(llvm::SCEVTypes scevtype);
   static mybitset get_mybitset_from_apint(llvm::APInt const& apint, uint32_t bitwidth, bool is_signed);
   static pair<mybitset, mybitset> get_bounds_from_range(llvm::ConstantRange const& crange, bool is_signed);
-  static pc_ref get_loop_pc(llvm::Loop const* L, string const& srcdst_keyword);
-  static scev_with_bounds_t get_scev_with_bounds(llvm::ScalarEvolution& SE, llvm::SCEV const* scev, string const& srcdst_keyword, size_t word_length);
-  static scev_ref get_scev(llvm::ScalarEvolution& SE, llvm::SCEV const* scev, string const& srcdst_keyword, size_t word_length);
+  static pc_ref get_loop_pc(llvm::Loop const* L, srcdst_t srcdst);
+  static scev_with_bounds_t get_scev_with_bounds(llvm::ScalarEvolution& SE, llvm::SCEV const* scev, srcdst_t srcdst, size_t word_length);
+  static scev_ref get_scev(llvm::ScalarEvolution& SE, llvm::SCEV const* scev, srcdst_t srcdst, size_t word_length);
   //virtual expr_ref phiInstructionGetIncomingBlockValue(llvm::Instruction const &I/*, state const &start_state*/, shared_ptr<tfg_node> &pc_to_phi_node, pc const &pc_to, llvm::BasicBlock const *B_from, llvm::Function const &F, tfg &t) override;
   pair<expr_ref,preds_t> phiInstructionGetIncomingBlockValue(llvm::Instruction const &I, dshared_ptr<tfg_node const> &pc_to_phi_node/*, pc const &pc_to*/, llvm::BasicBlock const *B_from, llvm::Function const &F, bool model_llvm_semantics, tfg &t, map<llvm_value_id_t, string_ref>* value_to_name_map);
   string functionGetName(llvm::Function const &F) const;

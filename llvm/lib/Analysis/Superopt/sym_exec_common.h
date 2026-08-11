@@ -2,6 +2,7 @@
 #define EQCHECKSYM_EXEC_COMMON_H
 
 #include "support/dshared_ptr.h"
+#include "support/srcdst.h"
 
 #include "expr/expr.h"
 #include "expr/allocsite.h"
@@ -33,7 +34,7 @@ public:
     align_t align;
   };
 
-  sym_exec_common(context* ctx, dshared_ptr<list<pair<string, unsigned>> const> fun_names, dshared_ptr<map<symbol_id_t, graph_symbol_t> const> symbol_map, dshared_ptr<map<symbol_id_t,graph_extsym_t> const> extsym_map, dshared_ptr<map<pair<symbol_id_t, offset_t>, vector<char>> const> string_contents, unsigned memory_addressable_size, unsigned word_length, string const& srcdst_keyword)
+  sym_exec_common(context* ctx, dshared_ptr<list<pair<string, unsigned>> const> fun_names, dshared_ptr<map<symbol_id_t, graph_symbol_t> const> symbol_map, dshared_ptr<map<symbol_id_t,graph_extsym_t> const> extsym_map, dshared_ptr<map<pair<symbol_id_t, offset_t>, vector<char>> const> string_contents, unsigned memory_addressable_size, unsigned word_length, srcdst_t srcdst)
   : m_ctx(ctx),
     m_cs(ctx->get_consts_struct()),
     m_fun_names(fun_names),
@@ -42,10 +43,10 @@ public:
     m_string_contents(string_contents),
     m_memory_addressable_size(memory_addressable_size),
     m_word_length(word_length),
-    m_mem_reg(srcdst_keyword + "." LLVM_MEM_SYMBOL),
-    m_mem_alloc_reg(srcdst_keyword + "." LLVM_MEM_SYMBOL "." G_ALLOC_SYMBOL),
-    m_mem_poison_reg(srcdst_keyword + "." LLVM_MEM_SYMBOL "." G_POISON_SYMBOL),
-    m_srcdst_keyword(srcdst_keyword)
+    m_mem_reg(::get_srcdst_keyword(srcdst) + "." LLVM_MEM_SYMBOL),
+    m_mem_alloc_reg(::get_srcdst_keyword(srcdst) + "." LLVM_MEM_SYMBOL "." G_ALLOC_SYMBOL),
+    m_mem_poison_reg(::get_srcdst_keyword(srcdst) + "." LLVM_MEM_SYMBOL "." G_POISON_SYMBOL),
+    m_srcdst(srcdst)
   {
     ASSERT(m_symbol_map);
     ASSERT(m_extsym_map);
@@ -54,7 +55,7 @@ public:
 
   //void exec(const state& state_in, const llvm::Instruction& I/*, state& state_out, vector<control_flow_transfer>& cfts, bool &expand_switch_flag, unordered_set<predicate> &assumes*/, shared_ptr<tfg_node> from_node, llvm::BasicBlock const &B, llvm::Function const &F, size_t next_insn_id, tfg &t, map<string, pair<callee_summary_t, tfg *>> &function_tfg_map, set<string> const &function_call_chain);
 
-  string const& get_srcdst_keyword() const { return m_srcdst_keyword; }
+  srcdst_t get_srcdst() const { return m_srcdst; }
   unsigned get_word_length() const { return m_word_length; }
   unsigned get_memory_addressable_size() const { return m_memory_addressable_size; }
 
@@ -80,7 +81,7 @@ public:
 
   map<allocsite_t, graph_local_t> const &get_local_refs() { return m_local_refs; }
   expr_var_ref get_value_name(const llvm::Value& v) const;
-  static expr_var_ref get_value_name_using_srcdst_keyword(const llvm::Value& v, string const& srcdst_keyword);
+  static expr_var_ref get_value_name_using_srcdst(const llvm::Value& v, srcdst_t srcdst);
   static vector<char> get_constant_bytes(llvm::Constant const* c);
   static unsigned get_num_insn(const llvm::Function& f);
   context *get_context() const { return m_ctx; }
@@ -240,7 +241,7 @@ protected:
   int m_memlabel_varnum = 0;
   //map<pc, pc> m_next_phi_pc;
   map<pc_ref, int> m_intermediate_subsubindex_map;
-  string const m_srcdst_keyword;
+  srcdst_t m_srcdst;
 
   //map<string_ref, bbl_order_descriptor_t> m_bbl_order_map; //map from bbl name to bbl_order_descriptor_t
 };
