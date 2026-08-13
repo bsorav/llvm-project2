@@ -118,6 +118,7 @@ public:
 
   static scev_toplevel_t<pc_ref> get_scev_toplevel(llvm::Instruction& I, llvm::ScalarEvolution * scev, llvm::LoopInfo const* loopinfo, srcdst_t srcdst, size_t word_length);
 private:
+  static optional<pair<unsigned, unsigned>> get_line_and_column_num_for_instruction(llvm::Instruction const& I);
   string get_next_undef_varname();
   string get_poison_value_varname(string const& varname) const;
   expr_var_ref get_poison_value_varname(expr_var_ref const& varname) const;

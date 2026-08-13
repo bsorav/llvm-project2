@@ -198,7 +198,7 @@ protected:
   void get_state_template(pc_ref const& p, state& st);
   //expr_ref icmp_to_expr(llvm::ICmpInst::Predicate k, const vector<expr_ref>& args) const;
 
-  static pc_ref get_pc_from_bbindex_and_insn_id(srcdst_t srcdst, string const &bbindex, size_t insn_id);
+  static pc_ref get_pc_from_bbindex_and_insn_id(srcdst_t srcdst, string const &bbindex, size_t insn_id, std::optional<pair<unsigned,unsigned>> const& line_and_column_num);
   //pc get_pc_from_bb_and_insn_id(llvm::BasicBlock const &B, size_t insn_id);
   //vector<control_flow_transfer> expand_switch(tfg &t, shared_ptr<tfg_node> const &from_node, vector<control_flow_transfer> const &cfts, state const &state_to, const llvm::BasicBlock& B, const llvm::Function& F);
 
