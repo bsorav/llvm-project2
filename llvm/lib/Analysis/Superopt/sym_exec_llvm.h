@@ -98,6 +98,7 @@ public:
   static void populate_debug_headers_for_subprogram(llvm::Function& F, dshared_ptr<tfg_llvm_t> t_llvm);
 
   static pc_ref get_start_pc(srcdst_t srcdst, llvm::Function const& F);
+  static llvm::Instruction const& get_first_instruction_in_bb(llvm::BasicBlock const& B);
 
   preds_t gen_arg_assumes() const;
   //void sym_exec_preprocess_tfg(string const &name, tfg_llvm_t &t_src, map<string, pair<callee_summary_t, dshared_ptr<tfg_llvm_t>>> &function_tfg_map, list<string> const& sorted_bbl_indices, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, context::xml_output_format_t xml_output_format);

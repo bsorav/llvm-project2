@@ -3380,7 +3380,8 @@ sym_exec_llvm::get_tfg(llvm::Function& F, llvm::Module const *M, string const &n
   map<allocsite_t, graph_local_t> const& local_refs = se.get_local_refs();
 
   //pc start_pc = this->get_start_pc();
-  pc_ref start_pc = sym_exec_llvm::get_start_pc(se.m_srcdst, se.m_function);
+  pc_ref start_pc = sym_exec_llvm::get_start_pc(se.m_srcdst, F/*se.m_function*/);
+  //cout << _FNLN_ << ": start_pc = " << start_pc->to_string() << endl;
   t->add_extra_node_at_start_pc(start_pc);
 
   t->add_assumes_to_start_edge(se.gen_arg_assumes());
@@ -3637,6 +3638,9 @@ sym_exec_llvm::get_line_and_column_num_for_instruction(Instruction const& I)
     unsigned linenum = diloc->getLine();
     unsigned column_num = diloc->getColumn();
     ret = make_pair(linenum, column_num);
+    DYN_DEBUG(llvm2tfg, errs() << __func__ << " " << __LINE__ << ": I = " << I << ": returning " << linenum << "_" << column_num << "\n");
+  } else {
+    DYN_DEBUG(llvm2tfg, errs() << __func__ << " " << __LINE__ << ": I = " << I << ": returning nullopt\n");
   }
   return ret;
 }
@@ -4364,10 +4368,34 @@ sym_exec_common::get_num_insn(const Function& f)
   return ret;
 }
 
+llvm::Instruction const&
+sym_exec_llvm::get_first_instruction_in_bb(BasicBlock const& B)
+{
+  for (const Instruction& I : B) {
+    if (isa<PHINode const>(I)) {
+      continue;
+    }
+    if (   false
+        || (isa<CallInst>(I) && cast<CallInst>(I).getIntrinsicID() == Intrinsic::dbg_assign)
+        || (isa<CallInst>(I) && cast<CallInst>(I).getIntrinsicID() == Intrinsic::dbg_label)
+       ) {
+      continue;
+    }
+    if (isa<CallInst>(I) && cast<CallInst>(I).getIntrinsicID() == Intrinsic::dbg_declare) {//declare will be replaced with addr in future revisions; so watch out for this change
+      continue;
+    }
+    if (isa<CallInst>(I) && cast<CallInst>(I).getIntrinsicID() == Intrinsic::dbg_value) {
+      continue;
+    }
+    return I;
+  }
+  NOT_REACHED();
+}
+
 pc_ref
 sym_exec_llvm::get_start_pc(srcdst_t srcdst, Function const& f)
 {
-  return get_pc_from_bbindex_and_insn_id(srcdst, get_basicblock_index(*f.begin()), 0, get_line_and_column_num_for_instruction(f.getEntryBlock().front()));
+  return get_pc_from_bbindex_and_insn_id(srcdst, get_basicblock_index(*f.begin()), 0, get_line_and_column_num_for_instruction(get_first_instruction_in_bb(*f.begin())));
 }
 
 //void
