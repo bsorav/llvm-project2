@@ -1729,7 +1729,9 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     const BranchInst* i =  cast<const BranchInst>(&I);
     if(i->isUnconditional())
     {
-      control_flow_transfer cft(from_node->get_pc(), get_pc_from_bbindex_and_insn_id(m_srcdst, get_basicblock_index(*i->getSuccessor(0)), 0, get_line_and_column_num_for_instruction(I)), m_ctx->mk_bool_true());
+      BasicBlock const& targetBBL = *i->getSuccessor(0);
+      Instruction const* targetI = get_nth_instruction_in_bb(targetBBL, 0);
+      control_flow_transfer cft(from_node->get_pc(), get_pc_from_bbindex_and_insn_id(m_srcdst, get_basicblock_index(targetBBL), 0, targetI ? get_line_and_column_num_for_instruction(*targetI) : std::nullopt), m_ctx->mk_bool_true());
       cfts.push_back(cft);
     }
     else if(i->isConditional())
@@ -1738,9 +1740,15 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
       preds_t cond_assumes;
       tie(e, cond_assumes) = get_expr_adding_edges_for_intermediate_vals(*i->getCondition(), "", state_in, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map);
       ASSERT(e->is_bool_sort());
-      control_flow_transfer cft1(from_node->get_pc(), get_pc_from_bbindex_and_insn_id(m_srcdst, get_basicblock_index(*i->getSuccessor(0)), 0, get_line_and_column_num_for_instruction(I)), e, cond_assumes);
+
+      BasicBlock const& targetBBL = *i->getSuccessor(0);
+      Instruction const* targetI = get_nth_instruction_in_bb(targetBBL, 0);
+      control_flow_transfer cft1(from_node->get_pc(), get_pc_from_bbindex_and_insn_id(m_srcdst, get_basicblock_index(*i->getSuccessor(0)), 0, targetI ? get_line_and_column_num_for_instruction(*targetI) : std::nullopt), e, cond_assumes);
       cfts.push_back(cft1);
-      control_flow_transfer cft2(from_node->get_pc(), get_pc_from_bbindex_and_insn_id(m_srcdst, get_basicblock_index(*i->getSuccessor(1)), 0, get_line_and_column_num_for_instruction(I)), m_ctx->mk_not(e), cond_assumes);
+
+      BasicBlock const& targetBBL2 = *i->getSuccessor(1);
+      Instruction const* targetI2 = get_nth_instruction_in_bb(targetBBL2, 0);
+      control_flow_transfer cft2(from_node->get_pc(), get_pc_from_bbindex_and_insn_id(m_srcdst, get_basicblock_index(targetBBL2), 0, targetI2 ? get_line_and_column_num_for_instruction(*targetI2) : std::nullopt), m_ctx->mk_not(e), cond_assumes);
       cfts.push_back(cft2);
 
       transfer_poison_values("", e, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map);
@@ -1780,7 +1788,11 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
       tie(CaseVal, CaseAssumes) = get_expr_adding_edges_for_intermediate_vals(*Case.getCaseValue(), "", state_in, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map);
       ASSERT(CondVal->get_sort() == CaseVal->get_sort());
       expr_ref cond = m_ctx->mk_eq(CondVal, CaseVal);
-      control_flow_transfer cft(from_node->get_pc(), get_pc_from_bbindex_and_insn_id(m_srcdst, get_basicblock_index(*Case.getCaseSuccessor()), 0, get_line_and_column_num_for_instruction(I)), cond, CaseAssumes);
+
+      BasicBlock const& targetBBL = *Case.getCaseSuccessor();
+      Instruction const* targetI = get_nth_instruction_in_bb(targetBBL, 0);
+
+      control_flow_transfer cft(from_node->get_pc(), get_pc_from_bbindex_and_insn_id(m_srcdst, get_basicblock_index(targetBBL), 0, targetI ? get_line_and_column_num_for_instruction(*targetI): std::nullopt), cond, CaseAssumes);
       cfts.push_back(cft);
       matched_any_cond.push_back(cond);
       //cout << __func__ << " " << __LINE__ << ": cft cond = " << expr_string(cond) << ", src = " << cft.get_from_pc() << ", dest = " << cft.get_to_pc() << endl;
@@ -1793,7 +1805,11 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     } else {
       remaining_cond = m_ctx->mk_not(m_ctx->mk_app(expr::OP_OR, matched_any_cond));
     }
-    control_flow_transfer cft(from_node->get_pc(), get_pc_from_bbindex_and_insn_id(m_srcdst, get_basicblock_index(*SI->getDefaultDest()), 0, get_line_and_column_num_for_instruction(I)), remaining_cond);
+
+    BasicBlock const& targetBBL = *SI->getDefaultDest();
+    Instruction const* targetI = get_nth_instruction_in_bb(targetBBL, 0);
+
+    control_flow_transfer cft(from_node->get_pc(), get_pc_from_bbindex_and_insn_id(m_srcdst, get_basicblock_index(targetBBL), 0, targetI ? get_line_and_column_num_for_instruction(*targetI) : std::nullopt), remaining_cond);
     cfts.push_back(cft);
     DYN_DEBUG2(llvm2tfg, cout << _FNLN_ << ": before expand_switch, CFTs:\n"; for (auto const& cft : cfts) cout << '\t' << cft << '\n';);
     cfts = expand_switch(t, value_to_name_map, from_node, cfts, state_out, cond_assumes, te_comment, &I, B, F, eimap);
