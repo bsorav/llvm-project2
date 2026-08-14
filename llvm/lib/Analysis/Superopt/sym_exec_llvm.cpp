@@ -1709,7 +1709,7 @@ fp_val_within_limits_assume(expr_ref const& e, float_max_t const& min_limit, flo
   return ctx->mk_and(ge_min, lt_max);
 }
 
-void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dshared_ptr<tfg_node const> from_node, llvm::BasicBlock const &B, llvm::Function const &F, size_t next_insn_id, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, bool model_llvm_semantics, tfg_llvm_t &t, map<llvm_value_id_t, string_ref>* value_to_name_map/*, set<string> const *function_call_chain*/, map<shared_ptr<tfg_edge const>, Instruction const*>& eimap, map<string, value_scev_map_t> const& scev_map/*, context::xml_output_format_t xml_output_format*/, map<string, bool>& nextpc_is_noreturn_map)
+void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dshared_ptr<tfg_node const> from_node, llvm::BasicBlock const &B, llvm::Function const &F, pc_ref const& pc_to, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, bool model_llvm_semantics, tfg_llvm_t &t, map<llvm_value_id_t, string_ref>* value_to_name_map/*, set<string> const *function_call_chain*/, map<shared_ptr<tfg_edge const>, Instruction const*>& eimap, map<string, value_scev_map_t> const& scev_map/*, context::xml_output_format_t xml_output_format*/, map<string, bool>& nextpc_is_noreturn_map)
 {
   DYN_DEBUG(llvm2tfg, errs() << "sym exec doing: " << I << "\n");
   preds_t state_assumes;
@@ -1718,7 +1718,6 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
   string const &cur_function_name = F.getName().str();
   string const& bbindex = get_basicblock_index(B);
   //bbl_order_descriptor_t const& bbo = this->m_bbl_order_map.at(mk_string_ref(bbindex));
-  pc_ref pc_to = get_pc_from_bbindex_and_insn_id(m_srcdst, bbindex, next_insn_id, get_line_and_column_num_for_instruction(I));
   te_comment_t te_comment = this->instruction_to_te_comment(I, from_node->get_pc()/*, bbo*/);
   const DataLayout &dl = m_module->getDataLayout();
 
@@ -3742,8 +3741,10 @@ sym_exec_llvm::add_edges(const llvm::BasicBlock& B, dshared_ptr<tfg_llvm_t const
       pcs_without_debug_info.insert(pc_from);
     }
     insn_id++;
+    Instruction const* nextI = get_nth_instruction_in_bb(B, insn_id);
+    pc_ref pc_to = get_pc_from_bbindex_and_insn_id(m_srcdst, bbindex, insn_id, nextI ? get_line_and_column_num_for_instruction(*nextI) : std::nullopt);
 
-    exec(state(), I, from_node, B, F, insn_id, src_llvm_tfg, model_llvm_semantics, t, value_to_name_map, eimap, scev_map/*, xml_output_format*/, nextpc_is_noreturn_map);
+    exec(state(), I, from_node, B, F, pc_to, src_llvm_tfg, model_llvm_semantics, t, value_to_name_map, eimap, scev_map/*, xml_output_format*/, nextpc_is_noreturn_map);
   }
 }
 
@@ -4368,8 +4369,8 @@ sym_exec_common::get_num_insn(const Function& f)
   return ret;
 }
 
-llvm::Instruction const&
-sym_exec_llvm::get_first_instruction_in_bb(BasicBlock const& B)
+llvm::Instruction const *
+sym_exec_llvm::get_nth_instruction_in_bb(BasicBlock const& B, int n)
 {
   for (const Instruction& I : B) {
     if (isa<PHINode const>(I)) {
@@ -4387,15 +4388,18 @@ sym_exec_llvm::get_first_instruction_in_bb(BasicBlock const& B)
     if (isa<CallInst>(I) && cast<CallInst>(I).getIntrinsicID() == Intrinsic::dbg_value) {
       continue;
     }
-    return I;
+    if (n == 0) {
+      return &I;
+    }
+    n--;
   }
-  NOT_REACHED();
+  return nullptr;
 }
 
 pc_ref
 sym_exec_llvm::get_start_pc(srcdst_t srcdst, Function const& f)
 {
-  return get_pc_from_bbindex_and_insn_id(srcdst, get_basicblock_index(*f.begin()), 0, get_line_and_column_num_for_instruction(get_first_instruction_in_bb(*f.begin())));
+  return get_pc_from_bbindex_and_insn_id(srcdst, get_basicblock_index(*f.begin()), 0, get_line_and_column_num_for_instruction(*get_nth_instruction_in_bb(*f.begin(), 0)));
 }
 
 //void
