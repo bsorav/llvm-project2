@@ -154,7 +154,16 @@ sym_exec_common::get_value_name_using_srcdst(const Value& v, tfg const* t, srcds
     //return expr_var_t::mk_expr_var_plain(mk_string_ref(ret));
     return expr_var_t::mk_expr_var_llvm_reg_with_src_mapping(mk_string_ref(ret), llvm_reg_src_info_t::create_llvm_reg_src_info(pc::start(srcdst), mk_string_ref(ret)));
   } else {
-    return expr_var_t::mk_expr_var_plain(mk_string_ref(::get_srcdst_keyword(srcdst) + string("." G_LLVM_PREFIX) + "-" + ret));
+    string str_name = ::get_srcdst_keyword(srcdst) + string("." G_LLVM_PREFIX) + "-" + ret;
+    if (t) {
+      tfg_llvm_t const* t_llvm = dynamic_cast<tfg_llvm_t const*>(t);
+      ASSERT(t_llvm);
+      optional<pair<pc_ref, string_ref>> pc_and_source_varname = t_llvm->tfg_llvm_get_pc_and_source_varname_for_input_llvm_varname(std::string(G_INPUT_KEYWORD ".") + str_name);
+      if (pc_and_source_varname) {
+        return expr_var_t::mk_expr_var_llvm_reg_with_src_mapping(mk_string_ref(str_name), llvm_reg_src_info_t::create_llvm_reg_src_info(pc_and_source_varname->first, pc_and_source_varname->second));
+      }
+    }
+    return expr_var_t::mk_expr_var_plain(mk_string_ref(str_name));
   }
 }
 
