@@ -268,7 +268,7 @@ sym_exec_common::get_symbol_expr_for_global_var(string const &name, sort_ref con
 }
 
 pair<expr_ref,preds_t>
-sym_exec_llvm::get_const_value_expr(const llvm::Value& v, string const& vname, const state& state_in, preds_t const& state_assumes, dshared_ptr<tfg_node const> &from_node, bool model_llvm_semantics, tfg &t, map<llvm_value_id_t, expr_var_ref>* value_to_name_map)
+sym_exec_llvm::get_const_value_expr(const llvm::Value& v, expr_var_ref/*string*/ const& vname, const state& state_in, preds_t const& state_assumes, dshared_ptr<tfg_node const> &from_node, bool model_llvm_semantics, tfg &t, map<llvm_value_id_t, expr_var_ref>* value_to_name_map)
 {
   assert(isa<const llvm::Constant>(&v));
   if(const ConstantInt* c = dyn_cast<const ConstantInt>(&v))
@@ -367,14 +367,14 @@ sym_exec_llvm::get_const_value_expr(const llvm::Value& v, string const& vname, c
   }
   else if(const UndefValue* c = dyn_cast<const UndefValue>(&v))
   {
-    string undef_key_name = get_next_undef_varname();
-    string undef_poison_varname = get_poison_value_varname(undef_key_name);
+    expr_var_ref undef_key/*_name*/ = get_next_undef_varname();
+    expr_var_ref undef_poison_var/*name*/ = get_poison_value_varname(undef_key_name);
 
     sort_ref s = get_value_type(v, m_module->getDataLayout());
 
     state state_to_intermediate_val;
-    expr_var_ref undef_poison_var = expr_var_t::mk_expr_var_plain(mk_string_ref(undef_poison_varname));
-    expr_var_ref undef_key = expr_var_t::mk_expr_var_plain(mk_string_ref(undef_key_name));
+    //expr_var_ref undef_poison_var = expr_var_t::mk_expr_var_plain(mk_string_ref(undef_poison_varname));
+    //expr_var_ref undef_key = expr_var_t::mk_expr_var_plain(mk_string_ref(undef_key_name));
     state_set_expr(state_to_intermediate_val, undef_poison_var, expr_true(m_ctx));
     state_set_expr(state_to_intermediate_val, undef_key, m_ctx->mk_var(LLVM_UNDEF_VALUE_NAME, s));
     dshared_ptr<tfg_node const> intermediate_node = get_next_intermediate_subsubindex_pc_node(t, from_node);
@@ -840,12 +840,12 @@ void sym_exec_common::get_state_template(pc_ref const& p, state& st)
 }
 
 pair<expr_ref,preds_t>
-sym_exec_llvm::get_expr_adding_edges_for_intermediate_vals(const Value& v, string const& vname, const state& state_in, preds_t const& state_assumes, dshared_ptr<tfg_node const> &from_node, bool model_llvm_semantics, tfg& t, map<llvm_value_id_t, expr_var_ref>* value_to_name_map)
+sym_exec_llvm::get_expr_adding_edges_for_intermediate_vals(const Value& v, expr_var_ref/*string*/ const& vname, const state& state_in, preds_t const& state_assumes, dshared_ptr<tfg_node const> &from_node, bool model_llvm_semantics, tfg& t, map<llvm_value_id_t, expr_var_ref>* value_to_name_map)
 {
   if (isa<const UndefValue>(&v)) {
 
-    string undef_key_name = get_next_undef_varname();
-    string undef_poison_varname = get_poison_value_varname(undef_key_name);
+    expr_var_ref undef_key/*_name*/ = get_next_undef_varname();
+    expr_var_ref undef_poison_var/*name*/ = get_poison_value_varname(undef_key_name);
 
     sort_ref s = get_value_type(v, m_module->getDataLayout());
     if (!(s->is_bv_kind() || s->is_bool_kind())) {
@@ -853,8 +853,8 @@ sym_exec_llvm::get_expr_adding_edges_for_intermediate_vals(const Value& v, strin
     }
 
     state state_to_intermediate_val;
-    expr_var_ref undef_poison_var = expr_var_t::mk_expr_var_plain(mk_string_ref(undef_poison_varname));
-    expr_var_ref undef_key = expr_var_t::mk_expr_var_plain(mk_string_ref(undef_key_name));
+    //expr_var_ref undef_poison_var = expr_var_t::mk_expr_var_plain(mk_string_ref(undef_poison_varname));
+    //expr_var_ref undef_key = expr_var_t::mk_expr_var_plain(mk_string_ref(undef_key_name));
     state_set_expr(state_to_intermediate_val, undef_poison_var, expr_true(m_ctx));
     state_set_expr(state_to_intermediate_val, undef_key, m_ctx->mk_var(LLVM_UNDEF_VALUE_NAME, s));
     dshared_ptr<tfg_node const> intermediate_node = get_next_intermediate_subsubindex_pc_node(t, from_node);
@@ -1077,7 +1077,7 @@ expr_ref sym_exec_llvm::icmp_to_expr(ICmpInst::Predicate cmp_kind, const vector<
 }
 
 pair<vector<expr_ref>, preds_t>
-sym_exec_llvm::get_expr_args(const llvm::Instruction& I, string const& vname, const state& st, preds_t const& state_assumes, dshared_ptr<tfg_node const> &from_node, bool model_llvm_semantics, tfg &t, map<llvm_value_id_t, expr_var_ref>* value_to_name_map)
+sym_exec_llvm::get_expr_args(const llvm::Instruction& I, expr_var_ref/*string*/ const& vname, const state& st, preds_t const& state_assumes, dshared_ptr<tfg_node const> &from_node, bool model_llvm_semantics, tfg &t, map<llvm_value_id_t, expr_var_ref>* value_to_name_map)
 {
   vector<expr_ref> args;
   auto assumes = state_assumes;
@@ -2053,7 +2053,8 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
   {
     const LoadInst* l =  cast<const LoadInst>(&I);
     Value const *Addr = l->getPointerOperand();
-    string lname = get_value_name(*l)->get_name()->get_str();
+    //string lname = get_value_name(*l)->get_name()->get_str();
+    expr_var_ref lname = get_value_name(*l);
 
     expr_ref addr;
     tie(addr, state_assumes) = get_expr_adding_edges_for_intermediate_vals(*Addr, lname, state_in, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map);
@@ -4656,13 +4657,13 @@ sym_exec_llvm::functionGetName(llvm::Function const &F) const
 //}
 
 bool
-sym_exec_llvm::instructionIsPhiNode(llvm::Instruction const &I, string &varname) const
+sym_exec_llvm::instructionIsPhiNode(llvm::Instruction const &I, expr_var_ref &varname) const
 {
   const PHINode* phi = dyn_cast<const PHINode>(&I);
   if(!phi) {
     return false;
   }
-  varname = get_value_name(*phi)->get_name()->get_str();
+  varname = get_value_name(*phi)/*->get_name()->get_str()*/;
   return true;
 }
 
@@ -4959,11 +4960,11 @@ sym_exec_llvm::get_poison_value_varname(expr_var_ref const& varname) const
   return varname->expr_var_set_name(ss.str());
 }
 
-string
-sym_exec_llvm::get_poison_value_varname(string const& varname) const
-{
-  return varname + ".poison";
-}
+//string
+//sym_exec_llvm::get_poison_value_varname(string const& varname) const
+//{
+//  return varname + ".poison";
+//}
 
 
 expr_ref
@@ -5062,7 +5063,7 @@ sym_exec_llvm::add_state_assume(string const& varname, expr_with_fail const& ass
 }
 
 void
-sym_exec_llvm::transfer_poison_value_on_load(string const& varname, expr_ref const& load_expr, preds_t& state_assumes, dshared_ptr<tfg_node const>& from_node, bool model_llvm_semantics, tfg& t, map<llvm_value_id_t, expr_var_ref>* value_to_name_map)
+sym_exec_llvm::transfer_poison_value_on_load(expr_var_ref/*string*/ const& varname, expr_ref const& load_expr, preds_t& state_assumes, dshared_ptr<tfg_node const>& from_node, bool model_llvm_semantics, tfg& t, map<llvm_value_id_t, expr_var_ref>* value_to_name_map)
 {
   if (!model_llvm_semantics) {
     return;
@@ -5071,8 +5072,8 @@ sym_exec_llvm::transfer_poison_value_on_load(string const& varname, expr_ref con
   ASSERT(load_expr->get_args().at(OP_SELECT_ARGNUM_MEM)->is_var());
   ASSERT(load_expr->get_args().at(OP_SELECT_ARGNUM_MEM)->get_name()->get_str() == string(G_INPUT_KEYWORD ".") + m_mem_reg->get_name()->get_str());
 
-  string poison_varname = get_poison_value_varname(varname);
-  expr_var_ref poison_var = expr_var_t::mk_expr_var_plain(mk_string_ref(poison_varname));
+  string poison_var/*name*/ = get_poison_value_varname(varname);
+  //expr_var_ref poison_var = expr_var_t::mk_expr_var_plain(mk_string_ref(poison_varname));
   m_poison_varnames_seen.insert(poison_var);
 
   expr_ref mem_poison = m_ctx->mk_var(m_mem_poison_reg, this->get_mem_poison_sort());
@@ -5104,8 +5105,9 @@ sym_exec_llvm::transfer_poison_value_on_store(expr_ref const& store_expr, preds_
 
   expr_ref poison_expr;
   expr_visit_vars(data, [this,&poison_expr](expr_ref const& v) {
-    string const& vname = v->get_name()->get_str();
-    expr_var_ref poison_vname = expr_var_t::mk_expr_var_plain(mk_string_ref(get_poison_value_varname(vname)));
+    //string const& vname = v->get_name()->get_str();
+    //expr_var_ref poison_vname = expr_var_t::mk_expr_var_plain(mk_string_ref(get_poison_value_varname(vname)));
+    expr_var_ref poison_vname = get_poison_value_varname(v);
     if (!set_belongs(m_poison_varnames_seen, poison_vname)) {
       return;
     }
@@ -5137,11 +5139,11 @@ sym_exec_llvm::transfer_poison_value_on_store(expr_ref const& store_expr, preds_
   from_node = intermediate_node;
 }
 
-string
+expr_var_ref
 sym_exec_llvm::get_next_undef_varname()
 {
   stringstream ss;
   ss << ::get_srcdst_keyword(m_srcdst) + "." G_LLVM_PREFIX "-%" UNDEF_VARIABLE_NAME << this->m_cur_undef_varname_idx;
   this->m_cur_undef_varname_idx++;
-  return ss.str();
+  return expr_var_t::mk_expr_var_plain(mk_string_ref(ss.str()));
 }
