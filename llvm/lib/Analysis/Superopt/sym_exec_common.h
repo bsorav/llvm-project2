@@ -43,9 +43,9 @@ public:
     m_string_contents(string_contents),
     m_memory_addressable_size(memory_addressable_size),
     m_word_length(word_length),
-    m_mem_reg(::get_srcdst_keyword(srcdst) + "." LLVM_MEM_SYMBOL),
-    m_mem_alloc_reg(::get_srcdst_keyword(srcdst) + "." LLVM_MEM_SYMBOL "." G_ALLOC_SYMBOL),
-    m_mem_poison_reg(::get_srcdst_keyword(srcdst) + "." LLVM_MEM_SYMBOL "." G_POISON_SYMBOL),
+    m_mem_reg(expr_var_t::mk_expr_var_plain(mk_string_ref(::get_srcdst_keyword(srcdst) + "." LLVM_MEM_SYMBOL))),
+    m_mem_alloc_reg(expr_var_t::mk_expr_var_plain(mk_string_ref(::get_srcdst_keyword(srcdst) + "." LLVM_MEM_SYMBOL "." G_ALLOC_SYMBOL))),
+    m_mem_poison_reg(expr_var_t::mk_expr_var_plain(mk_string_ref(::get_srcdst_keyword(srcdst) + "." LLVM_MEM_SYMBOL "." G_POISON_SYMBOL))),
     m_srcdst(srcdst)
   {
     ASSERT(m_symbol_map);
@@ -177,17 +177,17 @@ protected:
 
   unsigned get_bv_bool_size(sort_ref e) const;
 
-  expr_ref mk_fresh_expr(const string& name, const string& prefix, sort_ref s) const;
+  expr_ref mk_fresh_expr(expr_var_ref const& name, const string& prefix, sort_ref s) const;
 
   //expr_ref get_const_value_expr(const llvm::Value& v, string vname, const state& state_in, shared_ptr<tfg_node> *from_node, pc const &pc_to, llvm::BasicBlock const *B, llvm::Function const *F, tfg *t);
 
   //expr_ref get_expr_adding_edges_for_intermediate_vals(const llvm::Value& v, string vname, const state& state_in, shared_ptr<tfg_node> &from_node, pc const &pc_to, llvm::BasicBlock const &B, llvm::Function const &F, tfg &t);
 
-  void state_set_expr(state &st, string const &key, expr_ref const &value) const;
+  //void state_set_expr(state &st, string const &key, expr_ref const &value) const;
   void state_set_expr(state &st, expr_var_ref const &key, expr_ref const &value) const;
-  expr_ref get_input_expr(string const &key, sort_ref const& s) const;
+  //expr_ref get_input_expr(string const &key, sort_ref const& s) const;
   expr_ref get_input_expr(expr_var_ref const &key, sort_ref const& s) const;
-  expr_ref state_get_expr(state const &st, string const &key, sort_ref const& s) const;
+  //expr_ref state_get_expr(state const &st, string const &key, sort_ref const& s) const;
   expr_ref state_get_expr(state const &st, expr_var_ref const &key, sort_ref const& s) const;
 
   //void set_expr(const llvm::Value& v, expr_ref expr, state& st);
@@ -224,13 +224,13 @@ protected:
   unsigned m_memory_addressable_size;
   unsigned m_word_length;
 
-  string m_mem_reg;
-  string m_mem_alloc_reg;
-  string m_mem_poison_reg;
+  expr_var_ref m_mem_reg;
+  expr_var_ref m_mem_alloc_reg;
+  expr_var_ref m_mem_poison_reg;
   map<allocsite_t, graph_local_t> m_local_refs;
   //map<string, string> m_basicblock_name_map;
   map<string, int> m_basicblock_idx_map;
-  list<pair<string, sort_ref>> m_state_templ;
+  list<pair<expr_var_ref, sort_ref>> m_state_templ;
   //map<string, string> m_value_name_map;
   map<string, pair<argnum_t, expr_ref>> m_arguments;
   map<argnum_t, memory_arg_info_t> m_memory_arg_info;
