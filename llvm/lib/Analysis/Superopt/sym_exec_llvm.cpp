@@ -352,7 +352,7 @@ sym_exec_llvm::get_const_value_expr(const llvm::Value& v, expr_var_ref const& vn
   {
     expr_ref ret;
 
-    expr_var_ref name = get_value_name(v, t);
+    expr_var_ref name = get_value_name(v, &t);
     sort_ref sr = get_value_type(v, m_module->getDataLayout());
     ASSERT(string_has_prefix(name->get_name()->get_str(), LLVM_GLOBAL_VARNAME_PREFIX));
     name = name->expr_var_set_name(name->get_name()->get_str().substr(strlen(LLVM_GLOBAL_VARNAME_PREFIX)));
@@ -390,8 +390,8 @@ sym_exec_llvm::get_const_value_expr(const llvm::Value& v, expr_var_ref const& vn
     //return make_pair(ret, state_assumes);
   }
 
-  DYN_DEBUG2(llvm2tfg, errs() << "const to expr not handled:"  << get_value_name(v, t)->expr_var_to_string() << "\n");
-  expr_var_ref unsupported_value_varname = get_value_name(v, t);
+  DYN_DEBUG2(llvm2tfg, errs() << "const to expr not handled:"  << get_value_name(v, &t)->expr_var_to_string() << "\n");
+  expr_var_ref unsupported_value_varname = get_value_name(v, &t);
   string unsupported_value_name = unsupported_value_varname->get_name()->get_str();
   string_replace(unsupported_value_name, "-", ".minus.");
   string_replace(unsupported_value_name, "+", ".plus.");
@@ -1610,7 +1610,7 @@ sym_exec_llvm::apply_general_function(const CallInst* c, expr_ref fun_name_expr,
         ElTy = sty->getElementType(r);
       }
 
-      set_expr(Elname, c_expr, state_out);
+      state_set_expr(state_out, Elname, c_expr);
       if (auto align_assume = gen_ptr_align_assume(Elname, ElTy, c_expr->get_sort())) {
         succ_assumes.emplace_back(align_assume, fails::safety_fcall_retval_ptr_aligned);
       }
@@ -2110,7 +2110,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     tfg_edge_ref e = mk_tfg_edge(from_node->get_pc(), intermediate_node->get_pc(), expr_true(m_ctx), state_out, state_assumes, {}, te_comment);
     t.add_edge(e);
 
-    if (auto align_assume = gen_ptr_align_assume(lname->get_name()->get_str(), lTy, read_value->get_sort())) {
+    if (auto align_assume = gen_ptr_align_assume(lname, lTy, read_value->get_sort())) {
       add_state_assume(lname, expr_with_fail(align_assume, fails::safety_ptr_aligned), state_in, state_assumes, from_node, model_llvm_semantics, t, value_to_name_map);
     }
     state_out = state_in;
@@ -4060,7 +4060,7 @@ sym_exec_llvm::gen_arg_assumes() const
   preds_t arg_assumes;
   for (const auto& arg : m_function.args()) {
     pair<argnum_t, expr_ref> const &a = m_arguments.at(get_value_name(arg, nullptr)->get_name()->get_str());
-    string Elname = get_value_name(arg, nullptr)->get_name()->get_str();
+    expr_var_ref Elname = get_value_name(arg, nullptr);
     Type *ElTy = arg.getType();
     if (auto align_assume = gen_ptr_align_assume(Elname, ElTy, a.second->get_sort())) {
       arg_assumes.emplace_back(align_assume, fails::safety_ptr_aligned);
@@ -4241,7 +4241,7 @@ sym_exec_llvm::get_symbol_map_and_string_contents(Module const *M, list<pair<str
     const DataLayout &dl = M->getDataLayout();
     Type *ElTy = g.getValueType();
     ASSERT(g.hasName());
-    expr_var_ref varname = sym_exec_llvm::get_value_name_using_srcdst(g, srcdst_t::srcdst_src);
+    expr_var_ref varname = sym_exec_llvm::get_value_name_using_srcdst(g, src_llvm_tfg.get(), srcdst_t::srcdst_src);
     ASSERT(string_has_prefix(varname->get_name()->get_str(), LLVM_GLOBAL_VARNAME_PREFIX));
     varname = varname->expr_var_set_name(varname->get_name()->get_str().substr(strlen(LLVM_GLOBAL_VARNAME_PREFIX)));
 
@@ -4720,7 +4720,7 @@ struct FunctionPassPopulateTfgScev : public FunctionPass {
     for (BasicBlock& B : F) {
       for(Instruction& I : B) {
         if (SE.isSCEVable(I.getType()) && !isa<CmpInst>(I)) {
-          string iname = sym_exec_llvm::get_value_name_using_srcdst(I, m_srcdst)->get_name()->get_str();
+          string iname = sym_exec_llvm::get_value_name_using_srcdst(I, nullptr, m_srcdst)->get_name()->get_str();
           scev_toplevel_t<pc_ref> st = sym_exec_llvm::get_scev_toplevel(I, &SE, &LI, m_srcdst, m_word_length);
           scev_map[fname].insert(make_pair(iname, st));
         }
@@ -4893,7 +4893,7 @@ sym_exec_llvm::get_llvm_value_id_for_value(Value const* v)
     ss << *I;
     I->deleteValue();
   } else {
-    valname = sym_exec_common::get_value_name_using_srcdst(*v, srcdst_t::srcdst_src/*G_SRC_KEYWORD*/)->get_name()->get_str();
+    valname = sym_exec_common::get_value_name_using_srcdst(*v, nullptr, srcdst_t::srcdst_src/*G_SRC_KEYWORD*/)->get_name()->get_str();
   }
   llvm::Function const* F = sym_exec_llvm::getParent(v);
   string fname = F ? F->getName().str() : FNAME_GLOBAL_SPACE;

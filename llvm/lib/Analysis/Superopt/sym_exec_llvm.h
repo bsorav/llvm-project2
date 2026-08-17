@@ -138,7 +138,7 @@ private:
   string functionGetName(llvm::Function const &F) const;
   static string get_basicblock_index(llvm::BasicBlock const &F);
   //virtual string get_basicblock_name(llvm::BasicBlock const &F) const override;
-  bool instructionIsPhiNode(llvm::Instruction const &I, expr_var_ref &varname) const;
+  bool instructionIsPhiNode(llvm::Instruction const &I, tfg const& t, expr_var_ref &varname) const;
 
   //static string gep_name_prefix(string const &name, pc const &from_pc, pc const &pc_to, int argnum);
   //expr_ref __get_expr_adding_edges_for_intermediate_vals_helper(const llvm::Value& v, string vname, const state& state_in, shared_ptr<tfg_node> *from_node, pc const &pc_to, llvm::BasicBlock const *B, llvm::Function const *F, tfg& t);
@@ -169,7 +169,7 @@ private:
   pair<preds_t,preds_t> apply_va_start_function(const llvm::CallInst* c, state const& state_in, state &state_out, preds_t const& state_assumes, string const& cur_function_name, dshared_ptr<tfg_node const>& from_node, bool model_llvm_semantics, tfg& t, map<llvm_value_id_t, expr_var_ref>* value_to_name_map);
   pair<preds_t,preds_t> apply_va_copy_function(const llvm::CallInst* c, state const& state_in, state &state_out, preds_t const& state_assumes, string const& cur_function_name, dshared_ptr<tfg_node const>& from_node, bool model_llvm_semantics, tfg& t, map<llvm_value_id_t, expr_var_ref>* value_to_name_map);
 
-  expr_ref gen_ptr_align_assume(std::string const &elname, llvm::Type *elTy, sort_ref const& s) const;
+  expr_ref gen_ptr_align_assume(expr_var_ref const &elname, llvm::Type *elTy, sort_ref const& s) const;
   //void add_align_assumes(std::string const &elname, llvm::Type *elTy, expr_ref a, pc const&from_pc, tfg &t) const;
 
   expr_ref gen_shiftcount_assume_expr(expr_ref const& a, size_t shifted_val_size) const;
