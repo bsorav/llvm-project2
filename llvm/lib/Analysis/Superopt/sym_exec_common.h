@@ -82,6 +82,10 @@ public:
   map<allocsite_t, graph_local_t> const &get_local_refs() { return m_local_refs; }
   expr_var_ref get_value_name_pre_tfg(const llvm::Value& v, std::string const& fname) const;
   expr_var_ref get_value_name(const llvm::Value& v, tfg const* t) const;
+
+  string get_value_name_varname_only(const llvm::Value& v, tfg const* t) const;
+  static string get_value_name_using_srcdst_varname_only(const llvm::Value& v, string const& fname, tfg const* t, srcdst_t srcdst);
+
   static expr_var_ref get_value_name_using_srcdst(const llvm::Value& v, std::string const& fname, tfg const* t, srcdst_t srcdst);
   static vector<char> get_constant_bytes(llvm::Constant const* c);
   static unsigned get_num_insn(const llvm::Function& f);
