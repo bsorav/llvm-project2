@@ -4799,35 +4799,9 @@ sym_exec_llvm::sym_exec_populate_potential_scev_relations(Module* M, srcdst_t sr
   return scev_map;
 }
 
-dshared_ptr<ftmap_t>
-sym_exec_llvm::sym_exec_get_function_tfg_map(Module* M, set<string> FunNamesVec/*, bool DisableModelingOfUninitVarUB*/, context* ctx, dshared_ptr<llptfg_t const> const& src_llptfg, bool gen_scev, bool model_llvm_semantics, bool always_use_call_context_any, string const& ll_filename, points_to_algo_t const& points_to_algo, map<llvm_value_id_t, expr_var_ref>* value_to_name_map/*, context::xml_output_format_t xml_output_format*/, compiler_id_t const dst_compiler, harvest_dwarf_param_info_map_t const* harvest_dwarf_param_info)
+void
+sym_exec_llvm::populate_function_tfg_map(map<call_context_ref, dshared_ptr<tfg_ssa_t>>& function_tfg_map, Module* M, set<string> FunNamesVec, context* ctx, dshared_ptr<llptfg_t const> const& src_llptfg, bool model_llvm_semantics, bool always_use_call_context_any, string const& ll_filename, points_to_algo_t const& points_to_algo, map<llvm_value_id_t, expr_var_ref>* value_to_name_map/*, context::xml_output_format_t xml_output_format*/, compiler_id_t const dst_compiler, harvest_dwarf_param_info_map_t const* harvest_dwarf_param_info, srcdst_t srcdst, dshared_ptr<ll_filename_parsed_t> const& ll_filename_parsed, map<string, value_scev_map_t> const& scev_map)
 {
-  //map<string, pair<callee_summary_t, dshared_ptr<tfg_llvm_t>>> function_tfg_map;
-  map<call_context_ref, dshared_ptr<tfg_ssa_t>> function_tfg_map;
-
-  DYN_DEBUG3(llvm2tfg,
-    cout.flush();
-    M->print(dbgs(), nullptr, true);
-    dbgs().flush();
-  );
-  //string srcdst_keyword = src_llptfg ? G_DST_KEYWORD : G_SRC_KEYWORD;
-  srcdst_t srcdst = src_llptfg ? srcdst_t::srcdst_dst : srcdst_t::srcdst_src;
-
-  dshared_ptr<ll_filename_parsed_t> ll_filename_parsed = ll_filename != "" ? ll_filename_parsed_t::ll_filename_parsed_init(ll_filename) : dshared_ptr<ll_filename_parsed_t>::dshared_nullptr();
-
-  map<string, value_scev_map_t> scev_map;
-  //map<Function const*, LoopInfo const*> loopinfo_map;
-  if (gen_scev) {
-    scev_map = sym_exec_populate_potential_scev_relations(M, srcdst);
-  }
-  //for (auto const& li : loopinfo_map) {
-  //  errs() << "loop info map for " << li.first->getName() << "\n";
-  //  li.second->print(errs());
-  //}
-  //for (auto const& sc : scev_map) {
-  //  errs() << "scev map for " << sc.first->getName() << "\n";
-  //  sc.second->print(errs());
-  //}
   for (Function& f : *M) {
     if (   FunNamesVec.size() != 0
         //&& (FunNamesVec.size() != 1 || *FunNamesVec.begin() != "ALL")
@@ -4882,6 +4856,39 @@ sym_exec_llvm::sym_exec_get_function_tfg_map(Module* M, set<string> FunNamesVec/
     //function_tfg_map.insert(make_pair(fname, make_pair(csum, std::move(t_src))));
     function_tfg_map.insert(make_pair(call_context_t::empty_call_context(fname, always_use_call_context_any), t_src_ssa));
   }
+}
+
+dshared_ptr<ftmap_t>
+sym_exec_llvm::sym_exec_get_function_tfg_map(Module* M, set<string> FunNamesVec/*, bool DisableModelingOfUninitVarUB*/, context* ctx, dshared_ptr<llptfg_t const> const& src_llptfg, bool gen_scev, bool model_llvm_semantics, bool always_use_call_context_any, string const& ll_filename, points_to_algo_t const& points_to_algo, map<llvm_value_id_t, expr_var_ref>* value_to_name_map/*, context::xml_output_format_t xml_output_format*/, compiler_id_t const dst_compiler, harvest_dwarf_param_info_map_t const* harvest_dwarf_param_info)
+{
+  //map<string, pair<callee_summary_t, dshared_ptr<tfg_llvm_t>>> function_tfg_map;
+  map<call_context_ref, dshared_ptr<tfg_ssa_t>> function_tfg_map;
+
+  DYN_DEBUG3(llvm2tfg,
+    cout.flush();
+    M->print(dbgs(), nullptr, true);
+    dbgs().flush();
+  );
+  //string srcdst_keyword = src_llptfg ? G_DST_KEYWORD : G_SRC_KEYWORD;
+  srcdst_t srcdst = src_llptfg ? srcdst_t::srcdst_dst : srcdst_t::srcdst_src;
+
+  dshared_ptr<ll_filename_parsed_t> ll_filename_parsed = ll_filename != "" ? ll_filename_parsed_t::ll_filename_parsed_init(ll_filename) : dshared_ptr<ll_filename_parsed_t>::dshared_nullptr();
+
+  map<string, value_scev_map_t> scev_map;
+  //map<Function const*, LoopInfo const*> loopinfo_map;
+  if (gen_scev) {
+    scev_map = sym_exec_populate_potential_scev_relations(M, srcdst);
+  }
+  //for (auto const& li : loopinfo_map) {
+  //  errs() << "loop info map for " << li.first->getName() << "\n";
+  //  li.second->print(errs());
+  //}
+  //for (auto const& sc : scev_map) {
+  //  errs() << "scev map for " << sc.first->getName() << "\n";
+  //  sc.second->print(errs());
+  //}
+
+  populate_function_tfg_map(function_tfg_map, M, FunNamesVec, ctx, src_llptfg, model_llvm_semantics, always_use_call_context_any, ll_filename, points_to_algo, value_to_name_map, dst_compiler, harvest_dwarf_param_info, srcdst, ll_filename_parsed, scev_map);
 
   DYN_DEBUG(get_function_tfg_map_debug,
     for (auto const& p : function_tfg_map) {

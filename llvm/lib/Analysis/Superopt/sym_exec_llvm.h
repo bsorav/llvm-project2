@@ -114,6 +114,9 @@ public:
   //list<pair<string, size_t>> const &get_local_refs() { return m_local_refs; }
   //static string get_value_name(const llvm::Value& v);
   //virtual void process_phi_nodes(tfg &t, const llvm::BasicBlock* B_from, const pc& p_to, shared_ptr<tfg_node> const &from_node, const llvm::Function& F, expr_ref edgecond) override;
+
+  static void populate_function_tfg_map(map<call_context_ref, dshared_ptr<tfg_ssa_t>>& ftmap, llvm::Module* M, set<string> FunNamesVec, context* ctx, dshared_ptr<llptfg_t const> const& src_llptfg, bool model_llvm_semantics, bool always_use_call_context_any, string const& ll_filename, points_to_algo_t const& points_to_algo, map<llvm_value_id_t, expr_var_ref>* value_to_name_map/*, context::xml_output_format_t xml_output_format*/, compiler_id_t const dst_compiler, harvest_dwarf_param_info_map_t const* harvest_dwarf_param_info, srcdst_t srcdst, dshared_ptr<ll_filename_parsed_t> const& ll_filename_parsed, map<string, value_scev_map_t> const& scev_map);
+
   static dshared_ptr<ftmap_t> sym_exec_get_function_tfg_map(llvm::Module* M, set<string> FunNamesVec/*, bool DisableModelingOfUninitVarUB*/, context* ctx, dshared_ptr<llptfg_t const> const& src_llptfg, bool gen_scev, bool model_llvm_semantics, bool always_use_call_context_any, string const& ll_filename, points_to_algo_t const& points_to_algo, map<llvm_value_id_t, expr_var_ref>* value_to_name_map = nullptr/*, context::xml_output_format_t xml_output_format = context::XML_OUTPUT_FORMAT_TEXT_NOCOLOR*/, compiler_id_t const dst_compiler = compiler_id_t::clang, harvest_dwarf_param_info_map_t const* harvest_dwarf_param_info = nullptr);
   static map<string, value_scev_map_t> sym_exec_populate_potential_scev_relations(llvm::Module* M, srcdst_t srcdst);
 
