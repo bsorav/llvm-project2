@@ -184,7 +184,7 @@ sym_exec_common::get_value_name_using_srcdst(const Value& v, string const& fname
 
   if (ret.size() && ret[0] == LLVM_GLOBAL_VARNAME_PREFIX_CHAR) {
     //return expr_var_t::mk_expr_var_plain(mk_string_ref(ret));
-    return expr_var_t::mk_expr_var_llvm_reg(mk_string_ref(ret), llvm_reg_src_info_t::create_llvm_reg_src_info(mk_string_ref(fname), pc::start(srcdst), mk_string_ref(ret)));
+    return expr_var_t::mk_expr_var_llvm_reg(mk_string_ref(ret), llvm_reg_src_info_t::create_llvm_reg_src_info(mk_string_ref(LLVM_GLOBAL_VARNAME_FUNCTION_NAME/*fname*/), pc::start(srcdst), mk_string_ref(ret)));
   } else {
     string str_name = ::get_srcdst_keyword(srcdst) + string("." G_LLVM_PREFIX) + "-" + ret;
     if (t) {
@@ -4331,7 +4331,7 @@ sym_exec_llvm::get_symbol_map_and_string_contents(Module const *M, list<pair<str
     const DataLayout &dl = M->getDataLayout();
     Type *ElTy = g.getValueType();
     ASSERT(g.hasName());
-    expr_var_ref varname = sym_exec_llvm::get_value_name_using_srcdst(g, src_llvm_tfg->get_function_name()->get_str(), src_llvm_tfg.get(), srcdst_t::srcdst_src);
+    expr_var_ref varname = sym_exec_llvm::get_value_name_using_srcdst(g, LLVM_GLOBAL_VARNAME_FUNCTION_NAME/*src_llvm_tfg->get_function_name()->get_str()*/, src_llvm_tfg.get(), srcdst_t::srcdst_src);
     ASSERT(string_has_prefix(varname->get_name()->get_str(), LLVM_GLOBAL_VARNAME_PREFIX));
     varname = varname->expr_var_set_name(varname->get_name()->get_str().substr(strlen(LLVM_GLOBAL_VARNAME_PREFIX)));
 
