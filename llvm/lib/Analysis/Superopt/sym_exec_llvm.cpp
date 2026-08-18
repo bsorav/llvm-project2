@@ -4738,7 +4738,6 @@ struct FunctionPassPopulateTfgScev : public FunctionPass {
     for (BasicBlock& B : F) {
       for(Instruction& I : B) {
         if (SE.isSCEVable(I.getType()) && !isa<CmpInst>(I)) {
-          NOT_IMPLEMENTED(); //need pc and source varname for iname below; till then, ensuring that this code remains unreachable
           string iname = sym_exec_llvm::get_value_name_using_srcdst(I, F.getName().str(), nullptr, m_srcdst)->get_name()->get_str();
           scev_toplevel_t<pc_ref> st = sym_exec_llvm::get_scev_toplevel(I, &SE, &LI, m_srcdst, m_word_length);
           scev_map[fname].insert(make_pair(iname, st));
