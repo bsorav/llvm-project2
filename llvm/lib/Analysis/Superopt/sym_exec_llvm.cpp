@@ -3695,7 +3695,6 @@ sym_exec_llvm::add_edges(const llvm::BasicBlock& B, dshared_ptr<tfg_llvm_t const
   //errs() << "t.get_edges().size() = " << t.get_edges().size() << "\n";
   size_t insn_id = 0;
   bool pc_is_start = (t.get_edges().size() == 0);
-  set<pc_ref> pcs_without_debug_info;
 
   string bbindex = get_basicblock_index(B);
 
@@ -3703,6 +3702,47 @@ sym_exec_llvm::add_edges(const llvm::BasicBlock& B, dshared_ptr<tfg_llvm_t const
     ll_filename_parsed->ll_filename_identify_linenum_for_basic_block(bbindex);
   }
 
+  //first loop to identify debug information
+  for (const Instruction& I : B) {
+    if (   false
+        || isa<PHINode const>(I)
+        || (isa<CallInst>(I) && cast<CallInst>(I).getIntrinsicID() == Intrinsic::dbg_assign)
+        || (isa<CallInst>(I) && cast<CallInst>(I).getIntrinsicID() == Intrinsic::dbg_label)
+       ) {
+      continue;
+    }
+    if (isa<CallInst>(I) && cast<CallInst>(I).getIntrinsicID() == Intrinsic::dbg_declare) {//declare will be replaced with addr in future revisions; so watch out for this change
+      pc_ref pc_from_for_dbg_parsing;
+      if (pc_is_start) {
+        pc_from_for_dbg_parsing = pc::start(this->get_srcdst());
+      } else {
+        pc_ref pc_from_dbg = get_pc_from_bbindex_and_insn_id(this->get_srcdst(), bbindex, insn_id, get_line_and_column_num_for_instruction(I));
+        pc_from_for_dbg_parsing = pc::mk_pc_llvm(pc_from_dbg->get_srcdst(), pc_from_dbg->get_type(), pc_from_dbg->get_index(), pc_from_dbg->get_subindex(), PC_SUBSUBINDEX_BASIC_BLOCK_ENTRY, get_line_and_column_num_for_instruction(I));
+      }
+      this->parse_dbg_declare_intrinsic(I, t, pc_from_for_dbg_parsing);
+      continue;
+    }
+    if (isa<CallInst>(I) && cast<CallInst>(I).getIntrinsicID() == Intrinsic::dbg_value) {
+      pc_ref pc_from_for_dbg_parsing;
+      if (pc_is_start) {
+        pc_from_for_dbg_parsing = pc::start(this->get_srcdst());
+      } else {
+        pc_ref pc_from_dbg = get_pc_from_bbindex_and_insn_id(this->get_srcdst(), bbindex, insn_id, get_line_and_column_num_for_instruction(I));
+        pc_from_for_dbg_parsing = pc::mk_pc_llvm(pc_from_dbg->get_srcdst(), pc_from_dbg->get_type(), pc_from_dbg->get_index(), pc_from_dbg->get_subindex(), PC_SUBSUBINDEX_BASIC_BLOCK_ENTRY, get_line_and_column_num_for_instruction(I));
+      }
+      this->parse_dbg_value_intrinsic(I, t, pc_from_for_dbg_parsing);
+      continue;
+    }
+    if (pc_is_start) {
+      pc_is_start = false;
+    }
+    insn_id++;
+  }
+
+  //second loop to construct the tfg edges
+  insn_id = 0;
+  pc_is_start = (t.get_edges().size() == 0);
+  set<pc_ref> pcs_without_debug_info;
   for (const Instruction& I : B) {
     optional<pair<int, int>> line_column_num = get_line_and_column_num_for_instruction(I);
 
@@ -3731,37 +3771,37 @@ sym_exec_llvm::add_edges(const llvm::BasicBlock& B, dshared_ptr<tfg_llvm_t const
     }
 
     pc_ref pc_from = get_pc_from_bbindex_and_insn_id(this->get_srcdst(), bbindex, insn_id, get_line_and_column_num_for_instruction(I));
-    pc_ref pc_from_dbg;
-    if (pc_is_start) {
-      pc_from_dbg = pc::start(pc_from->get_srcdst());
-    } else {
-      pc_from_dbg = pc_from;
-    }
+    //pc_ref pc_from_dbg;
+    //if (pc_is_start) {
+    //  pc_from_dbg = pc::start(pc_from->get_srcdst());
+    //} else {
+    //  pc_from_dbg = pc_from;
+    //}
 
     if (isa<CallInst>(I) && cast<CallInst>(I).getIntrinsicID() == Intrinsic::dbg_declare) {//declare will be replaced with addr in future revisions; so watch out for this change
-      pc_ref pc_from_for_dbg_parsing;
-      if (pc_is_start) {
-        pc_from_for_dbg_parsing = pc_from_dbg;
-      } else {
-        pc_from_for_dbg_parsing = pc::mk_pc_llvm(pc_from_dbg->get_srcdst(), pc_from_dbg->get_type(), pc_from_dbg->get_index(), pc_from_dbg->get_subindex(), PC_SUBSUBINDEX_BASIC_BLOCK_ENTRY, get_line_and_column_num_for_instruction(I));
-      }
-      this->parse_dbg_declare_intrinsic(I, t, pc_from_for_dbg_parsing);
+      //pc_ref pc_from_for_dbg_parsing;
+      //if (pc_is_start) {
+      //  pc_from_for_dbg_parsing = pc_from_dbg;
+      //} else {
+      //  pc_from_for_dbg_parsing = pc::mk_pc_llvm(pc_from_dbg->get_srcdst(), pc_from_dbg->get_type(), pc_from_dbg->get_index(), pc_from_dbg->get_subindex(), PC_SUBSUBINDEX_BASIC_BLOCK_ENTRY, get_line_and_column_num_for_instruction(I));
+      //}
+      //this->parse_dbg_declare_intrinsic(I, t, pc_from_for_dbg_parsing);
       if (ll_filename_parsed) {
-        ll_filename_parsed->ll_filename_identify_linenum_for_dbg_declare_instruction(bbindex, pc_from_for_dbg_parsing);
+        ll_filename_parsed->ll_filename_identify_linenum_for_dbg_declare_instruction(bbindex/*, pc_from_for_dbg_parsing*/);
       }
       continue;
     }
 
     if (isa<CallInst>(I) && cast<CallInst>(I).getIntrinsicID() == Intrinsic::dbg_value) {
-      pc_ref pc_from_for_dbg_parsing;
-      if (pc_is_start) {
-        pc_from_for_dbg_parsing = pc_from_dbg;
-      } else {
-        pc_from_for_dbg_parsing = pc::mk_pc_llvm(pc_from_dbg->get_srcdst(), pc_from_dbg->get_type(), pc_from_dbg->get_index(), pc_from_dbg->get_subindex(), PC_SUBSUBINDEX_BASIC_BLOCK_ENTRY, get_line_and_column_num_for_instruction(I));
-      }
-      this->parse_dbg_value_intrinsic(I, t, pc_from_for_dbg_parsing);
+      //pc_ref pc_from_for_dbg_parsing;
+      //if (pc_is_start) {
+      //  pc_from_for_dbg_parsing = pc_from_dbg;
+      //} else {
+      //  pc_from_for_dbg_parsing = pc::mk_pc_llvm(pc_from_dbg->get_srcdst(), pc_from_dbg->get_type(), pc_from_dbg->get_index(), pc_from_dbg->get_subindex(), PC_SUBSUBINDEX_BASIC_BLOCK_ENTRY, get_line_and_column_num_for_instruction(I));
+      //}
+      //this->parse_dbg_value_intrinsic(I, t, pc_from_for_dbg_parsing);
       if (ll_filename_parsed) {
-        ll_filename_parsed->ll_filename_identify_linenum_for_dbg_value_instruction(bbindex, pc_from_for_dbg_parsing);
+        ll_filename_parsed->ll_filename_identify_linenum_for_dbg_value_instruction(bbindex/*, pc_from_for_dbg_parsing*/);
       }
       continue;
     }
