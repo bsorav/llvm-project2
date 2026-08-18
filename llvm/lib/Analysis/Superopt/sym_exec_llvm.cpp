@@ -143,7 +143,7 @@ string
 sym_exec_common::get_value_name_varname_only(const Value& v, tfg const* t) const
 {
   ASSERT(t);
-  return get_value_name_using_srcdst_varname_only(v, t->get_function_name()->get_str(), t, m_srcdst);
+  return get_value_name_using_srcdst_varname_only(v, t->get_function_name()->get_str()/*, t*/, m_srcdst);
 }
 
 expr_var_ref
@@ -154,7 +154,7 @@ sym_exec_common::get_value_name(const Value& v, tfg const* t) const
 }
 
 string
-sym_exec_common::get_value_name_using_srcdst_varname_only(const Value& v, string const& fname, tfg const* t, srcdst_t srcdst)
+sym_exec_common::get_value_name_using_srcdst_varname_only(const Value& v, string const& fname/*, tfg const* t*/, srcdst_t srcdst)
 {
   assert(!v.getType()->isVoidTy());
 
@@ -167,8 +167,14 @@ sym_exec_common::get_value_name_using_srcdst_varname_only(const Value& v, string
   if (ret.size() && ret[0] == LLVM_GLOBAL_VARNAME_PREFIX_CHAR) {
     return ret;
   } else {
-    return ::get_srcdst_keyword(srcdst) + string("." G_LLVM_PREFIX) + "-" + ret;
+    return add_function_name_to_varname(::get_srcdst_keyword(srcdst) + string("." G_LLVM_PREFIX) + "-" + ret, fname);
   }
+}
+
+string
+sym_exec_common::add_function_name_to_varname(string const& varname, string const& function_name)
+{
+  return varname + "." + function_name;
 }
 
 expr_var_ref
@@ -192,11 +198,11 @@ sym_exec_common::get_value_name_using_srcdst(const Value& v, string const& fname
       ASSERT(t_llvm);
       optional<pair<pc_ref, string_ref>> pc_and_source_varname = t_llvm->tfg_llvm_get_pc_and_source_varname_for_input_llvm_varname(std::string(G_INPUT_KEYWORD ".") + str_name);
       if (pc_and_source_varname) {
-        return expr_var_t::mk_expr_var_llvm_reg(mk_string_ref(str_name), llvm_reg_src_info_t::create_llvm_reg_src_info(mk_string_ref(fname), pc_and_source_varname->first, pc_and_source_varname->second));
+        return expr_var_t::mk_expr_var_llvm_reg(mk_string_ref(add_function_name_to_varname(str_name, fname)), llvm_reg_src_info_t::create_llvm_reg_src_info(mk_string_ref(fname), pc_and_source_varname->first, pc_and_source_varname->second));
       }
     }
     //ASSERT(str_name != "src.llvm-%t.0");
-    return expr_var_t::mk_expr_var_llvm_reg(mk_string_ref(str_name), llvm_reg_src_info_t::create_llvm_reg_src_info_fname_only(mk_string_ref(fname)));
+    return expr_var_t::mk_expr_var_llvm_reg(mk_string_ref(add_function_name_to_varname(str_name, fname)), llvm_reg_src_info_t::create_llvm_reg_src_info_fname_only(mk_string_ref(fname)));
   }
 }
 
@@ -4975,7 +4981,7 @@ sym_exec_llvm::sym_exec_get_function_tfg_map(Module* M, set<string> FunNamesVec/
 
   DYN_DEBUG(get_function_tfg_map_debug,
     for (auto const& p : function_tfg_map) {
-      cout << __func__ << " " << __LINE__ << ": TFG for " << p.first << ":\n";
+      cout << __func__ << " " << __LINE__ << ": TFG for " << p.first->call_context_to_string() << ":\n";
       p.second->graph_to_stream(cout); cout << endl;
     }
   );

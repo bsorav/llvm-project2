@@ -83,8 +83,9 @@ public:
   expr_var_ref get_value_name_pre_tfg(const llvm::Value& v, std::string const& fname) const;
   expr_var_ref get_value_name(const llvm::Value& v, tfg const* t) const;
 
+  static string add_function_name_to_varname(string const& varname, string const& function_name);
   string get_value_name_varname_only(const llvm::Value& v, tfg const* t) const;
-  static string get_value_name_using_srcdst_varname_only(const llvm::Value& v, string const& fname, tfg const* t, srcdst_t srcdst);
+  static string get_value_name_using_srcdst_varname_only(const llvm::Value& v, string const& fname/*, tfg const* t*/, srcdst_t srcdst);
 
   static expr_var_ref get_value_name_using_srcdst(const llvm::Value& v, std::string const& fname, tfg const* t, srcdst_t srcdst);
   static vector<char> get_constant_bytes(llvm::Constant const* c);
