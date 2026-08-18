@@ -134,13 +134,22 @@ expr_var_ref prefix_identifier(const expr_var_ref& id, const string& prefix)
 }
 
 expr_var_ref
+sym_exec_common::get_value_name_pre_tfg(const Value& v, string const& fname) const
+{
+  return get_value_name_using_srcdst(v, fname, nullptr, m_srcdst);
+}
+
+
+
+expr_var_ref
 sym_exec_common::get_value_name(const Value& v, tfg const* t) const
 {
-  return get_value_name_using_srcdst(v, t, m_srcdst);
+  ASSERT(t);
+  return get_value_name_using_srcdst(v, t->get_function_name()->get_str(), t, m_srcdst);
 }
 
 expr_var_ref
-sym_exec_common::get_value_name_using_srcdst(const Value& v, tfg const* t, srcdst_t srcdst)
+sym_exec_common::get_value_name_using_srcdst(const Value& v, string const& fname, tfg const* t, srcdst_t srcdst)
 {
   assert(!v.getType()->isVoidTy());
 
@@ -152,7 +161,7 @@ sym_exec_common::get_value_name_using_srcdst(const Value& v, tfg const* t, srcds
 
   if (ret.size() && ret[0] == LLVM_GLOBAL_VARNAME_PREFIX_CHAR) {
     //return expr_var_t::mk_expr_var_plain(mk_string_ref(ret));
-    return expr_var_t::mk_expr_var_llvm_reg_with_src_mapping(mk_string_ref(ret), llvm_reg_src_info_t::create_llvm_reg_src_info(pc::start(srcdst), mk_string_ref(ret)));
+    return expr_var_t::mk_expr_var_llvm_reg(mk_string_ref(ret), llvm_reg_src_info_t::create_llvm_reg_src_info(mk_string_ref(fname), pc::start(srcdst), mk_string_ref(ret)));
   } else {
     string str_name = ::get_srcdst_keyword(srcdst) + string("." G_LLVM_PREFIX) + "-" + ret;
     if (t) {
@@ -160,10 +169,10 @@ sym_exec_common::get_value_name_using_srcdst(const Value& v, tfg const* t, srcds
       ASSERT(t_llvm);
       optional<pair<pc_ref, string_ref>> pc_and_source_varname = t_llvm->tfg_llvm_get_pc_and_source_varname_for_input_llvm_varname(std::string(G_INPUT_KEYWORD ".") + str_name);
       if (pc_and_source_varname) {
-        return expr_var_t::mk_expr_var_llvm_reg_with_src_mapping(mk_string_ref(str_name), llvm_reg_src_info_t::create_llvm_reg_src_info(pc_and_source_varname->first, pc_and_source_varname->second));
+        return expr_var_t::mk_expr_var_llvm_reg(mk_string_ref(str_name), llvm_reg_src_info_t::create_llvm_reg_src_info(mk_string_ref(fname), pc_and_source_varname->first, pc_and_source_varname->second));
       }
     }
-    return expr_var_t::mk_expr_var_plain(mk_string_ref(str_name));
+    return expr_var_t::mk_expr_var_llvm_reg(mk_string_ref(str_name), llvm_reg_src_info_t::create_llvm_reg_src_info_fname_only(mk_string_ref(fname)));
   }
 }
 
@@ -695,7 +704,7 @@ sym_exec_llvm::populate_state_template(const llvm::Function& F, bool model_llvm_
     if (isa<const Constant>(v)) {
       continue;
     }
-    expr_var_ref const name = get_value_name(v, nullptr);
+    expr_var_ref const name = get_value_name_pre_tfg(v, F.getName().str());
     sort_ref const s = get_value_type(v, m_module->getDataLayout());
     allocsite_t const allocsite = allocsite_t::allocsite_arg(argnum);
 
@@ -935,11 +944,11 @@ sym_exec_common::state_get_expr(state const &st, expr_var_ref const &key, sort_r
   }
 }
 
-void sym_exec_llvm::set_expr(string const &name/*, const llvm::Value& v*/, expr_ref expr, state& st)
-{
-  //state_set_expr(st, get_value_name(v), expr);
-  state_set_expr(st, expr_var_t::mk_expr_var_plain(mk_string_ref(name)), expr);
-}
+//void sym_exec_llvm::set_expr(string const &name/*, const llvm::Value& v*/, expr_ref expr, state& st)
+//{
+//  //state_set_expr(st, get_value_name(v), expr);
+//  state_set_expr(st, expr_var_t::mk_expr_var_plain(mk_string_ref(name)), expr);
+//}
 
 //void sym_exec_mir::mir_set_expr(const llvm::MachineOperand& v, expr_ref expr, state& st)
 //{
@@ -4068,8 +4077,8 @@ sym_exec_llvm::gen_arg_assumes() const
 {
   preds_t arg_assumes;
   for (const auto& arg : m_function.args()) {
-    pair<argnum_t, expr_ref> const &a = m_arguments.at(get_value_name(arg, nullptr)->get_name()->get_str());
-    expr_var_ref Elname = get_value_name(arg, nullptr);
+    pair<argnum_t, expr_ref> const &a = m_arguments.at(get_value_name_pre_tfg(arg, m_function.getName().str())->get_name()->get_str());
+    expr_var_ref Elname = get_value_name_pre_tfg(arg, m_function.getName().str());
     Type *ElTy = arg.getType();
     if (auto align_assume = gen_ptr_align_assume(Elname, ElTy, a.second->get_sort())) {
       arg_assumes.emplace_back(align_assume, fails::safety_ptr_aligned);
@@ -4250,7 +4259,7 @@ sym_exec_llvm::get_symbol_map_and_string_contents(Module const *M, list<pair<str
     const DataLayout &dl = M->getDataLayout();
     Type *ElTy = g.getValueType();
     ASSERT(g.hasName());
-    expr_var_ref varname = sym_exec_llvm::get_value_name_using_srcdst(g, src_llvm_tfg.get(), srcdst_t::srcdst_src);
+    expr_var_ref varname = sym_exec_llvm::get_value_name_using_srcdst(g, src_llvm_tfg->get_function_name()->get_str(), src_llvm_tfg.get(), srcdst_t::srcdst_src);
     ASSERT(string_has_prefix(varname->get_name()->get_str(), LLVM_GLOBAL_VARNAME_PREFIX));
     varname = varname->expr_var_set_name(varname->get_name()->get_str().substr(strlen(LLVM_GLOBAL_VARNAME_PREFIX)));
 
@@ -4729,7 +4738,8 @@ struct FunctionPassPopulateTfgScev : public FunctionPass {
     for (BasicBlock& B : F) {
       for(Instruction& I : B) {
         if (SE.isSCEVable(I.getType()) && !isa<CmpInst>(I)) {
-          string iname = sym_exec_llvm::get_value_name_using_srcdst(I, nullptr, m_srcdst)->get_name()->get_str();
+          NOT_IMPLEMENTED(); //need pc and source varname for iname below; till then, ensuring that this code remains unreachable
+          string iname = sym_exec_llvm::get_value_name_using_srcdst(I, F.getName().str(), nullptr, m_srcdst)->get_name()->get_str();
           scev_toplevel_t<pc_ref> st = sym_exec_llvm::get_scev_toplevel(I, &SE, &LI, m_srcdst, m_word_length);
           scev_map[fname].insert(make_pair(iname, st));
         }
@@ -4892,6 +4902,10 @@ llvm_value_id_t
 sym_exec_llvm::get_llvm_value_id_for_value(Value const* v)
 {
   ASSERT(v);
+
+  llvm::Function const* F = sym_exec_llvm::getParent(v);
+  string fname = F ? F->getName().str() : FNAME_GLOBAL_SPACE;
+
   string valname;
   if (Instruction const* I = (Instruction const*)dyn_cast<Instruction>(v)) {
     raw_string_ostream ss(valname);
@@ -4902,10 +4916,8 @@ sym_exec_llvm::get_llvm_value_id_for_value(Value const* v)
     ss << *I;
     I->deleteValue();
   } else {
-    valname = sym_exec_common::get_value_name_using_srcdst(*v, nullptr, srcdst_t::srcdst_src/*G_SRC_KEYWORD*/)->get_name()->get_str();
+    valname = sym_exec_common::get_value_name_using_srcdst(*v, fname, nullptr, srcdst_t::srcdst_src/*G_SRC_KEYWORD*/)->get_name()->get_str();
   }
-  llvm::Function const* F = sym_exec_llvm::getParent(v);
-  string fname = F ? F->getName().str() : FNAME_GLOBAL_SPACE;
   return llvm_value_id_t(fname, valname);
 }
 

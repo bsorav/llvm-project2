@@ -80,8 +80,9 @@ public:
   static bool update_function_call_args_and_retvals_with_atlocals(dshared_ptr<tfg> t_src);
 
   map<allocsite_t, graph_local_t> const &get_local_refs() { return m_local_refs; }
+  expr_var_ref get_value_name_pre_tfg(const llvm::Value& v, std::string const& fname) const;
   expr_var_ref get_value_name(const llvm::Value& v, tfg const* t) const;
-  static expr_var_ref get_value_name_using_srcdst(const llvm::Value& v, tfg const* t, srcdst_t srcdst);
+  static expr_var_ref get_value_name_using_srcdst(const llvm::Value& v, std::string const& fname, tfg const* t, srcdst_t srcdst);
   static vector<char> get_constant_bytes(llvm::Constant const* c);
   static unsigned get_num_insn(const llvm::Function& f);
   context *get_context() const { return m_ctx; }

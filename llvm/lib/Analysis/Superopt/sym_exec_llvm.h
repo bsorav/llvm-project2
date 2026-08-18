@@ -219,7 +219,7 @@ private:
   //void state_set_expr(state &st, string const &key, expr_ref const &value);
   //expr_ref state_get_expr(state const &st, string const &key);
 
-  void set_expr(string const &name/*const llvm::Value& v*/, expr_ref expr, state& st);
+  //void set_expr(string const &name/*const llvm::Value& v*/, expr_ref expr, state& st);
   pair<vector<expr_ref>,preds_t> get_expr_args(const llvm::Instruction& I, expr_var_ref const& vname, const state& st, preds_t const& state_assumes, dshared_ptr<tfg_node const> &from_node, bool model_llvm_semantics, tfg &t, map<llvm_value_id_t, expr_var_ref>* value_to_name_map);
 
   void add_gep_intermediate_vals(llvm::Instruction const &I, string const &name);

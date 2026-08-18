@@ -100,7 +100,7 @@ always_use_call_context_any("always-use-call-context-any", cl::desc("<always-use
 //XmlOutputFormat("xml-output-format", cl::desc("<xml-output-format.  Format to use during xml printing.  [html|text-color|text-nocolor]"), cl::init("text-color"));
 
 static cl::opt<bool>
-NoGenScev("no-gen-scev", cl::desc("<no-gen-scev. don't generate potential scev relationships to be used for invariant inferences>"), cl::init(false));
+NoGenScev("no-gen-scev", cl::desc("<no-gen-scev. don't generate potential scev relationships to be used for invariant inferences>"), cl::init(true));
 
 static cl::opt<bool>
 Progress("progress", cl::desc("<progress. keep printing progress involving time/mem stats>"), cl::init(false));
