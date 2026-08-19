@@ -190,7 +190,7 @@ sym_exec_common::get_value_name_using_srcdst(const Value& v, string const& fname
 
   if (ret.size() && ret[0] == LLVM_GLOBAL_VARNAME_PREFIX_CHAR) {
     //return expr_var_t::mk_expr_var_plain(mk_string_ref(ret));
-    return expr_var_t::mk_expr_var_llvm_reg(mk_string_ref(ret), llvm_reg_src_info_t::create_llvm_reg_src_info(mk_string_ref(LLVM_GLOBAL_VARNAME_FUNCTION_NAME/*fname*/), pc::start(srcdst), mk_string_ref(ret)));
+    return expr_var_t::mk_expr_var_llvm_reg(mk_string_ref(ret), llvm_reg_src_info_t::create_llvm_reg_src_info(mk_string_ref(ret), mk_string_ref(LLVM_GLOBAL_VARNAME_FUNCTION_NAME/*fname*/), pc::start(srcdst), mk_string_ref(ret)));
   } else {
     string str_name = ::get_srcdst_keyword(srcdst) + string("." G_LLVM_PREFIX) + "-" + ret;
     if (t) {
@@ -198,11 +198,11 @@ sym_exec_common::get_value_name_using_srcdst(const Value& v, string const& fname
       ASSERT(t_llvm);
       optional<pair<pc_ref, string_ref>> pc_and_source_varname = t_llvm->tfg_llvm_get_pc_and_source_varname_for_input_llvm_varname(std::string(G_INPUT_KEYWORD ".") + str_name);
       if (pc_and_source_varname) {
-        return expr_var_t::mk_expr_var_llvm_reg(mk_string_ref(add_function_name_to_varname(str_name, fname)), llvm_reg_src_info_t::create_llvm_reg_src_info(mk_string_ref(fname), pc_and_source_varname->first, pc_and_source_varname->second));
+        return expr_var_t::mk_expr_var_llvm_reg(mk_string_ref(add_function_name_to_varname(str_name, fname)), llvm_reg_src_info_t::create_llvm_reg_src_info(mk_string_ref(str_name), mk_string_ref(fname), pc_and_source_varname->first, pc_and_source_varname->second));
       }
     }
     //ASSERT(str_name != "src.llvm-%t.0");
-    return expr_var_t::mk_expr_var_llvm_reg(mk_string_ref(add_function_name_to_varname(str_name, fname)), llvm_reg_src_info_t::create_llvm_reg_src_info_fname_only(mk_string_ref(fname)));
+    return expr_var_t::mk_expr_var_llvm_reg(mk_string_ref(add_function_name_to_varname(str_name, fname)), llvm_reg_src_info_t::create_llvm_reg_src_info_fname_only(mk_string_ref(str_name), mk_string_ref(fname)));
   }
 }
 
