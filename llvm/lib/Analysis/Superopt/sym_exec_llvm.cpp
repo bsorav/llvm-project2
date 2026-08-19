@@ -668,7 +668,7 @@ string
 sym_exec_common::gep_name_prefix(string const &name, pc_ref const &from_pc, pc_ref const &to_pc, int argnum) const
 {
   stringstream ss;
-  ss << ::get_srcdst_keyword(m_srcdst) << "." G_LLVM_PREFIX "-%" << name << "." << argnum << "." << from_pc->to_string() << "." << to_pc->to_string();
+  ss << ::get_srcdst_keyword(m_srcdst) << "." G_LLVM_PREFIX "-%" << name << "." << argnum << "." << from_pc->pc_to_string() << "." << to_pc->pc_to_string();
   return ss.str();
 }
 
@@ -867,7 +867,7 @@ void sym_exec_common::get_state_template(pc_ref const& p, state& st)
 {
   //string src_dst_prefix = m_is_src ? "src" : "dst";
   string src_dst_prefix = "src";
-  string prefix = src_dst_prefix + p->to_string();
+  string prefix = src_dst_prefix + p->pc_to_string();
   if (p->is_start()) {
     //prefix = "input";
     prefix = G_INPUT_KEYWORD;
@@ -3907,7 +3907,7 @@ sym_exec_common::get_next_intermediate_subsubindex_pc_node(tfg &t, dshared_ptr<t
   int subindex = from_pc->get_subindex();
   auto const& line_and_column_num = from_pc->pc_llvm_get_line_and_column_num();
   pc_ref p = pc::mk_pc_llvm(t.get_srcdst(), pc::insn_label, index/*, bblnum*/, subindex, PC_SUBSUBINDEX_DEFAULT, line_and_column_num);
-  DYN_DEBUG3(llvm2tfg, cout << __func__ << " " << __LINE__ << ": p = " << p->to_string() << endl);
+  DYN_DEBUG3(llvm2tfg, cout << __func__ << " " << __LINE__ << ": p = " << p->pc_to_string() << endl);
   if (m_intermediate_subsubindex_map.count(p) == 0) {
     DYN_DEBUG3(llvm2tfg, cout << __func__ << " " << __LINE__ << ": intermediate_subsubindex_map.count(p) = 0" << endl);
     m_intermediate_subsubindex_map[p] = PC_SUBSUBINDEX_INTERMEDIATE_VAL(0);
@@ -3942,7 +3942,7 @@ sym_exec_common::sync_next_intermediate_subsubindex_map(pc_ref const& in_p)
 void
 sym_exec_llvm::process_phi_nodes(tfg_llvm_t &t/*, value_to_name_map*/, const llvm::BasicBlock* B_from, pc_ref const& pc_to, dshared_ptr<tfg_node const> const &from_node, bool model_llvm_semantics, expr_ref edgecond, preds_t const& assumes, te_comment_t const& te_comment, Instruction const* I, const llvm::Function& F, map<shared_ptr<tfg_edge const>, Instruction const*>& eimap)
 {
-  DYN_DEBUG2(llvm2tfg, cout << __func__ << " " << __LINE__ << " " << get_timestamp(as1, sizeof as1) << ": searching for BB representing " << pc_to->to_string() << endl);
+  DYN_DEBUG2(llvm2tfg, cout << __func__ << " " << __LINE__ << " " << get_timestamp(as1, sizeof as1) << ": searching for BB representing " << pc_to->pc_to_string() << endl);
   const llvm::BasicBlock* B_to = 0;
   B_to = get_basic_block_for_pc(F, pc_to);
   assert(B_to);
