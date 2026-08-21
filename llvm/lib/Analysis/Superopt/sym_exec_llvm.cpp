@@ -3446,7 +3446,12 @@ sym_exec_llvm::get_tfg(llvm::Function& F, llvm::Module const *M, string const &n
   //cout << timestamp() << ": " << _FNLN_ << ": adding basic blocks\n";  cout.flush();
   map<string, bool> nextpc_is_noreturn_map;
   for(const BasicBlock& B : F) {
-    se.add_edges(B, src_llvm_tfg, model_llvm_semantics, *t, F/*, function_tfg_map*//*, value_to_name_map*//*, function_call_chain*/, eimap, scev_map, ll_filename_parsed/*, xml_output_format*/, nextpc_is_noreturn_map);
+    bool pc_is_start = (t->get_edges().size() == 0);
+    pc_ref pc_bb = se.add_edges(B, src_llvm_tfg, model_llvm_semantics, *t, F/*, function_tfg_map*//*, value_to_name_map*//*, function_call_chain*/, eimap, scev_map, ll_filename_parsed/*, xml_output_format*/, nextpc_is_noreturn_map);
+    ASSERT(pc_bb);
+    if (pc_is_start) {
+      auto e = mk_tfg_edge(pc::start(se.get_srcdst()), pc_bb, expr_true(ctx), state{}, {}, {}, te_comment_t::te_comment_start_edge());
+    }
   }
   //cout << timestamp() << ": " << _FNLN_ << ": done adding basic blocks\n";
 
@@ -3765,13 +3770,14 @@ sym_exec_llvm::populate_debug_info_for_basic_block(const llvm::BasicBlock& B, bo
   }
 }
 
-void
+pc_ref
 sym_exec_llvm::add_edges(const llvm::BasicBlock& B, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, bool model_llvm_semantics, tfg_llvm_t& t, const llvm::Function& F/*, map<string, pair<callee_summary_t, dshared_ptr<tfg_llvm_t>>> *function_tfg_map*//*, value_to_name_map*//*, set<string> const *function_call_chain*/, map<shared_ptr<tfg_edge const>, Instruction const*>& eimap, map<string, value_scev_map_t> const& scev_map, dshared_ptr<ll_filename_parsed_t> const& ll_filename_parsed/*, context::xml_output_format_t xml_output_format*/, map<string, bool>& nextpc_is_noreturn_map)
 {
   //errs() << "Doing BB: " << get_basicblock_name(B) << "\n";
   //errs() << "t.get_edges().size() = " << t.get_edges().size() << "\n";
   size_t insn_id = 0;
-  bool pc_is_start = (t.get_edges().size() == 0);
+  bool pc_is_start = false; //(t.get_edges().size() == 0);
+  pc_ref pc_start = nullptr;
 
   string bbindex = get_basicblock_index(B);
 
@@ -3814,6 +3820,9 @@ sym_exec_llvm::add_edges(const llvm::BasicBlock& B, dshared_ptr<tfg_llvm_t const
     }
 
     pc_ref pc_from = get_pc_from_bbindex_and_insn_id(this->get_srcdst(), bbindex, insn_id, get_line_and_column_num_for_instruction(I));
+    if (!pc_start) {
+      pc_start = pc_from;
+    }
     //pc_ref pc_from_dbg;
     //if (pc_is_start) {
     //  pc_from_dbg = pc::start(pc_from->get_srcdst());
@@ -3873,6 +3882,8 @@ sym_exec_llvm::add_edges(const llvm::BasicBlock& B, dshared_ptr<tfg_llvm_t const
 
     exec(state(), I, from_node, B, F, pc_to, src_llvm_tfg, model_llvm_semantics, t/*, value_to_name_map*/, eimap, scev_map/*, xml_output_format*/, nextpc_is_noreturn_map);
   }
+  ASSERT(pc_start);
+  return pc_start;
 }
 
 llvm::BasicBlock const *
