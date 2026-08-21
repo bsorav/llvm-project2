@@ -3729,7 +3729,7 @@ sym_exec_llvm::get_line_and_column_num_for_instruction(Instruction const& I)
 }
 
 void
-sym_exec_llvm::populate_debug_info_for_basic_block(const llvm::BasicBlock& B, bool pc_is_start, tfg_llvm_t& t) const
+sym_exec_llvm::populate_debug_info_for_basic_block(const llvm::BasicBlock& B/*, bool pc_is_start*/, tfg_llvm_t& t) const
 {
   string bbindex = get_basicblock_index(B);
   size_t insn_id = 0;
@@ -3743,9 +3743,9 @@ sym_exec_llvm::populate_debug_info_for_basic_block(const llvm::BasicBlock& B, bo
     }
     if (isa<CallInst>(I) && cast<CallInst>(I).getIntrinsicID() == Intrinsic::dbg_declare) {//declare will be replaced with addr in future revisions; so watch out for this change
       pc_ref pc_from_for_dbg_parsing;
-      if (pc_is_start) {
+      /*if (pc_is_start) {
         pc_from_for_dbg_parsing = pc::start(this->get_srcdst());
-      } else {
+      } else */{
         pc_ref pc_from_dbg = get_pc_from_bbindex_and_insn_id(this->get_srcdst(), bbindex, insn_id, get_line_and_column_num_for_instruction(I));
         pc_from_for_dbg_parsing = pc::mk_pc_llvm(pc_from_dbg->get_srcdst(), pc_from_dbg->get_type(), pc_from_dbg->get_index(), pc_from_dbg->get_subindex(), PC_SUBSUBINDEX_BASIC_BLOCK_ENTRY, get_line_and_column_num_for_instruction(I));
       }
@@ -3754,18 +3754,18 @@ sym_exec_llvm::populate_debug_info_for_basic_block(const llvm::BasicBlock& B, bo
     }
     if (isa<CallInst>(I) && cast<CallInst>(I).getIntrinsicID() == Intrinsic::dbg_value) {
       pc_ref pc_from_for_dbg_parsing;
-      if (pc_is_start) {
+      /*if (pc_is_start) {
         pc_from_for_dbg_parsing = pc::start(this->get_srcdst());
-      } else {
+      } else */{
         pc_ref pc_from_dbg = get_pc_from_bbindex_and_insn_id(this->get_srcdst(), bbindex, insn_id, get_line_and_column_num_for_instruction(I));
         pc_from_for_dbg_parsing = pc::mk_pc_llvm(pc_from_dbg->get_srcdst(), pc_from_dbg->get_type(), pc_from_dbg->get_index(), pc_from_dbg->get_subindex(), PC_SUBSUBINDEX_BASIC_BLOCK_ENTRY, get_line_and_column_num_for_instruction(I));
       }
       this->parse_dbg_value_intrinsic(I, t, pc_from_for_dbg_parsing);
       continue;
     }
-    if (pc_is_start) {
+    /*if (pc_is_start) {
       pc_is_start = false;
-    }
+    }*/
     insn_id++;
   }
 }
@@ -3776,7 +3776,7 @@ sym_exec_llvm::add_edges(const llvm::BasicBlock& B, dshared_ptr<tfg_llvm_t const
   //errs() << "Doing BB: " << get_basicblock_name(B) << "\n";
   //errs() << "t.get_edges().size() = " << t.get_edges().size() << "\n";
   size_t insn_id = 0;
-  bool pc_is_start = false; //(t.get_edges().size() == 0);
+  //bool pc_is_start = false; //(t.get_edges().size() == 0);
   pc_ref pc_start = nullptr;
 
   string bbindex = get_basicblock_index(B);
@@ -3786,7 +3786,7 @@ sym_exec_llvm::add_edges(const llvm::BasicBlock& B, dshared_ptr<tfg_llvm_t const
   }
 
   //first loop to identify debug information
-  populate_debug_info_for_basic_block(B, pc_is_start, t);
+  populate_debug_info_for_basic_block(B/*, pc_is_start*/, t);
 
   //second loop to construct the tfg edges
   //insn_id = 0;
@@ -3806,7 +3806,7 @@ sym_exec_llvm::add_edges(const llvm::BasicBlock& B, dshared_ptr<tfg_llvm_t const
       if (ll_filename_parsed) {
         ll_filename_parsed->ll_filename_identify_linenum_for_phi_instruction(bbindex);
       }
-      ASSERT(!pc_is_start);
+      //ASSERT(!pc_is_start);
       continue;
     }
     if (   false
@@ -3858,10 +3858,10 @@ sym_exec_llvm::add_edges(const llvm::BasicBlock& B, dshared_ptr<tfg_llvm_t const
       continue;
     }
 
-    if (pc_is_start) {
-      pc_is_start = false;
-      //errs() << "setting pc_is_start to false\n";
-    }
+    //if (pc_is_start) {
+    //  pc_is_start = false;
+    //  //errs() << "setting pc_is_start to false\n";
+    //}
 
     if (ll_filename_parsed) {
       ll_filename_parsed->ll_filename_identify_linenum_for_regular_instruction(bbindex, pc_from);
@@ -4773,7 +4773,7 @@ sym_exec_llvm::instructionIsPhiNode(llvm::Instruction const &I, BasicBlock const
   if(!phi) {
     return false;
   }
-  populate_debug_info_for_basic_block(B, false /* cannot be start if we are at a phi node*/, t);
+  populate_debug_info_for_basic_block(B/*, false *//* cannot be start if we are at a phi node*/, t);
   varname = get_value_name(*phi, &t)/*->get_name()->get_str()*/;
   return true;
 }

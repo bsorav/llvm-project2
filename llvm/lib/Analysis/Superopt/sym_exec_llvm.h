@@ -93,7 +93,7 @@ public:
   //sort_ref get_mem_domain() const;
   //sort_ref get_mem_range() const;
 
-  void populate_debug_info_for_basic_block(const llvm::BasicBlock& B, bool pc_is_start, tfg_llvm_t& t) const;
+  void populate_debug_info_for_basic_block(const llvm::BasicBlock& B/*, bool pc_is_start*/, tfg_llvm_t& t) const;
 
   static dshared_ptr<tfg_llvm_t> get_tfg(llvm::Function& F, llvm::Module const *M, string const &name, context *ctx, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, bool model_llvm_semantics/*, map<llvm_value_id_t, expr_var_ref>* value_to_name_map*/, map<shared_ptr<tfg_edge const>, llvm::Instruction const*>& eimap, map<string, value_scev_map_t> const& scev_map, srcdst_t srcdst, dshared_ptr<ll_filename_parsed_t> const& ll_filename_parsed, points_to_algo_t const& points_to_algo/*, context::xml_output_format_t xml_output_format*/, compiler_id_t const dst_compiler, harvest_dwarf_param_info_map_t const* harvest_dwarf_param_info = nullptr);
 
