@@ -3713,19 +3713,24 @@ sym_exec_llvm::parse_stackrestore_intrinsic(Instruction const& I, tfg& t, pc_ref
 optional<pair<unsigned, unsigned>>
 sym_exec_llvm::get_line_and_column_num_for_instruction(Instruction const& I)
 {
-  optional<pair<unsigned, unsigned>> ret = nullopt;
-  DebugLoc const& dl = I.getDebugLoc();
-  DILocation* diloc = dl.get();
-  //cout << __func__ << " " << __LINE__ << ": pc_from = " << pc_from.to_string() << ", diloc = " << diloc << endl;
-  if (diloc) {
-    unsigned linenum = diloc->getLine();
-    unsigned column_num = diloc->getColumn();
-    ret = make_pair(linenum, column_num);
-    DYN_DEBUG(llvm2tfg, errs() << __func__ << " " << __LINE__ << ": I = " << I << ": returning " << linenum << "_" << column_num << "\n");
-  } else {
-    DYN_DEBUG(llvm2tfg, errs() << __func__ << " " << __LINE__ << ": I = " << I << ": returning nullopt\n");
+  //optional<pair<unsigned, unsigned>> ret = nullopt;
+  Instruction const* curI = &I;
+  while (curI) {
+    DebugLoc const& dl = curI->getDebugLoc();
+    DILocation* diloc = dl.get();
+    //cout << __func__ << " " << __LINE__ << ": pc_from = " << pc_from.to_string() << ", diloc = " << diloc << endl;
+    if (diloc) {
+      unsigned linenum = diloc->getLine();
+      unsigned column_num = diloc->getColumn();
+      auto ret = make_pair(linenum, column_num);
+      DYN_DEBUG(llvm2tfg, errs() << __func__ << " " << __LINE__ << ": I = " << *curI << ": returning " << linenum << "_" << column_num << "\n");
+      return ret;
+    } else {
+      DYN_DEBUG(llvm2tfg, errs() << __func__ << " " << __LINE__ << ": I = " << *curI << ": found nullopt\n");
+    }
+    curI = curI->getNextNode();
   }
-  return ret;
+  return nullopt;
 }
 
 void
