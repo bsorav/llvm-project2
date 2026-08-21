@@ -196,9 +196,14 @@ sym_exec_common::get_value_name_using_srcdst(const Value& v, string const& fname
     if (t) {
       tfg_llvm_t const* t_llvm = dynamic_cast<tfg_llvm_t const*>(t);
       ASSERT(t_llvm);
-      optional<pair<pc_ref, string_ref>> pc_and_source_varname = t_llvm->tfg_llvm_get_pc_and_source_varname_for_input_llvm_varname(std::string(G_INPUT_KEYWORD ".") + str_name);
+      string llvm_varname = add_function_name_to_varname(str_name, fname);
+      string input_llvm_varname = add_function_name_to_varname(std::string(G_INPUT_KEYWORD ".") + str_name, fname);
+      optional<pair<pc_ref, string_ref>> pc_and_source_varname = t_llvm->tfg_llvm_get_pc_and_source_varname_for_input_llvm_varname(input_llvm_varname);
       if (pc_and_source_varname) {
-        return expr_var_t::mk_expr_var_llvm_reg(mk_string_ref(add_function_name_to_varname(str_name, fname)), llvm_reg_src_info_t::create_llvm_reg_src_info(mk_string_ref(str_name), mk_string_ref(fname), pc_and_source_varname->first, pc_and_source_varname->second));
+        DYN_DEBUG2(llvm2tfg, cout << _FNLN_ << ": pc_and_source_varname found for " << input_llvm_varname << "\n");
+        return expr_var_t::mk_expr_var_llvm_reg(mk_string_ref(llvm_varname), llvm_reg_src_info_t::create_llvm_reg_src_info(mk_string_ref(str_name), mk_string_ref(fname), pc_and_source_varname->first, pc_and_source_varname->second));
+      } else {
+        DYN_DEBUG2(llvm2tfg, cout << _FNLN_ << ": pc_and_source_varname NOT found for " << input_llvm_varname << "\n");
       }
     }
     //ASSERT(str_name != "src.llvm-%t.0");
