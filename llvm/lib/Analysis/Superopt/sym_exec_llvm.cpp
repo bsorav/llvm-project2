@@ -3722,11 +3722,15 @@ sym_exec_llvm::get_line_and_column_num_for_instruction(Instruction const& I)
     if (diloc) {
       unsigned linenum = diloc->getLine();
       unsigned column_num = diloc->getColumn();
-      auto ret = make_pair(linenum, column_num);
-      DYN_DEBUG(llvm2tfg, errs() << __func__ << " " << __LINE__ << ": I = " << *curI << ": returning " << linenum << "_" << column_num << "\n");
-      return ret;
+      if (linenum != 0 || column_num != 0) { //ignore degenerate cases
+        auto ret = make_pair(linenum, column_num);
+        DYN_DEBUG(llvm2tfg, errs() << __func__ << " " << __LINE__ << ": I = " << I << ", curI = " << *curI << ": returning " << linenum << "_" << column_num << "\n");
+        return ret;
+      } else {
+        DYN_DEBUG(llvm2tfg, errs() << __func__ << " " << __LINE__ << ": I = " << I << ", curI = " << *curI << ": found zeros\n");
+      }
     } else {
-      DYN_DEBUG(llvm2tfg, errs() << __func__ << " " << __LINE__ << ": I = " << *curI << ": found nullopt\n");
+      DYN_DEBUG(llvm2tfg, errs() << __func__ << " " << __LINE__ << ": I = " << I << ", curI = " << *curI << ": found nullopt\n");
     }
     curI = curI->getNextNode();
   }
