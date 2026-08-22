@@ -1283,7 +1283,7 @@ sym_exec_llvm::apply_memset_function(const CallInst* c, expr_ref fun_name_expr, 
     expr_ref mem = state_get_expr(state_out, m_mem_reg, this->get_mem_sort());
     expr_ref mem_alloc = state_get_expr(state_out, m_mem_alloc_reg, this->get_mem_alloc_sort());
     cur_pc = t.model_memset(intermediate_node->get_pc(), mem, mem_alloc, memset_dst_expr, memset_val_expr, count, get_word_length(), te_comment_t::te_comment_memset(nullopt));
-    this->sync_next_intermediate_subsubindex_map(cur_pc); // sync subsubindex info as model_memcpy() may have created intermediate PCs
+    this->sync_next_intermediate_subsubindex_map(cur_pc, cur_function_name); // sync subsubindex info as model_memcpy() may have created intermediate PCs
     state_out = state_in;
     from_node = t.find_node(cur_pc);
     ASSERT(from_node);
@@ -1344,7 +1344,7 @@ sym_exec_llvm::apply_memcpy_function(const CallInst* c, expr_ref fun_name_expr, 
     expr_ref mem = state_get_expr(state_out, m_mem_reg, this->get_mem_sort());
     expr_ref mem_alloc = state_get_expr(state_out, m_mem_alloc_reg, this->get_mem_alloc_sort());
     cur_pc = t.model_memcpy(intermediate_node->get_pc(), mem, mem_alloc, memcpy_src_expr, memcpy_dst_expr, count, get_word_length(), te_comment_t::te_comment_memcpy(nullopt));
-    this->sync_next_intermediate_subsubindex_map(cur_pc); // sync subsubindex info as model_memcpy() may have created intermediate PCs
+    this->sync_next_intermediate_subsubindex_map(cur_pc, cur_function_name); // sync subsubindex info as model_memcpy() may have created intermediate PCs
     state_out = state_in;
     from_node = t.find_node(cur_pc);
     ASSERT(from_node);
@@ -1788,7 +1788,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     {
       BasicBlock const& targetBBL = *i->getSuccessor(0);
       Instruction const* targetI = get_nth_instruction_in_bb(targetBBL, 0);
-      control_flow_transfer cft(from_node->get_pc(), get_pc_from_bbindex_and_insn_id(m_srcdst, get_basicblock_index(targetBBL), 0, targetI ? get_line_and_column_num_for_instruction(*targetI) : std::nullopt), m_ctx->mk_bool_true());
+      control_flow_transfer cft(from_node->get_pc(), get_pc_from_bbindex_and_insn_id(m_srcdst, cur_function_name, get_basicblock_index(targetBBL), 0, targetI ? get_line_and_column_num_for_instruction(*targetI) : std::nullopt), m_ctx->mk_bool_true());
       cfts.push_back(cft);
     }
     else if(i->isConditional())
@@ -1800,12 +1800,12 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
 
       BasicBlock const& targetBBL = *i->getSuccessor(0);
       Instruction const* targetI = get_nth_instruction_in_bb(targetBBL, 0);
-      control_flow_transfer cft1(from_node->get_pc(), get_pc_from_bbindex_and_insn_id(m_srcdst, get_basicblock_index(*i->getSuccessor(0)), 0, targetI ? get_line_and_column_num_for_instruction(*targetI) : std::nullopt), e, cond_assumes);
+      control_flow_transfer cft1(from_node->get_pc(), get_pc_from_bbindex_and_insn_id(m_srcdst, cur_function_name, get_basicblock_index(*i->getSuccessor(0)), 0, targetI ? get_line_and_column_num_for_instruction(*targetI) : std::nullopt), e, cond_assumes);
       cfts.push_back(cft1);
 
       BasicBlock const& targetBBL2 = *i->getSuccessor(1);
       Instruction const* targetI2 = get_nth_instruction_in_bb(targetBBL2, 0);
-      control_flow_transfer cft2(from_node->get_pc(), get_pc_from_bbindex_and_insn_id(m_srcdst, get_basicblock_index(targetBBL2), 0, targetI2 ? get_line_and_column_num_for_instruction(*targetI2) : std::nullopt), m_ctx->mk_not(e), cond_assumes);
+      control_flow_transfer cft2(from_node->get_pc(), get_pc_from_bbindex_and_insn_id(m_srcdst, cur_function_name, get_basicblock_index(targetBBL2), 0, targetI2 ? get_line_and_column_num_for_instruction(*targetI2) : std::nullopt), m_ctx->mk_not(e), cond_assumes);
       cfts.push_back(cft2);
 
       transfer_poison_values(nullptr, e, state_assumes, from_node, model_llvm_semantics, t);
@@ -1849,7 +1849,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
       BasicBlock const& targetBBL = *Case.getCaseSuccessor();
       Instruction const* targetI = get_nth_instruction_in_bb(targetBBL, 0);
 
-      control_flow_transfer cft(from_node->get_pc(), get_pc_from_bbindex_and_insn_id(m_srcdst, get_basicblock_index(targetBBL), 0, targetI ? get_line_and_column_num_for_instruction(*targetI): std::nullopt), cond, CaseAssumes);
+      control_flow_transfer cft(from_node->get_pc(), get_pc_from_bbindex_and_insn_id(m_srcdst, cur_function_name, get_basicblock_index(targetBBL), 0, targetI ? get_line_and_column_num_for_instruction(*targetI): std::nullopt), cond, CaseAssumes);
       cfts.push_back(cft);
       matched_any_cond.push_back(cond);
       //cout << __func__ << " " << __LINE__ << ": cft cond = " << expr_string(cond) << ", src = " << cft.get_from_pc() << ", dest = " << cft.get_to_pc() << endl;
@@ -1866,7 +1866,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     BasicBlock const& targetBBL = *SI->getDefaultDest();
     Instruction const* targetI = get_nth_instruction_in_bb(targetBBL, 0);
 
-    control_flow_transfer cft(from_node->get_pc(), get_pc_from_bbindex_and_insn_id(m_srcdst, get_basicblock_index(targetBBL), 0, targetI ? get_line_and_column_num_for_instruction(*targetI) : std::nullopt), remaining_cond);
+    control_flow_transfer cft(from_node->get_pc(), get_pc_from_bbindex_and_insn_id(m_srcdst, cur_function_name, get_basicblock_index(targetBBL), 0, targetI ? get_line_and_column_num_for_instruction(*targetI) : std::nullopt), remaining_cond);
     cfts.push_back(cft);
     DYN_DEBUG2(llvm2tfg, cout << _FNLN_ << ": before expand_switch, CFTs:\n"; for (auto const& cft : cfts) cout << '\t' << cft << '\n';);
     cfts = expand_switch(t, from_node, cfts, state_out, cond_assumes, te_comment, &I, B, F, eimap);
@@ -1902,7 +1902,7 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
       expr_var_ref hidden_reg = expr_var_t::mk_expr_var_plain(mk_string_ref(::get_srcdst_keyword(m_srcdst) + ("." G_LLVM_HIDDEN_REGISTER_NAME)));
       state_set_expr(state_out, hidden_reg, m_ctx->mk_bvxor(state_get_expr(state_out, hidden_reg, csreg->get_sort()), csreg));
     }
-    control_flow_transfer cft(from_node->get_pc(), pc::mk_pc_llvm_return(m_srcdst/*, pc::exit*/, get_line_and_column_num_for_instruction(I)), m_ctx->mk_bool_true(), m_cs.get_retaddr_const(), {});
+    control_flow_transfer cft(from_node->get_pc(), pc::mk_pc_llvm_return(m_srcdst, cur_function_name, get_line_and_column_num_for_instruction(I)), m_ctx->mk_bool_true(), m_cs.get_retaddr_const(), {});
     cfts.push_back(cft);
     break;
   }
@@ -1976,9 +1976,9 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
         local_size_val = m_ctx->mk_bv_const(get_word_length(), local_size);
       }
 
-      auto add_edge_with_state = [this,&t,&from_node,&state_in,&state_out,&state_assumes,&te_comment,&I]()
+      auto add_edge_with_state = [this,&t,&from_node,&state_in,&state_out,&state_assumes,&te_comment,&I,&cur_function_name]()
         {
-          pc_ref intermediate_pc = t.tfg_get_next_intermediate_pc_for_subsubindex(pc::mk_pc_llvm(from_node->get_pc()->get_srcdst(), from_node->get_pc()->get_type(), from_node->get_pc()->get_index(), from_node->get_pc()->get_subindex(), PC_SUBSUBINDEX_ALLOC_START, get_line_and_column_num_for_instruction(I)));
+          pc_ref intermediate_pc = t.tfg_get_next_intermediate_pc_for_subsubindex(pc::mk_pc_llvm(from_node->get_pc()->get_srcdst(), cur_function_name, from_node->get_pc()->get_type(), from_node->get_pc()->get_index(), from_node->get_pc()->get_subindex(), PC_SUBSUBINDEX_ALLOC_START, get_line_and_column_num_for_instruction(I)));
           ASSERT(t.find_node(intermediate_pc) == 0);
           dshared_ptr<tfg_node const> intermediate_node = make_dshared<tfg_node>(intermediate_pc);
           t.add_node(intermediate_node);
@@ -2952,7 +2952,7 @@ sym_exec_llvm::get_scev_op_from_scev_type(SCEVTypes scevtype)
 }
 
 scev_ref
-sym_exec_llvm::get_scev(ScalarEvolution& SE, SCEV const* scev, srcdst_t srcdst, size_t word_length)
+sym_exec_llvm::get_scev(ScalarEvolution& SE, SCEV const* scev, srcdst_t srcdst, string const& cur_function_name, size_t word_length)
 {
   SCEVTypes scevtype = static_cast<SCEVTypes>(scev->getSCEVType());
   switch (scevtype) {
@@ -2968,26 +2968,26 @@ sym_exec_llvm::get_scev(ScalarEvolution& SE, SCEV const* scev, srcdst_t srcdst, 
       const SCEV *Op = Trunc->getOperand();
       //OS << "(trunc " << *Op->getType() << " " << *Op << " to "
       //   << *Trunc->getType() << ")";
-      return mk_scev(scev_op_truncate, mybitset(), { get_scev(SE, Op, srcdst, word_length) }, pc::start(srcdst));
+      return mk_scev(scev_op_truncate, mybitset(), { get_scev(SE, Op, srcdst, cur_function_name, word_length) }, pc::start(srcdst));
     }
     case scPtrToInt: {
       const SCEVPtrToIntExpr *PtrToInt = cast<SCEVPtrToIntExpr>(scev);
       const SCEV *Op = PtrToInt->getOperand();
       //OS << "(trunc " << *Op->getType() << " " << *Op << " to "
       //   << *Trunc->getType() << ")";
-      return mk_scev(scev_op_ptr_to_int, mybitset(), { get_scev(SE, Op, srcdst, word_length) }, pc::start(srcdst));
+      return mk_scev(scev_op_ptr_to_int, mybitset(), { get_scev(SE, Op, srcdst, cur_function_name, word_length) }, pc::start(srcdst));
     }
     case scZeroExtend: {
       const SCEVZeroExtendExpr *ZExt = cast<SCEVZeroExtendExpr>(scev);
       const SCEV *Op = ZExt->getOperand();
       //OS << "(zext " << *Op->getType() << " " << *Op << " to "
       //   << *ZExt->getType() << ")";
-      return mk_scev(scev_op_zeroext, mybitset(), { get_scev(SE, Op, srcdst, word_length) }, pc::start(srcdst));
+      return mk_scev(scev_op_zeroext, mybitset(), { get_scev(SE, Op, srcdst, cur_function_name, word_length) }, pc::start(srcdst));
     }
     case scSignExtend: {
       const SCEVSignExtendExpr *SExt = cast<SCEVSignExtendExpr>(scev);
       const SCEV *Op = SExt->getOperand();
-      return mk_scev(scev_op_signext, mybitset(), { get_scev(SE, Op, srcdst, word_length) }, pc::start(srcdst));
+      return mk_scev(scev_op_signext, mybitset(), { get_scev(SE, Op, srcdst, cur_function_name, word_length) }, pc::start(srcdst));
     }
     case scAddRecExpr: {
       const SCEVAddRecExpr *AR = cast<SCEVAddRecExpr>(scev);
@@ -2995,7 +2995,7 @@ sym_exec_llvm::get_scev(ScalarEvolution& SE, SCEV const* scev, srcdst_t srcdst, 
       vector<scev_ref> scev_args;
       for (unsigned i = 0, e = AR->getNumOperands(); i != e; ++i) {
         //OS << ",+," << *AR->getOperand(i);
-        scev_args.push_back(get_scev(SE, AR->getOperand(i), srcdst, word_length));
+        scev_args.push_back(get_scev(SE, AR->getOperand(i), srcdst, cur_function_name, word_length));
       }
       //OS << "}<";
       scev_overflow_flag_t scev_overflow_flag;
@@ -3014,7 +3014,7 @@ sym_exec_llvm::get_scev(ScalarEvolution& SE, SCEV const* scev, srcdst_t srcdst, 
         //flag_nw = true;
         scev_overflow_flag.add(scev_overflow_flag_t::scev_overflow_flag_nw);
       }
-      pc_ref loop_pc = get_loop_pc(AR->getLoop(), srcdst);
+      pc_ref loop_pc = get_loop_pc(AR->getLoop(), srcdst, cur_function_name);
       return mk_scev(scev_op_addrec, mybitset(), scev_args, loop_pc, scev_overflow_flag);
       //AR->getLoop()->getHeader()->printAsOperand(OS, /*PrintType=*/false);
       //OS << ">";
@@ -3030,7 +3030,7 @@ sym_exec_llvm::get_scev(ScalarEvolution& SE, SCEV const* scev, srcdst_t srcdst, 
       const SCEVNAryExpr *NAry = cast<SCEVNAryExpr>(scev);
       vector<scev_ref> scev_args;
       for (size_t i = 0; i < NAry->getNumOperands(); i++) {
-        scev_ref scev_arg = get_scev(SE, NAry->getOperand(i), srcdst, word_length);
+        scev_ref scev_arg = get_scev(SE, NAry->getOperand(i), srcdst, cur_function_name, word_length);
         scev_args.push_back(scev_arg);
       }
       scev_overflow_flag_t scev_overflow_flag;
@@ -3048,8 +3048,8 @@ sym_exec_llvm::get_scev(ScalarEvolution& SE, SCEV const* scev, srcdst_t srcdst, 
       const SCEVUDivExpr *UDiv = cast<SCEVUDivExpr>(scev);
       //OS << "(" << *UDiv->getLHS() << " /u " << *UDiv->getRHS() << ")";
       vector<scev_ref> scev_args;
-      scev_args.push_back(get_scev(SE, UDiv->getLHS(), srcdst, word_length));
-      scev_args.push_back(get_scev(SE, UDiv->getRHS(), srcdst, word_length));
+      scev_args.push_back(get_scev(SE, UDiv->getLHS(), srcdst, cur_function_name, word_length));
+      scev_args.push_back(get_scev(SE, UDiv->getRHS(), srcdst, cur_function_name, word_length));
 
       return mk_scev(scev_op_udiv, mybitset(), scev_args, pc::start(srcdst));
     }
@@ -3141,37 +3141,37 @@ sym_exec_llvm::get_bounds_from_range(llvm::ConstantRange const& crange, bool is_
 }
 
 scev_with_bounds_t
-sym_exec_llvm::get_scev_with_bounds(ScalarEvolution& SE, SCEV const* scev, srcdst_t srcdst, size_t word_length)
+sym_exec_llvm::get_scev_with_bounds(ScalarEvolution& SE, SCEV const* scev, srcdst_t srcdst, string const& cur_function_name, size_t word_length)
 {
   pair<mybitset, mybitset> unsigned_bounds = get_bounds_from_range(SE.getUnsignedRange(scev), false);
   pair<mybitset, mybitset> signed_bounds = get_bounds_from_range(SE.getSignedRange(scev), true);
-  scev_ref scevr = get_scev(SE, scev, srcdst, word_length);
+  scev_ref scevr = get_scev(SE, scev, srcdst, cur_function_name, word_length);
   return scev_with_bounds_t(scevr, unsigned_bounds.first, unsigned_bounds.second, signed_bounds.first, signed_bounds.second);
 }
 
 pc_ref
-sym_exec_llvm::get_loop_pc(Loop const* L, srcdst_t srcdst)
+sym_exec_llvm::get_loop_pc(Loop const* L, srcdst_t srcdst, string const& cur_function_name)
 {
   if (!L) {
     return pc::start(srcdst);
   }
   BasicBlock* Header = L->getHeader();
   ASSERT(Header);
-  return get_pc_from_bbindex_and_insn_id(srcdst, sym_exec_llvm::get_basicblock_index(*Header), 0, get_line_and_column_num_for_instruction(Header->front()));
+  return get_pc_from_bbindex_and_insn_id(srcdst, cur_function_name, sym_exec_llvm::get_basicblock_index(*Header), 0, get_line_and_column_num_for_instruction(Header->front()));
 }
 
 scev_toplevel_t<pc_ref>
-sym_exec_llvm::get_scev_toplevel(Instruction& I, ScalarEvolution * scev, LoopInfo const* loopinfo, srcdst_t srcdst, size_t word_length)
+sym_exec_llvm::get_scev_toplevel(Instruction& I, ScalarEvolution * scev, LoopInfo const* loopinfo, srcdst_t srcdst, string const& cur_function_name, size_t word_length)
 {
   SCEV const* sv = scev->getSCEV(&I);
   Loop const* L = loopinfo->getLoopFor(I.getParent());
   SCEV const* atuse_sv = scev->getSCEVAtScope(sv, L);
   SCEV const* atexit_sv = L ? scev->getSCEVAtScope(sv, L->getParentLoop()) : nullptr;
 
-  scev_with_bounds_t val_scevb = get_scev_with_bounds(*scev, sv, srcdst, word_length);
-  scev_with_bounds_t atuse_scevb = get_scev_with_bounds(*scev, atuse_sv, srcdst, word_length);
-  pc_ref loop_pc = get_loop_pc(L, srcdst);
-  scev_ref atexit_scev = atexit_sv ? get_scev(*scev, atexit_sv, srcdst, word_length) : nullptr;
+  scev_with_bounds_t val_scevb = get_scev_with_bounds(*scev, sv, srcdst, cur_function_name, word_length);
+  scev_with_bounds_t atuse_scevb = get_scev_with_bounds(*scev, atuse_sv, srcdst, cur_function_name, word_length);
+  pc_ref loop_pc = get_loop_pc(L, srcdst, cur_function_name);
+  scev_ref atexit_scev = atexit_sv ? get_scev(*scev, atexit_sv, srcdst, cur_function_name, word_length) : nullptr;
   return scev_toplevel_t<pc_ref>(val_scevb, atuse_scevb, atexit_scev, loop_pc);
 }
 
@@ -3495,9 +3495,9 @@ sym_exec_llvm::get_tfg(llvm::Function& F, llvm::Module const *M, string const &n
 }
 
 pc_ref
-sym_exec_common::get_pc_from_bbindex_and_insn_id(srcdst_t srcdst, string const &bbindex/*llvm::BasicBlock const &B*/, size_t insn_id, std::optional<pair<unsigned, unsigned>> const& line_and_column_num)
+sym_exec_common::get_pc_from_bbindex_and_insn_id(srcdst_t srcdst, string const& cur_function_name, string const &bbindex/*llvm::BasicBlock const &B*/, size_t insn_id, std::optional<pair<unsigned, unsigned>> const& line_and_column_num)
 {
-  pc_ref ret = pc::mk_pc_llvm(srcdst, pc::insn_label, /*get_basicblock_index(B)*/bbindex.c_str()/*, m_basicblock_idx_map.at(string("%") + bbindex)*/, insn_id + PC_SUBINDEX_FIRST_INSN_IN_BB, PC_SUBSUBINDEX_DEFAULT, line_and_column_num);
+  pc_ref ret = pc::mk_pc_llvm(srcdst, cur_function_name, pc::insn_label, /*get_basicblock_index(B)*/bbindex.c_str()/*, m_basicblock_idx_map.at(string("%") + bbindex)*/, insn_id + PC_SUBINDEX_FIRST_INSN_IN_BB, PC_SUBSUBINDEX_DEFAULT, line_and_column_num);
   return ret;
 }
 
@@ -3734,7 +3734,7 @@ sym_exec_llvm::get_line_and_column_num_for_instruction(Instruction const& I)
 }
 
 void
-sym_exec_llvm::populate_debug_info_for_basic_block(const llvm::BasicBlock& B/*, bool pc_is_start*/, tfg_llvm_t& t) const
+sym_exec_llvm::populate_debug_info_for_basic_block(const llvm::BasicBlock& B, string const& cur_function_name/*, bool pc_is_start*/, tfg_llvm_t& t) const
 {
   string bbindex = get_basicblock_index(B);
   size_t insn_id = 0;
@@ -3751,8 +3751,8 @@ sym_exec_llvm::populate_debug_info_for_basic_block(const llvm::BasicBlock& B/*, 
       /*if (pc_is_start) {
         pc_from_for_dbg_parsing = pc::start(this->get_srcdst());
       } else */{
-        pc_ref pc_from_dbg = get_pc_from_bbindex_and_insn_id(this->get_srcdst(), bbindex, insn_id, get_line_and_column_num_for_instruction(I));
-        pc_from_for_dbg_parsing = pc::mk_pc_llvm(pc_from_dbg->get_srcdst(), pc_from_dbg->get_type(), pc_from_dbg->get_index(), pc_from_dbg->get_subindex(), PC_SUBSUBINDEX_BASIC_BLOCK_ENTRY, get_line_and_column_num_for_instruction(I));
+        pc_ref pc_from_dbg = get_pc_from_bbindex_and_insn_id(this->get_srcdst(), cur_function_name, bbindex, insn_id, get_line_and_column_num_for_instruction(I));
+        pc_from_for_dbg_parsing = pc::mk_pc_llvm(pc_from_dbg->get_srcdst(), cur_function_name, pc_from_dbg->get_type(), pc_from_dbg->get_index(), pc_from_dbg->get_subindex(), PC_SUBSUBINDEX_BASIC_BLOCK_ENTRY, get_line_and_column_num_for_instruction(I));
       }
       this->parse_dbg_declare_intrinsic(I, t, pc_from_for_dbg_parsing);
       continue;
@@ -3762,8 +3762,8 @@ sym_exec_llvm::populate_debug_info_for_basic_block(const llvm::BasicBlock& B/*, 
       /*if (pc_is_start) {
         pc_from_for_dbg_parsing = pc::start(this->get_srcdst());
       } else */{
-        pc_ref pc_from_dbg = get_pc_from_bbindex_and_insn_id(this->get_srcdst(), bbindex, insn_id, get_line_and_column_num_for_instruction(I));
-        pc_from_for_dbg_parsing = pc::mk_pc_llvm(pc_from_dbg->get_srcdst(), pc_from_dbg->get_type(), pc_from_dbg->get_index(), pc_from_dbg->get_subindex(), PC_SUBSUBINDEX_BASIC_BLOCK_ENTRY, get_line_and_column_num_for_instruction(I));
+        pc_ref pc_from_dbg = get_pc_from_bbindex_and_insn_id(this->get_srcdst(), cur_function_name, bbindex, insn_id, get_line_and_column_num_for_instruction(I));
+        pc_from_for_dbg_parsing = pc::mk_pc_llvm(pc_from_dbg->get_srcdst(), cur_function_name, pc_from_dbg->get_type(), pc_from_dbg->get_index(), pc_from_dbg->get_subindex(), PC_SUBSUBINDEX_BASIC_BLOCK_ENTRY, get_line_and_column_num_for_instruction(I));
       }
       this->parse_dbg_value_intrinsic(I, t, pc_from_for_dbg_parsing);
       continue;
@@ -3791,7 +3791,8 @@ sym_exec_llvm::add_edges(const llvm::BasicBlock& B, dshared_ptr<tfg_llvm_t const
   }
 
   //first loop to identify debug information
-  populate_debug_info_for_basic_block(B/*, pc_is_start*/, t);
+  string const cur_function_name = F.getName().str();
+  populate_debug_info_for_basic_block(B, cur_function_name/*, pc_is_start*/, t);
 
   //second loop to construct the tfg edges
   //insn_id = 0;
@@ -3824,7 +3825,7 @@ sym_exec_llvm::add_edges(const llvm::BasicBlock& B, dshared_ptr<tfg_llvm_t const
       continue;
     }
 
-    pc_ref pc_from = get_pc_from_bbindex_and_insn_id(this->get_srcdst(), bbindex, insn_id, get_line_and_column_num_for_instruction(I));
+    pc_ref pc_from = get_pc_from_bbindex_and_insn_id(this->get_srcdst(), cur_function_name, bbindex, insn_id, get_line_and_column_num_for_instruction(I));
     if (!pc_start) {
       pc_start = pc_from;
     }
@@ -3883,7 +3884,7 @@ sym_exec_llvm::add_edges(const llvm::BasicBlock& B, dshared_ptr<tfg_llvm_t const
     }
     insn_id++;
     Instruction const* nextI = get_nth_instruction_in_bb(B, insn_id);
-    pc_ref pc_to = get_pc_from_bbindex_and_insn_id(m_srcdst, bbindex, insn_id, nextI ? get_line_and_column_num_for_instruction(*nextI) : std::nullopt);
+    pc_ref pc_to = get_pc_from_bbindex_and_insn_id(m_srcdst, cur_function_name, bbindex, insn_id, nextI ? get_line_and_column_num_for_instruction(*nextI) : std::nullopt);
 
     exec(state(), I, from_node, B, F, pc_to, src_llvm_tfg, model_llvm_semantics, t/*, value_to_name_map*/, eimap, scev_map/*, xml_output_format*/, nextpc_is_noreturn_map);
   }
@@ -3927,7 +3928,8 @@ sym_exec_common::get_next_intermediate_subsubindex_pc_node(tfg &t, dshared_ptr<t
   //int bblnum = from_node->get_pc().get_bblnum();
   int subindex = from_pc->get_subindex();
   auto const& line_and_column_num = from_pc->pc_llvm_get_line_and_column_num();
-  pc_ref p = pc::mk_pc_llvm(t.get_srcdst(), pc::insn_label, index/*, bblnum*/, subindex, PC_SUBSUBINDEX_DEFAULT, line_and_column_num);
+  string const& cur_function_name = t.get_function_name()->get_str();
+  pc_ref p = pc::mk_pc_llvm(t.get_srcdst(), cur_function_name, pc::insn_label, index/*, bblnum*/, subindex, PC_SUBSUBINDEX_DEFAULT, line_and_column_num);
   DYN_DEBUG3(llvm2tfg, cout << __func__ << " " << __LINE__ << ": p = " << p->pc_to_string() << endl);
   if (m_intermediate_subsubindex_map.count(p) == 0) {
     DYN_DEBUG3(llvm2tfg, cout << __func__ << " " << __LINE__ << ": intermediate_subsubindex_map.count(p) = 0" << endl);
@@ -3936,7 +3938,7 @@ sym_exec_common::get_next_intermediate_subsubindex_pc_node(tfg &t, dshared_ptr<t
     DYN_DEBUG3(llvm2tfg, cout << __func__ << " " << __LINE__ << ": intermediate_subsubindex_map.count(p) = " << m_intermediate_subsubindex_map.at(p) << endl);
     m_intermediate_subsubindex_map[p]++;
   }
-  pc_ref ret = pc::mk_pc_llvm(t.get_srcdst(), pc::insn_label, index/*, bblnum*/, subindex, m_intermediate_subsubindex_map.at(p), line_and_column_num);
+  pc_ref ret = pc::mk_pc_llvm(t.get_srcdst(), cur_function_name, pc::insn_label, index/*, bblnum*/, subindex, m_intermediate_subsubindex_map.at(p), line_and_column_num);
   if (t.find_node(ret) == 0) {
     t.add_node(make_dshared<tfg_node>(ret));
   }
@@ -3944,12 +3946,12 @@ sym_exec_common::get_next_intermediate_subsubindex_pc_node(tfg &t, dshared_ptr<t
 }
 
 void
-sym_exec_common::sync_next_intermediate_subsubindex_map(pc_ref const& in_p)
+sym_exec_common::sync_next_intermediate_subsubindex_map(pc_ref const& in_p, string const& cur_function_name)
 {
   char const *index = in_p->get_index();
   int subindex      = in_p->get_subindex();
   auto const& line_and_column_num = in_p->pc_llvm_get_line_and_column_num();
-  pc_ref p = pc::mk_pc_llvm(in_p->get_srcdst(), pc::insn_label, index, subindex, PC_SUBSUBINDEX_DEFAULT, line_and_column_num);
+  pc_ref p = pc::mk_pc_llvm(in_p->get_srcdst(), cur_function_name, pc::insn_label, index, subindex, PC_SUBSUBINDEX_DEFAULT, line_and_column_num);
   auto itr = m_intermediate_subsubindex_map.find(p);
   if (itr == m_intermediate_subsubindex_map.end()) {
     m_intermediate_subsubindex_map.emplace(p, in_p->get_subsubindex());
@@ -4542,7 +4544,7 @@ sym_exec_llvm::get_nth_instruction_in_bb(BasicBlock const& B, int n)
 pc_ref
 sym_exec_llvm::get_start_pc(srcdst_t srcdst, Function const& f)
 {
-  return get_pc_from_bbindex_and_insn_id(srcdst, get_basicblock_index(*f.begin()), 0, get_line_and_column_num_for_instruction(*get_nth_instruction_in_bb(*f.begin(), 0)));
+  return get_pc_from_bbindex_and_insn_id(srcdst, f.getName().str(), get_basicblock_index(*f.begin()), 0, get_line_and_column_num_for_instruction(*get_nth_instruction_in_bb(*f.begin(), 0)));
 }
 
 //void
@@ -4778,7 +4780,7 @@ sym_exec_llvm::instructionIsPhiNode(llvm::Instruction const &I, BasicBlock const
   if(!phi) {
     return false;
   }
-  populate_debug_info_for_basic_block(B/*, false *//* cannot be start if we are at a phi node*/, t);
+  populate_debug_info_for_basic_block(B, B.getParent()->getName().str()/*, false *//* cannot be start if we are at a phi node*/, t);
   varname = get_value_name(*phi, &t)/*->get_name()->get_str()*/;
   return true;
 }
@@ -4842,7 +4844,7 @@ struct FunctionPassPopulateTfgScev : public FunctionPass {
       for(Instruction& I : B) {
         if (SE.isSCEVable(I.getType()) && !isa<CmpInst>(I)) {
           string iname = sym_exec_llvm::get_value_name_using_srcdst(I, F.getName().str(), t/*nullptr*/, m_srcdst)->get_name()->get_str();
-          scev_toplevel_t<pc_ref> st = sym_exec_llvm::get_scev_toplevel(I, &SE, &LI, m_srcdst, m_word_length);
+          scev_toplevel_t<pc_ref> st = sym_exec_llvm::get_scev_toplevel(I, &SE, &LI, m_srcdst, fname, m_word_length);
           scev_map[fname].insert(make_pair(iname, st));
         }
       }

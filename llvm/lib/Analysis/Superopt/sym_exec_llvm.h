@@ -93,7 +93,7 @@ public:
   //sort_ref get_mem_domain() const;
   //sort_ref get_mem_range() const;
 
-  void populate_debug_info_for_basic_block(const llvm::BasicBlock& B/*, bool pc_is_start*/, tfg_llvm_t& t) const;
+  void populate_debug_info_for_basic_block(const llvm::BasicBlock& B, string const& cur_function_name/*, bool pc_is_start*/, tfg_llvm_t& t) const;
 
   static dshared_ptr<tfg_llvm_t> get_tfg(llvm::Function& F, llvm::Module const *M, string const &name, context *ctx, dshared_ptr<tfg_llvm_t const> src_llvm_tfg, bool model_llvm_semantics/*, map<llvm_value_id_t, expr_var_ref>* value_to_name_map*/, map<shared_ptr<tfg_edge const>, llvm::Instruction const*>& eimap, map<string, value_scev_map_t> const& scev_map, srcdst_t srcdst, dshared_ptr<ll_filename_parsed_t> const& ll_filename_parsed, points_to_algo_t const& points_to_algo/*, context::xml_output_format_t xml_output_format*/, compiler_id_t const dst_compiler, harvest_dwarf_param_info_map_t const* harvest_dwarf_param_info = nullptr);
 
@@ -122,7 +122,7 @@ public:
   static dshared_ptr<ftmap_t> sym_exec_get_function_tfg_map(llvm::Module* M, set<string> FunNamesVec/*, bool DisableModelingOfUninitVarUB*/, context* ctx, dshared_ptr<llptfg_t const> const& src_llptfg, bool gen_scev, bool model_llvm_semantics, bool always_use_call_context_any, string const& ll_filename, points_to_algo_t const& points_to_algo/*, map<llvm_value_id_t, expr_var_ref>* value_to_name_map = nullptr*//*, context::xml_output_format_t xml_output_format = context::XML_OUTPUT_FORMAT_TEXT_NOCOLOR*/, compiler_id_t const dst_compiler = compiler_id_t::clang, harvest_dwarf_param_info_map_t const* harvest_dwarf_param_info = nullptr);
   static map<string, value_scev_map_t> sym_exec_populate_potential_scev_relations(llvm::Module* M, map<call_context_ref, dshared_ptr<tfg_ssa_t>> const& function_tfg_map, bool always_use_call_context_any, srcdst_t srcdst);
 
-  static scev_toplevel_t<pc_ref> get_scev_toplevel(llvm::Instruction& I, llvm::ScalarEvolution * scev, llvm::LoopInfo const* loopinfo, srcdst_t srcdst, size_t word_length);
+  static scev_toplevel_t<pc_ref> get_scev_toplevel(llvm::Instruction& I, llvm::ScalarEvolution * scev, llvm::LoopInfo const* loopinfo, srcdst_t srcdst, std::string const& cur_function_name, size_t word_length);
 private:
   static optional<pair<unsigned, unsigned>> get_line_and_column_num_for_instruction(llvm::Instruction const& I);
   expr_var_ref get_next_undef_varname();
@@ -135,9 +135,9 @@ private:
   static scev_op_t get_scev_op_from_scev_type(llvm::SCEVTypes scevtype);
   static mybitset get_mybitset_from_apint(llvm::APInt const& apint, uint32_t bitwidth, bool is_signed);
   static pair<mybitset, mybitset> get_bounds_from_range(llvm::ConstantRange const& crange, bool is_signed);
-  static pc_ref get_loop_pc(llvm::Loop const* L, srcdst_t srcdst);
-  static scev_with_bounds_t get_scev_with_bounds(llvm::ScalarEvolution& SE, llvm::SCEV const* scev, srcdst_t srcdst, size_t word_length);
-  static scev_ref get_scev(llvm::ScalarEvolution& SE, llvm::SCEV const* scev, srcdst_t srcdst, size_t word_length);
+  static pc_ref get_loop_pc(llvm::Loop const* L, srcdst_t srcdst, std::string const& cur_function_name);
+  static scev_with_bounds_t get_scev_with_bounds(llvm::ScalarEvolution& SE, llvm::SCEV const* scev, srcdst_t srcdst, std::string const& cur_function_name, size_t word_length);
+  static scev_ref get_scev(llvm::ScalarEvolution& SE, llvm::SCEV const* scev, srcdst_t srcdst, std::string const& cur_function_name, size_t word_length);
   //virtual expr_ref phiInstructionGetIncomingBlockValue(llvm::Instruction const &I/*, state const &start_state*/, shared_ptr<tfg_node> &pc_to_phi_node, pc const &pc_to, llvm::BasicBlock const *B_from, llvm::Function const &F, tfg &t) override;
   pair<expr_ref,preds_t> phiInstructionGetIncomingBlockValue(llvm::Instruction const &I, dshared_ptr<tfg_node const> &pc_to_phi_node/*, pc const &pc_to*/, llvm::BasicBlock const *B_from, llvm::Function const &F, bool model_llvm_semantics, tfg &t/*, map<llvm_value_id_t, expr_var_ref>* value_to_name_map*/);
   string functionGetName(llvm::Function const &F) const;

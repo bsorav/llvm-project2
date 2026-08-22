@@ -204,7 +204,7 @@ protected:
   void get_state_template(pc_ref const& p, state& st);
   //expr_ref icmp_to_expr(llvm::ICmpInst::Predicate k, const vector<expr_ref>& args) const;
 
-  static pc_ref get_pc_from_bbindex_and_insn_id(srcdst_t srcdst, string const &bbindex, size_t insn_id, std::optional<pair<unsigned,unsigned>> const& line_and_column_num);
+  static pc_ref get_pc_from_bbindex_and_insn_id(srcdst_t srcdst, string const& cur_function_name, string const &bbindex, size_t insn_id, std::optional<pair<unsigned,unsigned>> const& line_and_column_num);
   //pc get_pc_from_bb_and_insn_id(llvm::BasicBlock const &B, size_t insn_id);
   //vector<control_flow_transfer> expand_switch(tfg &t, shared_ptr<tfg_node> const &from_node, vector<control_flow_transfer> const &cfts, state const &state_to, const llvm::BasicBlock& B, const llvm::Function& F);
 
@@ -212,7 +212,7 @@ protected:
   //void add_edges(const llvm::BasicBlock& B, tfg& t, const llvm::Function& F, map<string, pair<callee_summary_t, tfg *>> &function_tfg_map, set<string> const &function_call_chain);
   //void process_phi_nodes(tfg &t, const llvm::BasicBlock* B_from, const pc& p_to, shared_ptr<tfg_node> const &from_node, const llvm::Function& F, expr_ref edgecond);
   dshared_ptr<tfg_node const> get_next_intermediate_subsubindex_pc_node(tfg &t, dshared_ptr<tfg_node const> const &from_node);
-  void sync_next_intermediate_subsubindex_map(pc_ref const& p);
+  void sync_next_intermediate_subsubindex_map(pc_ref const& p, string const& cur_function_name);
 
   //expr_ref exec_gen_expr_casts(const llvm::CastInst& I, expr_ref arg, pc const &from_pc, tfg &t/*, unordered_set<predicate> &assumes*/);
   //static string getTypeString(llvm::Type *t);
