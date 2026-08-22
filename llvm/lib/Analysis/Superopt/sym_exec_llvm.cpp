@@ -1788,7 +1788,10 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     {
       BasicBlock const& targetBBL = *i->getSuccessor(0);
       Instruction const* targetI = get_nth_instruction_in_bb(targetBBL, 0);
-      control_flow_transfer cft(from_node->get_pc(), get_pc_from_bbindex_and_insn_id(m_srcdst, cur_function_name, get_basicblock_index(targetBBL), 0, targetI ? get_line_and_column_num_for_instruction(*targetI) : std::nullopt), m_ctx->mk_bool_true());
+      ASSERT(targetI);
+      pc_ref to_pc = get_pc_from_bbindex_and_insn_id(m_srcdst, cur_function_name, get_basicblock_index(targetBBL), 0, targetI ? get_line_and_column_num_for_instruction(*targetI) : std::nullopt);
+      DYN_DEBUG3(llvm2tfg, cout << __func__ << " " << __LINE__ << ": to_pc = " << to_pc->pc_to_string() << endl);
+      control_flow_transfer cft(from_node->get_pc(), to_pc, m_ctx->mk_bool_true());
       cfts.push_back(cft);
     }
     else if(i->isConditional())
@@ -1800,12 +1803,18 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
 
       BasicBlock const& targetBBL = *i->getSuccessor(0);
       Instruction const* targetI = get_nth_instruction_in_bb(targetBBL, 0);
-      control_flow_transfer cft1(from_node->get_pc(), get_pc_from_bbindex_and_insn_id(m_srcdst, cur_function_name, get_basicblock_index(*i->getSuccessor(0)), 0, targetI ? get_line_and_column_num_for_instruction(*targetI) : std::nullopt), e, cond_assumes);
+      ASSERT(targetI);
+      pc_ref to_pc = get_pc_from_bbindex_and_insn_id(m_srcdst, cur_function_name, get_basicblock_index(*i->getSuccessor(0)), 0, targetI ? get_line_and_column_num_for_instruction(*targetI) : std::nullopt);
+      DYN_DEBUG3(llvm2tfg, cout << __func__ << " " << __LINE__ << ": to_pc = " << to_pc->pc_to_string() << endl);
+      control_flow_transfer cft1(from_node->get_pc(), to_pc, e, cond_assumes);
       cfts.push_back(cft1);
 
       BasicBlock const& targetBBL2 = *i->getSuccessor(1);
       Instruction const* targetI2 = get_nth_instruction_in_bb(targetBBL2, 0);
-      control_flow_transfer cft2(from_node->get_pc(), get_pc_from_bbindex_and_insn_id(m_srcdst, cur_function_name, get_basicblock_index(targetBBL2), 0, targetI2 ? get_line_and_column_num_for_instruction(*targetI2) : std::nullopt), m_ctx->mk_not(e), cond_assumes);
+      ASSERT(targetI2);
+      pc_ref to_pc2 = get_pc_from_bbindex_and_insn_id(m_srcdst, cur_function_name, get_basicblock_index(targetBBL2), 0, targetI2 ? get_line_and_column_num_for_instruction(*targetI2) : std::nullopt);
+      DYN_DEBUG3(llvm2tfg, cout << __func__ << " " << __LINE__ << ": to_pc2 = " << to_pc2->pc_to_string() << endl);
+      control_flow_transfer cft2(from_node->get_pc(), to_pc2, m_ctx->mk_not(e), cond_assumes);
       cfts.push_back(cft2);
 
       transfer_poison_values(nullptr, e, state_assumes, from_node, model_llvm_semantics, t);
@@ -1849,7 +1858,10 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
       BasicBlock const& targetBBL = *Case.getCaseSuccessor();
       Instruction const* targetI = get_nth_instruction_in_bb(targetBBL, 0);
 
-      control_flow_transfer cft(from_node->get_pc(), get_pc_from_bbindex_and_insn_id(m_srcdst, cur_function_name, get_basicblock_index(targetBBL), 0, targetI ? get_line_and_column_num_for_instruction(*targetI): std::nullopt), cond, CaseAssumes);
+      ASSERT(targetI);
+      pc_ref to_pc = get_pc_from_bbindex_and_insn_id(m_srcdst, cur_function_name, get_basicblock_index(targetBBL), 0, targetI ? get_line_and_column_num_for_instruction(*targetI): std::nullopt);
+      DYN_DEBUG3(llvm2tfg, cout << __func__ << " " << __LINE__ << ": to_pc = " << to_pc->pc_to_string() << endl);
+      control_flow_transfer cft(from_node->get_pc(), to_pc, cond, CaseAssumes);
       cfts.push_back(cft);
       matched_any_cond.push_back(cond);
       //cout << __func__ << " " << __LINE__ << ": cft cond = " << expr_string(cond) << ", src = " << cft.get_from_pc() << ", dest = " << cft.get_to_pc() << endl;
@@ -1866,7 +1878,10 @@ void sym_exec_llvm::exec(const state& state_in, const llvm::Instruction& I, dsha
     BasicBlock const& targetBBL = *SI->getDefaultDest();
     Instruction const* targetI = get_nth_instruction_in_bb(targetBBL, 0);
 
-    control_flow_transfer cft(from_node->get_pc(), get_pc_from_bbindex_and_insn_id(m_srcdst, cur_function_name, get_basicblock_index(targetBBL), 0, targetI ? get_line_and_column_num_for_instruction(*targetI) : std::nullopt), remaining_cond);
+    ASSERT(targetI);
+    pc_ref to_pc = get_pc_from_bbindex_and_insn_id(m_srcdst, cur_function_name, get_basicblock_index(targetBBL), 0, targetI ? get_line_and_column_num_for_instruction(*targetI) : std::nullopt);
+    DYN_DEBUG3(llvm2tfg, cout << __func__ << " " << __LINE__ << ": to_pc = " << to_pc->pc_to_string() << endl);
+    control_flow_transfer cft(from_node->get_pc(), to_pc, remaining_cond);
     cfts.push_back(cft);
     DYN_DEBUG2(llvm2tfg, cout << _FNLN_ << ": before expand_switch, CFTs:\n"; for (auto const& cft : cfts) cout << '\t' << cft << '\n';);
     cfts = expand_switch(t, from_node, cfts, state_out, cond_assumes, te_comment, &I, B, F, eimap);
@@ -3157,7 +3172,9 @@ sym_exec_llvm::get_loop_pc(Loop const* L, srcdst_t srcdst, string const& cur_fun
   }
   BasicBlock* Header = L->getHeader();
   ASSERT(Header);
-  return get_pc_from_bbindex_and_insn_id(srcdst, cur_function_name, sym_exec_llvm::get_basicblock_index(*Header), 0, get_line_and_column_num_for_instruction(Header->front()));
+  pc_ref ret = get_pc_from_bbindex_and_insn_id(srcdst, cur_function_name, sym_exec_llvm::get_basicblock_index(*Header), 0, get_line_and_column_num_for_instruction(Header->front()));
+  DYN_DEBUG3(llvm2tfg, cout << __func__ << " " << __LINE__ << ": ret = " << ret->pc_to_string() << endl);
+  return ret;
 }
 
 scev_toplevel_t<pc_ref>
@@ -3498,6 +3515,7 @@ pc_ref
 sym_exec_common::get_pc_from_bbindex_and_insn_id(srcdst_t srcdst, string const& cur_function_name, string const &bbindex/*llvm::BasicBlock const &B*/, size_t insn_id, std::optional<pair<unsigned, unsigned>> const& line_and_column_num)
 {
   pc_ref ret = pc::mk_pc_llvm(srcdst, cur_function_name, pc::insn_label, /*get_basicblock_index(B)*/bbindex.c_str()/*, m_basicblock_idx_map.at(string("%") + bbindex)*/, insn_id + PC_SUBINDEX_FIRST_INSN_IN_BB, PC_SUBSUBINDEX_DEFAULT, line_and_column_num);
+  DYN_DEBUG3(llvm2tfg, cout << __func__ << " " << __LINE__ << ": ret = " << ret->pc_to_string() << endl);
   return ret;
 }
 
@@ -3716,6 +3734,18 @@ sym_exec_llvm::get_line_and_column_num_for_instruction(Instruction const& I)
   //optional<pair<unsigned, unsigned>> ret = nullopt;
   Instruction const* curI = &I;
   while (curI) {
+    if (   false
+        || isa<PHINode const>(*curI)
+        || (isa<CallInst>(*curI) && cast<CallInst>(*curI).getIntrinsicID() == Intrinsic::dbg_assign)
+        || (isa<CallInst>(*curI) && cast<CallInst>(*curI).getIntrinsicID() == Intrinsic::dbg_label)
+        || (isa<CallInst>(*curI) && cast<CallInst>(*curI).getIntrinsicID() == Intrinsic::dbg_declare)
+        || (isa<CallInst>(*curI) && cast<CallInst>(*curI).getIntrinsicID() == Intrinsic::dbg_value)
+       ) {
+      DYN_DEBUG3(llvm2tfg, errs() << __func__ << " " << __LINE__ << ": I = " << I << ", ignoring curI = " << *curI << "\n");
+      curI = curI->getNextNode();
+      continue;
+    }
+
     DebugLoc const& dl = curI->getDebugLoc();
     DILocation* diloc = dl.get();
     //cout << __func__ << " " << __LINE__ << ": pc_from = " << pc_from.to_string() << ", diloc = " << diloc << endl;
@@ -3734,6 +3764,7 @@ sym_exec_llvm::get_line_and_column_num_for_instruction(Instruction const& I)
     }
     curI = curI->getNextNode();
   }
+  DYN_DEBUG(llvm2tfg, errs() << __func__ << " " << __LINE__ << ": I = " << I << " returning nullopt\n");
   return nullopt;
 }
 
@@ -3756,6 +3787,7 @@ sym_exec_llvm::populate_debug_info_for_basic_block(const llvm::BasicBlock& B, st
         pc_from_for_dbg_parsing = pc::start(this->get_srcdst());
       } else */{
         pc_ref pc_from_dbg = get_pc_from_bbindex_and_insn_id(this->get_srcdst(), cur_function_name, bbindex, insn_id, get_line_and_column_num_for_instruction(I));
+        DYN_DEBUG3(llvm2tfg, cout << __func__ << " " << __LINE__ << ": pc_from_dbg = " << pc_from_dbg->pc_to_string() << endl);
         pc_from_for_dbg_parsing = pc::mk_pc_llvm(pc_from_dbg->get_srcdst(), cur_function_name, pc_from_dbg->get_type(), pc_from_dbg->get_index(), pc_from_dbg->get_subindex(), PC_SUBSUBINDEX_BASIC_BLOCK_ENTRY, get_line_and_column_num_for_instruction(I));
       }
       this->parse_dbg_declare_intrinsic(I, t, pc_from_for_dbg_parsing);
@@ -3768,6 +3800,8 @@ sym_exec_llvm::populate_debug_info_for_basic_block(const llvm::BasicBlock& B, st
       } else */{
         pc_ref pc_from_dbg = get_pc_from_bbindex_and_insn_id(this->get_srcdst(), cur_function_name, bbindex, insn_id, get_line_and_column_num_for_instruction(I));
         pc_from_for_dbg_parsing = pc::mk_pc_llvm(pc_from_dbg->get_srcdst(), cur_function_name, pc_from_dbg->get_type(), pc_from_dbg->get_index(), pc_from_dbg->get_subindex(), PC_SUBSUBINDEX_BASIC_BLOCK_ENTRY, get_line_and_column_num_for_instruction(I));
+        DYN_DEBUG3(llvm2tfg, cout << __func__ << " " << __LINE__ << ": pc_from_dbg = " << pc_from_dbg->pc_to_string() << endl);
+        DYN_DEBUG3(llvm2tfg, cout << __func__ << " " << __LINE__ << ": pc_from_for_dbg_parsing = " << pc_from_for_dbg_parsing->pc_to_string() << endl);
       }
       this->parse_dbg_value_intrinsic(I, t, pc_from_for_dbg_parsing);
       continue;
@@ -3830,6 +3864,7 @@ sym_exec_llvm::add_edges(const llvm::BasicBlock& B, dshared_ptr<tfg_llvm_t const
     }
 
     pc_ref pc_from = get_pc_from_bbindex_and_insn_id(this->get_srcdst(), cur_function_name, bbindex, insn_id, get_line_and_column_num_for_instruction(I));
+    DYN_DEBUG3(llvm2tfg, cout << __func__ << " " << __LINE__ << ": pc_from = " << pc_from->pc_to_string() << endl);
     if (!pc_start) {
       pc_start = pc_from;
     }
@@ -3889,6 +3924,7 @@ sym_exec_llvm::add_edges(const llvm::BasicBlock& B, dshared_ptr<tfg_llvm_t const
     insn_id++;
     Instruction const* nextI = get_nth_instruction_in_bb(B, insn_id);
     pc_ref pc_to = get_pc_from_bbindex_and_insn_id(m_srcdst, cur_function_name, bbindex, insn_id, nextI ? get_line_and_column_num_for_instruction(*nextI) : std::nullopt);
+    DYN_DEBUG3(llvm2tfg, cout << __func__ << " " << __LINE__ << ": pc_to = " << pc_to->pc_to_string() << endl);
 
     exec(state(), I, from_node, B, F, pc_to, src_llvm_tfg, model_llvm_semantics, t/*, value_to_name_map*/, eimap, scev_map/*, xml_output_format*/, nextpc_is_noreturn_map);
   }
@@ -3943,6 +3979,7 @@ sym_exec_common::get_next_intermediate_subsubindex_pc_node(tfg &t, dshared_ptr<t
     m_intermediate_subsubindex_map[p]++;
   }
   pc_ref ret = pc::mk_pc_llvm(t.get_srcdst(), cur_function_name, pc::insn_label, index/*, bblnum*/, subindex, m_intermediate_subsubindex_map.at(p), line_and_column_num);
+  DYN_DEBUG3(llvm2tfg, cout << __func__ << " " << __LINE__ << ": ret = " << ret->pc_to_string() << endl);
   if (t.find_node(ret) == 0) {
     t.add_node(make_dshared<tfg_node>(ret));
   }
@@ -3956,6 +3993,7 @@ sym_exec_common::sync_next_intermediate_subsubindex_map(pc_ref const& in_p, stri
   int subindex      = in_p->get_subindex();
   auto const& line_and_column_num = in_p->pc_llvm_get_line_and_column_num();
   pc_ref p = pc::mk_pc_llvm(in_p->get_srcdst(), cur_function_name, pc::insn_label, index, subindex, PC_SUBSUBINDEX_DEFAULT, line_and_column_num);
+  DYN_DEBUG3(llvm2tfg, cout << __func__ << " " << __LINE__ << ": p = " << p->pc_to_string() << endl);
   auto itr = m_intermediate_subsubindex_map.find(p);
   if (itr == m_intermediate_subsubindex_map.end()) {
     m_intermediate_subsubindex_map.emplace(p, in_p->get_subsubindex());
@@ -4548,7 +4586,9 @@ sym_exec_llvm::get_nth_instruction_in_bb(BasicBlock const& B, int n)
 pc_ref
 sym_exec_llvm::get_start_pc(srcdst_t srcdst, Function const& f)
 {
-  return get_pc_from_bbindex_and_insn_id(srcdst, f.getName().str(), get_basicblock_index(*f.begin()), 0, get_line_and_column_num_for_instruction(*get_nth_instruction_in_bb(*f.begin(), 0)));
+  pc_ref ret = get_pc_from_bbindex_and_insn_id(srcdst, f.getName().str(), get_basicblock_index(*f.begin()), 0, get_line_and_column_num_for_instruction(*get_nth_instruction_in_bb(*f.begin(), 0)));
+  DYN_DEBUG3(llvm2tfg, cout << __func__ << " " << __LINE__ << ": ret = " << ret->pc_to_string() << endl);
+  return ret;
 }
 
 //void
